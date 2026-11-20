@@ -12793,7 +12793,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before writing it.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/game_table_actions.py": 191
+      "cdmw/ui/archive_browser/game_table_actions.py": 195
     }
   },
   {
@@ -21165,7 +21165,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not check what else uses {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 717
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 726
     }
   },
   {
@@ -21309,7 +21309,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 618
+      "cdmw/ui/speed_prefabs/workspace.py": 704
     }
   },
   {
@@ -22173,7 +22173,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to apply: nothing was changed.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 919
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 928
     }
   },
   {
@@ -22189,7 +22189,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing written: you cancelled at the review step.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 922
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 931
     }
   },
   {
@@ -22358,7 +22358,7 @@ MESSAGE_REFERENCE = [
     "message": "Partly read. {head}{where} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{caveat}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 326
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 333
     }
   },
   {
@@ -23143,7 +23143,7 @@ MESSAGE_REFERENCE = [
     "message": "Refused: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 959,
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 968,
       "cdmw/ui/archive_browser/prefab_inspector_structure.py": 130
     }
   },
@@ -23505,7 +23505,7 @@ MESSAGE_REFERENCE = [
     "message": "The action charts could not be read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 251
+      "cdmw/ui/speed_prefabs/workspace.py": 312
     }
   },
   {
@@ -23898,7 +23898,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 776
+      "cdmw/ui/speed_prefabs/workspace.py": 872
     }
   },
   {
@@ -23930,7 +23930,7 @@ MESSAGE_REFERENCE = [
     "message": "This file could not be read as a prefab: {self._error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 275
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 282
     }
   },
   {
@@ -26112,7 +26112,7 @@ MESSAGE_REFERENCE = [
     "message": "{companion.role} ({companion.detail}) is MISSING: nothing at {companion.path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 618
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 627
     }
   },
   {
@@ -34734,7 +34734,7 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 382
+      "cdmw/ui/new_item/game_tables_editor.py": 414
     }
   },
   {
@@ -103556,7 +103556,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#ArchiveCacheStatusChip { color: {theme['text']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 6px; } QLabel#HintLabel[healthState=\"healthy\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 700; } QLabel#HintLabel[healthState=\"building\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 600; } QLabel#HintLabel[healthState=\"missing\"], QLabel#HintLabel[healthState=\"stale\"] { color: {theme['warning_text']}; border-color: {theme['warning_border']}; font-weight: 600; } QLabel#HintLabel[healthState=\"unhealthy\"] { color: {theme['error']}; border-color: {theme['error']}; font-weight: 700; } QCheckBox, QRadioButton { spacing: 8px; } QCheckBox::indicator, QGroupBox::indicator, QRadioButton::indicator { width: 16px; height: 16px; border-radius: 4px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QRadioButton::indicator { border-radius: 10px; } QCheckBox::indicator:checked, QGroupBox::indicator:checked, QRadioButton::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; } QCheckBox::indicator:hover, QGroupBox::indicator:hover, QRadioButton::indicator:hover, QCheckBox::indicator:focus, QGroupBox::indicator:focus, QRadioButton::indicator:focus { border-color: {theme['text_strong']}; } QCheckBox::indicator:disabled, QGroupBox::indicator:disabled, QRadioButton::indicator:disabled { background: {theme['button_disabled']}; border-color: {theme['button_disabled_text']}; } QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled, QRadioButton::indicator:checked:disabled { background: {theme['button_disabled_text']}; } QTreeWidget#ScenePanelTree::indicator { width: 12px; height: 12px; margin: 2px 4px 2px 0px; border-radius: 3px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QTreeWidget#ScenePanelTree::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; } QTreeWidget#ScenePanelTree::indicator:indeterminate { background: {theme['accent_soft']}; border: 2px solid {theme['accent']}; } QTreeWidget#ScenePanelTree::indicator:hover { border-color: {theme['text_strong']}; } QProgressBar { border: 1px solid {theme['border_strong']}; border-radius: 4px; background: {theme['field']}; font-weight: 600; text-align: center; min-height: {metrics['progress_min_h']}px; } QProgressBar::chunk { border-radius: 3px; background: {theme['accent']}; } QLabel#HintLabel { color: {theme['text_muted']}; background: transparent; } {detail} QLabel#ArchivePreviewHealthLabel { color: {theme['text_muted']}; background: transparent; } QLabel#ArchivePreviewHealthLabel[working=\"true\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#ArchivePreviewHealthLabel[attention=\"true\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#WarningBadge { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#ActiveBadge { color: {theme['accent_text']}; background: {theme['accent']}; border: 1px solid {theme['accent']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#WarningText { color: {theme['warning_text']}; background: transparent; } QLabel#WarningLabel { color: {theme['warning_text']}; background: transparent; } QLabel#CompactPathValue { color: {theme['text_strong']}; background: transparent; }",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/themes.py": 634
+      "cdmw/ui/themes.py": 684
     }
   },
   {
@@ -103564,7 +103564,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#MetricChip { color: {theme['text_strong']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 8px; font-weight: 600; } QLabel#MetricChip[chipRole=\"format\"], QLabel#MetricChip[chipRole=\"info\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"ready\"] { color: {theme['accent_text']}; background: {theme['accent']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"warn\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#MetricChip[chipRole=\"block\"] { color: {theme['error']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#ItemFinderIconPreview, QLabel#DDSDetailThumbnail { color: {theme['text_muted']}; background: {theme['preview_bg']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QPlainTextEdit#HkxLineNumbers { color: {theme['text_muted']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; } QFrame#AssignmentSummary { background: {theme['surface_alt']}; border: 1px solid {theme['border']}; border-radius: 6px; } QLabel#AssignmentTitle { color: {theme['accent']}; background: transparent; font-weight: 600; } QLabel#AssignmentWarning { color: {theme['warning_text']}; background: transparent; font-weight: 600; } QFrame#ArchiveSwapBanner { background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; } QLabel#ArchiveSwapBannerLabel { color: {theme['warning_text']}; background: transparent; } QLabel#StatusLabel { color: {theme['text_muted']}; background: transparent; } QLabel#StatusLabel[error=\"true\"] { color: {theme['error']}; } QLabel#PreviewLabel { border: 1px solid {theme['border_strong']}; border-radius: 5px; background: {theme['preview_bg']}; color: {theme['text_muted']}; padding: 8px; } QFrame#MeshEditorDraftChoiceCard { background: {theme['surface']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QFrame#MeshEditorDraftChoiceCard QLabel { background: transparent; border: none; }",
     "recovery": "gpu",
     "sources": {
-      "cdmw/ui/themes.py": 780
+      "cdmw/ui/themes.py": 830
     }
   },
   {

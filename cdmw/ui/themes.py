@@ -449,13 +449,62 @@ def _app_workflow_stylesheet(theme: Dict[str, str], role_text: Dict[str, str]) -
 
 def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> str:
     return f"""
-    QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox, QSpinBox {{
+    QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox, QSpinBox,
+    QAbstractSpinBox[cleanField="true"] {{
         background: {theme["field"]};
         border: 1px solid {theme["border_strong"]};
         border-radius: 4px;
         padding: {metrics["field_pad_y"]}px {metrics["field_pad_x"]}px;
         selection-background-color: {theme["accent"]};
         selection-color: {theme["accent_text"]};
+    }}
+    QAbstractSpinBox[cleanField="true"] {{
+        padding: 2px 8px;
+    }}
+    QAbstractSpinBox[cleanField="true"]::up-button,
+    QAbstractSpinBox[cleanField="true"]::down-button {{
+        width: 0px;
+        border: none;
+    }}
+    QAbstractSpinBox[cleanField="true"][inCell="true"] {{
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 3px;
+        margin: 0px 6px;
+    }}
+    QAbstractSpinBox[cleanField="true"][inCell="true"]:hover {{
+        border: 1px solid {theme["border_strong"]};
+        background: {theme["field"]};
+    }}
+    QAbstractSpinBox[cleanField="true"][inCell="true"]:focus {{
+        border: 1px solid {theme["accent"]};
+        background: {theme["field"]};
+    }}
+    QSlider[cleanSlider="true"]::groove:horizontal {{
+        height: 4px;
+        border-radius: 2px;
+        background: {theme["field"]};
+        border: 1px solid {theme["border_strong"]};
+    }}
+    QSlider[cleanSlider="true"]::sub-page:horizontal {{
+        height: 4px;
+        border-radius: 2px;
+        background: {theme["accent"]};
+    }}
+    QSlider[cleanSlider="true"]::handle:horizontal {{
+        width: 12px;
+        height: 12px;
+        margin: -5px 0px;
+        border-radius: 7px;
+        background: {theme["text_strong"]};
+        border: 1px solid {theme["border_strong"]};
+    }}
+    QSlider[cleanSlider="true"]::handle:horizontal:hover {{
+        background: {theme["accent"]};
+    }}
+    QSlider[cleanSlider="true"]::sub-page:horizontal:disabled,
+    QSlider[cleanSlider="true"]::handle:horizontal:disabled {{
+        background: {theme["button_disabled_text"]};
     }}
     QComboBox {{
         padding-right: 24px;
@@ -510,6 +559,7 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
         padding: {metrics["list_pad_y"]}px {metrics["list_pad_x"]}px;
     }}
     QLineEdit:focus, QPlainTextEdit:focus, QTextBrowser:focus, QComboBox:focus, QSpinBox:focus,
+    QAbstractSpinBox[cleanField="true"]:focus,
     QListWidget:focus,
     QTreeWidget:focus,
     QToolButton#MeshEditorRunValidationReportButton:hover:enabled,

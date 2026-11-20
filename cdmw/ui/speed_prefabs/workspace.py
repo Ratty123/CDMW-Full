@@ -12,9 +12,10 @@ be tested with fakes. Writing speeds into the running game stays in Crimson Live
 
 from __future__ import annotations
 
+from math import log10
 from typing import Callable, Mapping, Optional, Sequence
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QSlider,
     QSplitter,
     QStackedWidget,
     QTableWidget,
@@ -55,16 +57,74 @@ _MOVE_COLUMNS = ("Move", "Kind", "Seconds", "Windows", "Factor")
 
 
 def _spin(name: str, value: float = 1.0) -> QDoubleSpinBox:
+    """A factor field: type a value, or use the wheel or arrow keys; no fiddly arrow buttons."""
+
     box = QDoubleSpinBox()
     box.setObjectName(name)
+    # The theme gives "cleanField" boxes zero-width arrow buttons. NoButtons is not used:
+    # with a style sheet it leaves the text field one pixel wide.
+    box.setProperty("cleanField", True)
+    box.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     box.setRange(MIN_FACTOR, MAX_FACTOR)
     box.setSingleStep(0.1)
     box.setDecimals(2)
     box.setSuffix("x")
     box.setValue(value)
     box.setKeyboardTracking(False)
-    box.setMaximumWidth(120)
+    box.setFixedWidth(76)
+    # The style sheet's padding does not reach the inner text field, so keep the text off the edge here.
+    box.lineEdit().setTextMargins(4, 0, 6, 0)
     return box
+
+
+class _WheelOnlyWhenFocused(QObject):
+    """Scrolling the moves list must not change the factor under the pointer."""
+
+    def eventFilter(self, watched, event):  # noqa: N802 - Qt override
+        if event.type() == QEvent.Type.Wheel and not watched.hasFocus():
+            parent = watched.parentWidget()
+            if parent is not None:
+                # The cell's parent is the table's viewport: scroll the list instead.
+                QCoreApplication.sendEvent(parent, event)
+            return True
+        return False
+
+
+_SLIDER_STEPS = 200
+_LOG_MIN, _LOG_MAX = log10(MIN_FACTOR), log10(MAX_FACTOR)
+
+
+def _slider_position(factor: float) -> int:
+    factor = min(max(float(factor), MIN_FACTOR), MAX_FACTOR)
+    return round((log10(factor) - _LOG_MIN) / (_LOG_MAX - _LOG_MIN) * _SLIDER_STEPS)
+
+
+def _slider_factor(position: int) -> float:
+    return round(10 ** (_LOG_MIN + (_LOG_MAX - _LOG_MIN) * position / _SLIDER_STEPS), 2)
+
+
+def _factor_slider(spin: QDoubleSpinBox) -> QSlider:
+    """A slider tied to a factor field, on a log scale so 0.5x and 2x sit equally far from 1x."""
+
+    slider = QSlider(Qt.Orientation.Horizontal)
+    slider.setObjectName(spin.objectName() + "Slider")
+    slider.setProperty("cleanSlider", True)
+    slider.setRange(0, _SLIDER_STEPS)
+    slider.setMinimumWidth(90)
+    slider.setValue(_slider_position(spin.value()))
+
+    def _from_slider(position: int) -> None:
+        if _slider_position(spin.value()) != position:
+            spin.setValue(_slider_factor(position))
+
+    def _from_spin(value: float) -> None:
+        slider.blockSignals(True)
+        slider.setValue(_slider_position(value))
+        slider.blockSignals(False)
+
+    slider.valueChanged.connect(_from_slider)
+    spin.valueChanged.connect(_from_spin)
+    return slider
 
 
 def _hint(text: str, tooltip: str = "") -> QLabel:
@@ -142,6 +202,7 @@ class SpeedPrefabsWorkspace(QWidget):
         self.prefab_inspector: Optional[QWidget] = None
         self.game_table_panel = game_table_panel
         self.last_plans: tuple[SpeedPlan, ...] = ()
+        self._wheel_guard = _WheelOnlyWhenFocused(self)
         self._review_timer = QTimer(self)
         self._review_timer.setSingleShot(True)
         self._review_timer.setInterval(250)
@@ -295,13 +356,15 @@ class SpeedPrefabsWorkspace(QWidget):
         row.setContentsMargins(8, 8, 8, 8)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(10)
+        splitter.setHandleWidth(8)
+        splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
         row.addWidget(splitter)
 
         left = QGroupBox("Set")
         left.setToolTip("A set is one action chart: the moves of one weapon or stance.")
         left_layout = QVBoxLayout(left)
-        left_layout.setSpacing(6)
+        left_layout.setContentsMargins(12, 10, 12, 10)
+        left_layout.setSpacing(8)
         self.character_combo = QComboBox()
         self.character_combo.setObjectName("speedCharacterCombo")
         self.character_combo.setToolTip("Character")
@@ -350,29 +413,39 @@ class SpeedPrefabsWorkspace(QWidget):
         factors = QGroupBox("Speed factors")
         factors.setToolTip("A kind's factor applies to every move of that kind; a move's own factor wins over it.")
         grid = QGridLayout(factors)
+        grid.setContentsMargins(12, 10, 12, 10)
         grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(6)
+        grid.setVerticalSpacing(8)
+        # Two columns of label, slider and value; the gap column keeps them apart.
         whole = QLabel("Whole set:")
         whole.setToolTip("ActionSpeedRate: scales every move in this set.")
+        whole.setStyleSheet("font-weight: 600;")
         grid.addWidget(whole, 0, 0)
         self.set_factor_spin = _spin("speedSetFactorSpin")
         self.set_factor_spin.setToolTip("ActionSpeedRate: scales every move in this set.")
         self.set_factor_spin.valueChanged.connect(lambda _value: self._changed())
-        grid.addWidget(self.set_factor_spin, 0, 1)
+        grid.addWidget(_factor_slider(self.set_factor_spin), 0, 1)
+        grid.addWidget(self.set_factor_spin, 0, 2)
+        whole_note = _hint("Applies on top of every kind and move below.")
+        grid.addWidget(whole_note, 0, 4, 1, 3)
         self.kind_spins: dict[str, QDoubleSpinBox] = {}
         self.kind_labels: dict[str, QLabel] = {}
-        for number, (kind, label) in enumerate(KIND_LABELS.items(), start=1):
+        self.kind_sliders: dict[str, QSlider] = {}
+        for number, (kind, label) in enumerate(KIND_LABELS.items()):
             text = QLabel(label + ":")
             spin = _spin(f"speedKindFactor_{kind}")
             spin.valueChanged.connect(lambda _value: self._kind_changed())
-            line, column = number // 3, (number % 3) * 3
+            line, column = 1 + number // 2, (number % 2) * 4
             grid.addWidget(text, line, column)
-            grid.addWidget(spin, line, column + 1)
+            slider = _factor_slider(spin)
+            grid.addWidget(slider, line, column + 1)
+            grid.addWidget(spin, line, column + 2)
             self.kind_spins[kind] = spin
+            self.kind_sliders[kind] = slider
             self.kind_labels[kind] = text
-        for spacer in (2, 5):
-            grid.setColumnMinimumWidth(spacer, 18)
-        grid.setColumnStretch(8, 1)
+        grid.setColumnMinimumWidth(3, 24)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(5, 1)
         right_layout.addWidget(factors)
 
         moves = QGroupBox("Moves")
@@ -393,10 +466,10 @@ class SpeedPrefabsWorkspace(QWidget):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         # The factor box keeps one fixed width, so its arrows stay usable however long the names are.
         header.setSectionResizeMode(len(_MOVE_COLUMNS) - 1, QHeaderView.ResizeMode.Fixed)
-        header.resizeSection(len(_MOVE_COLUMNS) - 1, 112)
+        header.resizeSection(len(_MOVE_COLUMNS) - 1, 96)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.move_table.verticalHeader().setVisible(False)
-        self.move_table.verticalHeader().setDefaultSectionSize(30)
+        self.move_table.verticalHeader().setDefaultSectionSize(32)
         self.move_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.move_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.move_table.setWordWrap(False)
@@ -453,14 +526,16 @@ class SpeedPrefabsWorkspace(QWidget):
         row.setContentsMargins(8, 8, 8, 8)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(10)
+        splitter.setHandleWidth(8)
+        splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
         row.addWidget(splitter)
 
         left = QGroupBox("Find prefabs")
         left.setToolTip("Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's "
                         "moves. Prefab speed edits have not been tested in game.")
         layout = QVBoxLayout(left)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         search = QHBoxLayout()
         self.prefab_category_combo = QComboBox()
         self.prefab_category_combo.setObjectName("speedPrefabCategoryCombo")
@@ -520,7 +595,13 @@ class SpeedPrefabsWorkspace(QWidget):
         empty_layout.addWidget(self.prefab_empty_detail)
         empty_layout.addStretch(2)
         self.prefab_host.addWidget(empty)
-        splitter.addWidget(self.prefab_host)
+        # Framed like the list beside it, so both sides line up under one kind of heading.
+        inspector_box = QGroupBox("Prefab Inspector")
+        inspector_box.setObjectName("speedPrefabInspectorBox")
+        inspector_layout = QVBoxLayout(inspector_box)
+        inspector_layout.setContentsMargins(12, 10, 12, 10)
+        inspector_layout.addWidget(self.prefab_host)
+        splitter.addWidget(inspector_box)
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 3)
         splitter.setSizes([460, 700])
@@ -546,8 +627,13 @@ class SpeedPrefabsWorkspace(QWidget):
             button.clicked.connect(lambda _checked=False, name=table: self._open_table(name))
             choose.addWidget(button)
             self.table_buttons[table] = button
-        choose.addStretch(1)
+        choose.addSpacing(8)
+        choose.addWidget(_hint("Change values in existing rows of the game's tables. Their effect in game has not "
+                               "been verified."), 1)
         layout.addLayout(choose)
+        editor = getattr(self.game_table_panel, "editor", None)
+        if editor is not None and hasattr(editor, "intro"):
+            editor.intro.setVisible(False)  # said once, beside the table buttons
         if self.game_table_panel is not None:
             layout.addWidget(self.game_table_panel, 1)
         else:
@@ -647,7 +733,9 @@ class SpeedPrefabsWorkspace(QWidget):
             counts = {kind: count for kind, _label, count in chart.kinds()}
             for kind, spin in self.kind_spins.items():
                 spin.setValue(float(chart.factors.kinds.get(kind, 1.0)))
-                spin.setEnabled(kind in kinds)
+                # A kind this set has no moves of stays visible but greyed, so the grid keeps its shape.
+                for widget in (spin, self.kind_sliders[kind], self.kind_labels[kind]):
+                    widget.setEnabled(kind in kinds)
                 self.kind_labels[kind].setText(f"{KIND_LABELS[kind]} ({counts.get(kind, 0)}):")
             self._move_factors = {clip.lower(): float(value) for clip, value in chart.factors.moves.items()}
             self._fill_moves()
@@ -689,6 +777,14 @@ class SpeedPrefabsWorkspace(QWidget):
                 cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.move_table.setItem(row, column, cell)
             spin = _spin(f"speedMoveFactor_{row}", self._shown_factor(move.clip, move.kind))
+            spin.setProperty("inCell", True)
+            spin.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            spin.lineEdit().setTextMargins(0, 0, 0, 0)
+            spin.setMinimumWidth(0)
+            spin.setMaximumWidth(16777215)
+            spin.setToolTip("Type a factor for this move.")
+            spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            spin.installEventFilter(self._wheel_guard)
             spin.setEnabled(move.windows > 0)
             spin.valueChanged.connect(lambda value, clip=move.clip: self._move_changed(clip, value))
             self.move_table.setCellWidget(row, 4, spin)

@@ -12,7 +12,7 @@ import math
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+    QGroupBox, QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw.core.static_table_records import TableFieldEdit
 from cdmw.services.active_ui_translation import translate_active_ui_text
@@ -126,12 +126,16 @@ class GameTablesEditor(QWidget):
         self._edits: dict[tuple, TableFieldEdit] = {}
         self._labels: dict[tuple, str] = {}
         layout = QVBoxLayout(self)
+        if side_by_side:
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(8)
         intro = QLabel("Change values in existing rows of the game's tables. Their effect in game has not "
                        "been verified.")
         intro.setObjectName("HintLabel")
         intro.setWordWrap(True)
         intro.setToolTip("Only values whose storage is proven on every shipped row are offered.")
         layout.addWidget(intro)
+        self.intro = intro
 
         top = QHBoxLayout()
         self.table_label = QLabel("Table:")
@@ -191,20 +195,48 @@ class GameTablesEditor(QWidget):
         self.remove.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove)
         buttons.addStretch(1)
+        self.pending_layout = None
         if side_by_side:
             # Rows on the left, the selected row's values and this mod's changes on the right,
-            # so a wide tab shows all three without scrolling.
+            # each in its own frame, so a wide tab shows all three without scrolling.
+            for table in (self.rows, self.values, self.pending):
+                table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                table.verticalHeader().setDefaultSectionSize(28)
             splitter = QSplitter(Qt.Orientation.Horizontal)
             splitter.setChildrenCollapsible(False)
-            splitter.addWidget(self.rows)
+            splitter.setHandleWidth(8)
+            splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
+            rows_box = QGroupBox("Rows")
+            rows_layout = QVBoxLayout(rows_box)
+            rows_layout.setContentsMargins(12, 10, 12, 10)
+            rows_layout.setSpacing(8)
+            top.removeWidget(self.search)
+            rows_layout.addWidget(self.search)
+            rows_layout.addWidget(self.rows, 1)
+            self.message = QLabel()
+            self.message.setObjectName("HintLabel")
+            self.message.setWordWrap(True)
+            rows_layout.addWidget(self.message)
+            splitter.addWidget(rows_box)
             right = QWidget()
             column = QVBoxLayout(right)
             column.setContentsMargins(0, 0, 0, 0)
-            column.addWidget(self.values, 3)
-            column.addLayout(edit)
-            column.addWidget(pending_title)
-            column.addWidget(self.pending, 2)
-            column.addLayout(buttons)
+            column.setSpacing(8)
+            values_box = QGroupBox("Values of the selected row")
+            values_layout = QVBoxLayout(values_box)
+            values_layout.setContentsMargins(12, 10, 12, 10)
+            values_layout.setSpacing(8)
+            values_layout.addWidget(self.values, 1)
+            values_layout.addLayout(edit)
+            column.addWidget(values_box, 3)
+            pending_box = QGroupBox("Changes in this mod")
+            self.pending_layout = QVBoxLayout(pending_box)
+            self.pending_layout.setContentsMargins(12, 10, 12, 10)
+            self.pending_layout.setSpacing(8)
+            pending_title.setVisible(False)
+            self.pending_layout.addWidget(self.pending, 1)
+            self.pending_layout.addLayout(buttons)
+            column.addWidget(pending_box, 2)
             splitter.addWidget(right)
             splitter.setStretchFactor(0, 2)
             splitter.setStretchFactor(1, 3)
@@ -218,9 +250,9 @@ class GameTablesEditor(QWidget):
             layout.addWidget(pending_title)
             layout.addWidget(self.pending, 2)
             layout.addLayout(buttons)
-        self.message = QLabel()
-        self.message.setWordWrap(True)
-        layout.addWidget(self.message)
+            self.message = QLabel()
+            self.message.setWordWrap(True)
+            layout.addWidget(self.message)
         self._update_controls()
 
     @staticmethod

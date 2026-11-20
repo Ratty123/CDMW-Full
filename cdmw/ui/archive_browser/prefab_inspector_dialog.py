@@ -219,6 +219,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.intro.setVisible(False)
 
         tabs = QTabWidget(self)
+        if self._embedded:
+            # The host frames this; a second pane border inside it reads as a box in a box.
+            tabs.setDocumentMode(True)
         tabs.addTab(self._build_objects_tab(), "What this prefab contains")
         tabs.addTab(self._build_schema_tab(), "Fields explained")
         layout.addWidget(tabs, 1)
@@ -240,18 +243,22 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             "Build the edited file. You choose where to save the mod package after "
             "closing this window; the game files are never touched."
         )
-        row.addWidget(self.apply_button)
         self.revert_button = QPushButton("Undo all changes")
         self.revert_button.setEnabled(False)
         self.revert_button.clicked.connect(self._revert_changes)
         self.revert_button.setToolTip("Put every row back to the value stored in the file.")
-        row.addWidget(self.revert_button)
         self.browse_button = QPushButton("Swap for another file...")
         self.browse_button.setEnabled(False)
         self.browse_button.clicked.connect(self._browse_for_selected_row)
-        row.addWidget(self.browse_button)
-        row.addStretch(1)
-        if not self._embedded:
+        if self._embedded:
+            # Embedded, the main action sits bottom right like the host tab's other pages.
+            row.addStretch(1)
+            for button in (self.browse_button, self.revert_button, self.apply_button):
+                row.addWidget(button)
+        else:
+            for button in (self.apply_button, self.revert_button, self.browse_button):
+                row.addWidget(button)
+            row.addStretch(1)
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
             buttons.rejected.connect(self.reject)
             row.addWidget(buttons)
@@ -378,6 +385,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
     def _build_objects_tab(self) -> QWidget:
         page = QWidget()
         box = QVBoxLayout(page)
+        if self._embedded:
+            box.setContentsMargins(0, 8, 0, 0)
         # Wrapped, or the sentence sets the dialog's minimum width: an unwrapped
         # QLabel demands its whole line, and this one grew past 1,000px when the
         # row-menu note was added -- which silently made the window unshrinkable

@@ -80,7 +80,8 @@ def test_the_tab_is_marked_experimental_and_fills_from_a_set(qt_app):
     assert "included by this set" in dialog.linked_label.text() and dialog.linked_checkbox.isChecked()
     assert dialog.linked_paths() == (LINKED,)
     assert not dialog.export_button.isEnabled()  # nothing changed yet
-    assert dialog.move_table.horizontalHeader().sectionSize(4) == 112
+    assert dialog.move_table.horizontalHeader().sectionSize(4) == 96
+    assert not dialog.kind_sliders["jump"].isEnabled() and dialog.kind_sliders["attack"].isEnabled()
     for widget in (dialog.set_factor_spin, dialog.move_table, dialog.export_button, dialog.prefab_table):
         assert widget.objectName()
 
@@ -254,3 +255,36 @@ def test_opening_speed_tuning_shows_the_tab_and_reads_the_charts_once(qt_app):
 
     empty = Browser(root="")
     assert empty.create_speed_workspace().load_failed
+
+
+def test_factor_sliders_follow_their_fields_on_a_log_scale(qt_app):
+    from PySide6.QtWidgets import QSlider
+
+    dialog, _calls = _dialog()
+    dialog.select_set(PATH)
+    slider = dialog.kind_sliders["attack"]
+    spin = dialog.kind_spins["attack"]
+    middle = slider.value()  # 1x
+    spin.setValue(2.0)
+    up = slider.value() - middle
+    spin.setValue(0.5)
+    assert abs((middle - slider.value()) - up) <= 1  # 2x and 0.5x sit equally far from 1x
+    slider.setValue(slider.maximum())
+    assert spin.value() == 5.0 and dialog.factors().kinds == {"attack": 5.0}
+    whole = dialog.findChild(QSlider, "speedSetFactorSpinSlider")
+    whole.setValue(whole.minimum())
+    assert dialog.set_factor_spin.value() == 0.1
+
+
+def test_scrolling_over_a_move_factor_scrolls_the_list_not_the_value(qt_app):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+
+    dialog, _calls = _dialog()
+    dialog.select_set(PATH)
+    spin = dialog.move_table.cellWidget(0, 4)
+    event = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120), Qt.MouseButton.NoButton,
+                        Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    QApplication.sendEvent(spin, event)
+    assert spin.value() == 1.0

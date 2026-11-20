@@ -63,7 +63,11 @@ class GameTableEditPanel(QWidget):
         self.write.setToolTip("Write the changed tables into a new mod folder in DMM's mods folder. "
                               "The game archives are not changed.")
         row.addWidget(self.write)
-        layout.addLayout(row)
+        if self.editor.pending_layout is not None:
+            # Side by side, the mod name and Write button close the "Changes in this mod" frame.
+            self.editor.pending_layout.addLayout(row)
+        else:
+            layout.addLayout(row)
         self.layers: dict[str, list] = {}
         self.editor.edits_changed.connect(self._update_write)
         self._update_write()
