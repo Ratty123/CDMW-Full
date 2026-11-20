@@ -57,3 +57,34 @@ def test_machine_translation_uses_the_selected_line_and_the_page_worker(panel, t
     assert "1 line(s) translated" in client.ok("translation.review")["translation"]
     saved = parse_paloc(next(iter(tab.mod_files().values())))
     assert saved.entries[original["entry"]].text == translated
+
+
+def test_machine_translation_takes_several_rows(panel, tmp_path, monkeypatch):
+    from tools.translation_studio import ai_panel
+    from tools.translation_studio.ai_job import BatchResult, JobSummary
+    from tools.translation_studio.ai_provider import ProviderConfig
+
+    tab, _game_field, settings = panel
+    source = tmp_path / "localizationstring_eng.paloc"
+    source.write_bytes(ENGLISH)
+    client = RailClient(tmp_path, widgets={"translation_studio": tab}, settings=settings)
+    client.ok("translation.edit", action="open", path=str(source))
+    wait_for(lambda: tab.model.catalogue is not None and tab._thread is None)
+    rows = client.ok("translation.review")["rows"][:2]
+    if len(rows) < 2:
+        import pytest
+        pytest.skip("the fixture table has one line")
+    seen = []
+
+    def translate(*, brief, lines, on_result, on_progress, **_):
+        seen.append(len(lines))
+        on_result(BatchResult(1, 1, {row["entry"]: f"Rad {row['entry']}" for row in rows}))
+        on_progress(1, 1)
+        return JobSummary(batches=1, lines=len(lines), translated=len(lines))
+
+    monkeypatch.setattr(ai_panel, "load_config", lambda: ProviderConfig(model="owned-fixture", api_key="fixture"))
+    monkeypatch.setattr(ai_panel, "run_job", translate)
+    client.ok("translation.edit", action="translate", rows=[row["row"] for row in rows], target_language="Swedish")
+    wait_for(lambda: tab._mcp_translation_dialog._thread is None and not tab._mcp_translation_dialog.isVisible())
+    assert seen == [2]
+    assert all(tab.model.catalogue.text_at(row["entry"]) == f"Rad {row['entry']}" for row in rows)

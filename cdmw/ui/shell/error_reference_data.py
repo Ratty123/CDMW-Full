@@ -82195,7 +82195,7 @@ MESSAGE_REFERENCE = [
     "message": "No AI translation is running.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/translation_tools.py": 111
+      "cdmw/mcp/translation_tools.py": 119
     }
   },
   {
@@ -86469,6 +86469,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The translate dialog offers no '{scope}' lines for this view.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/translation_tools.py": 100
+    }
+  },
+  {
+    "area": "other",
     "message": "The translation table changed while replacements were prepared.",
     "recovery": "internal",
     "sources": {
@@ -87939,7 +87947,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the translation pass to finish, or stop it first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/translation_tools.py": 114
+      "cdmw/mcp/translation_tools.py": 122
     }
   },
   {
@@ -87947,7 +87955,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the translation pass to finish.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/translation_tools.py": 160
+      "cdmw/mcp/translation_tools.py": 184
     }
   },
   {
@@ -107251,7 +107259,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {error}",
     "recovery": "write",
     "sources": {
-      "tools/translation_studio/tab.py": 977
+      "tools/translation_studio/tab.py": 978
     }
   },
   {
@@ -107299,7 +107307,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to export: no lines have been changed.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 967
+      "tools/translation_studio/tab.py": 968
     }
   },
   {
@@ -107307,7 +107315,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to translate: no lines are in view.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 935
+      "tools/translation_studio/tab.py": 936
     }
   },
   {
@@ -110083,8 +110091,8 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/mcp/translation_tools.py": {
-    "code": 2,
-    "raise": 7
+    "code": 3,
+    "raise": 9
   },
   "cdmw/mcp/transport.py": {
     "diagnostic_field": 1,
