@@ -41,7 +41,7 @@ def _chart(path=PATH, factors=SpeedFactors(), mod="", served=""):
 
 
 def _dialog(**kwargs):
-    calls = SimpleNamespace(plans=[], exports=[], opened=[], searches=[], prefabs=[])
+    calls = SimpleNamespace(plans=[], exports=[], opened=[], searches=[], prefabs=[], batches=[], mods=[])
     characters = (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"), SpeedSet(SECOND, "Dagger"))),
                   SpeedCharacter("Damiane", (SpeedSet(SECOND, "Dagger"),)))
 
@@ -49,13 +49,17 @@ def _dialog(**kwargs):
         calls.plans.append((path, factors, tuple(linked)))
         return (plan_speed_edits(chart_bytes(), path, SpeedFactors(factors.set, factors.kinds,
                                                                    {k: v for k, v in factors.moves.items()
-                                                                    if k in CLIPS})),)
+                                                                    if k in CLIPS},
+                                                                   factors.named, factors.named_factor)),)
 
     options = dict(
         load_set=kwargs.pop("load_set", lambda path: _chart(path)),
         plan=plan,
         linked_of=lambda path: ((LINKED, True), ("actionchart/bin__/other.paac", False)),
         export=lambda path, factors, linked: calls.exports.append((path, factors, tuple(linked))),
+        export_sets=lambda paths, factors: calls.batches.append((tuple(paths), factors)),
+        open_mod=lambda summary=None: calls.mods.append(summary or "open"),
+        close_mod=lambda: calls.mods.append("close"),
         open_chart=calls.opened.append,
         prefab_search=calls.searches.append,
         open_prefab=calls.prefabs.append,
@@ -514,3 +518,235 @@ def test_scrolling_over_a_move_factor_scrolls_the_list_not_the_value(qt_app):
                         Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
     QApplication.sendEvent(spin, event)
     assert spin.value() == 1.0
+
+
+# --- Moves named, all listed sets, starting points and the open mod -------------------------
+
+
+def test_moves_named_pick_moves_by_name_and_show_in_the_factor_column(qt_app):
+    dialog, calls = _dialog()
+    dialog.select_set(PATH)
+    assert dialog.named_label.text() == "Moves named:"
+    dialog.kind_spins["attack"].setValue(2.0)
+    dialog.named_edit.setText("Attack_01, idle")
+    dialog.named_spin.setValue(0.5)
+    assert dialog.named_label.text() == "Moves named (2):"
+    values = [dialog.move_table.cellWidget(row, 4).value() for row in range(3)]
+    assert values == [2.0, 0.5, 0.5]  # the first attack keeps its kind's factor
+    factors = dialog.factors()
+    assert factors.named == ("attack_01", "idle") and factors.named_factor == 0.5 and factors.moves == {}
+    dialog.move_table.cellWidget(1, 4).setValue(0.5)  # typing what the move gets anyway is no factor of its own
+    assert dialog.factors().moves == {}
+    dialog.move_table.cellWidget(1, 4).setValue(3.0)
+    assert dialog.factors().moves == {"1_pc/1_phm/cd_phm_sword_attack_01.paa": 3.0}
+    dialog.refresh_review()
+    assert "Moves named" in dialog.review_text.toPlainText() or calls.plans[-1][1].named == ("attack_01", "idle")
+
+    dialog.named_edit.setText("at")  # too short: said in the Review, as other factors that cannot be applied
+    dialog.refresh_review()
+    assert "cannot be applied" in dialog.review_text.toPlainText()
+
+    again = SpeedFactors(kinds={"attack": 1.5}, named=("idle",), named_factor=2.0)
+    dialog.apply_factors(again)
+    assert dialog.factors() == again and dialog.named_edit.text() == "idle"
+    dialog.reset_factors()
+    assert dialog.named_edit.text() == "" and dialog.named_spin.value() == 1.0 and dialog.factors().is_identity
+
+
+def test_all_listed_sets_keeps_the_factors_and_exports_what_the_list_shows(qt_app):
+    dialog, calls = _dialog()
+    dialog.select_set(PATH)
+    assert dialog.scope() == "set" and dialog.scope_combo.itemText(1) == "All 2 listed sets of Kliff"
+    dialog.set_factor_spin.setValue(1.5)
+    dialog.kind_spins["attack"].setValue(2.0)
+    assert dialog.set_scope("listed") and dialog.scope() == "listed"
+    assert dialog.set_factor_spin.value() == 1.0 and not dialog.set_factor_spin.isEnabled()
+    assert dialog.whole_note_label.text() == "Works on one set at a time."
+    assert dialog.kind_spins["jump"].isEnabled()  # another listed set may have jumps
+    assert not dialog.linked_checkbox.isEnabled() and dialog.linked_paths() == ()
+    assert dialog.select_set(SECOND)
+    assert dialog.kind_spins["attack"].value() == 2.0  # picking another set keeps the factors
+    dialog.refresh_review()
+    assert dialog.review_text.toPlainText().startswith("These factors go to all 2 listed sets of Kliff.")
+    state = dialog.state()
+    assert state["scope"] == "listed" and state["scope_sets"] == [PATH, SECOND]
+
+    dialog.set_filter_edit.setText("dagger")
+    assert dialog.scope_combo.itemText(1) == "All 1 listed sets of Kliff"
+    dialog.export_button.click()
+    assert calls.batches == [((SECOND,), dialog.factors())] and not calls.exports
+    dialog.set_filter_edit.setText("no such set")
+    assert not dialog.export_button.isEnabled() and dialog.export_button.toolTip() == "No set is listed."
+    dialog.set_filter_edit.setText("")
+
+    dialog.show_batch_progress(6, 23, SECOND)
+    assert dialog.review_text.toPlainText() == "Checking set 7 of 23…" and not dialog.export_button.isEnabled()
+    dialog.end_batch()
+    assert dialog.export_button.isEnabled() and "listed sets" in dialog.review_text.toPlainText()
+
+    assert dialog.set_scope("set")
+    assert dialog.set_factor_spin.isEnabled() and not dialog.kind_spins["jump"].isEnabled()
+    assert dialog.linked_checkbox.isEnabled() and dialog.linked_checkbox.isChecked()
+    assert dialog.whole_note_label.text().startswith("Applies on top")
+
+    plain, _calls = _dialog(export_sets=None)  # without an owner that can write many sets, one set at a time
+    assert not plain.scope_combo.isEnabled() and not plain.set_scope("listed")
+
+
+def test_start_from_puts_a_starting_point_into_the_sliders(qt_app):
+    dialog, calls = _dialog()
+    dialog.select_set(PATH)
+    dialog.kind_spins["idle"].setValue(0.8)
+    combo = dialog.start_combo
+    assert combo.itemText(0) == "Start from…" and combo.findData("close_mod") < 0
+    position = combo.findData("preset:faster_attacks")
+    combo.setCurrentIndex(position)
+    dialog._start_chosen(position)
+    assert combo.currentIndex() == 0  # it shows its caption again
+    assert dialog.factors().kinds == {"attack": 1.25, "idle": 0.8}  # the other factors stay
+    assert dialog.choose_start("preset:slow_finishers")
+    assert dialog.factors().named == ("att_finish_link", "execute_lk", "takedown") and dialog.named_spin.value() == 0.5
+    assert dialog.choose_start("open_mod") and calls.mods == ["open"]
+    assert not dialog.choose_start("close_mod")  # no mod is open
+    assert [item["key"] for item in dialog.state()["presets"]][0] == "faster_attacks"
+
+
+def test_an_open_mod_marks_its_sets_and_reads_the_open_set_again(qt_app):
+    loads = []
+
+    def load(path):
+        loads.append(path)
+        return _chart(path, SpeedFactors(kinds={"attack": 2.0}) if len(loads) > 1 else SpeedFactors(),
+                      mod="Fast Kliff" if len(loads) > 1 else "")
+
+    dialog, calls = _dialog(load_set=load)
+    dialog.select_set(PATH)
+    assert loads == [PATH] and not dialog.mod_label.isVisibleTo(dialog)
+    dialog.set_mod("Fast Kliff", {PATH: "attacks x2"}, folder="C:/mods/Fast Kliff", derived=True)
+    assert loads == [PATH, PATH] and dialog.kind_spins["attack"].value() == 2.0
+    assert dialog.mod_label.text().startswith("Mod: Fast Kliff, 1 chart(s)") and "rounded" in dialog.mod_label.text()
+    assert dialog.set_list.item(0).font().bold() and not dialog.set_list.item(1).font().bold()
+    assert "In the mod Fast Kliff: attacks x2" in dialog.set_list.item(0).toolTip()
+    state = dialog.state()
+    assert state["mod_title"] == "Fast Kliff" and state["mod_folder"] == "C:/mods/Fast Kliff"
+    assert state["mod_charts"] == [PATH]
+    assert dialog.start_combo.itemText(dialog.start_combo.findData("close_mod")) == "Close the mod Fast Kliff"
+    assert dialog.choose_start("close_mod") and calls.mods == ["close"]
+    dialog.set_mod("", {}, reload=False)  # after an export: the marks change, the controls stay
+    assert len(loads) == 2 and not dialog.set_list.item(0).font().bold() and dialog.state()["mod_title"] == ""
+    assert dialog.start_combo.findData("close_mod") < 0
+
+
+def test_the_question_before_a_many_set_export_counts_every_outcome():
+    from cdmw.services.animation_speed_service import SpeedProfileOutcome, SpeedProfilePlan
+    from cdmw.ui.archive_browser.speed_tuning_actions import profile_summary, speed_export_message
+    from cdmw.services.animation_speed_service import SpeedExportResult
+
+    changed = plan_speed_edits(chart_bytes(), PATH, SpeedFactors(kinds={"attack": 2.0}))
+    plan = SpeedProfilePlan((changed,), (SECOND,), ((LINKED, "It is not in the game archives."),))
+    outcome = SpeedProfileOutcome((PATH,), (SECOND,), plan.left_out, ())
+    text, details = profile_summary(plan, outcome, ((PATH, "Other Mod"),), "Fast Kliff")
+    assert text.splitlines() == [
+        "1 set(s) change (1 speed values).", "No change in 1 set(s).", "Left out: 1.",
+        "Already served by another mounted DMM mod: 1.",
+        "Taken out of the mod because these factors change nothing there: 1.", "", "Write the mod Fast Kliff?"]
+    assert f"{PATH}: 1 value(s) (Attacks 1)" in details and f"{SECOND}: taken out of the mod" in details
+    assert f"{LINKED}: left out. It is not in the game archives." in details
+
+    nothing, _details = profile_summary(SpeedProfilePlan((), (PATH,), ()), SpeedProfileOutcome((), (), (), ()), (), "X")
+    assert nothing.startswith("These factors change no speed value") and "Write the mod" not in nothing
+
+    message = speed_export_message(SpeedExportResult(None, "Fast", (), 0, left_out=plan.left_out), False)
+    assert "Nothing was written" in message and "Left out:" in message
+
+
+def _ready_browser(qt_app, monkeypatch, tmp_path, *paths):
+    """A browser whose tab holds ``paths`` as Kliff's sets, with the export dialog answered."""
+
+    from cdmw.ui.archive_browser import speed_tuning_actions as actions
+
+    browser = _browser()
+    workspace = browser.create_speed_workspace()
+    browser.shell.speed_prefabs_tab = workspace
+    entries = {path: SimpleNamespace(path=path) for path in paths}
+    index = SimpleNamespace(entry_for_path=lambda path: entries.get(path), root=None)
+    monkeypatch.setattr(actions, "_read", lambda entry: chart_bytes())
+    monkeypatch.setattr(actions, "linked_sets", lambda *args, **kwargs: ())
+    browser.shell.tasks[0]["on_complete"](actions.PreparedSpeedTuning(
+        index, (SpeedCharacter("Kliff", tuple(SpeedSet(path, path.rsplit("/", 1)[-1]) for path in paths)),)))
+    plan = actions._Plan(tmp_path, False, "Fast Kliff", "", "1.0", "")
+    browser._ask_speed_export = lambda dialog, holder: holder.__setitem__("plan", plan) or plan
+    boxes = []
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: boxes.append(self.text()) or QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: boxes.append("warning: " + str(args[2])))
+    monkeypatch.setattr(QMessageBox, "information", lambda *args: boxes.append("done: " + str(args[2])))
+    return browser, workspace, boxes
+
+
+def test_exporting_all_listed_sets_checks_them_asks_and_writes_once(qt_app, monkeypatch, tmp_path):
+    from cdmw.services.animation_speed_service import SpeedExportResult
+    from cdmw.ui.archive_browser import speed_tuning_actions as actions
+
+    browser, workspace, boxes = _ready_browser(qt_app, monkeypatch, tmp_path, PATH, SECOND)
+    tasks = browser.shell.tasks
+    workspace.kind_spins["attack"].setValue(2.0)
+    workspace.set_scope("listed")
+    workspace.export_button.click()
+    assert tasks[-1]["status_message"] == "Checking the listed sets..." and tasks[-1]["task_accepts_cancel"]
+    assert workspace.state()["checking_sets"] and not workspace.export_button.isEnabled()
+    checked = tasks[-1]["task"](lambda _text: None, None)
+    assert [item.path for item in checked.plan.plans] == [PATH, SECOND]
+    count = len(tasks)
+    tasks[-1]["on_complete"](checked)
+    assert boxes[-1].startswith("2 set(s) change") and "Write the mod Fast Kliff?" in boxes[-1]
+    assert len(tasks) == count + 1 and tasks[-1]["status_message"] == "Writing the Speed Tuning mod Fast Kliff..."
+    written = []
+    monkeypatch.setattr(actions, "export_speed_profile",
+                        lambda *args, **kwargs: written.append((args[2], kwargs["plan"])) or SpeedExportResult(
+                            None, "Fast Kliff", (), 0))
+    result = tasks[-1]["task"](lambda _text: None, None)
+    assert written == [((PATH, SECOND), checked.plan)]  # the plan the user said yes to, not a second check
+    tasks[-1]["on_complete"](result)
+    assert boxes[-1].startswith("done: Nothing was written") and not workspace.state()["checking_sets"]
+
+    workspace.export_button.click()  # a failure is shown, and the page is usable again
+    tasks[-1]["on_error"]("Checking the sets was cancelled.")
+    assert boxes[-1] == "warning: Checking the sets was cancelled." and workspace.export_button.isEnabled()
+
+
+def test_a_one_set_export_waits_its_turn_and_reports_a_failure(qt_app, monkeypatch, tmp_path):
+    browser, workspace, boxes = _ready_browser(qt_app, monkeypatch, tmp_path, PATH)
+    shell = browser.shell
+    workspace.kind_spins["attack"].setValue(2.0)
+    shell.worker_thread = object()  # another task runs
+    count = len(shell.tasks)
+    workspace.export_button.click()
+    qt_app.processEvents()
+    assert len(shell.tasks) == count
+    shell.worker_thread = None
+    _wait(qt_app, lambda: len(shell.tasks) == count + 1)
+    assert shell.tasks[-1]["status_message"] == "Writing the Speed Tuning mod Fast Kliff..."
+    shell.tasks[-1]["on_error"]("The disk is full.")
+    assert boxes[-1] == "warning: The disk is full." and shell.status[-1] == (
+        "Speed Tuning export failed: The disk is full.", True)
+
+
+def test_a_speed_mod_is_read_on_a_worker_and_closed_again(qt_app, monkeypatch, tmp_path):
+    from cdmw.services.animation_speed_service import SpeedModSummary
+
+    browser, workspace, boxes = _ready_browser(qt_app, monkeypatch, tmp_path, PATH)
+    shell = browser.shell
+    holder = browser._speed_holder
+    browser._open_speed_mod(workspace, holder, tmp_path / "Fast Kliff")
+    assert shell.tasks[-1]["status_message"] == "Reading the speed mod..."
+    shell.tasks[-1]["on_complete"](SpeedModSummary(tmp_path / "Fast Kliff", "Fast Kliff", "Me", "1.2",
+                                                    {PATH: "attacks x2"}, {PATH: None}, None, False))
+    assert holder["mod_folder"] == tmp_path / "Fast Kliff" and holder["plan"].title == "Fast Kliff"
+    assert workspace.state()["mod_title"] == "Fast Kliff" and workspace.set_list.item(0).font().bold()
+    assert workspace.choose_start("close_mod")
+    assert "mod_folder" not in holder and workspace.state()["mod_title"] == ""
+    browser._open_speed_mod(workspace, holder, tmp_path / "missing")
+    shell.tasks[-1]["on_error"]("missing is not an action chart mod CDMW wrote.")
+    assert boxes[-1] == "warning: missing is not an action chart mod CDMW wrote."

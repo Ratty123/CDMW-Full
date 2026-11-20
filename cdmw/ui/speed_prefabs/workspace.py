@@ -16,6 +16,7 @@ from math import log10
 from typing import Callable, Mapping, Optional, Sequence
 
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -47,10 +48,15 @@ from cdmw.services.animation_speed_service import (
     KIND_LABELS,
     MAX_FACTOR,
     MIN_FACTOR,
+    NAMED_LABEL,
+    SPEED_PRESETS,
     SpeedChart,
     SpeedCharacter,
     SpeedFactors,
     SpeedPlan,
+    named_match,
+    named_texts,
+    speed_preset,
 )
 
 TOOL_TITLE = "Speed & Prefabs"
@@ -185,6 +191,9 @@ class SpeedPrefabsWorkspace(QWidget):
         plan: Callable[[str, SpeedFactors, Sequence[str]], Sequence[SpeedPlan]],
         linked_of: Optional[Callable[[str], Sequence[tuple[str, bool]]]] = None,
         export: Optional[Callable[[str, SpeedFactors, Sequence[str]], None]] = None,
+        export_sets: Optional[Callable[[Sequence[str], SpeedFactors], None]] = None,
+        open_mod: Optional[Callable[[Optional[object]], None]] = None,
+        close_mod: Optional[Callable[[], None]] = None,
         open_chart: Optional[Callable[[str], None]] = None,
         prefab_search: Optional[Callable[[str], None]] = None,
         open_prefab: Optional[Callable[[str], None]] = None,
@@ -203,6 +212,13 @@ class SpeedPrefabsWorkspace(QWidget):
         self._plan = plan
         self._linked_of = linked_of
         self._export = export
+        self._export_sets = export_sets
+        self._open_mod = open_mod
+        self._close_mod = close_mod
+        self._mod_title = ""
+        self._mod_folder = ""
+        self._mod_charts: dict[str, str] = {}
+        self._batch = False
         self._open_chart = open_chart
         self._prefab_search = prefab_search
         self._open_prefab = open_prefab
@@ -386,6 +402,9 @@ class SpeedPrefabsWorkspace(QWidget):
         self._linked = ()
         self._move_factors = {}
         self.last_plans = ()
+        self._batch = False
+        self.scope_combo.setCurrentIndex(0)
+        self.set_mod("", {}, reload=False)
         self.set_characters(())
         self.set_title_label.setText("Choose a set.")
         self.set_path_label.setText("")
@@ -433,6 +452,10 @@ class SpeedPrefabsWorkspace(QWidget):
         self.set_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.set_list.currentItemChanged.connect(lambda _current, _previous: self._open_selected_set())
         left_layout.addWidget(self.set_list, 1)
+        self.mod_label = _hint("")
+        self.mod_label.setObjectName("speedModLabel")
+        self.mod_label.setVisible(False)
+        left_layout.addWidget(self.mod_label)
         left.setMinimumWidth(240)
         splitter.addWidget(left)
 
@@ -476,10 +499,11 @@ class SpeedPrefabsWorkspace(QWidget):
         self.set_factor_spin = _spin("speedSetFactorSpin")
         self.set_factor_spin.setToolTip("ActionSpeedRate: scales every move in this set.")
         self.set_factor_spin.valueChanged.connect(lambda _value: self._changed())
-        grid.addWidget(_factor_slider(self.set_factor_spin), 0, 1)
+        self.set_factor_slider = _factor_slider(self.set_factor_spin)
+        grid.addWidget(self.set_factor_slider, 0, 1)
         grid.addWidget(self.set_factor_spin, 0, 2)
-        whole_note = _hint("Applies on top of every kind and move below.")
-        grid.addWidget(whole_note, 0, 4, 1, 3)
+        self.whole_note_label = _hint("Applies on top of every kind and move below.")
+        grid.addWidget(self.whole_note_label, 0, 4, 1, 3)
         self.kind_spins: dict[str, QDoubleSpinBox] = {}
         self.kind_labels: dict[str, QLabel] = {}
         self.kind_sliders: dict[str, QSlider] = {}
@@ -495,6 +519,27 @@ class SpeedPrefabsWorkspace(QWidget):
             self.kind_spins[kind] = spin
             self.kind_sliders[kind] = slider
             self.kind_labels[kind] = text
+        # The user's own kind: moves picked by parts of their names, in this set and in every listed set.
+        line = 1 + (len(KIND_LABELS) + 1) // 2
+        named_tip = ("Type parts of move names, separated by commas. Every move whose name contains one of them "
+                     "gets this factor. A move's own factor wins, then this, then its kind. Moves without speed "
+                     "windows do not change.")
+        self.named_label = QLabel(NAMED_LABEL + ":")
+        self.named_label.setObjectName("speedNamedLabel")
+        self.named_label.setToolTip(named_tip)
+        grid.addWidget(self.named_label, line, 0)
+        self.named_edit = QLineEdit()
+        self.named_edit.setObjectName("speedNamedEdit")
+        self.named_edit.setPlaceholderText("part of a move name, such as finish, takedown")
+        self.named_edit.setClearButtonEnabled(True)
+        self.named_edit.setToolTip(named_tip)
+        self.named_edit.textChanged.connect(lambda _text: self._kind_changed())
+        grid.addWidget(self.named_edit, line, 1, 1, 4)
+        self.named_spin = _spin("speedNamedFactorSpin")
+        self.named_spin.valueChanged.connect(lambda _value: self._kind_changed())
+        self.named_slider = _factor_slider(self.named_spin)
+        grid.addWidget(self.named_slider, line, 5)
+        grid.addWidget(self.named_spin, line, 6)
         grid.setColumnMinimumWidth(3, 24)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(5, 1)
@@ -563,9 +608,29 @@ class SpeedPrefabsWorkspace(QWidget):
         self.export_button.setObjectName("speedExportButton")
         self.export_button.setProperty("primaryAction", True)
         self.export_button.clicked.connect(self._export_clicked)
+        self.start_combo = QComboBox()
+        self.start_combo.setObjectName("speedStartCombo")
+        self.start_combo.setToolTip("Starting points put factors into the sliders and leave the others as they are; "
+                                    "the numbers are not tested in game. A speed mod you made shows that mod's "
+                                    "factors, so you can change them and export again.")
+        self.start_combo.activated.connect(self._start_chosen)
+        self._fill_start_combo()
+        self.scope_label = QLabel("Apply to:")
+        self.scope_combo = QComboBox()
+        self.scope_combo.setObjectName("speedScopeCombo")
+        self.scope_combo.setToolTip("All listed sets: every set shown in the list on the left gets these factors "
+                                    "in one mod. Narrow the list with Search sets first.")
+        self.scope_combo.addItem("This set", "set")
+        self.scope_combo.addItem("All listed sets", "listed")
+        self.scope_combo.setEnabled(self._export_sets is not None)
+        self.scope_combo.currentIndexChanged.connect(lambda _index: self._scope_changed())
         buttons.addWidget(self.reset_button)
+        buttons.addWidget(self.start_combo)
         buttons.addStretch(1)
         buttons.addWidget(self.open_chart_button)
+        buttons.addSpacing(8)
+        buttons.addWidget(self.scope_label)
+        buttons.addWidget(self.scope_combo)
         buttons.addWidget(self.export_button)
         right_layout.addLayout(buttons)
         splitter.addWidget(right)
@@ -729,10 +794,22 @@ class SpeedPrefabsWorkspace(QWidget):
         for item in (character.sets if character else ()):
             row = QListWidgetItem(item.label)
             row.setData(_PATH_ROLE, item.path)
-            row.setToolTip(item.path)
             self.set_list.addItem(row)
         self.set_list.blockSignals(False)
+        self._mark_mod_sets()
         self._filter_sets()
+
+    def _mark_mod_sets(self) -> None:
+        """The sets the open mod holds are bold, with what the mod does to them in the tooltip."""
+
+        for number in range(self.set_list.count()):
+            item = self.set_list.item(number)
+            path = str(item.data(_PATH_ROLE))
+            line = self._mod_charts.get(path.lower())
+            font = QFont(self.set_list.font())
+            font.setBold(line is not None)
+            item.setFont(font)
+            item.setToolTip(path if line is None else f"{path}\nIn the mod {self._mod_title}: {line}")
 
     def _filter_sets(self) -> None:
         text = self.set_filter_edit.text().strip().lower()
@@ -740,6 +817,65 @@ class SpeedPrefabsWorkspace(QWidget):
             item = self.set_list.item(number)
             shown = not text or text in item.text().lower() or text in str(item.data(_PATH_ROLE)).lower()
             item.setHidden(not shown)
+        self._refresh_scope_text()
+
+    def listed_sets(self) -> tuple[str, ...]:
+        """The paths of the sets the list shows now: what "All listed sets" stands for."""
+
+        return tuple(str(self.set_list.item(number).data(_PATH_ROLE)) for number in range(self.set_list.count())
+                     if not self.set_list.item(number).isHidden())
+
+    def scope(self) -> str:
+        """"listed" while the factors go to every listed set, else "set"."""
+
+        return "listed" if self._export_sets is not None and self.scope_combo.currentData() == "listed" else "set"
+
+    def set_scope(self, scope: str) -> bool:
+        position = self.scope_combo.findData(scope)
+        if position < 0 or (scope == "listed" and self._export_sets is None):
+            return False
+        self.scope_combo.setCurrentIndex(position)
+        return True
+
+    def _refresh_scope_text(self) -> None:
+        if not hasattr(self, "scope_combo"):
+            return
+        character = self._current_character()
+        count = len(self.listed_sets())
+        self.scope_combo.setItemText(1, f"All {count} listed sets of {character.name}" if character
+                                     else "All listed sets")
+        if self.scope() == "listed":
+            self._changed()
+
+    def _scope_changed(self) -> None:
+        listed = self.scope() == "listed"
+        self._filling = True
+        try:
+            if listed:
+                self.set_factor_spin.setValue(1.0)  # one set at a time: see WHOLE_SET_ONE_AT_A_TIME
+                self.linked_checkbox.setChecked(False)
+            else:
+                self.linked_checkbox.setChecked(any(inside for _path, inside in self._linked))
+        finally:
+            self._filling = False
+        self._apply_scope()
+        self._changed()
+
+    def _apply_scope(self) -> None:
+        """Which controls the scope leaves usable: no whole-set factor on many sets, every kind for them."""
+
+        listed = self.scope() == "listed"
+        self.set_factor_spin.setEnabled(not listed)
+        self.set_factor_slider.setEnabled(not listed)
+        self.whole_note_label.setText("Works on one set at a time." if listed
+                                      else "Applies on top of every kind and move below.")
+        kinds = {kind for kind, _label, _count in self._chart.kinds()} if self._chart is not None else set()
+        for kind, spin in self.kind_spins.items():
+            # A kind this set has no moves of stays visible but greyed, so the grid keeps its shape.
+            for widget in (spin, self.kind_sliders[kind], self.kind_labels[kind]):
+                widget.setEnabled(listed or kind in kinds)
+        # The listed sets are the selection: what the list shows is what changes.
+        self.linked_checkbox.setEnabled(not listed and bool(self._linked))
 
     @property
     def pending_set(self) -> str:
@@ -799,21 +935,24 @@ class SpeedPrefabsWorkspace(QWidget):
                 f"The mounted DMM mod {chart.served_by} already serves this chart. A mod exported here competes "
                 "with it in DMM's load order." if chart.served_by else "")
             self.served_label.setVisible(bool(chart.served_by))
-            self.set_factor_spin.setValue(float(chart.factors.set))
-            kinds = {kind for kind, _label, _count in chart.kinds()}
+            listed = self.scope() == "listed"
             counts = {kind: count for kind, _label, count in chart.kinds()}
-            for kind, spin in self.kind_spins.items():
-                spin.setValue(float(chart.factors.kinds.get(kind, 1.0)))
-                # A kind this set has no moves of stays visible but greyed, so the grid keeps its shape.
-                for widget in (spin, self.kind_sliders[kind], self.kind_labels[kind]):
-                    widget.setEnabled(kind in kinds)
+            for kind in self.kind_spins:
                 self.kind_labels[kind].setText(f"{KIND_LABELS[kind]} ({counts.get(kind, 0)}):")
-            self._move_factors = {clip.lower(): float(value) for clip, value in chart.factors.moves.items()}
+            if not listed:
+                # With "All listed sets" the factors belong to the whole list, so they stay as they are.
+                self.set_factor_spin.setValue(float(chart.factors.set))
+                for kind, spin in self.kind_spins.items():
+                    spin.setValue(float(chart.factors.kinds.get(kind, 1.0)))
+                self.named_edit.setText(", ".join(chart.factors.named))
+                self.named_spin.setValue(float(chart.factors.named_factor))
+                self._move_factors = {clip.lower(): float(value) for clip, value in chart.factors.moves.items()}
             self._fill_moves()
+            self._refresh_named_label()
             included = [path for path, inside in self._linked if inside]
             others = [path for path, inside in self._linked if not inside]
-            self.linked_checkbox.setEnabled(bool(self._linked))
-            self.linked_checkbox.setChecked(bool(included))
+            self.linked_checkbox.setChecked(bool(included) and not listed)
+            self._apply_scope()
             if self._linked:
                 if included:
                     self.linked_label.setText(f"{len(self._linked)} other chart(s) play some of these clips, "
@@ -862,8 +1001,27 @@ class SpeedPrefabsWorkspace(QWidget):
             self.move_table.setCellWidget(row, 4, spin)
         self._filter_moves()
 
+    def _named(self) -> tuple[str, ...]:
+        return named_texts(self.named_edit.text().split(","))
+
+    def _base_factor(self, clip: str, kind: str) -> float:
+        """What a move gets without a factor of its own: Moves named when its name matches, else its kind's."""
+
+        texts = self._named()
+        if texts and named_match(clip, texts):
+            return float(self.named_spin.value())
+        return float(self.kind_spins[kind].value())
+
     def _shown_factor(self, clip: str, kind: str) -> float:
-        return self._move_factors.get(clip.lower(), float(self.kind_spins[kind].value()))
+        return self._move_factors.get(clip.lower(), self._base_factor(clip, kind))
+
+    def _refresh_named_label(self) -> None:
+        texts = self._named()
+        if texts and self._chart is not None:
+            count = sum(1 for move in self._chart.moves if named_match(move.clip, texts))
+            self.named_label.setText(f"{NAMED_LABEL} ({count}):")
+        else:
+            self.named_label.setText(NAMED_LABEL + ":")
 
     def _filter_moves(self) -> None:
         text = self.move_filter_edit.text().strip().lower()
@@ -879,14 +1037,20 @@ class SpeedPrefabsWorkspace(QWidget):
         if self._filling or self._chart is None:
             return
         kind = next((move.kind for move in self._chart.moves if move.clip == clip), "other")
-        if abs(float(value) - float(self.kind_spins[kind].value())) < 1e-6:
+        if abs(float(value) - self._base_factor(clip, kind)) < 1e-6:
             self._move_factors.pop(clip.lower(), None)
         else:
             self._move_factors[clip.lower()] = float(value)
         self._changed()
 
     def _kind_changed(self) -> None:
-        if self._filling or self._chart is None:
+        """A kind's or the Moves named factor (or its texts) changed: the moves show what they now get."""
+
+        if self._filling:
+            return
+        self._refresh_named_label()
+        if self._chart is None:
+            self._changed()
             return
         self._filling = True
         try:
@@ -905,7 +1069,8 @@ class SpeedPrefabsWorkspace(QWidget):
         kinds = {kind: round(float(spin.value()), 2) for kind, spin in self.kind_spins.items()
                  if abs(spin.value() - 1.0) > 1e-6}
         moves = {clips.get(key, key): round(value, 2) for key, value in self._move_factors.items()}
-        return SpeedFactors(round(float(self.set_factor_spin.value()), 2), kinds, moves)
+        return SpeedFactors(round(float(self.set_factor_spin.value()), 2), kinds, moves,
+                            self._named(), round(float(self.named_spin.value()), 2))
 
     def linked_paths(self) -> tuple[str, ...]:
         if not self.linked_checkbox.isChecked():
@@ -920,16 +1085,93 @@ class SpeedPrefabsWorkspace(QWidget):
 
         self._filling = True
         try:
-            self.set_factor_spin.setValue(float(factors.set))
+            self.set_factor_spin.setValue(1.0 if self.scope() == "listed" else float(factors.set))
             for kind, spin in self.kind_spins.items():
                 spin.setValue(float(factors.kinds.get(kind, 1.0)))
+            self.named_edit.setText(", ".join(factors.named))
+            self.named_spin.setValue(float(factors.named_factor))
             self._move_factors = {clip.lower(): float(value) for clip, value in factors.moves.items()}
             self._fill_moves()
+            self._refresh_named_label()
             if linked is not None and self.linked_checkbox.isEnabled():
                 self.linked_checkbox.setChecked(bool(linked))
         finally:
             self._filling = False
         self._changed()
+
+    def apply_preset(self, key: str) -> None:
+        """Put a starting point's factors into the controls; the factors it does not name stay."""
+
+        preset = speed_preset(key)
+        now = self.factors()
+        named = (preset.named, preset.named_factor) if preset.named else (now.named, now.named_factor)
+        self.apply_factors(SpeedFactors(now.set, {**now.kinds, **preset.kinds}, now.moves, *named))
+
+    # --- starting points and the open mod -------------------------------------------------
+
+    def _fill_start_combo(self) -> None:
+        combo = self.start_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Start from…", "")
+        for preset in SPEED_PRESETS:
+            combo.addItem(preset.label, f"preset:{preset.key}")
+        if self._open_mod is not None:
+            combo.insertSeparator(combo.count())
+            combo.addItem("A speed mod you made…", "open_mod")
+            if self._mod_title and self._close_mod is not None:
+                combo.addItem(f"Close the mod {self._mod_title}", "close_mod")
+        combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+
+    def _start_chosen(self, index: int) -> None:
+        choice = str(self.start_combo.itemData(index) or "")
+        self.start_combo.setCurrentIndex(0)  # a pick-and-apply list: it always shows its caption
+        self.choose_start(choice)
+
+    def choose_start(self, choice: str) -> bool:
+        """Act as the Start from list does: "preset:<key>", "open_mod" or "close_mod"."""
+
+        if choice.startswith("preset:"):
+            self.apply_preset(choice.partition(":")[2])
+        elif choice == "open_mod" and self._open_mod is not None:
+            self._open_mod(None)  # the owner asks for the mod's folder
+        elif choice == "close_mod" and self._close_mod is not None and self._mod_title:
+            self._close_mod()
+        else:
+            return False
+        return True
+
+    def open_mod(self, summary: object) -> bool:
+        """Show a speed mod the caller already read (a SpeedModSummary); False without an owner for it."""
+
+        if self._open_mod is None:
+            return False
+        self._open_mod(summary)
+        return True
+
+    def set_mod(self, title: str, charts: Mapping[str, str], *, folder: str = "", derived: bool = False,
+                reload: bool = True) -> None:
+        """Show which speed mod is open (an empty title closes it) and mark the sets it holds.
+
+        ``charts`` maps a chart path to one line on what the mod does to it. With ``reload`` the
+        selected set is read again, so its controls show the mod's factors (or the game's speeds
+        once the mod is closed).
+        """
+
+        self._mod_title = str(title or "")
+        self._mod_folder = str(folder or "") if self._mod_title else ""
+        self._mod_charts = {str(path).lower(): str(line) for path, line in charts.items()} if self._mod_title else {}
+        if self._mod_title:
+            text = f"Mod: {self._mod_title}, {len(self._mod_charts)} chart(s)"
+            if derived:
+                text += ". Some factors are worked out from the chart values and may be rounded."
+            self.mod_label.setText(text)
+        self.mod_label.setVisible(bool(self._mod_title))
+        self._fill_start_combo()
+        self._mark_mod_sets()
+        if reload and self.set_list.currentItem() is not None:
+            self._open_selected_set()
 
     def move_clips(self) -> tuple[str, ...]:
         return tuple(move.clip for move in (self._chart.moves if self._chart else ()))
@@ -942,17 +1184,39 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def refresh_review(self) -> None:
         self._review_timer.stop()
+        if self._batch:
+            return  # the Review shows the check of the listed sets until it ends
         if self._chart is None:
             self.review_text.setPlainText("")
             self.last_plans = ()
             return
+        listed = self.scope() == "listed"
+        head = ""
+        if listed:
+            character = self._current_character()
+            head = (f"These factors go to all {len(self.listed_sets())} listed sets of "
+                    f"{character.name if character else ''}. The other sets are checked when you export.\n")
         try:
             self.last_plans = tuple(self._plan(self._chart.path, self.factors(), self.linked_paths()))
-            self.review_text.setPlainText(plan_summary(self.last_plans))
+            self.review_text.setPlainText(head + plan_summary(self.last_plans))
         except Exception as exc:  # noqa: BLE001 - shown to the user
             self.last_plans = ()
             self.review_text.setPlainText(f"These factors cannot be applied: {exc}")
         self._sync_buttons()
+
+    def show_batch_progress(self, done: int, total: int, path: str = "") -> None:
+        """How far the owner's check of the listed sets got; the Review shows it until end_batch."""
+
+        self._batch = True
+        self.review_text.setPlainText(f"Checking set {min(int(done) + 1, int(total))} of {int(total)}…"
+                                      if total > 0 else "Checking the listed sets…")
+        self._sync_buttons()
+
+    def end_batch(self) -> None:
+        """The check or the export of the listed sets ended: the Review shows the open set again."""
+
+        self._batch = False
+        self.refresh_review()
 
     @property
     def has_changes(self) -> bool:
@@ -960,11 +1224,19 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def _sync_buttons(self) -> None:
         chart_open = self._chart is not None
-        # A set back at 1x everywhere can still be exported when it came from a mod: that takes it out.
-        self.export_button.setEnabled(chart_open and self._export is not None
-                                      and (self.has_changes or bool(self._chart and self._chart.mod)))
-        self.export_button.setToolTip("" if self.export_button.isEnabled()
-                                      else "Set a factor other than 1x first.")
+        if self.scope() == "listed":
+            listed = bool(self.listed_sets())
+            self.export_button.setEnabled(listed and self.has_changes and not self._batch)
+            self.export_button.setToolTip("" if self.export_button.isEnabled()
+                                          else "The listed sets are being checked." if self._batch
+                                          else "No set is listed." if not listed
+                                          else "Set a factor other than 1x first.")
+        else:
+            # A set back at 1x everywhere can still be exported when it came from a mod: that takes it out.
+            self.export_button.setEnabled(chart_open and self._export is not None and not self._batch
+                                          and (self.has_changes or bool(self._chart and self._chart.mod)))
+            self.export_button.setToolTip("" if self.export_button.isEnabled()
+                                          else "Set a factor other than 1x first.")
         self.reset_button.setEnabled(chart_open)
         self.open_chart_button.setEnabled(chart_open and self._open_chart is not None)
         if hasattr(self, "prefab_search_button"):
@@ -976,7 +1248,11 @@ class SpeedPrefabsWorkspace(QWidget):
                 else "The first search reads every prefab and takes a few minutes; later searches are quick.")
 
     def _export_clicked(self) -> None:
-        if self._chart is not None and self._export is not None:
+        if self.scope() == "listed":
+            paths = self.listed_sets()
+            if paths and self._export_sets is not None:
+                self._export_sets(paths, self.factors())
+        elif self._chart is not None and self._export is not None:
             self.refresh_review()
             self._export(self._chart.path, self.factors(), self.linked_paths())
 
@@ -1152,6 +1428,14 @@ class SpeedPrefabsWorkspace(QWidget):
             "set_label": chart.label if chart is not None else "",
             "factors": self.factors().to_data() if chart is not None else None,
             "linked": list(self.linked_paths()),
+            "scope": self.scope(),
+            "scope_sets": list(self.listed_sets()) if self.scope() == "listed" else [],
+            "set_filter": self.set_filter_edit.text(),
+            "presets": [{"key": preset.key, "label": preset.label} for preset in SPEED_PRESETS],
+            "mod_title": self._mod_title,
+            "mod_folder": self._mod_folder,
+            "mod_charts": sorted(self._mod_charts),
+            "checking_sets": self._batch,
             "can_export": self.export_button.isEnabled(),
             "review": self.review_text.toPlainText(),
             "prefab_category": self.prefab_category(),

@@ -12,10 +12,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Callable, Optional, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from shiboken6 import isValid
 
 from cdmw.core.action_chart_binary import ActionChartError
@@ -26,11 +26,19 @@ from cdmw.services.animation_speed_service import (
     SpeedCharacter,
     SpeedExportResult,
     SpeedFactors,
+    SpeedModSummary,
+    SpeedProfileOutcome,
+    SpeedProfilePlan,
     export_speed_mod,
+    export_speed_profile,
     linked_sets,
     list_characters,
+    plan_speed_profile,
     plan_speed_set,
     read_speed_set,
+    served_by,
+    speed_mod_summary,
+    speed_profile_outcome,
 )
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.ui.archive_browser.shell_idle import run_task_when_shell_idle
@@ -47,6 +55,8 @@ def _read(entry: ArchiveEntry) -> bytes:
 class PreparedSpeedTuning:
     index: ChartArchiveIndex
     characters: tuple[SpeedCharacter, ...]
+    #: chart -> the charts it includes, when the scan could be read (for the AI tools).
+    includes: Optional[Mapping[str, Sequence[str]]] = None
 
 
 def prepare_speed_tuning(root: str, log: Callable[[str], None] = lambda _text: None) -> PreparedSpeedTuning:
@@ -62,7 +72,7 @@ def prepare_speed_tuning(root: str, log: Callable[[str], None] = lambda _text: N
     characters = list_characters(index, _read, includes=includes)
     if not characters:
         raise ActionChartError("No character action charts were found in the game archives.")
-    return PreparedSpeedTuning(index, characters)
+    return PreparedSpeedTuning(index, characters, includes)
 
 
 TOOL_KEY = "speed_prefabs"
@@ -109,6 +119,7 @@ class ArchiveSpeedTuningActionsMixin:
         state: dict[str, object] = {}
         self._speed_state = state
         holder: dict[str, object] = {}
+        self._speed_holder = holder
 
         def index() -> ChartArchiveIndex:
             found = state.get("index")
@@ -133,6 +144,10 @@ class ArchiveSpeedTuningActionsMixin:
             linked_of=_linked,
             export=lambda path, factors, linked: self._export_speed_tuning(workspace, index(), path, factors,
                                                                            linked, holder),
+            export_sets=lambda paths, factors: self._export_speed_sets(workspace, index(), paths, factors, holder),
+            open_mod=lambda summary=None: (self._choose_speed_mod(workspace, holder) if summary is None
+                                           else self._use_speed_mod(workspace, holder, summary)),
+            close_mod=lambda: self._close_speed_mod(workspace, holder),
             open_chart=self._open_action_chart_editor,
             prefab_search=lambda category: self._search_speed_prefabs(workspace, index(), category),
             open_prefab=lambda path: self._open_speed_prefab(workspace, index(), path),
@@ -156,6 +171,9 @@ class ArchiveSpeedTuningActionsMixin:
         root = self._action_chart_root()
         if root and root != state.get("root"):
             if state.get("index") is not None:
+                holder = getattr(self, "_speed_holder", None)
+                if holder is not None:
+                    holder.pop("mod_folder", None)  # the open mod belongs to the other folder's sets
                 workspace.clear_sets()  # sets and prefabs of the other game folder
             self._load_speed_workspace(workspace)
 
@@ -221,11 +239,11 @@ class ArchiveSpeedTuningActionsMixin:
             show_archive_progress=True,
         )
 
-    def _export_speed_tuning(self, dialog, index: ChartArchiveIndex, path: str, factors: SpeedFactors,
-                             linked: Sequence[str], holder: dict) -> None:
+    def _ask_speed_export(self, dialog, holder: dict) -> Optional["_Plan"]:
+        """The export dialog and the folder choice; None when the user cancels or the name is taken."""
+
         from cdmw.ui.archive_browser.action_chart_export_dialog import SEND_TO_DMM, ActionChartExportDialog
 
-        label = PurePosixPath(path).name.removesuffix(".paac")
         previous = holder.get("plan")
         details = ActionChartExportDialog(
             title=getattr(previous, "title", "") or "Speed Tuning",
@@ -237,40 +255,216 @@ class ArchiveSpeedTuningActionsMixin:
         details.keep_checkbox.setToolTip("Sets exported under one mod name collect in one mod; "
                                          "a set at 1x everywhere leaves it.")
         if not details.exec() or not details.choice:
-            return
+            return None
         parent = self._choose_action_chart_mod_parent(details.choice, dialog)
         if parent is None:
-            return
+            return None
         try:
             mod_destination(parent, details.mod_title)
         except ActionChartError as exc:
             QMessageBox.warning(dialog, "Export Speed Tuning Mod (Experimental)", str(exc))
-            return
+            return None
         plan = _Plan(parent, details.choice == SEND_TO_DMM, details.mod_title, details.mod_author,
                      details.mod_version, details.mod_description)
         holder["plan"] = plan
+        return plan
 
-        def _task(log: Callable[[str], None]) -> SpeedExportResult:
+    def _speed_export_done(self, workspace, holder: dict, plan: "_Plan", result: SpeedExportResult) -> None:
+        """Say what an export wrote and mark the mod's sets in the list."""
+
+        holder["mod_folder"] = result.folder
+        if not isValid(workspace):
+            return
+        if result.folder is not None:
+            try:
+                self._show_speed_mod(workspace, speed_mod_summary(result.folder, result.charts), reload=False)
+            except (ActionChartError, OSError, ValueError):
+                pass  # the marks are a help; the export itself is done
+        else:
+            workspace.set_mod("", {}, reload=False)
+        QMessageBox.information(workspace, "Speed Tuning Mod", speed_export_message(result, plan.sent))
+        self.shell.set_status_message(f"Speed Tuning: wrote {result.folder or 'nothing'}")
+
+    def _export_speed_tuning(self, dialog, index: ChartArchiveIndex, path: str, factors: SpeedFactors,
+                             linked: Sequence[str], holder: dict) -> None:
+        plan = self._ask_speed_export(dialog, holder)
+        if plan is None:
+            return
+        label = PurePosixPath(path).name.removesuffix(".paac")
+
+        def _task(log: Callable[[str], None], stop=None) -> SpeedExportResult:
             log(f"Speed Tuning (experimental): {path} ({label})")
             return export_speed_mod(index, _read, path, factors, parent=plan.parent, title=plan.title,
                                     author=plan.author, version=plan.version, description=plan.description,
-                                    linked=linked, on_log=log)
+                                    linked=linked, on_log=log, stop_event=stop)
+
+        def _failed(message: str) -> None:
+            self.shell.set_status_message(f"Speed Tuning export failed: {message}", error=True)
+            if isValid(dialog):
+                QMessageBox.warning(dialog, "Export Speed Tuning Mod (Experimental)", str(message))
 
         def _done(result: object) -> None:
             if not isinstance(result, SpeedExportResult):
-                self.shell.set_status_message(f"Speed Tuning export failed: {result!r}", error=True)
+                _failed(repr(result))
                 return
-            if result.folder is not None:
-                holder["mod_folder"] = result.folder
-            QMessageBox.information(dialog, "Speed Tuning Mod", speed_export_message(result, plan.sent))
-            self.shell.set_status_message(f"Speed Tuning: wrote {result.folder or 'nothing'}")
+            self._speed_export_done(dialog, holder, plan, result)
 
-        self.shell._run_utility_task_when_idle(
+        run_task_when_shell_idle(
+            self.shell, dialog,
             status_message=f"Writing the Speed Tuning mod {plan.title}...",
             task=_task,
             on_complete=_done,
+            on_error=_failed,
+            show_archive_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    def _export_speed_sets(self, workspace, index: ChartArchiveIndex, paths: Sequence[str], factors: SpeedFactors,
+                           holder: dict) -> None:
+        """One mod for every listed set: check them all on a worker, ask, then write once."""
+
+        plan = self._ask_speed_export(workspace, holder)
+        if plan is None:
+            return
+        paths = tuple(paths)
+        title = "Export Speed Tuning Mod (Experimental)"
+        relay = _ProgressRelay(self)
+        relay.progress.connect(lambda done, total, text: isValid(workspace)
+                               and workspace.show_batch_progress(done, total, text))
+
+        def _ended() -> None:
+            relay.deleteLater()
+            if isValid(workspace):
+                workspace.end_batch()
+
+        def _failed(message: str) -> None:
+            _ended()
+            self.shell.set_status_message(f"Speed Tuning export failed: {message}", error=True)
+            if isValid(workspace):
+                QMessageBox.warning(workspace, title, str(message))
+
+        def _check(log: Callable[[str], None], stop=None) -> "_CheckedSets":
+            log(f"Speed Tuning (experimental): checking {len(paths)} listed set(s)")
+            checked = plan_speed_profile(index, _read, paths, factors, stop_event=stop,
+                                         on_progress=lambda done, total, path: relay.progress.emit(done, total, path))
+            outcome = speed_profile_outcome(checked, parent=plan.parent, title=plan.title)
+            root = getattr(index, "root", None)
+            served = tuple((path, mod) for path in outcome.written if root and (mod := served_by(root, path)))
+            return _CheckedSets(checked, outcome, served)
+
+        def _write(checked: "_CheckedSets") -> None:
+            def _task(log: Callable[[str], None], stop=None) -> SpeedExportResult:
+                log(f"Speed Tuning (experimental): writing {len(checked.outcome.written)} set(s) into {plan.title}")
+                return export_speed_profile(index, _read, paths, factors, parent=plan.parent, title=plan.title,
+                                            author=plan.author, version=plan.version, description=plan.description,
+                                            plan=checked.plan, on_log=log, stop_event=stop)
+
+            def _done(result: object) -> None:
+                if not isinstance(result, SpeedExportResult):
+                    _failed(repr(result))
+                    return
+                _ended()
+                self._speed_export_done(workspace, holder, plan, result)
+
+            run_task_when_shell_idle(
+                self.shell, workspace,
+                status_message=f"Writing the Speed Tuning mod {plan.title}...",
+                task=_task,
+                on_complete=_done,
+                on_error=_failed,
+                show_archive_progress=True,
+                task_accepts_cancel=True,
+            )
+
+        def _checked(result: object) -> None:
+            if not isinstance(result, _CheckedSets):
+                _failed(repr(result))
+                return
+            if not isValid(workspace):
+                relay.deleteLater()
+                return
+            text, details = profile_summary(result.plan, result.outcome, result.served, plan.title)
+            if not result.outcome.written and not result.outcome.removed:
+                _ended()
+                box = QMessageBox(QMessageBox.Icon.Information, title, text, QMessageBox.StandardButton.Ok, workspace)
+                box.setDetailedText(details)
+                box.exec()
+                return
+            box = QMessageBox(QMessageBox.Icon.Question, title, text,
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, workspace)
+            box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            box.setDetailedText(details)
+            if box.exec() != QMessageBox.StandardButton.Yes:
+                _ended()
+                return
+            _write(result)
+
+        workspace.show_batch_progress(0, 0)
+        run_task_when_shell_idle(
+            self.shell, workspace,
+            status_message="Checking the listed sets...",
+            task=_check,
+            on_complete=_checked,
+            on_error=_failed,
+            show_archive_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    # --- reopening a speed mod ------------------------------------------------------------
+
+    def _show_speed_mod(self, workspace, summary: SpeedModSummary, *, reload: bool = True) -> None:
+        workspace.set_mod(summary.title, summary.charts, folder=str(summary.folder), derived=summary.derived,
+                          reload=reload)
+
+    def _choose_speed_mod(self, workspace, holder: dict) -> None:
+        """Start from > A speed mod you made: choose its folder and show its factors."""
+
+        selected = QFileDialog.getExistingDirectory(workspace, "Choose a Speed Tuning Mod Folder",
+                                                    str(self._action_chart_mods_start()))
+        if selected:
+            self._open_speed_mod(workspace, holder, Path(selected))
+
+    def _open_speed_mod(self, workspace, holder: dict, folder: Path) -> None:
+        """Read the mod in ``folder`` on a worker; its sets then open with the mod's factors."""
+
+        def _task(log: Callable[[str], None]) -> SpeedModSummary:
+            log(f"Reading the speed mod: {folder}")
+            return speed_mod_summary(folder)
+
+        def _failed(message: str) -> None:
+            self.shell.set_status_message(f"Could not read the speed mod: {message}", error=True)
+            if isValid(workspace):
+                QMessageBox.warning(workspace, "Speed & Prefabs", str(message))
+
+        def _done(result: object) -> None:
+            if not isinstance(result, SpeedModSummary):
+                _failed(repr(result))
+                return
+            self._use_speed_mod(workspace, holder, result)
+
+        run_task_when_shell_idle(
+            self.shell, workspace,
+            status_message="Reading the speed mod...",
+            task=_task,
+            on_complete=_done,
+            on_error=_failed,
             show_archive_progress=True,
         )
+
+    def _use_speed_mod(self, workspace, holder: dict, summary: SpeedModSummary) -> None:
+        """Make ``summary``'s mod the open one: its sets open with its factors, and exports update it."""
+
+        holder["mod_folder"] = summary.folder
+        # The next export is prefilled with this mod's name, so it updates the mod.
+        holder["plan"] = _Plan(summary.folder.parent, False, summary.title, summary.author, summary.version, "")
+        if isValid(workspace):
+            self._show_speed_mod(workspace, summary)
+            self.shell.set_status_message(f"Speed & Prefabs shows the mod {summary.title}.")
+
+    def _close_speed_mod(self, workspace, holder: dict) -> None:
+        holder.pop("mod_folder", None)
+        holder.pop("plan", None)
+        workspace.set_mod("", {})
 
     # --- prefabs --------------------------------------------------------------------------
 
@@ -399,14 +593,63 @@ class _Plan:
     description: str
 
 
+@dataclass(frozen=True, slots=True)
+class _CheckedSets:
+    """The listed sets checked against one set of factors and against the mod they go into."""
+
+    plan: SpeedProfilePlan
+    outcome: SpeedProfileOutcome
+    served: tuple[tuple[str, str], ...]  # (chart, the mounted DMM mod that already serves it)
+
+
+def profile_summary(plan: SpeedProfilePlan, outcome: SpeedProfileOutcome, served: Sequence[tuple[str, str]],
+                    title: str) -> tuple[str, str]:
+    """The question asked before a many-set export, and the per-chart list behind Show Details."""
+
+    plans = {item.path.lower(): item for item in plan.plans}
+    written = [plans[path.lower()] for path in outcome.written if path.lower() in plans]
+    values = sum(item.changed_values for item in written)
+    lines = []
+    if written:
+        lines.append(f"{len(written)} set(s) change ({values:,} speed values).")
+    else:
+        lines.append("These factors change no speed value in the listed sets.")
+    if plan.unchanged:
+        lines.append(f"No change in {len(plan.unchanged)} set(s).")
+    if outcome.left_out:
+        lines.append(f"Left out: {len(outcome.left_out)}.")
+    if served:
+        lines.append(f"Already served by another mounted DMM mod: {len(served)}.")
+    if outcome.removed:
+        lines.append(f"Taken out of the mod because these factors change nothing there: {len(outcome.removed)}.")
+    if written or outcome.removed:
+        lines.append("")
+        lines.append(f"Write the mod {title}?")
+    details = []
+    for item in written:
+        kinds = ", ".join(f"{kind.label} {kind.values}" for kind in item.kinds)
+        details.append(f"{item.path}: {item.changed_values} value(s)" + (f" ({kinds})" if kinds else ""))
+    details += [f"{path}: no change" for path in plan.unchanged]
+    details += [f"{path}: left out. {reason}" for path, reason in outcome.left_out]
+    details += [f"{path}: also served by the mounted DMM mod {mod}" for path, mod in served]
+    details += [f"{path}: taken out of the mod" for path in outcome.removed]
+    return "\n".join(lines), "\n".join(details)
+
+
 def speed_export_message(result: SpeedExportResult, sent: bool) -> str:
+    left_out = [f"  {path}: {reason}" for path, reason in result.left_out]
     if result.folder is None:
-        return (f"Every set in {result.title} is back at the game's speed, so the mod was removed."
+        text = (f"Every set in {result.title} is back at the game's speed, so the mod was removed."
                 if result.removed else "Nothing was written: these factors change nothing.")
+        return text + ("\n\nLeft out:\n" + "\n".join(left_out) if left_out else "")
     where = "Sent the Speed Tuning mod to DMM" if sent else "Wrote the Speed Tuning DMM mod"
     lines = [f"{where}:\n{result.folder}", ""]
     if result.removed:
         lines.append("Back at the game's speed, so taken out of the mod: " + ", ".join(result.removed))
+    if result.kept:
+        lines.append("Kept as its own set, with its own factors: " + ", ".join(result.kept))
+    if left_out:
+        lines.append("Left out:\n" + "\n".join(left_out))
     lines.append("Charts in this mod:\n" + "\n".join(f"  {path}" for path in result.charts))
     lines.append("")
     lines.append("In DMM, enable it and click Mount. Speed Tuning is experimental: check the moves in game.")
@@ -440,5 +683,6 @@ __all__ = [
     "PreparedSpeedTuning",
     "install_speed_tuning_command",
     "prepare_speed_tuning",
+    "profile_summary",
     "speed_export_message",
 ]

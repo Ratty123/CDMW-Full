@@ -25,6 +25,10 @@ from cdmw.services.animation_speed_service import (
     plan_speed_set,
     read_speed_set,
     served_by,
+    SPEED_PRESETS,
+    speed_mod_summary,
+    speed_preset,
+    speed_profile_outcome,
 )
 from tests.test_action_chart_binary import CLIPS, TABLES, chart_bytes, descriptor_bytes
 from tests.test_action_chart_editor import BASIC, DESCRIPTION, PATH, accelerator, stored  # noqa: F401 - fixtures
@@ -224,6 +228,10 @@ def test_moves_named_are_saved_with_the_factors_and_checked():
     # Texts with a factor of 1 change nothing, so they are not saved and count as no change.
     idle = SpeedFactors(named=("execute_lk",))
     assert idle.is_identity and "named" not in idle.to_data()
+    # Named moves kept at 1x while their kind is faster: saved, so the mod reopens as it was made.
+    kept = SpeedFactors(kinds={"attack": 2.0}, named=("finish",))
+    assert kept.to_data()["named"] == {"texts": ["finish"], "factor": 1.0}
+    assert SpeedFactors.from_data(kept.to_data()) == kept
     assert SpeedFactors.from_data({"named": {"texts": [" Finish "], "factor": 2}}).named == ("finish",)
     for texts, message in ((["ab"], "3 to 64"), (["x" * 65], "3 to 64"), (["finish", "FINISH"], "twice"),
                            ([f"text{n}" for n in range(9)], "at most 8")):
@@ -378,3 +386,55 @@ def test_a_chart_changed_outside_speed_and_prefabs_is_left_as_it_is(stored, tmp_
     assert [path for path, _reason in result.left_out] == [PATH] and "outside Speed & Prefabs" in result.left_out[0][1]
     mod = read_chart_mod(result.folder)
     assert mod.charts[PATH] == edited and _rates(mod.charts[BASIC], BASIC) == [2.0]
+
+
+# --- starting points, reading a mod back, and what a many-set export would do ------------------
+
+
+def test_starting_points_fit_any_set_and_many_sets():
+    assert [preset.key for preset in SPEED_PRESETS] == ["faster_attacks", "quick_draw", "snappier_dodges",
+                                                        "slow_finishers"]
+    for preset in SPEED_PRESETS:
+        factors = speed_preset(preset.key)
+        assert factors.set == 1.0 and not factors.moves and not factors.is_identity
+        assert all(0.5 <= value <= 1.5 for value in (*factors.kinds.values(), factors.named_factor))
+    assert speed_preset("slow_finishers").named == ("att_finish_link", "execute_lk", "takedown")
+    with pytest.raises(SpeedTuningError, match="Unknown starting point"):
+        speed_preset("faster_everything")
+
+
+def test_a_speed_mod_reads_back_as_one_line_per_chart(stored, tmp_path, accelerator):
+    data = chart_bytes()
+    index = _index(tmp_path, [stored(PATH, data), stored(BASIC, data), stored(HOT, data)])
+    mods = tmp_path / "mods"
+    one = export_speed_mod(index, _read, PATH, FAST_ATTACKS, parent=mods, title="Fast", author="Me", linked=[BASIC])
+    summary = speed_mod_summary(one.folder)
+    assert (summary.title, summary.author, summary.profile, summary.derived) == ("Fast", "Me", None, False)
+    assert dict(summary.charts) == {BASIC: "changed together with Sword", PATH: "attacks x2"}
+    assert summary.factors[PATH] == FAST_ATTACKS.to_data() and summary.factors[BASIC] is None
+    assert speed_mod_summary(one.folder, one.charts).charts == summary.charts  # after an export: no second decode
+    assert summary.to_data()["charts"][0] == {"path": BASIC, "summary": "changed together with Sword", "factors": None}
+
+    many = export_speed_profile(index, _read, [PATH, HOT], FAST_ATTACKS, parent=mods, title="Many")
+    assert speed_mod_summary(many.folder).profile == {"factors": FAST_ATTACKS.to_data(), "sets": sorted([PATH, HOT])}
+    with pytest.raises(Exception, match="not an action chart mod CDMW wrote"):
+        speed_mod_summary(tmp_path)
+    with pytest.raises(SpeedTuningError, match="not an action chart mod CDMW wrote"):
+        speed_mod_summary(tmp_path, [PATH])
+
+
+def test_what_a_many_set_export_would_do_is_known_before_it_is_written(stored, tmp_path, accelerator):
+    data = chart_bytes()
+    index = _index(tmp_path, [stored(PATH, data), stored(BASIC, data), stored(HOT, data)])
+    mods = tmp_path / "mods"
+    export_speed_profile(index, _read, [PATH, BASIC], FAST_ATTACKS, parent=mods, title="Fast")
+    export_speed_mod(index, _read, HOT, SpeedFactors(1.5), parent=mods, title="Fast")
+    before = sorted(path.name for path in (mods / "Fast").rglob("*"))
+    plan = plan_speed_profile(index, _read, [PATH, BASIC], SpeedFactors(moves={CLIPS[0]: 3.0}))
+    outcome = speed_profile_outcome(plan, parent=mods, title="Fast")
+    assert outcome.written == (PATH, BASIC) and outcome.removed == () and outcome.stays == (HOT,)
+    gone = speed_profile_outcome(plan_speed_profile(index, _read, [PATH, BASIC], JUMP_ONLY), parent=mods, title="Fast")
+    assert gone.written == () and gone.removed == (BASIC, PATH) and gone.stays == (HOT,)
+    assert sorted(path.name for path in (mods / "Fast").rglob("*")) == before  # nothing was written
+    fresh = speed_profile_outcome(plan, parent=mods, title="Another")
+    assert fresh.written == (PATH, BASIC) and not fresh.removed and not fresh.stays

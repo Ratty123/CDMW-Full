@@ -44,13 +44,15 @@ def speed(stored, tmp_path, monkeypatch):
 def test_every_tool_is_experimental_in_the_speed_family_with_the_right_class():
     assert set(TOOLS) == {"speed.sets", "speed.set", "speed.preview", "speed.export", "speed.prefab_search",
                           "speed.prefab_values", "speed.prefab_export", "speed.table_rows", "speed.table_export",
-                          "speed.workspace", "speed.workspace_edit"}
+                          "speed.workspace", "speed.workspace_edit", "speed.sets_preview", "speed.sets_export",
+                          "speed.mod"}
     for tool in TOOLS.values():
         assert tool.family == "speed" and "Experimental" in tool.description
         assert tool.input_schema["type"] == "object" and tool.input_schema["additionalProperties"] is False
         expected = OUTPUT if tool.name.endswith("export") else EDIT if tool.name.endswith("_edit") else READ
         assert tool.effect == expected
     assert TOOLS["speed.export"].output_folders == ("folder",)
+    assert TOOLS["speed.sets_export"].output_folders == ("folder",)
     assert TOOLS["speed.prefab_export"].output_paths == ("package",)
 
 
@@ -135,7 +137,7 @@ def _tab(**options):
     from cdmw.ui.speed_prefabs.workspace import SpeedPrefabsWorkspace
 
     QApplication.instance() or QApplication([])
-    seen = SimpleNamespace(tables=[], searches=[], activated=[])
+    seen = SimpleNamespace(tables=[], searches=[], activated=[], batches=[])
     moves = (SpeedMove(ATTACK, "attack_00", "attack", 1, 1, 1.5), SpeedMove(IDLE, "idle_00", "idle", 1, 1, 2.5))
 
     def open_prefab(path):
@@ -147,9 +149,12 @@ def _tab(**options):
             workspace.show_prefab_inspector(path, inspector)
 
     workspace = SpeedPrefabsWorkspace(
-        (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),),
+        (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"), SpeedSet(BASIC, "Basic"))),),
         load_set=options.get("load_set", lambda path: SpeedChart(path, "Sword", 1.0, moves, SpeedFactors())),
         plan=lambda *args: (), open_game_table=seen.tables.append, open_prefab=open_prefab,
+        export_sets=lambda paths, factors: seen.batches.append((tuple(paths), factors)),
+        open_mod=lambda summary=None: workspace.set_mod(summary.title, summary.charts, folder=str(summary.folder)),
+        close_mod=lambda: workspace.set_mod("", {}),
         prefab_search=seen.searches.append,
         prefab_categories=(("cameras", "Cameras"), ("moving", "Moving objects"), ("weather", "Weather")))
     window = SimpleNamespace(shell=SimpleNamespace(_tool_widgets_by_key={"speed_prefabs": workspace},
@@ -218,3 +223,71 @@ def test_workspace_edit_needs_the_sets_read_and_a_set_open():
     workspace.show_load_error("The archives are not open.")
     with pytest.raises(ToolError, match="not open"):
         run("speed.workspace_edit", action="search")
+
+
+def test_moves_named_reach_the_preview_and_short_texts_are_refused(speed):
+    result = speed("speed.preview", path=PATH, linked=False,
+                   factors={"named": {"texts": ["attack"], "factor": 0.5}})
+    assert result["changed_values"] == 1
+    assert [(k["kind"], k["label"], k["windows"]) for k in result["charts"][0]["kinds"]] == [("named", "Moves named", 1)]
+    with pytest.raises(ToolError):
+        speed("speed.preview", path=PATH, factors={"named": {"texts": ["at"], "factor": 0.5}})
+
+
+def test_many_sets_are_checked_and_exported_as_one_mod(speed, tmp_path, accelerator):
+    missing = "actionchart/bin__/upperaction/1_pc/1_phm/missing_upper.paac"
+    result = speed("speed.sets_preview", paths=[PATH, BASIC, missing], factors={"kinds": {"attack": 2.0}})
+    assert result["written"] is False and result["changed_values"] == 2
+    assert [chart["path"] for chart in result["charts"]] == [PATH, BASIC]
+    assert result["left_out"] == [{"path": missing, "reason": "It is not in the game archives."}]
+    by_character = speed("speed.sets_preview", character="kliff", factors={"kinds": {"jump": 2.0}})
+    assert sorted(by_character["unchanged"]) == sorted([PATH, BASIC]) and not by_character["charts"]
+    with pytest.raises(ToolError, match="one set at a time"):
+        speed("speed.sets_preview", paths=[PATH], factors={"set": 2.0})
+    with pytest.raises(ToolError, match="paths"):
+        speed("speed.sets_preview", factors={"kinds": {"attack": 2.0}})
+
+    folder = tmp_path / "mods"
+    folder.mkdir()
+    written = speed("speed.sets_export", paths=[PATH, BASIC], factors={"kinds": {"attack": 2.0}},
+                    folder=str(folder), title="Fast Kliff")
+    assert written["charts"] == sorted([PATH, BASIC]) and written["changed_values"] == 2
+    mod = speed("speed.mod", folder=written["folder"])
+    assert mod["title"] == "Fast Kliff" and not mod["derived"]
+    assert {chart["path"]: chart["summary"] for chart in mod["charts"]} == {PATH: "attacks x2", BASIC: "attacks x2"}
+    assert mod["profile"]["factors"]["kinds"] == {"attack": 2.0}
+    with pytest.raises(ToolError, match="one set at a time"):
+        speed("speed.sets_export", paths=[PATH], factors={"set": 2.0}, folder=str(folder), title="Fast Kliff")
+    with pytest.raises(ToolError):
+        speed("speed.mod", folder=str(tmp_path / "nothing-here"))
+
+
+def test_workspace_edit_reaches_starting_points_all_listed_sets_and_the_open_mod(speed, tmp_path, accelerator):
+    workspace, run, seen = _tab()
+    state = run("speed.workspace_edit", action="preset", preset="slow_finishers", set=PATH)
+    assert state["factors"]["named"] == {"texts": ["att_finish_link", "execute_lk", "takedown"], "factor": 0.5}
+    assert [item["key"] for item in state["presets"]] == ["faster_attacks", "quick_draw", "snappier_dodges",
+                                                          "slow_finishers"]
+    state = run("speed.workspace_edit", action="factors", scope="listed", set_filter="basic")
+    assert state["scope"] == "listed" and state["scope_sets"] == [BASIC] and state["factors"]["named"]["factor"] == 0.5
+    with pytest.raises(ToolError, match="one set at a time"):
+        run("speed.workspace_edit", action="factors", factors={"set": 2.0})
+    # A move of another listed set is taken while every listed set gets the factors.
+    state = run("speed.workspace_edit", action="factors", set_filter="",
+                factors={"kinds": {"attack": 2.0}, "moves": {"1_pc/other_set_clip.paa": 0.5}})
+    assert state["scope_sets"] == [PATH, BASIC] and state["factors"]["kinds"] == {"attack": 2.0}
+    workspace.export_button.click()
+    assert seen.batches and seen.batches[-1][0] == (PATH, BASIC)
+    assert run("speed.workspace_edit", action="factors", scope="set")["scope"] == "set"
+
+    folder = tmp_path / "mods"
+    folder.mkdir()
+    written = speed("speed.export", path=PATH, factors={"kinds": {"attack": 2.0}}, folder=str(folder), title="Fast",
+                    linked=False)
+    state = run("speed.workspace_edit", action="open_mod", mod_folder=written["folder"])
+    assert state["mod_title"] == "Fast" and state["mod_charts"] == [PATH]
+    assert run("speed.workspace_edit", action="close_mod")["mod_title"] == ""
+    with pytest.raises(ToolError, match="No speed mod is open"):
+        run("speed.workspace_edit", action="close_mod")
+    with pytest.raises(ToolError):
+        run("speed.workspace_edit", action="open_mod", mod_folder=str(tmp_path))

@@ -2214,6 +2214,27 @@
       "tool": "speed.export"
     },
     {
+      "id": "speed.sets_preview",
+      "area": "Speed Tuning",
+      "what": "Check one set of speed factors on many sets: what changes, what does not, what is left out (experimental)",
+      "class": "read",
+      "tool": "speed.sets_preview"
+    },
+    {
+      "id": "speed.sets_export",
+      "area": "Speed Tuning",
+      "what": "Export one animation speed DMM mod for many sets at once, such as a whole character (experimental)",
+      "class": "output",
+      "tool": "speed.sets_export"
+    },
+    {
+      "id": "speed.mod",
+      "area": "Speed Tuning",
+      "what": "Read a speed mod CDMW wrote: its charts and the factors saved for them (experimental)",
+      "class": "read",
+      "tool": "speed.mod"
+    },
+    {
       "id": "speed.prefab_search",
       "area": "Speed Tuning",
       "what": "Search prefabs that declare speed values, by category (experimental)",
@@ -2265,7 +2286,7 @@
     {
       "id": "speed.workspace_edit",
       "area": "Speed & Prefabs",
-      "what": "Set or reset the factors of the set open in the Speed & Prefabs tab, and start its prefab search (experimental)",
+      "what": "Work the Speed & Prefabs tab: factors, Moves named, starting points, all listed sets, the open speed mod, and its prefab search (experimental)",
       "class": "edit",
       "tool": "speed.workspace_edit"
     }

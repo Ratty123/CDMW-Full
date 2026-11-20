@@ -167,7 +167,9 @@ class SpeedFactors:
         # the mod was reopened.
         moves = {k: float(v) for k, v in self.moves.items() if kinds or self.names_moves or not _unit(v)}
         data: dict[str, object] = {"set": float(self.set), "kinds": kinds, "moves": moves}
-        if self.names_moves:
+        # Moves named at 1x is a real choice too while a kind factor is set: those moves stay at
+        # the game's speed.
+        if self.names_moves or (self.named and kinds):
             data["named"] = {"texts": list(self.named), "factor": float(self.named_factor)}
         return data
 
@@ -883,6 +885,62 @@ def plan_speed_profile(
     return SpeedProfilePlan(tuple(plans), tuple(unchanged), tuple(left_out))
 
 
+@dataclass(frozen=True, slots=True)
+class SpeedProfileOutcome:
+    """What a many-set export would do to the mod it is written into; nothing is written."""
+
+    written: tuple[str, ...]                  # charts that get these factors
+    removed: tuple[str, ...]                  # charts that leave the mod
+    left_out: tuple[tuple[str, str], ...]     # (chart, the reason, for the user)
+    stays: tuple[str, ...]                    # charts the mod holds that stay as they are
+
+
+def _profile_layout(folder: Path, replaced: bool, plan: SpeedProfilePlan):
+    """Which charts the mod holds after `plan` is written into it, and the saved factors that stay."""
+
+    saved = {chart.lower(): (chart, value) for chart, value in (_saved_factors(folder) if replaced else {}).items()}
+    held = dict(read_chart_mod(folder).charts) if replaced and is_chart_mod(folder) else {}
+    changed = {item.path.lower(): item for item in plan.plans}
+    scope = set(changed) | {path.lower() for path in plan.unchanged}
+    left_out = list(plan.left_out)
+    final: dict[str, tuple[str, bytes]] = {}
+    marks: dict[str, object] = {}
+    for chart, data in held.items():
+        key = chart.lower()
+        mark = saved.get(key, (chart, None))[1]
+        if key in scope and mark is None:
+            # Planning starts from the game's chart, so writing it would drop those other changes.
+            changed.pop(key, None)
+            left_out.append((chart, EDITED_OUTSIDE))
+            final[key] = (chart, data)
+        elif key in scope:
+            continue  # replaced below when it changes, otherwise it leaves the mod
+        elif isinstance(mark, Mapping) and str(mark.get("linked_to", "")).lower() in scope:
+            continue  # changed together with a set that is now at these factors
+        else:
+            final[key] = (chart, data)
+            if mark is not None:
+                marks[chart] = mark
+    for key, item in changed.items():
+        final[key] = (item.path, item.edited)
+    return final, marks, changed, held, left_out
+
+
+def speed_profile_outcome(plan: SpeedProfilePlan, *, parent: Path | str, title: str) -> SpeedProfileOutcome:
+    """What `export_speed_profile` would do with `plan` in the mod `title` under `parent`."""
+
+    title = str(title or "").strip()
+    if not title or len(title) > 120:
+        raise SpeedTuningError("Name the mod (at most 120 characters).")
+    folder, replaced = mod_destination(Path(parent), title)
+    final, _marks, changed, held, left_out = _profile_layout(folder, replaced, plan)
+    return SpeedProfileOutcome(
+        tuple(item.path for item in changed.values()),
+        tuple(sorted(chart for chart in held if chart.lower() not in final)),
+        tuple(left_out),
+        tuple(sorted(chart for chart in held if chart.lower() in final and chart.lower() not in changed)))
+
+
 def export_speed_profile(
     index: ChartArchiveIndex,
     read: Callable[[ArchiveEntry], bytes],
@@ -921,31 +979,9 @@ def export_speed_profile(
                                   stop_event=stop_event)
     elif not _unit(factors.set):
         raise SpeedTuningError(WHOLE_SET_ONE_AT_A_TIME)
-    saved = {chart.lower(): (chart, value) for chart, value in (_saved_factors(folder) if replaced else {}).items()}
-    held = dict(read_chart_mod(folder).charts) if replaced and is_chart_mod(folder) else {}
-    changed = {item.path.lower(): item for item in plan.plans}
-    scope = set(changed) | {path.lower() for path in plan.unchanged}
-    left_out = list(plan.left_out)
-    final: dict[str, tuple[str, bytes]] = {}
-    marks: dict[str, object] = {}
-    for chart, data in held.items():
-        key = chart.lower()
-        mark = saved.get(key, (chart, None))[1]
-        if key in scope and mark is None:
-            # Planning starts from the game's chart, so writing it would drop those other changes.
-            changed.pop(key, None)
-            left_out.append((chart, EDITED_OUTSIDE))
-            final[key] = (chart, data)
-        elif key in scope:
-            continue  # replaced below when it changes, otherwise it leaves the mod
-        elif isinstance(mark, Mapping) and str(mark.get("linked_to", "")).lower() in scope:
-            continue  # changed together with a set that is now at these factors
-        else:
-            final[key] = (chart, data)
-            if mark is not None:
-                marks[chart] = mark
-    for key, item in changed.items():
-        final[key] = (item.path, item.edited)
+    final, marks, changed, held, left_out = _profile_layout(folder, replaced, plan)
+    scope = {item.path.lower() for item in plan.plans} | {path.lower() for path in plan.unchanged}
+    for item in changed.values():
         marks[item.path] = factors.to_data()
     removed = tuple(sorted(chart for chart in held if chart.lower() not in final))
     left = tuple(left_out)
@@ -983,6 +1019,103 @@ def mod_speed_charts(folder: Path | str) -> dict[str, dict]:
     return _saved_factors(Path(folder))
 
 
+# --- starting points and reopening a mod ----------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SpeedPreset:
+    """A starting point: kind and Moves named factors only, so it fits any set and many sets."""
+
+    key: str
+    label: str
+    factors: Mapping[str, object]
+
+
+#: Starting points, not tested values. The finisher name parts come from a scan of the
+#: player charts (docs/crimson-desert-research.md, finisher animations).
+SPEED_PRESETS: tuple[SpeedPreset, ...] = (
+    SpeedPreset("faster_attacks", "Faster attacks (1.25x)", {"kinds": {"attack": 1.25}}),
+    SpeedPreset("quick_draw", "Quicker draw and sheathe (1.5x)", {"kinds": {"draw": 1.5}}),
+    SpeedPreset("snappier_dodges", "Snappier dodges (1.2x)", {"kinds": {"dodge": 1.2}}),
+    SpeedPreset("slow_finishers", "Slow-motion finishers (0.5x)",
+                {"named": {"texts": ["att_finish_link", "execute_lk", "takedown"], "factor": 0.5}}),
+)
+
+
+def speed_preset(key: str) -> SpeedFactors:
+    for preset in SPEED_PRESETS:
+        if preset.key == str(key):
+            return SpeedFactors.from_data(preset.factors)
+    raise SpeedTuningError(f"Unknown starting point {key!r}. Starting points are "
+                           f"{', '.join(preset.key for preset in SPEED_PRESETS)}.")
+
+
+@dataclass(frozen=True, slots=True)
+class SpeedModSummary:
+    """What a speed mod holds, for showing it again: one line and the saved factors per chart."""
+
+    folder: Path
+    title: str
+    author: str
+    version: str
+    charts: Mapping[str, str]
+    factors: Mapping[str, Optional[dict]]
+    #: The block a many-set export saved (factors and sets), if any.
+    profile: Optional[Mapping[str, object]]
+    #: Some chart has no saved factors; they are worked out from its values when it is opened.
+    derived: bool
+
+    def to_data(self) -> dict[str, object]:
+        return {"folder": str(self.folder), "title": self.title, "author": self.author, "version": self.version,
+                "charts": [{"path": path, "summary": line, "factors": self.factors.get(path)}
+                           for path, line in self.charts.items()],
+                "profile": dict(self.profile) if self.profile else None, "derived": self.derived}
+
+
+def speed_mod_summary(folder: Path | str, charts: Optional[Iterable[str]] = None) -> SpeedModSummary:
+    """Read an action chart mod CDMW wrote as a speed mod; needs no game files.
+
+    With `charts` (the paths an export just wrote) the mod's charts are not decoded again.
+    """
+
+    folder = Path(folder)
+    manifest = _read_manifest(folder)
+    if charts is None:
+        mod = read_chart_mod(folder)
+        paths, title, author, version = list(mod.charts), mod.title, mod.author, mod.version
+    else:
+        if not is_chart_mod(folder):
+            raise SpeedTuningError(f"{folder.name} is not an action chart mod CDMW wrote.")
+        paths = [_normal(chart) for chart in charts]
+        title = str(manifest.get("title") or manifest.get("name") or folder.name)
+        author, version = str(manifest.get("author") or ""), str(manifest.get("version") or "1.0")
+    block = manifest.get(MANIFEST_KEY)
+    block = block if isinstance(block, dict) else {}
+    saved = {chart.lower(): value for chart, value in _saved_factors(folder).items()}
+    lines: dict[str, str] = {}
+    factors: dict[str, Optional[dict]] = {}
+    derived = False
+    for chart in sorted(paths, key=str.lower):
+        value = saved.get(chart.lower())
+        line, data = "", None
+        if _own_factors(value):
+            try:
+                found = SpeedFactors.from_data(value)
+                line, data = _describe(found), found.to_data()
+            except (SpeedTuningError, TypeError, ValueError):
+                pass
+        elif isinstance(value, Mapping) and value.get("linked_to"):
+            line = f"changed together with {chart_label(str(value['linked_to']))}"
+        if not line:
+            derived = True
+            line = "factors not saved"
+        lines[chart] = line
+        factors[chart] = data
+    profile = block.get("profile")
+    return SpeedModSummary(folder, title, author, version, lines, factors,
+                           profile if isinstance(profile, dict) else None, derived)
+
+
 __all__ = [
     "CHARACTERS",
     "KINDS",
@@ -995,10 +1128,14 @@ __all__ = [
     "KindSummary",
     "SpeedChart",
     "SpeedCharacter",
+    "SPEED_PRESETS",
     "SpeedExportResult",
     "SpeedFactors",
+    "SpeedModSummary",
     "SpeedMove",
     "SpeedPlan",
+    "SpeedPreset",
+    "SpeedProfileOutcome",
     "SpeedProfilePlan",
     "SpeedSet",
     "SpeedTuningError",
@@ -1010,6 +1147,9 @@ __all__ = [
     "named_match",
     "named_texts",
     "plan_speed_profile",
+    "speed_mod_summary",
+    "speed_profile_outcome",
+    "speed_preset",
     "factors_from_charts",
     "folder_sets",
     "kind_of",
