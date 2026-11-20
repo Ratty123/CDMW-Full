@@ -39,7 +39,9 @@ def test_app_settings_shortcuts_and_diagnostics_reach_the_real_window(real):
     assert tab.current_application_layout() == "legacy" and store.value("ui/shell_variant") == "legacy"
     tool = Path(tab.settings.fileName()).parent / "tools" / "realesrgan-ncnn-vulkan.exe"
     real.ok("app_settings_set", {"key": "ncnn/exe_path", "value": str(tool)})
-    assert real.window.textures.ncnn_exe_path_edit.text() == str(tool)
+    field = getattr(real.window.textures, "ncnn_exe_path_edit", None)
+    assert (field.text() if field is not None else store.value("ncnn/exe_path")) == str(tool)
+    assert QSettings(tab.settings.fileName(), QSettings.Format.IniFormat).value("ncnn/exe_path") == str(tool)
     assert real.error("app_settings_set", {"key": "ncnn/exe_path", "value": "tools/relative.exe"})["code"] == (
         "invalid_arguments")
     real.ok("app_settings_set", {"key": ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, "value": ["mods/owned"]})

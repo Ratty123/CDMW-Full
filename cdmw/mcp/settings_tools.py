@@ -130,8 +130,14 @@ def _set(call):
         if key in _PATH_CONTROLS:
             owner, control = _PATH_CONTROLS[key]
             current = window(call)
-            getattr(getattr(current, owner), control).setText(value)
-            current.shell.flush_settings_save()
+            field = getattr(getattr(current, owner, None), control, None)
+            if field is not None:
+                field.setText(value)
+                current.shell.flush_settings_save()
+            else:
+                # The page that holds the field is not built yet; it reads the setting when it is.
+                current.shell.settings.setValue(key, value)
+                current.shell.settings.sync()
         elif key == ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING:
             if not isinstance(value, list):
                 raise ToolError(INVALID_ARGUMENTS, "Supply the list of paths to ignore.")
