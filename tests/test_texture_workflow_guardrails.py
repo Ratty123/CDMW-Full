@@ -139,6 +139,45 @@ class TextureWorkflowGuardrailTests(unittest.TestCase):
             self.assertIn("DirectXTex native batch encode", summary.results[0].note)
             self.assertTrue(any("with DirectXTex native batch" in line for line in logs))
 
+    def test_native_batch_outputs_count_as_built_when_overwrite_is_off(self) -> None:
+        # The native batch writes this run's DDS first; only a file that was already in the
+        # output folder is skipped as existing.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_root, png_root, output_root = _write_source_pair(root)
+            other = original_root / "character" / "texture" / "kept.dds"
+            other.write_bytes(_fake_dds_bytes(64, 64, mips=7))
+            _write_fake_png_header(png_root / "character" / "texture" / "kept.png", 128, 128)
+            existing = output_root / "character" / "texture" / "kept.dds"
+            existing.parent.mkdir(parents=True, exist_ok=True)
+            existing.write_bytes(b"already there")
+            native_binary = root / "cd-texture-dx.exe"
+            native_binary.write_bytes(b"fake native")
+            encoded: list[str] = []
+
+            def fake_encode(jobs: object, **_kwargs: object) -> dict[str, dict[str, object]]:
+                results = {}
+                for job in jobs:
+                    output = Path(str(job["output_path"]))
+                    encoded.append(output.name)
+                    output.write_bytes(_fake_dds_bytes(128, 128, mips=8))
+                    results[str(output.resolve())] = {"status": "encoded", "output_path": str(output),
+                                                      "encode_ms": 1.0}
+                return results
+
+            config = _config(original_root, png_root, output_root)
+            config = AppConfig(**{**{name: getattr(config, name) for name in config.__dataclass_fields__},
+                                  "overwrite_existing_dds": False, "include_filters": "*.dds"})
+            with (
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=native_binary),
+                patch("cdmw.core.texture_native.encode_dds_batch_with_directxtex", side_effect=fake_encode),
+            ):
+                summary = rebuild_dds_files(config, on_log=lambda _line: None)
+
+            self.assertEqual(["sample.dds"], encoded)
+            self.assertEqual((1, 1, 0), (summary.converted, summary.skipped, summary.failed))
+            self.assertEqual(b"already there", existing.read_bytes())
+
     def test_rebuild_native_report_without_expected_dds_is_failed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

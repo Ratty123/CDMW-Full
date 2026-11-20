@@ -40,12 +40,13 @@ def typed_tools() -> list[Tool]:
     from cdmw.mcp.texture_recolor_tools import texture_recolor_tools
     from cdmw.mcp.texture_replace_tools import texture_replace_tools
     from cdmw.mcp.texture_tools import texture_tools
+    from cdmw.mcp.texture_upscale_tools import texture_upscale_tools
     from cdmw.mcp.translation_tools import translation_tools
     from cdmw.mcp.turn_tools import turn_tools
     from cdmw.mcp.view_tools import view_tools
 
     return [*app_tools(), *control_tools(), *archive_tools(), *read_tools(), *app_read_tools(), *view_tools(), *mesh_tools(), *mesh_session_tools(),
-            *mesh_edit_tools(), *texture_tools(), *texture_replace_tools(), *texture_recolor_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(), *hkx_tools(), *sound_tools(), *action_chart_tools(), *skeleton_tools(), *prefab_tools(), *game_table_tools(), *decal_tools(),
+            *mesh_edit_tools(), *texture_tools(), *texture_replace_tools(), *texture_recolor_tools(), *texture_upscale_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(), *hkx_tools(), *sound_tools(), *action_chart_tools(), *skeleton_tools(), *prefab_tools(), *game_table_tools(), *decal_tools(),
             *local_file_tools(), *saved_work_tools(), *mod_management_tools(), *translation_tools(),
             *text_search_tools(), *model_library_tools(), *item_icon_tools(), *research_tools(), *settings_tools(), *setup_tools(),
             *speed_tools(), *diagnostics_tools(), *turn_tools(), *npc_tools(), *character_finder_tools()]
