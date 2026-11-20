@@ -1059,11 +1059,11 @@
       "area": "Mesh Editor",
       "what": "Sculpt strokes (Grab, Smooth, Inflate, Pinch, Bend)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 MCP gap plan item 10: a stroke message to the Mesh Editor's helper, replayed as one history step",
+      "gap": "accepted",
       "also": [
         "mesh.transform"
-      ]
+      ],
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "id": "mesh.findings",
@@ -1172,11 +1172,11 @@
       "area": "Hair Tools",
       "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 MCP gap plan item 10: a hair stroke message to the Mesh Editor's helper, replayed as one history step",
+      "gap": "accepted",
       "also": [
         "mesh.hair"
-      ]
+      ],
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "id": "hair.colour",
@@ -1204,16 +1204,16 @@
       "area": "Material panel",
       "what": "Variants",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "materials.recolour",
       "area": "Material panel",
       "what": "Recolour",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 full MCP: the Mesh Editor has no control for this yet (Material Colour is deliberately unavailable in the helper)"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "view.texture_image",
@@ -1349,8 +1349,8 @@
       "area": "Texture Editor",
       "what": "A new texture for a material slot (Make unique)",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13: wire the Mesh Editor's Make unique action to its session before exposing it through MCP."
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "textures.export",
@@ -1742,16 +1742,16 @@
       "area": "Texture Editor",
       "what": "Generate a tiled fill",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13: requires a corresponding Texture Editor operation."
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "textures.normal_from_height",
       "area": "Texture Editor",
       "what": "Derive normals from height inside the Texture Editor",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13: requires a corresponding Texture Editor operation."
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "textures.floating",
@@ -1800,8 +1800,8 @@
       "area": "Texture Editor",
       "what": "Generate whole-layer noise and patterned fills",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13: the current editor offers grain and pattern brush strokes."
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
     },
     {
       "id": "textures.replace_queue_read",
@@ -3718,8 +3718,8 @@
     },
     {
       "key": "helper_control:material_colour.unavailable",
-      "gap": "not_built",
-      "milestone": "P13 full MCP: Material Colour is deliberately unavailable in the helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: Material Colour is deliberately unavailable in the Mesh Editor's helper."
     },
     {
       "key": "helper_control:morph.bake",

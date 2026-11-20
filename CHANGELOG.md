@@ -35,6 +35,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **AI connections (experimental):** **mesh_session** presses the Mesh Editor's buttons after **Finish Edit Mesh** (Resume current edit, Start next edit pass, Add to Archive Browser, Check mesh, Return to Create New Item) and names the open draft and its project, as **Name Draft...** does.
 - **AI connections (experimental):** tools that answer in pages, such as **search_archive** and **search_characters**, list the shape of their pages (MCP `outputSchema`), so an AI app knows where the rows, the total and the next page token are.
 - **AI connections (experimental):** **textures_replace**, **textures_replace_state** and **textures_replace_build** work **Textures > Replace**: add edited files or a folder, choose where originals come from, Auto-Match, pick a local original, remove rows, and build the package into a folder you allow. The Review & Export dialog still goes through the generic tools.
+- **AI connections (experimental):** the map of what AI tools reach now marks what has no tool on purpose: sculpt and hair brush strokes, which need a hand on the pointer, and features the app does not have yet (Material Variants and Recolour, Make unique, tiled and procedural fills, normals from height). Enabling mods and their load order in DMM stays yours.
 
 ### Fixed
 

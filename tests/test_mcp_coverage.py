@@ -37,6 +37,8 @@ def test_every_row_is_well_formed() -> None:
                 assert row.get("by_points"), row
             if row["gap"] in ("not_built", "needs_pointer"):
                 assert row.get("class") in EFFECT_CLASSES, row
+            if row["gap"] == "accepted":
+                assert str(row.get("reason", "")).startswith("Accepted "), row
     ids = [row["id"] for row in document["capabilities"]]
     assert len(ids) == len(set(ids))
 
@@ -190,6 +192,14 @@ def test_every_surface_row_names_a_tool_a_command_or_a_gap_with_its_reason() -> 
                 assert row.get("by_points") in built, row
             if row["gap"] == "user_only":
                 assert row.get("reason"), row
+            if row["gap"] == "accepted":
+                assert str(row.get("reason", "")).startswith("Accepted "), row
+
+
+def test_the_only_capabilities_still_to_build_wait_on_the_mesh_editor_helper() -> None:
+    """MCP gap plan item 17: every other capability has a tool or an accepted gap."""
+    open_rows = {row["id"] for row in load_coverage()["capabilities"] if row.get("gap") == "not_built"}
+    assert open_rows <= {"mesh.camera", "new_item.advanced_tables", "new_item.effect_emitters"}, open_rows
 
 
 def test_a_new_menu_entry_without_a_row_fails_the_scan(tmp_path, monkeypatch) -> None:
