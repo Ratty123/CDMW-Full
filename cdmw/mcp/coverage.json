@@ -1857,6 +1857,27 @@
       "tool": "files.audio_import"
     },
     {
+      "id": "files.action_chart_state",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: read the chart, an animation's values and events, a names table",
+      "class": "read",
+      "tool": "files.action_chart_state"
+    },
+    {
+      "id": "files.action_chart_edit",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: open, edit rate, timing, clips, events and names, apply, reset",
+      "class": "edit",
+      "tool": "files.action_chart_edit"
+    },
+    {
+      "id": "files.action_chart_export",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: Export DMM Mod to a folder",
+      "class": "output",
+      "tool": "files.action_chart_export"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
@@ -2696,15 +2717,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_editor_dialog.py|ActionChartEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_export_dialog.py|ActionChartExportDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_export"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_finder_dialog.py|ActionChartFinderDialog",
