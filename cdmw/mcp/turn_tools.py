@@ -8,7 +8,7 @@ import time
 import weakref
 
 from cdmw.mcp.errors import FAILED, UNAVAILABLE, ToolError
-from cdmw.mcp.names import EDIT, READ
+from cdmw.mcp.names import DESTRUCTIVE, EDIT, OUTPUT, READ, wire_name
 from cdmw.mcp.rail_actions import press, tool
 from cdmw.mcp.tools import ON_WORKER
 from cdmw.mcp.ui_actions import run_action
@@ -169,6 +169,8 @@ class TurnHistory:
         self.known = {}
         self.epochs = {}
         self.partial = None
+        #: Calls this turn that changed or wrote something app_undo cannot take back: {wire name: class}.
+        self.untracked = {}
 
     def execute(self, call, operation):
         if call.tool.name in _TURN_TOOLS:
@@ -176,7 +178,12 @@ class TurnHistory:
                 call.check_cancelled()
                 return operation()
         if not _tracks(call):
-            return operation()
+            result = operation()
+            effect = call.effect or call.tool.effect
+            if effect in (EDIT, DESTRUCTIVE, OUTPUT):
+                with self.lock:
+                    self.untracked.setdefault(wire_name(call.tool.name), effect)
+            return result
         with self.lock:
             call.check_cancelled()
             before = call.context.ui_call(lambda: _capture(call))
@@ -205,12 +212,20 @@ class TurnHistory:
 
     def end(self):
         group, self.pending = self.pending, []
+        untracked, self.untracked = self.untracked, {}
         if group:
             self.undo_groups.append(group)
-        return {"ended": True, "edit_calls": len(group), "editors": sorted({step.editor.kind for step in group})}
+        result = {"ended": True, "edit_calls": len(group), "editors": sorted({step.editor.kind for step in group})}
+        if untracked:
+            # app_undo moves only the editors' own Undo history; tell the user what it leaves as it is.
+            result["not_undoable"] = [{"tool": name, "class": effect} for name, effect in sorted(untracked.items())]
+            result["note"] = ("app_undo will not take back these calls: they changed something outside the "
+                              "Mesh Editor, Texture Editor, Create New Item and Placement & Animations histories, "
+                              "or wrote files. Tell the user.")
+        return result
 
     def move(self, call, direction):
-        self.end()
+        left = {key: value for key, value in self.end().items() if key in ("not_undoable", "note")}
         undo = direction == "undo"
         source, destination = (self.undo_groups, self.redo_groups) if undo else (self.redo_groups, self.undo_groups)
         if self.partial is not None:
@@ -220,7 +235,7 @@ class TurnHistory:
         elif source:
             group = source[-1]
         else:
-            return {"moved": False, "steps": 0}
+            return {"moved": False, "steps": 0, **left}
 
         moves = [(step, step.before if undo else step.after) for step in (reversed(group) if undo else group)]
         moves = [(step, goal) for step, goal in moves if step.current != goal]
@@ -250,7 +265,8 @@ class TurnHistory:
             source.pop()
             destination.append(group)
         self.partial = None
-        return {"moved": bool(count), "steps": count, "editors": sorted({step.editor.kind for step, _ in moves})}
+        return {"moved": bool(count), "steps": count, "editors": sorted({step.editor.kind for step, _ in moves}),
+                **left}
 
     def _move_one(self, call, step, direction, goal):
         editor = step.editor
