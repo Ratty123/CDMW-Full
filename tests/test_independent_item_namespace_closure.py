@@ -20,7 +20,8 @@ def test_namespace_resource_boundary_retains_source_carrier_guards(qualified):
         iteminfo=_item_table(), stringinfo_texts={}, pappt=SimpleNamespace(index=lambda: {}),
         pappt_entry=SimpleNamespace(path="character/bin__/partprefabtable.pappt"), provenance=tracker)
     plan = SimpleNamespace(spec=SimpleNamespace(template_key=1, item_key=1, stem=None),
-        additions=(SimpleNamespace(path=path, payload_data=payload),), loose_files={}, manifest={})
+        additions=(SimpleNamespace(path=path, payload_data=payload),), loose_files={}, manifest={},
+        independent_inputs=None)
     graph = audit_references(plan, snapshot)
     assert graph.reference_closure_complete is (not qualified)
     assert captured == [not qualified]

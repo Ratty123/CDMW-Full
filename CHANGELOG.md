@@ -58,6 +58,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Browse Archives** text and tag previews, such as an `.hkx` file's, fill the whole preview pane. The **Find** and **Wrap lines** row took half of the pane's height and left an empty band below the preview and the **Scene** panel. The separate preview window had the same gap on its **Preview** and **Details** tabs.
 
 - **AI connections (experimental):** undoing an AI app's turn waits up to two seconds for the Texture Editor, Create New Item and Placement & Animations to show the step, so a step that lands a moment late is no longer reported as failed. The server's instructions name **app_job** for following long work, and **app_settings_get** points at **app_settings_set** for changing a setting.
+- **Create New Item:** 58 armour and gear templates can be saved as an item package (`.cdmw`), for example `Redsentinel_ChainMail_Armor`, `Rochi_PlateArmor_Armor`, `University_BackPack` and `Daeil_Band`. The game's own material files for them name textures the game does not ship (a missing slash, an empty file name), and the package check refused with "Unresolved item dependency". CDMW now leaves such a reference as it is and lists it in the plan's warnings. A missing texture in a file the item itself adds or changes is still refused.
+- **Create New Item:** a template the game ships without any display name, such as `TestSword` (72 development leftovers), says so when you build the plan. It used to say "the ara table has no entry", which read as a problem with the Arabic text.
+- **Create New Item:** the sealable item list of `KuKu_Pot_TwoHandSpear` and `Kuku_Pot_BackPack` can be edited on a clone. The game ships empty entries (item 0) in it, which the editor refused with "Item definition integer is outside its range".
+- **Create New Item:** stat columns you added no longer carry over to the next template when you change templates.
+- **AI connections (experimental):** saving a Create New Item draft with **Game table** edits as a draft file works. It failed with "The draft holds an unsupported setting: TableFieldEdit".
 
 ## [0.12.0-alpha.6] - 2026-11-19
 
