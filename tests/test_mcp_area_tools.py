@@ -1675,6 +1675,55 @@ def test_panel_tools_reach_the_host_as_the_panels_do(editor, connect) -> None:  
     assert refused["status"], refused
 
 
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_output_commands_and_the_camera_go_to_the_helper(editor, connect, tmp_path) -> None:  # noqa: F811
+    """MCP gap plan items 9 and 10: the commands the editor's file buttons send, and set_camera,
+    reach the helper only when its hello names them, with the paths CDMW checked."""
+
+    import math
+
+    ui = editor.ui
+    ui.standalone_rust_host_edit_commands_supported = True
+    ui.standalone_rust_host_panel_commands_supported = True
+    ui.standalone_rust_host_output_commands_supported = False
+    ui.standalone_rust_camera_supported = False
+    mcp = connect(editor.window)
+    # An older helper: the page's own reason, and nothing sent.
+    assert "host_output_commands_v1" in mcp.error("mesh_output_files", {"action": "free_edit"})["message"]
+    assert "host_output_commands_v1" in mcp.error("mesh_hair", {"action": "texture_export"})["message"]
+    assert "host_camera_v1" in mcp.error("mesh_camera", {})["message"]
+    ui.standalone_rust_host_output_commands_supported = True
+    ui.standalone_rust_camera_supported = True
+    sent, forward = [], ui._send_rust_message
+
+    def helper(message):
+        sent.append(message)
+        if message.get("event") == "set_camera":  # the helper answers with its camera
+            ui.standalone_rust_camera = {"yaw": message.get("yaw", 0.0), "pitch": 0.0,
+                                         "distance": message.get("distance", 3.0),
+                                         "target_x": 0.0, "target_y": 1.0, "target_z": 0.0}
+            return True
+        return forward(message)
+
+    ui._send_rust_message = helper
+    camera = mcp.ok("mesh_camera", {"yaw": 90, "distance": 2.5})["camera"]
+    assert camera["yaw"] == pytest.approx(90) and camera["distance"] == 2.5 and camera["target"] == [0.0, 1.0, 0.0]
+    assert sent[-1]["yaw"] == pytest.approx(math.pi / 2) and "pitch" not in sent[-1]
+    rig = tmp_path / "rig"
+    rig.mkdir()
+    mcp.ok("mesh_output_files", {"action": "rig", "folder": str(rig)})
+    assert sent[-1]["command"] == "replacement_export_rig" and sent[-1]["arguments"] == {"folder": str(rig)}
+    mcp.ok("mesh_output_files", {"action": "morph_preset", "path": str(tmp_path / "mine.json"), "name": "Mine"})
+    assert sent[-1]["command"] == "morph_export_preset" and sent[-1]["arguments"]["name"] == "Mine"
+    count = len(sent)
+    assert mcp.error("mesh_output_files", {"action": "morph_setup",
+                                           "path": str(tmp_path / "mine.txt")})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_output_files", {"action": "rig"})["code"] == "invalid_arguments"
+    assert mcp.error("mesh_open_package", {"path": str(tmp_path / "missing")})["code"] == "not_found"
+    assert len(sent) == count
+
+
 def test_export_pac_runs_the_button_and_reports_its_refusal(editor, connect, tmp_path) -> None:  # noqa: F811
     """Export PAC As before the edit is finished: the button's own warning comes back as 'asked'."""
 

@@ -1154,11 +1154,28 @@
       "area": "Mesh Editor",
       "what": "Set the editor's camera by numbers",
       "class": "read",
-      "gap": "not_built",
-      "milestone": "P13 full MCP phase 4: needs a message to the Mesh Editor's helper",
-      "also": [
-        "mesh.command"
-      ]
+      "tool": "mesh.camera"
+    },
+    {
+      "id": "mesh.vertex_edit",
+      "area": "Mesh Editor",
+      "what": "Vertex Parameters: edit the selected vertices' values",
+      "class": "edit",
+      "tool": "mesh.vertex_edit"
+    },
+    {
+      "id": "mesh.open_package",
+      "area": "Mesh Editor",
+      "what": "Import an editable (Free Edit) package edited outside CDMW",
+      "class": "edit",
+      "tool": "mesh.open_package"
+    },
+    {
+      "id": "mesh.output_files",
+      "area": "Mesh Editor",
+      "what": "Export Free Edit OBJ, rig GLB, morph presets and fitting setups",
+      "class": "output",
+      "tool": "mesh.output_files"
     },
     {
       "id": "mesh.export_pac",
@@ -3184,9 +3201,7 @@
     },
     {
       "key": "host_command:export_free_edit",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.output_files"
     },
     {
       "key": "host_command:export_mesh",
@@ -3194,9 +3209,7 @@
     },
     {
       "key": "host_command:hair_begin",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair"
     },
     {
       "key": "host_command:hair_color",
@@ -3208,15 +3221,11 @@
     },
     {
       "key": "host_command:hair_texture_export",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair"
     },
     {
       "key": "host_command:import_editable_package",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.open_package"
     },
     {
       "key": "host_command:layer_activate",
@@ -3316,15 +3325,11 @@
     },
     {
       "key": "host_command:morph_export_preset",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.output_files"
     },
     {
       "key": "host_command:morph_export_recipe",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.output_files"
     },
     {
       "key": "host_command:morph_generate_body_controls",
@@ -3488,9 +3493,7 @@
     },
     {
       "key": "host_command:replacement_export_rig",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.output_files"
     },
     {
       "key": "host_command:replacement_fit",
@@ -3566,9 +3569,7 @@
     },
     {
       "key": "host_command:vertex_edit",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.vertex_edit"
     },
     {
       "key": "helper_control:brush.falloff",
@@ -3610,9 +3611,7 @@
     },
     {
       "key": "helper_control:camera.orbit",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.camera"
     },
     {
       "key": "helper_control:camera.right",
@@ -3698,9 +3697,7 @@
     },
     {
       "key": "helper_control:import.open_package",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.open_package"
     },
     {
       "key": "helper_control:layers.copy",
@@ -3797,9 +3794,7 @@
     },
     {
       "key": "helper_control:output.export_free_edit",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.output_files"
     },
     {
       "key": "helper_control:output.export_mesh",
@@ -3975,21 +3970,18 @@
     },
     {
       "key": "helper_control:tool.bend",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "key": "helper_control:tool.grab",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "key": "helper_control:tool.inflate",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "key": "helper_control:tool.move",
@@ -3997,9 +3989,8 @@
     },
     {
       "key": "helper_control:tool.pinch",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "key": "helper_control:tool.select",
@@ -4007,9 +3998,8 @@
     },
     {
       "key": "helper_control:tool.smooth",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
     },
     {
       "key": "helper_control:topology.bridge",
@@ -4107,27 +4097,19 @@
     },
     {
       "key": "helper_control:vertex.apply",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.vertex_edit"
     },
     {
       "key": "helper_control:vertex.inspect",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.panels"
     },
     {
       "key": "helper_control:vertex.open",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.vertex_edit"
     },
     {
       "key": "helper_control:vertex.stage",
-      "gap": "not_built",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.vertex_edit"
     },
     {
       "key": "helper_control:viewport.pointer_surface",

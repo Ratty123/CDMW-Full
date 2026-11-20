@@ -134,6 +134,26 @@ def _send_edit(call, command: str, arguments: dict[str, object]) -> dict[str, ob
     return outcome
 
 
+NO_OUTPUT_COMMANDS = ("This Mesh Editor helper does not take these commands from CDMW; it is older than this "
+                      "app (host_output_commands_v1).")
+NO_CAMERA = "This Mesh Editor helper does not take its camera from CDMW; it is older than this app (host_camera_v1)."
+#: The commands that need host_output_commands_v1 (cdmw_session.rs, host_cdmw_output_command).
+OUTPUT_COMMANDS = ("vertex_edit", "hair_begin", "hair_texture_export", "export_free_edit", "import_editable_package",
+                   "morph_export_recipe", "morph_export_preset", "replacement_export_rig")
+
+
+def _require(call, flag: str, message: str) -> None:
+    from cdmw.mcp.mesh_tools import shown_document
+
+    if not call.context.ui_call(lambda: bool(getattr(shown_document(call.context), flag, False))):
+        raise ToolError(UNAVAILABLE, message)
+
+
+def _send_output(call, command: str, arguments: dict[str, object]) -> dict[str, object]:
+    _require(call, "standalone_rust_host_output_commands_supported", NO_OUTPUT_COMMANDS)
+    return _send_edit(call, command, arguments)
+
+
 # ----- the panels: weights, morphs, refit, cloth, layers, hair, replacement options --------
 NO_PANEL_COMMANDS = ("This Mesh Editor helper does not take its panels' commands from CDMW; it is older than "
                      "this app (host_panel_commands_v1).")
@@ -144,7 +164,7 @@ PANEL_COMMANDS: dict[str, tuple[str, ...]] = {
         "collision_input", "paint_set", "pin_set",
     ),
     "hair": (
-        "color", "texture",
+        "begin", "color", "texture", "texture_export",
     ),
     "layer": (
         "activate", "copy", "delete", "move", "paste", "rename", "visibility",
@@ -185,7 +205,11 @@ def _panel(family: str):
 
         if not call.context.ui_call(supported):
             raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
-        return _send_edit(call, f"{family}_{action}", dict(call.arguments.get("arguments") or {}))
+        command = f"{family}_{action}"
+        arguments = dict(call.arguments.get("arguments") or {})
+        if command in OUTPUT_COMMANDS:
+            return _send_output(call, command, arguments)
+        return _send_edit(call, command, arguments)
 
     return handler
 
@@ -385,13 +409,92 @@ _PANEL_TOOLS = (
      "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
      "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
     ("hair", "mesh.hair", "Hair",
-     "Hair Tools' commands for a hairstyle being made: color {color: [r, g, b]}, texture {...}."),
+     "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
+     "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
+     "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
     ("replacement", "mesh.part_options", "Part options",
      "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
      "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), emission, "
      "translucency, jiggle, physics_profile, collision_volumes, weapon_collisions, cloth, guides, islands, "
      "include {part_ids, included}; and Import Replacement's fit, compare and reset."),
 )
+
+
+def _vertex_edit(call) -> dict[str, object]:
+    a = call.arguments
+    return _send_output(call, "vertex_edit", {"token": a["token"], "edits": dict(a["edits"])})
+
+
+def _open_package(call) -> dict[str, object]:
+    path = Path(str(call.arguments["path"]))
+    if not path.exists():
+        raise ToolError(NOT_FOUND, f"There is no package at {path}.")
+    return _send_output(call, "import_editable_package", {"path": str(path)})
+
+
+def _output(call) -> dict[str, object]:
+    a = call.arguments
+    action = str(a["action"])
+    if action == "free_edit":
+        return _send_output(call, "export_free_edit", {})
+    if action == "rig":
+        if not a.get("folder"):
+            raise ToolError(INVALID_ARGUMENTS, "Export rig GLB writes into 'folder', an existing folder outside the game.")
+        return _send_output(call, "replacement_export_rig", {"folder": str(Path(str(a["folder"])))})
+    if not a.get("path"):
+        raise ToolError(INVALID_ARGUMENTS, "Give 'path', a new .json file outside the game.")
+    path = Path(str(a["path"]))
+    if path.suffix.lower() != ".json":
+        raise ToolError(INVALID_ARGUMENTS, "Morph presets and fitting setups are saved as .json files.")
+    command = "morph_export_preset" if action == "morph_preset" else "morph_export_recipe"
+    return _send_output(call, command, {"path": str(path), "name": str(a.get("name") or path.stem)})
+
+
+#: Camera values the view takes, in degrees for the angles.
+_CAMERA_KEYS = ("yaw", "pitch", "distance", "target")
+
+
+def _camera_out(report: dict) -> dict[str, object]:
+    import math
+
+    return {"yaw": math.degrees(float(report.get("yaw", 0.0))), "pitch": math.degrees(float(report.get("pitch", 0.0))),
+            "distance": report.get("distance"),
+            "target": [report.get("target_x"), report.get("target_y"), report.get("target_z")]}
+
+
+def _camera(call) -> dict[str, object]:
+    import math
+
+    from cdmw.mcp.mesh_tools import ready_document
+
+    a = call.arguments
+    values: dict[str, object] = {}
+    for key in ("yaw", "pitch"):
+        if a.get(key) is not None:
+            values[key] = math.radians(float(a[key]))
+    if a.get("distance") is not None:
+        values["distance"] = float(a["distance"])
+    if a.get("target") is not None:
+        values["target"] = [float(value) for value in a["target"]]
+    if a.get("frame"):
+        values["frame"] = True
+
+    def send() -> bool:
+        tab = ready_document(call.context)
+        if not getattr(tab, "standalone_rust_camera_supported", False):
+            raise ToolError(UNAVAILABLE, NO_CAMERA)
+        return tab.set_camera_in_view(values)
+
+    if not call.context.ui_call(send):
+        raise ToolError(FAILED, "The Mesh Editor did not take the camera.")
+    deadline = time.monotonic() + ARRIVE_S
+    while time.monotonic() < deadline:
+        call.check_cancelled()
+        report = call.context.ui_call(lambda: getattr(ready_document(call.context), "standalone_rust_camera", None))
+        if report is not None:
+            return {"camera": _camera_out(report)}
+        time.sleep(0.03)
+    raise ToolError(FAILED, "The Mesh Editor did not report its camera.")
 
 
 def mesh_edit_tools() -> list[Tool]:
@@ -489,6 +592,43 @@ def mesh_edit_tools() -> list[Tool]:
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}}, ["path"]),
              effect=OUTPUT, route="ui:_start_standalone_export_pac_requested", handler=_export_pac,
              runs_on=ON_CALL, output_paths=("path",)),
+        Tool(name="mesh.camera", family="mesh", title="Mesh Editor camera",
+             description="Read or set the 3D view's camera by numbers: yaw and pitch in degrees, distance from "
+                         "the target, and target [x, y, z]; frame first frames the whole model, as Frame All "
+                         "does. Values left out stay as they are; with none, it only reads the camera. Only the "
+                         "view changes, not the mesh. Returns the camera as the editor holds it.",
+             input_schema=object_schema({"yaw": {"type": "number"}, "pitch": {"type": "number", "minimum": -89.4,
+                                                                             "maximum": 89.4},
+                                         "distance": {"type": "number", "minimum": 0.0001}, "target": _VEC3,
+                                         "frame": {"type": "boolean"}}),
+             effect=READ, route="helper:set_camera", handler=_camera, runs_on=ON_WORKER),
+        Tool(name="mesh.vertex_edit", family="mesh", title="Edit vertex parameters",
+             description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' and the "
+                         "channels it may edit come from mesh_panels' vertex_parameters section; 'edits' are as "
+                         "the inspector sends them (for example {position: {values: [null, null, 0.25]}} or "
+                         "{weights: {mode: set, bone: 3, value: 0.5}}). One History step.",
+             input_schema=object_schema({"token": {"type": "string", "minLength": 1, "maxLength": 256},
+                                         "edits": {"type": "object"}}, ["token", "edits"]),
+             effect=EDIT, route="helper:cdmw_command vertex_edit", handler=_vertex_edit, runs_on=ON_WORKER),
+        Tool(name="mesh.open_package", family="mesh", title="Open an editable package",
+             description="The Output page's Import editable package: open a Free Edit package folder (or its "
+                         "file) at 'path' that was edited outside CDMW, for example in Blender, as the button "
+                         "does after its chooser. One History step.",
+             input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}}, ["path"]),
+             effect=EDIT, route="helper:cdmw_command import_editable_package", handler=_open_package,
+             runs_on=ON_WORKER),
+        Tool(name="mesh.output_files", family="mesh", title="Write Mesh Editor files",
+             description="Buttons that write files, as they do after their chooser: free_edit (Export Free Edit "
+                         "OBJ into the proven package folder), rig (Export rig GLB into 'folder'), morph_preset "
+                         "(Export morph preset to 'path'), morph_setup (Save fitting setup to 'path'); 'name' "
+                         "names the preset or setup. Paths are checked first: nothing is written inside the game.",
+             input_schema=object_schema({"action": {"type": "string",
+                                                    "enum": ["free_edit", "rig", "morph_preset", "morph_setup"]},
+                                         "folder": {"type": "string", "minLength": 3, "maxLength": 1024},
+                                         "path": {"type": "string", "minLength": 3, "maxLength": 1024},
+                                         "name": {"type": "string", "maxLength": 128}}, ["action"]),
+             effect=OUTPUT, route="helper:cdmw_command export_*", handler=_output, runs_on=ON_WORKER,
+             output_paths=("path",), output_folders=("folder",)),
         Tool(name="mesh.findings", family="mesh", title="Mesh findings",
              description="The shown document's validation, as Finish runs it: whether the mesh can be written "
                          "for its output, and each finding with its part and what to do about it.",

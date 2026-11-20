@@ -4158,6 +4158,41 @@ impl LabApplication {
                 // Run at the next frame, where the key press would have run it.
                 self.pending_host_commands.push(command);
             }
+            HostEvent::SetCamera {
+                yaw,
+                pitch,
+                distance,
+                target,
+                frame,
+            } => {
+                if frame {
+                    // As Frame All does.
+                    if let Some(mesh) = &self.mesh {
+                        if let Some(rectangle) = self.viewport_rect {
+                            self.camera.frame_all_in_viewport(mesh, rectangle);
+                        } else {
+                            self.camera.frame_all(mesh);
+                        }
+                    }
+                }
+                let (current_yaw, current_pitch, _target, _distance) = self.camera.orbit_state();
+                if yaw.is_some() || pitch.is_some() || target.is_some() {
+                    self.camera.set_orbit_state_with_roll(
+                        yaw.unwrap_or(current_yaw),
+                        pitch.unwrap_or(current_pitch),
+                        self.camera.roll(),
+                        target.map(Vec3::from),
+                        None,
+                    );
+                }
+                if let Some(distance) = distance {
+                    self.camera.set_distance(distance);
+                }
+                self.projection = None;
+                if let Some(bridge) = &self.cdmw_bridge {
+                    let _ = bridge.publish_camera(camera_report(&self.camera));
+                }
+            }
             HostEvent::HighlightPart(part) => {
                 let count = self
                     .document

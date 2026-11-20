@@ -46,6 +46,12 @@ RUST_HOST_PANEL_COMMANDS_CAPABILITY = "host_panel_commands_v1"
 # Optional hello capability: the helper takes "highlight_part", which lights one part
 # up in the 3D view without selecting it (the Textures panel's hover).
 RUST_HOST_HIGHLIGHT_PART_CAPABILITY = "host_highlight_part_v1"
+# Optional hello capability: "cdmw_command" also takes vertex_edit, hair_begin, hair_texture_export,
+# export_free_edit, import_editable_package, morph_export_recipe, morph_export_preset and
+# replacement_export_rig, with the path a button's file dialog would give.
+RUST_HOST_OUTPUT_COMMANDS_CAPABILITY = "host_output_commands_v1"
+# Optional hello capability: the helper takes "set_camera" and answers with a "camera" event.
+RUST_HOST_CAMERA_CAPABILITY = "host_camera_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",
