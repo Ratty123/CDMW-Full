@@ -1581,6 +1581,27 @@
       "tool": "app.settings_set"
     },
     {
+      "id": "app.workspace_init",
+      "area": "Settings",
+      "what": "Setup: Init Workspace in a chosen folder",
+      "class": "output",
+      "tool": "app.workspace_init"
+    },
+    {
+      "id": "app.language_export",
+      "area": "Settings",
+      "what": "Appearance: Export Language File",
+      "class": "output",
+      "tool": "app.language_export"
+    },
+    {
+      "id": "app.language_import",
+      "area": "Settings",
+      "what": "Appearance: Import Language File and switch to it",
+      "class": "edit",
+      "tool": "app.language_import"
+    },
+    {
       "id": "shortcuts.change",
       "area": "Settings > Shortcuts",
       "what": "Rebind, unbind, reset",
