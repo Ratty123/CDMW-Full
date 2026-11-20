@@ -304,7 +304,7 @@ class OutputPanel(QGroupBox):
         self.send_dmm_button.setObjectName("new_item_send_to_dmm")
         self.send_dmm_button.setToolTip(self.tr(
             "Write the mod straight into DMM's mods folder. Then enable it in DMM and click Mount."))
-        self.send_dmm_button.clicked.connect(self._send_to_dmm)
+        self.send_dmm_button.clicked.connect(lambda _checked=False: self._send_to_dmm())
         actions.addWidget(self.send_dmm_button)
         sidebar_layout.addWidget(self.actions)
         self._stale_reason = self._pending_stale_reason = self._plan_blocked = ""
@@ -624,13 +624,13 @@ class OutputPanel(QGroupBox):
         self._plan_blocked = str(message)
         self._plan_note()
 
-    def _send_to_dmm(self) -> None:
+    def _send_to_dmm(self, *, notify=None) -> bool:
         if self._source_export_problem():
             self._refresh_export_state()
-            return
+            return False
         mods = self._dmm_mods_folder()
         if mods is None:
-            return
+            return False
         # The DMM folder is named after the mod alone, so another item sent under
         # the same name would be replaced without a word.
         from cdmw.services.dmm_send import send_target
@@ -645,13 +645,8 @@ class OutputPanel(QGroupBox):
                 self, self.tr("Send to DMM"),
                 self.tr("Replace the mod named {value_0} that CDMW wrote earlier?").format(value_0=title),
         ) != QMessageBox.StandardButton.Yes:
-            return
-        self._export_error = ""
-        self._export_requested = True
-        try:
-            self._controller.start_send_to_dmm(mods)
-        finally:
-            self._export_requested = False
+            return False
+        return self._start_write(lambda: self._controller.start_send_to_dmm(mods), notify)
 
     def _dmm_mods_folder(self):
         from cdmw.ui.new_item.dmm_send_ui import choose_dmm_mods_folder
@@ -674,7 +669,8 @@ class OutputPanel(QGroupBox):
             message = self.tr("Sent to DMM. In DMM, enable the mod and click Mount.")
             if result.replaced:
                 message += "\n" + self.tr("It replaced the copy CDMW sent earlier.")
-            QMessageBox.information(self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder))
+            self._notify_export(result, lambda: QMessageBox.information(
+                self, self.tr("Send to DMM"), message + "\n\n" + str(result.folder)))
             return
         self._export_error = ""
         self._refresh_export_state()

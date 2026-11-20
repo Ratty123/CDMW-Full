@@ -3017,6 +3017,7 @@ ERROR_REFERENCE = [
       "Give key, keys or search",
       "Give path, set or ticked_parts, not more than one.",
       "Give piece: a .pac path or file name, or a prefab name.",
+      "Give steps to apply.",
       "Give the draft's name.",
       "Give the rows of the downloaded copies to delete.",
       "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
@@ -3063,10 +3064,12 @@ ERROR_REFERENCE = [
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
+      "This editor has no tree.",
       "This is not a CDMW language file: {exc}",
       "Unknown argument {extra[0]}",
       "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
       "Unknown manager output {sorted(unknown)[0]}; the page offers {sorted(tab.profile_checkboxes)}.",
+      "Unknown step kind {kind}.",
       "Unknown template field {sorted(unknown)[0]}.",
       "Unknown {name}: {options[name]}.",
       "Unknown {what} field {sorted(unknown)[0]}; known: {sorted(table)}.",
@@ -3127,6 +3130,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_session_tools.py",
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/model_library_tools.py",
+      "cdmw/mcp/new_item_advanced.py",
       "cdmw/mcp/new_item_effects.py",
       "cdmw/mcp/new_item_files.py",
       "cdmw/mcp/new_item_model.py",
@@ -3646,9 +3650,11 @@ ERROR_REFERENCE = [
       "The loaded archive index has no such texture.",
       "The loaded {index.table} table has no row {key}.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "The table has {table.rowCount()} rows.",
       "There is no animation {index}; files_action_chart_state lists them.",
       "There is no animation {index}; this chart has {len(chart.animations)}.",
       "There is no audio file {source}.",
+      "There is no cell at row {row}, column {column}.",
       "There is no change with that number; tables_editor_state lists them.",
       "There is no column {column}.",
       "There is no command {command_id} now. commands_list lists them; the Mesh Editor's and the Texture Editor's exist while their tool is open.",
@@ -3667,7 +3673,9 @@ ERROR_REFERENCE = [
       "There is no tab {row}.",
       "There is no table {table}; files_action_chart_state lists them.",
       "There is no table {table}; tables lists them.",
+      "There is no tree row {list(path)}.",
       "There is no workflow profile {profile_id}.",
+      "There is no {what} {key} here.",
       "This appearance lists no piece {a['piece']}.",
       "This event has no field {field}.",
       "This joint has no {key}.",
@@ -3699,6 +3707,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/mesh_tools.py",
       "cdmw/mcp/mod_management_tools.py",
       "cdmw/mcp/model_library_tools.py",
+      "cdmw/mcp/new_item_advanced.py",
       "cdmw/mcp/npc_tools.py",
       "cdmw/mcp/paging.py",
       "cdmw/mcp/prefab_tools.py",
@@ -29857,6 +29866,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Choose a template first; its mesh and rig are exported.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 330
+    }
+  },
+  {
+    "area": "items",
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
@@ -29884,7 +29901,15 @@ MESSAGE_REFERENCE = [
     "message": "Choose an effect first. The Layers editor supports at most 16 layers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 68
+      "cdmw/mcp/new_item_effects.py": 153
+    }
+  },
+  {
+    "area": "items",
+    "message": "Choose an effect first; it has no emitters to edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 80
     }
   },
   {
@@ -29900,7 +29925,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an output folder first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 110
+      "cdmw/mcp/new_item_output.py": 113
     }
   },
   {
@@ -30480,7 +30505,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a valid colour, for example #ff8844.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 219
+      "cdmw/mcp/new_item_effects.py": 304
     }
   },
   {
@@ -30601,7 +30626,7 @@ MESSAGE_REFERENCE = [
     "message": "Find the effect in the library first with the search action.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 264
+      "cdmw/mcp/new_item_effects.py": 349
     }
   },
   {
@@ -30634,6 +30659,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_body_visibility.py": 224
+    }
+  },
+  {
+    "area": "items",
+    "message": "Give steps to apply.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 258
     }
   },
   {
@@ -32486,7 +32519,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an effect layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 74
+      "cdmw/mcp/new_item_effects.py": 159
     }
   },
   {
@@ -32854,7 +32887,23 @@ MESSAGE_REFERENCE = [
     "message": "That bonus is not selected at this level.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 143
+      "cdmw/mcp/new_item_effects.py": 228
+    }
+  },
+  {
+    "area": "items",
+    "message": "That cell cannot be edited.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 220
+    }
+  },
+  {
+    "area": "items",
+    "message": "That cell has no box to tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 216
     }
   },
   {
@@ -32863,6 +32912,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "native/cdmw_item_composer/src/zip_reader.cpp": 149
+    }
+  },
+  {
+    "area": "items",
+    "message": "That row has no box to tick.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 241
     }
   },
   {
@@ -32891,6 +32948,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The Emitters editor is not ready; pick an effect first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 387
+    }
+  },
+  {
+    "area": "items",
     "message": "The ItemInfo operation budget is exhausted.",
     "recovery": "internal",
     "sources": {
@@ -32911,7 +32976,7 @@ MESSAGE_REFERENCE = [
     "message": "The Layers editor is not ready.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 271
+      "cdmw/mcp/new_item_effects.py": 356
     }
   },
   {
@@ -33601,7 +33666,7 @@ MESSAGE_REFERENCE = [
     "message": "The item would be added to {root}, not to {folder}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 122
+      "cdmw/mcp/new_item_output.py": 125
     }
   },
   {
@@ -33649,7 +33714,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 690
+      "cdmw/ui/new_item/panels_output.py": 686
     }
   },
   {
@@ -34011,7 +34076,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged effect could not be applied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 292
+      "cdmw/mcp/new_item_effects.py": 377
     }
   },
   {
@@ -34020,6 +34085,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/ui/new_item/rust_ui_models.py": 94
+    }
+  },
+  {
+    "area": "items",
+    "message": "The table has {table.rowCount()} rows.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 204
     }
   },
   {
@@ -34264,10 +34337,19 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "There is no cell at row {row}, column {column}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 213
+    }
+  },
+  {
+    "area": "items",
     "message": "There is no folder {folder}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_output.py": 87
+      "cdmw/mcp/new_item_advanced.py": 321,
+      "cdmw/mcp/new_item_output.py": 90
     }
   },
   {
@@ -34276,6 +34358,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/new_item_files.py": 134
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no saved effect named {a['saved_name']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 129
     }
   },
   {
@@ -34299,7 +34389,15 @@ MESSAGE_REFERENCE = [
     "message": "There is no such effect layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 62
+      "cdmw/mcp/new_item_effects.py": 147
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no such emitter.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 83
     }
   },
   {
@@ -34307,7 +34405,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no such equipment preset.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 132
+      "cdmw/mcp/new_item_effects.py": 217
     }
   },
   {
@@ -34355,7 +34453,23 @@ MESSAGE_REFERENCE = [
     "message": "There is no such selected perk.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 117
+      "cdmw/mcp/new_item_effects.py": 202
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no tree row {list(path)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 172
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no {what} {key} here.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 162
     }
   },
   {
@@ -34436,6 +34550,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/rust_ui_registry.py": 64
+    }
+  },
+  {
+    "area": "items",
+    "message": "This editor has no tree.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 169
+    }
+  },
+  {
+    "area": "items",
+    "message": "This emitter has no property {parameter['key']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 96
     }
   },
   {
@@ -34704,6 +34834,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "Tick override first; this row cannot be edited now.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 245
+    }
+  },
+  {
+    "area": "items",
     "message": "Translucency materials were not found in the exported model: {detail}",
     "recovery": "missing",
     "sources": {
@@ -34901,6 +35039,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/new_item/rust_ui_actions.py": 247
+    }
+  },
+  {
+    "area": "items",
+    "message": "Unknown step kind {kind}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 248
     }
   },
   {
@@ -35484,6 +35630,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current operation to finish, then try again.",
     "recovery": "internal",
     "sources": {
+      "cdmw/mcp/new_item_advanced.py": 266,
       "cdmw/mcp/new_item_workflow.py": 53,
       "cdmw/ui/new_item/mod_merge_dialog.py": 191,
       "cdmw/ui/new_item/mod_update_dialog.py": 172
@@ -37113,6 +37260,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "{parameter['key']} cannot be edited on this emitter.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 99
+    }
+  },
+  {
+    "area": "items",
+    "message": "{parameter['key']} takes {len(spins)} values.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 102
+    }
+  },
+  {
+    "area": "items",
     "message": "{part.name}: cannot prepare the source colour for translucency: {exc}",
     "recovery": "input",
     "sources": {
@@ -37469,6 +37632,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 538
+    }
+  },
+  {
+    "area": "items",
+    "message": "{target} already exists; choose another folder. CDMW does not replace it.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/mcp/new_item_advanced.py": 333
     }
   },
   {
@@ -109238,6 +109409,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/new_item/iteminfo_operations.py",
     "cdmw/domain/new_item/iteminfo_overrides.py",
     "cdmw/domain/new_item/rules.py",
+    "cdmw/mcp/new_item_advanced.py",
     "cdmw/mcp/new_item_draft.py",
     "cdmw/mcp/new_item_effects.py",
     "cdmw/mcp/new_item_fields.py",
@@ -111512,12 +111684,17 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/mcp/names.py": {},
+  "cdmw/mcp/new_item_advanced.py": {
+    "code": 9,
+    "raise": 25,
+    "report": 4
+  },
   "cdmw/mcp/new_item_draft.py": {
     "raise": 2
   },
   "cdmw/mcp/new_item_effects.py": {
     "code": 1,
-    "raise": 15
+    "raise": 22
   },
   "cdmw/mcp/new_item_fields.py": {
     "raise": 20
@@ -111533,7 +111710,7 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/new_item_output.py": {
-    "raise": 6,
+    "raise": 8,
     "report": 1
   },
   "cdmw/mcp/new_item_tools.py": {

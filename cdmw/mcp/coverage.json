@@ -1456,6 +1456,28 @@
       "tool": "new_item.build"
     },
     {
+      "id": "new_item.send_to_dmm",
+      "area": "Create New Item",
+      "what": "Send to DMM: write the item as a mod straight into DMM's mods folder",
+      "class": "output",
+      "tool": "new_item.send_to_dmm"
+    },
+    {
+      "id": "new_item.export_rig",
+      "area": "Create New Item",
+      "what": "Export the template rig as GLB to weight a model against",
+      "class": "output",
+      "tool": "new_item.export_rig"
+    },
+    {
+      "id": "new_item.wearers_reference_rig",
+      "area": "Create New Item",
+      "what": "Wearable by, the preview-only fitting reference, and clearing added bones",
+      "class": "edit",
+      "tool": "new_item.advanced",
+      "note": "Browse installed models and Add bones open their own dialogs, which still go through the generic tools."
+    },
+    {
       "id": "new_item.draft_file",
       "area": "Create New Item",
       "what": "Save and load draft settings, continue or update an item package, check mod updates, and merge mod folders",
@@ -1468,24 +1490,16 @@
       "area": "Create New Item",
       "what": "Experimental item definition, behavior, inventory, and shared game table editors",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 typed advanced table editors",
-      "also": [
-        "app.ui",
-        "app.ui_act"
-      ]
+      "tool": "new_item.advanced",
+      "note": "Writing a stock item package from Item settings is not reached by this tool."
     },
     {
       "id": "new_item.effect_emitters",
       "area": "Create New Item",
       "what": "Edit individual effect emitters and saved effect presets",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 typed emitter and preset editors",
-      "also": [
-        "app.ui",
-        "app.ui_act"
-      ]
+      "tool": "new_item.effects",
+      "note": "Deleting a saved effect is destructive-class. Emitter colour stops, recipe import and export still go through the generic tools."
     },
     {
       "id": "mods.list",
