@@ -10,6 +10,8 @@ from cdmw.mcp.rail_actions import PATH, choices, choose, page, press, required, 
 
 _SETTINGS_CONTROLS = {
     "appearance/theme": "theme_combo",
+    # Classic or Compact Workspace; used from the next start, as the page's notice says.
+    "ui/shell_variant": "application_layout_combo",
     "appearance/language": "language_combo",
     "appearance/ui_font_family": "ui_font_family_combo",
     "appearance/ui_density": "density_combo",
@@ -74,6 +76,11 @@ _PATH_CONTROLS = {
     "paths/dds_staging_root": ("textures", "dds_staging_root_edit"),
     "paths/output_root": ("textures", "output_root_edit"),
     "archive/extract_root": ("archive", "archive_extract_root_edit"),
+    # Helper programs the texture tools run; Settings saves them from these fields.
+    "ncnn/exe_path": ("textures", "ncnn_exe_path_edit"),
+    "ncnn/model_dir": ("textures", "ncnn_model_dir_edit"),
+    "chainner/exe_path": ("textures", "chainner_exe_path_edit"),
+    "chainner/chain_path": ("textures", "chainner_chain_path_edit"),
 }
 
 
