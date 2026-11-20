@@ -38,7 +38,10 @@ def page(tmp_path, monkeypatch, request):
         from tests.test_independent_items import setup_game
         _service, _snapshot, entries = setup_game(tmp_path / "snapshot")
     else:
-        entries = tuple(parse_archive_pamt(build_package(tmp_path / "snapshot", synthetic_files())))
+        files = synthetic_files()
+        effect = Path(__file__).parent / "fixtures" / "effects" / "fx_hit_common_fire_attach_a_loop.pae"
+        files["effect/binary__/releasebin/fx_test_fire.pae"] = effect.read_bytes()
+        entries = tuple(parse_archive_pamt(build_package(tmp_path / "snapshot", files)))
 
     presenter = QWidget()
     shell = SimpleNamespace(new_item_studio_tab=presenter,
@@ -155,3 +158,45 @@ def test_advanced_editors_change_the_draft_through_their_controls(page):
     assert refused("game_tables", {"kind": "press", "control": "set"})["code"] == "unavailable"
     apply("item_settings", {"kind": "press", "control": "reset"})
     assert draft().item_settings is None
+
+
+def test_emitters_and_saved_effects_through_the_effects_tool(page):
+    client, tab = page
+    effects = lambda **arguments: client.ok("new_item.effects", **arguments)  # noqa: E731
+    effects(action="search", text="fx_test_fire")
+    effects(action="pick", stem="fx_test_fire")
+    workspace = tab.perks_panel.effects_workspace
+    wait_for(lambda: workspace.placement is not None)
+    # The preview helper process is not started here; hand the inspector the emitters it would list.
+    workspace.placement.effect_preview_ready.emit(SimpleNamespace(emitters=(), editor_emitters=[
+        {"name": "fire_core", "resolved": True, "enabled": True, "fields": ("_spawnCountMax", "_opacity"), "values": {}},
+        {"name": "fire_sparks", "resolved": False, "enabled": True, "fields": (), "values": {}}]))
+    emitters = effects()["emitters"]
+    assert [row["resolved"] for row in emitters["list"]] == [True, False]
+    staged = lambda: workspace.staged_state.resolved_layers()[workspace.staged_state.active_layer].look  # noqa: E731
+
+    state = effects(action="emitter", emitter_row=0, emitter_enabled=False,
+                    parameters=[{"key": "_spawnCountMax", "values": [12]}, {"key": "size", "values": [2.5]}],
+                    curves={"opacity_curve": [0.0, 0.5, 0.0]}, texture="effect/texture/spark.dds")
+    edit = next(edit for edit in staged().emitters if edit.index == 0)
+    assert not edit.enabled and dict(edit.values)["_spawnCountMax"] == (12.0,) and edit.size == 2.5
+    assert edit.opacity_curve == (0.0, 0.5, 0.0) and edit.texture == "effect/texture/spark.dds"
+    rows = {row["key"]: row for row in state["emitters"]["parameters"]}
+    assert rows["_spawnCountMax"]["use"] and rows["_spawnCountMax"]["values"] == [12.0]
+    # The emitter's own limits apply, and an unresolved emitter cannot be edited.
+    for bad in ({"parameters": [{"key": "_opacity", "values": [5]}]}, {"parameters": [{"key": "nope"}]},
+                {"emitter_row": 9}):
+        assert client.call("new_item.effects", action="emitter", **bad)["error"]["code"] == "unavailable", bad
+    assert client.call("new_item.effects", action="emitter", emitter_row=1,
+                       parameters=[{"key": "_opacity", "values": [0.5]}])["error"]["code"] == "unavailable"
+    effects(action="emitter", emitter_row=0, emitter_operation="reset")
+    assert not any(edit.index == 0 for edit in staged().emitters)
+
+    # Saved effects: save under a name, load it back, delete it (which asks first).
+    saved = effects(action="saved", saved_operation="save", saved_name="My flame")
+    assert saved["emitters"]["saved"] == ["My flame"] and saved["asked"][0]["answer"] == "My flame"
+    effects(action="saved", saved_operation="load", saved_name="My flame")
+    assert client.call("new_item.effects", action="saved", saved_operation="load",
+                       saved_name="Nope")["error"]["code"] == "unavailable"
+    assert effects(action="saved", saved_operation="delete", saved_name="My flame")["emitters"]["saved"] == []
+

@@ -29893,7 +29893,15 @@ MESSAGE_REFERENCE = [
     "message": "Choose an effect first. The Layers editor supports at most 16 layers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 68
+      "cdmw/mcp/new_item_effects.py": 153
+    }
+  },
+  {
+    "area": "items",
+    "message": "Choose an effect first; it has no emitters to edit.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 80
     }
   },
   {
@@ -30489,7 +30497,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a valid colour, for example #ff8844.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 219
+      "cdmw/mcp/new_item_effects.py": 304
     }
   },
   {
@@ -30610,7 +30618,7 @@ MESSAGE_REFERENCE = [
     "message": "Find the effect in the library first with the search action.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 264
+      "cdmw/mcp/new_item_effects.py": 349
     }
   },
   {
@@ -32503,7 +32511,7 @@ MESSAGE_REFERENCE = [
     "message": "Select an effect layer.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 74
+      "cdmw/mcp/new_item_effects.py": 159
     }
   },
   {
@@ -32871,7 +32879,7 @@ MESSAGE_REFERENCE = [
     "message": "That bonus is not selected at this level.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 143
+      "cdmw/mcp/new_item_effects.py": 228
     }
   },
   {
@@ -32932,6 +32940,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "The Emitters editor is not ready; pick an effect first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 387
+    }
+  },
+  {
+    "area": "items",
     "message": "The ItemInfo operation budget is exhausted.",
     "recovery": "internal",
     "sources": {
@@ -32952,7 +32968,7 @@ MESSAGE_REFERENCE = [
     "message": "The Layers editor is not ready.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 271
+      "cdmw/mcp/new_item_effects.py": 356
     }
   },
   {
@@ -34052,7 +34068,7 @@ MESSAGE_REFERENCE = [
     "message": "The staged effect could not be applied.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 292
+      "cdmw/mcp/new_item_effects.py": 377
     }
   },
   {
@@ -34337,6 +34353,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
+    "message": "There is no saved effect named {a['saved_name']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 129
+    }
+  },
+  {
+    "area": "items",
     "message": "There is no store named {placement.store_name}",
     "recovery": "internal",
     "sources": {
@@ -34356,7 +34380,15 @@ MESSAGE_REFERENCE = [
     "message": "There is no such effect layer.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 62
+      "cdmw/mcp/new_item_effects.py": 147
+    }
+  },
+  {
+    "area": "items",
+    "message": "There is no such emitter.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 83
     }
   },
   {
@@ -34364,7 +34396,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no such equipment preset.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 132
+      "cdmw/mcp/new_item_effects.py": 217
     }
   },
   {
@@ -34412,7 +34444,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no such selected perk.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/new_item_effects.py": 117
+      "cdmw/mcp/new_item_effects.py": 202
     }
   },
   {
@@ -34517,6 +34549,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/new_item_advanced.py": 142
+    }
+  },
+  {
+    "area": "items",
+    "message": "This emitter has no property {parameter['key']}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 96
     }
   },
   {
@@ -37207,6 +37247,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_painting.py": 566
+    }
+  },
+  {
+    "area": "items",
+    "message": "{parameter['key']} cannot be edited on this emitter.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 99
+    }
+  },
+  {
+    "area": "items",
+    "message": "{parameter['key']} takes {len(spins)} values.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/new_item_effects.py": 102
     }
   },
   {
@@ -111621,7 +111677,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/new_item_effects.py": {
     "code": 1,
-    "raise": 15
+    "raise": 22
   },
   "cdmw/mcp/new_item_fields.py": {
     "raise": 20

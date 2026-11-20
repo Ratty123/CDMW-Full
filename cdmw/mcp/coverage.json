@@ -1483,12 +1483,8 @@
       "area": "Create New Item",
       "what": "Edit individual effect emitters and saved effect presets",
       "class": "edit",
-      "gap": "not_built",
-      "milestone": "P13 typed emitter and preset editors",
-      "also": [
-        "app.ui",
-        "app.ui_act"
-      ]
+      "tool": "new_item.effects",
+      "note": "Deleting a saved effect is destructive-class. Emitter colour stops, recipe import and export still go through the generic tools."
     },
     {
       "id": "mods.list",

@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
 from cdmw.mcp.errors import INVALID_ARGUMENTS, UNAVAILABLE, ToolError
-from cdmw.mcp.names import EDIT, READ
+from cdmw.mcp.names import DESTRUCTIVE, EDIT, READ
 from cdmw.mcp.new_item_workflow import (
     BOOL, INT, NUMBER, TEXT, VEC3, act, action_schema, array, available, choice, combo_choices, idle,
     json_value, read_when, required, set_control, workflow,
@@ -17,8 +17,11 @@ _ANIMATION = {name: NUMBER for name in ("flow_u", "flow_v", "pulse_frequency", "
 _RGB = {"enabled": BOOL, "intensity": NUMBER, "reveal": NUMBER, "softness": NUMBER, "inverse": BOOL}
 _ACTIONS = (
     "state", "search", "index", "pick", "layer", "placement", "look", "apply", "discard",
-    "glow", "search_perks", "perks", "load_bonuses", "bonus",
+    "glow", "search_perks", "perks", "load_bonuses", "bonus", "emitter", "saved",
 )
+_ORIENTATION = {"original": None, "follow_placement": 0, "face_camera": 1}
+_CURVE = {"type": ["array", "null"], "items": NUMBER, "minItems": 3, "maxItems": 3}
+_PARAMETER = object_schema({"key": TEXT, "use": BOOL, "values": array(NUMBER, limit=4)}, ["key"])
 
 
 def _click(button):
@@ -34,7 +37,9 @@ def _state(page):
     workspace = editor.effects_workspace if editor is not None else None
     committed = EffectWorkspaceState.from_draft(draft)
     model = page.model_panel
+    recipe = getattr(workspace, "recipe_panel", None) if workspace else None
     return {
+        **({"emitters": _emitters(recipe)} if recipe is not None else {}),
         "committed": json_value(committed), "staged": json_value(workspace.staged_state if workspace else committed),
         "unapplied": workspace.has_staged_changes() if workspace else False,
         "compatibility": workspace.compatibility_label.text() if workspace else "",
@@ -44,6 +49,86 @@ def _state(page):
                  "available_parts": [model.glow_parts.item(i).data(Qt.ItemDataRole.UserRole)
                                      for i in range(model.glow_parts.count())]},
     }
+
+
+def _emitters(recipe):
+    """The Emitters and Saved tabs as shown for the active layer."""
+    fields = [{"key": key, "label": recipe.parameters.item(row, 1).text() if recipe.parameters.item(row, 1) else key,
+               "use": check.checkState() == Qt.CheckState.Checked,
+               "editable": bool(check.flags() & Qt.ItemFlag.ItemIsUserCheckable),
+               "values": [spin.value() for spin in spins],
+               "range": [spins[0].minimum(), spins[0].maximum()] if spins else None}
+              for row, (key, (check, spins)) in enumerate(recipe._fields.items())]
+    orientation = next((name for name, value in _ORIENTATION.items() if value == recipe.orientation.currentData()),
+                       "original")
+    return {
+        "list": [{"row": row, "label": recipe.emitter.itemText(row),
+                  "resolved": bool((recipe.emitter.itemData(row) or {}).get("resolved"))}
+                 for row in range(recipe.emitter.count())],
+        "current": recipe.emitter.currentIndex(), "enabled": recipe.emitter_enabled.isChecked(),
+        "orientation": orientation, "orientation_editable": recipe.orientation.isEnabled(),
+        "parameters": fields, "colour_curve": recipe.colour_curve.isChecked(),
+        "curves": {key: [spin.value() for spin in spins] if check.isChecked() else None
+                   for key, (check, spins) in recipe.curves.items()},
+        "texture": recipe.texture.text(), "status": recipe.emitter_status.text(),
+        "saved": [recipe.saved.itemText(row) for row in range(recipe.saved.count())],
+    }
+
+
+def _emitter(recipe, a):
+    if recipe.emitter.count() == 0:
+        raise ValueError("Choose an effect first; it has no emitters to edit.")
+    if "emitter_row" in a:
+        if a["emitter_row"] >= recipe.emitter.count():
+            raise ValueError("There is no such emitter.")
+        recipe.emitter.setCurrentIndex(a["emitter_row"])
+    operation = a.get("emitter_operation")
+    if operation is not None:
+        {"duplicate": lambda: recipe._reorder_emitter(False), "remove": lambda: recipe._reorder_emitter(True),
+         "reset": recipe._reset_emitter, "create": recipe.create_from_emitter}[operation]()
+        return
+    if "emitter_enabled" in a:
+        set_control(recipe.emitter_enabled, a["emitter_enabled"])
+    if "orientation" in a:
+        set_control(recipe.orientation, _ORIENTATION[a["orientation"]])
+    for parameter in a.get("parameters", ()):
+        if parameter["key"] not in recipe._fields:
+            raise ValueError(f"This emitter has no property {parameter['key']!r}.")
+        check, spins = recipe._fields[parameter["key"]]
+        if not check.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            raise ValueError(f"{parameter['key']} cannot be edited on this emitter.")
+        values = parameter.get("values", ())
+        if len(values) > len(spins):
+            raise ValueError(f"{parameter['key']} takes {len(spins)} values.")
+        for spin, value in zip(spins, values):
+            set_control(spin, value)
+        if "use" in parameter:
+            check.setCheckState(Qt.CheckState.Checked if parameter["use"] else Qt.CheckState.Unchecked)
+    if "colour_curve" in a:
+        set_control(recipe.colour_curve, a["colour_curve"])
+    for key, values in (a.get("curves") or {}).items():
+        check, spins = recipe.curves[key]
+        if values is None:
+            set_control(check, False)
+            continue
+        for spin, value in zip(spins, values):
+            set_control(spin, value)
+    if "texture" in a:
+        set_control(recipe.texture, a["texture"])
+
+
+def _saved(recipe, a):
+    operation = a.get("saved_operation", "load")
+    if operation == "save":
+        required(a, "saved_name")
+        recipe.save_recipe()  # The Save as… name prompt is answered with saved_name.
+        return
+    required(a, "saved_name")
+    index = recipe.saved.findText(a["saved_name"])
+    if index < 0:
+        raise ValueError(f"There is no saved effect named {a['saved_name']!r}.")
+    recipe.saved.setCurrentIndex(index)
+    (recipe.load_recipe if operation == "load" else recipe.delete_recipe)()
 
 
 def _editor(page):
@@ -296,6 +381,11 @@ def _effects(call):
             _perks(panel, a)
         elif action == "bonus":
             _bonus(panel.bonus_editor, a)
+        elif action in ("emitter", "saved"):
+            recipe = getattr(_editor(page), "recipe_panel", None)
+            if recipe is None:
+                raise ValueError("The Emitters editor is not ready; pick an effect first.")
+            (_emitter if action == "emitter" else _saved)(recipe, a)
         return _state(page)
 
     def checked():
@@ -304,14 +394,21 @@ def _effects(call):
         except ValueError as exc:
             raise ToolError(UNAVAILABLE, str(exc)) from None
 
-    return act(call, checked, answers={"color": a["color"]} if "color" in a else None)
+    answers = {"color": a["color"]} if "color" in a else {}
+    if action == "saved" and "saved_name" in a:
+        answers["text"] = a["saved_name"]
+    return act(call, checked, answers=answers or None)
 
 
 def effects_tool():
     return Tool(
         name="new_item.effects", family="new_item", title="Edit New Item effects and perks",
         description="Find and stage effects, edit layers, placement and look, then apply or discard like the "
-                    "Effects page. Also edits model glow, glow animation, perks and inherent bonuses.",
+                    "Effects page. 'emitter' edits the active layer's emitters as the Emitters tab does (choose one by "
+                    "emitter_row; enable it, set its orientation, properties, curves and sprite, or duplicate, "
+                    "remove, reset or start a custom effect from it); 'saved' loads, saves or deletes a saved "
+                    "effect by name (deleting asks first). Also edits model glow, glow animation, perks and "
+                    "inherent bonuses.",
         input_schema=action_schema(_ACTIONS, {
             "text": TEXT, "stem": TEXT, "row": _INDEX, "operation": choice("add", "duplicate", "remove", "up", "down", "set"),
             "name": {"type": "string", "maxLength": 128}, "enabled": BOOL, "offset": VEC3, "rotation": VEC3,
@@ -320,7 +417,14 @@ def effects_tool():
             "rgb": object_schema(_RGB), "customize": BOOL, "experimental": BOOL, "add_perks": array(INT, limit=8),
             "remove_rows": array(_INDEX, limit=8), "level": INT, "key": INT, "parameter": INT, "remove": BOOL,
             "preset_row": _INDEX, "all_levels": BOOL,
+            "emitter_row": _INDEX, "emitter_operation": choice("duplicate", "remove", "reset", "create"),
+            "emitter_enabled": BOOL, "orientation": choice(*_ORIENTATION), "parameters": array(_PARAMETER, limit=64),
+            "colour_curve": BOOL, "curves": object_schema({"size_curve": _CURVE, "opacity_curve": _CURVE}),
+            "texture": TEXT, "saved_name": {"type": "string", "minLength": 1, "maxLength": 128},
+            "saved_operation": choice("load", "save", "delete"),
         }, default="state"),
-        effect=EDIT, effect_of=lambda call: READ if call.arguments["action"] == "state" else EDIT,
+        effect=EDIT, effect_of=lambda call: READ if call.arguments["action"] == "state" else (
+            DESTRUCTIVE if call.arguments["action"] == "saved" and call.arguments.get("saved_operation") == "delete"
+            else EDIT),
         route="ui:PerksPanel,GuidedEffectsWorkspace,GlowAnimationEditor", handler=_effects, runs_on=ON_CALL,
     )
