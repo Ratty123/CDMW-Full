@@ -2889,6 +2889,7 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "failed",
     "messages": [
+      "Build Package did not finish in time.",
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
       "Nothing was written: {what} did not finish. CDMW's message says why.",
@@ -2902,6 +2903,7 @@ ERROR_REFERENCE = [
       "The Mesh Editor did not take the selection.",
       "The archive worker did not answer in time.",
       "The call's safety class could not be worked out.",
+      "The draft cannot be saved: {exc}",
       "The export did not start.",
       "The interface did not answer in time; try again when CDMW is idle.",
       "The preview did not deliver the picture in time.",
@@ -2922,6 +2924,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
       "cdmw/mcp/texture_files.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/turn_tools.py",
       "cdmw/mcp/ui_actions.py",
       "cdmw/mcp/view_tools.py",
@@ -3013,6 +3016,7 @@ ERROR_REFERENCE = [
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
+      "The folder does not exist: {folder}",
       "The local file path must be absolute.",
       "The mod needs a name.",
       "The output folder does not exist: {folder}",
@@ -3021,6 +3025,7 @@ ERROR_REFERENCE = [
       "The requested region extends outside the image.",
       "The value does not match the Settings control.",
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
+      "There is no file {original}.",
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
@@ -3030,6 +3035,7 @@ ERROR_REFERENCE = [
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
       "action must be one of {', '.join(_ACTIONS)}.",
+      "add_files takes existing .png or .dds files in paths.",
       "arguments must be an object",
       "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to four keys).",
       "menu names an entry by its text, or a path such as 'Export > Export File'.",
@@ -3090,6 +3096,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/ui_menus.py",
       "cdmw/mcp/ui_tree.py",
@@ -3585,6 +3592,7 @@ ERROR_REFERENCE = [
       "There is no joint {index}; files_hkx_state lists them.",
       "There is no name {item}; files_hkx_state lists them.",
       "There is no pending edit {index}.",
+      "There is no queue row {min(missing)}.",
       "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
@@ -3628,6 +3636,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/tools.py",
       "cdmw/mcp/translation_tools.py",
@@ -26946,7 +26955,7 @@ MESSAGE_REFERENCE = [
     "message": "An effect reference requires a fixed-length name.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_references.py": 75
+      "cdmw/services/independent_item_references.py": 78
     }
   },
   {
@@ -26954,7 +26963,7 @@ MESSAGE_REFERENCE = [
     "message": "An effect type-name boundary is ambiguous.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 103
+      "cdmw/services/independent_item_references.py": 106
     }
   },
   {
@@ -27290,7 +27299,7 @@ MESSAGE_REFERENCE = [
     "message": "Incompatible owned mesh {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 343
+      "cdmw/services/independent_item_references.py": 378
     }
   },
   {
@@ -27450,7 +27459,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid owned texture {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/independent_item_references.py": 369
+      "cdmw/services/independent_item_references.py": 404
     }
   },
   {
@@ -27954,7 +27963,7 @@ MESSAGE_REFERENCE = [
     "message": "The complete effect reference layout is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 317
+      "cdmw/services/independent_item_references.py": 352
     }
   },
   {
@@ -27962,7 +27971,7 @@ MESSAGE_REFERENCE = [
     "message": "The complete prefab reference layout is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 286
+      "cdmw/services/independent_item_references.py": 321
     }
   },
   {
@@ -27994,7 +28003,7 @@ MESSAGE_REFERENCE = [
     "message": "The effect reference graph did not decode completely.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/independent_item_references.py": 64
+      "cdmw/services/independent_item_references.py": 67
     }
   },
   {
@@ -28034,7 +28043,7 @@ MESSAGE_REFERENCE = [
     "message": "The item dependency graph exceeds the supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/independent_item_references.py": 159
+      "cdmw/services/independent_item_references.py": 194
     }
   },
   {
@@ -28058,7 +28067,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned mesh has no verified target binding: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 332
+      "cdmw/services/independent_item_references.py": 367
     }
   },
   {
@@ -28066,7 +28075,7 @@ MESSAGE_REFERENCE = [
     "message": "The owned texture format is unverified: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 362
+      "cdmw/services/independent_item_references.py": 397
     }
   },
   {
@@ -28186,7 +28195,7 @@ MESSAGE_REFERENCE = [
     "message": "The renamed effect failed its structural check.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 107
+      "cdmw/services/independent_item_references.py": 110
     }
   },
   {
@@ -28330,7 +28339,7 @@ MESSAGE_REFERENCE = [
     "message": "The template has an unresolved part binding: {part.stem}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 195
+      "cdmw/services/independent_item_references.py": 230
     }
   },
   {
@@ -28466,7 +28475,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown model property root",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 297
+      "cdmw/services/independent_item_references.py": 332
     }
   },
   {
@@ -28474,7 +28483,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown model resource boundary: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 307
+      "cdmw/services/independent_item_references.py": 342
     }
   },
   {
@@ -28498,7 +28507,7 @@ MESSAGE_REFERENCE = [
     "message": "Unresolved item dependency: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 154
+      "cdmw/services/independent_item_references.py": 184
     }
   },
   {
@@ -28554,7 +28563,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported independent resource format: {path}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 372
+      "cdmw/services/independent_item_references.py": 407
     }
   },
   {
@@ -28643,7 +28652,7 @@ MESSAGE_REFERENCE = [
     "message": "Unverified model property layout: {path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/independent_item_references.py": 299
+      "cdmw/services/independent_item_references.py": 334
     }
   },
   {
@@ -28683,7 +28692,7 @@ MESSAGE_REFERENCE = [
     "message": "XML entities are unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/independent_item_references.py": 294
+      "cdmw/services/independent_item_references.py": 329
     }
   },
   {
@@ -29253,7 +29262,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous private texture source binding.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_resource_copies.py": 52
+      "cdmw/services/new_item_resource_copies.py": 76
     }
   },
   {
@@ -29301,7 +29310,7 @@ MESSAGE_REFERENCE = [
     "message": "An empty seal target cannot carry a payload.",
     "recovery": "empty",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 165
+      "cdmw/domain/new_item/item_definition.py": 166
     }
   },
   {
@@ -29560,7 +29569,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 807
+      "cdmw/services/new_item_planning.py": 821
     }
   },
   {
@@ -29568,7 +29577,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add the model's bones to {path}: {exc} {labels} were weighted to different versions of these bones. Select each variant so its model is weighted to the current bones, then build the plan again.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 803
+      "cdmw/services/new_item_planning.py": 817
     }
   },
   {
@@ -29576,7 +29585,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot carry the template's bone offsets: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 758
+      "cdmw/services/new_item_planning.py": 772
     }
   },
   {
@@ -29584,7 +29593,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {item.path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 882
+      "cdmw/services/new_item_planning.py": 896
     }
   },
   {
@@ -29592,7 +29601,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot copy prefab {part.prefab_path}: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 409
+      "cdmw/services/new_item_variants.py": 411
     }
   },
   {
@@ -29616,7 +29625,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot prepare equipment visibility rules: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1095
+      "cdmw/services/new_item_planning.py": 1111
     }
   },
   {
@@ -29672,7 +29681,7 @@ MESSAGE_REFERENCE = [
     "message": "Check compatibility with the merge action first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 223
+      "cdmw/mcp/new_item_files.py": 226
     }
   },
   {
@@ -29736,7 +29745,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a template item first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/state.py": 446
+      "cdmw/ui/new_item/state.py": 448
     }
   },
   {
@@ -29808,7 +29817,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose existing source mod folders.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 172
+      "cdmw/mcp/new_item_files.py": 175
     }
   },
   {
@@ -29832,7 +29841,7 @@ MESSAGE_REFERENCE = [
     "message": "Clearing a secondary description cannot select a source item.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 208
+      "cdmw/domain/new_item/item_definition.py": 209
     }
   },
   {
@@ -30026,7 +30035,7 @@ MESSAGE_REFERENCE = [
     "message": "Drafts & Mods is unavailable in this workspace.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 62
+      "cdmw/mcp/new_item_files.py": 65
     }
   },
   {
@@ -30162,7 +30171,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye authoring requires a complete model material file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 388
+      "cdmw/services/new_item_variants.py": 390
     }
   },
   {
@@ -30949,7 +30958,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid secondary description language.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 205
+      "cdmw/domain/new_item/item_definition.py": 206
     }
   },
   {
@@ -31045,7 +31054,7 @@ MESSAGE_REFERENCE = [
     "message": "Inventory routing requires its complete source-generation array.",
     "recovery": "stale",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 174
+      "cdmw/domain/new_item/item_definition.py": 175
     }
   },
   {
@@ -31093,7 +31102,7 @@ MESSAGE_REFERENCE = [
     "message": "Item definition flags require booleans.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 191
+      "cdmw/domain/new_item/item_definition.py": 192
     }
   },
   {
@@ -31109,7 +31118,7 @@ MESSAGE_REFERENCE = [
     "message": "Item definition requires an explicit override.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 210
+      "cdmw/domain/new_item/item_definition.py": 211
     }
   },
   {
@@ -31229,7 +31238,7 @@ MESSAGE_REFERENCE = [
     "message": "Item {key} is not in the snapshot.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 96
+      "cdmw/mcp/new_item_files.py": 99
     }
   },
   {
@@ -31807,7 +31816,7 @@ MESSAGE_REFERENCE = [
     "message": "No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 981
+      "cdmw/services/new_item_planning.py": 997
     }
   },
   {
@@ -31887,7 +31896,7 @@ MESSAGE_REFERENCE = [
     "message": "No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1011
+      "cdmw/services/new_item_planning.py": 1027
     }
   },
   {
@@ -31927,7 +31936,7 @@ MESSAGE_REFERENCE = [
     "message": "Only a Create New Item draft can be saved.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 143
+      "cdmw/ui/new_item/draft_file.py": 146
     }
   },
   {
@@ -32202,7 +32211,7 @@ MESSAGE_REFERENCE = [
     "message": "Read the archives first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 93
+      "cdmw/mcp/new_item_files.py": 96
     }
   },
   {
@@ -32714,7 +32723,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture {source} retains its source binding: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_resource_copies.py": 74
+      "cdmw/services/new_item_resource_copies.py": 106
     }
   },
   {
@@ -33061,7 +33070,15 @@ MESSAGE_REFERENCE = [
     "message": "The draft cannot be opened by this version of CDMW: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 168
+      "cdmw/ui/new_item/draft_file.py": 171
+    }
+  },
+  {
+    "area": "items",
+    "message": "The draft cannot be saved: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/new_item_files.py": 40
     }
   },
   {
@@ -33069,7 +33086,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft file is damaged.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 160
+      "cdmw/ui/new_item/draft_file.py": 163
     }
   },
   {
@@ -33077,7 +33094,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds a damaged table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 115
+      "cdmw/ui/new_item/draft_file.py": 118
     }
   },
   {
@@ -33085,7 +33102,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds a number that is not finite.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 48
+      "cdmw/ui/new_item/draft_file.py": 51
     }
   },
   {
@@ -33093,7 +33110,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds a value that cannot be saved: {type(value).__name__}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 70
+      "cdmw/ui/new_item/draft_file.py": 73
     }
   },
   {
@@ -33101,7 +33118,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds an unknown choice for {kind.__name__}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 124
+      "cdmw/ui/new_item/draft_file.py": 127
     }
   },
   {
@@ -33109,7 +33126,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds an unknown value.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 136
+      "cdmw/ui/new_item/draft_file.py": 139
     }
   },
   {
@@ -33117,7 +33134,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds an unsupported setting: {type(value).__name__}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 52
+      "cdmw/ui/new_item/draft_file.py": 55
     }
   },
   {
@@ -33125,7 +33142,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft holds damaged binary data.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 107
+      "cdmw/ui/new_item/draft_file.py": 110
     }
   },
   {
@@ -33133,7 +33150,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft is nested too deeply.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 43
+      "cdmw/ui/new_item/draft_file.py": 46
     }
   },
   {
@@ -33141,7 +33158,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft is too large to read.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 156
+      "cdmw/ui/new_item/draft_file.py": 159
     }
   },
   {
@@ -33149,7 +33166,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft is too large to save.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 148
+      "cdmw/ui/new_item/draft_file.py": 151
     }
   },
   {
@@ -33157,7 +33174,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft names a setting type outside CDMW: {module_name}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 78
+      "cdmw/ui/new_item/draft_file.py": 81
     }
   },
   {
@@ -33165,7 +33182,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft names an unknown setting type.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 75
+      "cdmw/ui/new_item/draft_file.py": 78
     }
   },
   {
@@ -33173,7 +33190,7 @@ MESSAGE_REFERENCE = [
     "message": "The draft's {kind.__name__} setting is not valid here: {exc}",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 135
+      "cdmw/ui/new_item/draft_file.py": 138
     }
   },
   {
@@ -33342,6 +33359,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_painting.py": 260
+    }
+  },
+  {
+    "area": "items",
+    "message": "The game's own material file names a texture it does not ship; the reference is left as it is: {source}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/new_item_resource_copies.py": 93
     }
   },
   {
@@ -33791,7 +33816,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected variant prefab has no exact model binding to repoint.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_variants.py": 411
+      "cdmw/services/new_item_variants.py": 413
     }
   },
   {
@@ -33839,7 +33864,7 @@ MESSAGE_REFERENCE = [
     "message": "The source item table already contains custom items: {detail}. Their records would be included in the exported tables. To create a separate mod, unmount existing item mods and read the archives again before building the plan. To extend a mod folder, select it with Add to existing mod. Source: {snapshot.iteminfo.payload_entry.pamt_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1148
+      "cdmw/services/new_item_planning.py": 1164
     }
   },
   {
@@ -33959,7 +33984,15 @@ MESSAGE_REFERENCE = [
     "message": "The template has no {role} at {item.path}; the clone goes without one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 856
+      "cdmw/services/new_item_planning.py": 870
+    }
+  },
+  {
+    "area": "items",
+    "message": "The template {self.template.string_key} has no display {what} in the game's text tables (entry {key} is missing in every language). The game ships it without text, so it cannot be used as a template; choose another one.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/services/new_item_planning.py": 693
     }
   },
   {
@@ -34095,7 +34128,7 @@ MESSAGE_REFERENCE = [
     "message": "The {language} table has no localization for perk {source.string_key}: {old_key}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 719
+      "cdmw/services/new_item_planning.py": 733
     }
   },
   {
@@ -34111,7 +34144,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no item package at {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 131
+      "cdmw/mcp/new_item_files.py": 134
     }
   },
   {
@@ -34279,7 +34312,7 @@ MESSAGE_REFERENCE = [
     "message": "This is not a Create New Item draft.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 162
+      "cdmw/ui/new_item/draft_file.py": 165
     }
   },
   {
@@ -34519,7 +34552,7 @@ MESSAGE_REFERENCE = [
     "message": "This version of CDMW has no setting type {qualname}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 84
+      "cdmw/ui/new_item/draft_file.py": 87
     }
   },
   {
@@ -35056,7 +35089,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item definition settings type.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 216
+      "cdmw/domain/new_item/item_definition.py": 217
     }
   },
   {
@@ -35184,7 +35217,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported item.definition fields.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 187
+      "cdmw/domain/new_item/item_definition.py": 188
     }
   },
   {
@@ -35272,7 +35305,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported secondary description translations.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/new_item/item_definition.py": 202
+      "cdmw/domain/new_item/item_definition.py": 203
     }
   },
   {
@@ -35296,7 +35329,7 @@ MESSAGE_REFERENCE = [
     "message": "Use a Create New Item package filename ending in .cdmw.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/new_item_files.py": 129
+      "cdmw/mcp/new_item_files.py": 132
     }
   },
   {
@@ -35386,7 +35419,7 @@ MESSAGE_REFERENCE = [
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1035
+      "cdmw/services/new_item_planning.py": 1051
     }
   },
   {
@@ -35634,7 +35667,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} is negative",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1042
+      "cdmw/services/new_item_planning.py": 1058
     }
   },
   {
@@ -35642,7 +35675,7 @@ MESSAGE_REFERENCE = [
     "message": "enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1044
+      "cdmw/services/new_item_planning.py": 1060
     }
   },
   {
@@ -35714,7 +35747,7 @@ MESSAGE_REFERENCE = [
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 987
+      "cdmw/services/new_item_planning.py": 1003
     }
   },
   {
@@ -36180,7 +36213,7 @@ MESSAGE_REFERENCE = [
     "message": "texture registry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1024
+      "cdmw/services/new_item_planning.py": 1040
     }
   },
   {
@@ -36188,7 +36221,7 @@ MESSAGE_REFERENCE = [
     "message": "texture {request.path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1010
+      "cdmw/services/new_item_planning.py": 1026
     }
   },
   {
@@ -36366,7 +36399,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_cloth_check.py": 119,
-      "cdmw/services/new_item_planning.py": 1213
+      "cdmw/services/new_item_planning.py": 1237
     }
   },
   {
@@ -36374,7 +36407,7 @@ MESSAGE_REFERENCE = [
     "message": "the imported build carries no rebuilt mesh data",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1190
+      "cdmw/services/new_item_planning.py": 1214
     }
   },
   {
@@ -36430,7 +36463,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec asks for a generated icon but no icon was built",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 972
+      "cdmw/services/new_item_planning.py": 988
     }
   },
   {
@@ -36446,7 +36479,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec imports a model but no build was given",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 835
+      "cdmw/services/new_item_planning.py": 849
     }
   },
   {
@@ -36454,7 +36487,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec needs a stem and none is allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1073
+      "cdmw/services/new_item_planning.py": 1089
     }
   },
   {
@@ -36462,7 +36495,7 @@ MESSAGE_REFERENCE = [
     "message": "the spec's {name} is not allocated",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1070
+      "cdmw/services/new_item_planning.py": 1086
     }
   },
   {
@@ -36470,7 +36503,7 @@ MESSAGE_REFERENCE = [
     "message": "the template has no enchant level to copy for {what}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 1047
+      "cdmw/services/new_item_planning.py": 1063
     }
   },
   {
@@ -36479,22 +36512,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_item_composer/src/pappt.cpp": 68
-    }
-  },
-  {
-    "area": "items",
-    "message": "the {language} table has no entry {template.desc_key} for the template's description",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_planning.py": 702
-    }
-  },
-  {
-    "area": "items",
-    "message": "the {language} table has no entry {template.name_key} for the template's name",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/new_item_planning.py": 696
     }
   },
   {
@@ -36695,7 +36712,7 @@ MESSAGE_REFERENCE = [
     "message": "{item.path} names none of the family's meshes, so it cannot be re-pathed",
     "recovery": "input",
     "sources": {
-      "cdmw/services/new_item_planning.py": 884
+      "cdmw/services/new_item_planning.py": 898
     }
   },
   {
@@ -36719,7 +36736,7 @@ MESSAGE_REFERENCE = [
     "message": "{kind.__name__} is not a setting type.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 129
+      "cdmw/ui/new_item/draft_file.py": 132
     }
   },
   {
@@ -36984,7 +37001,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.prefab_path} names no mesh to re-path to the imported model",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 934
+      "cdmw/services/new_item_planning.py": 950
     }
   },
   {
@@ -37056,7 +37073,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is shared by every character on that rig. {PAB_APPEND_NOTES[2]} {PAB_APPEND_NOTES[3]}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 810
+      "cdmw/services/new_item_planning.py": 824
     }
   },
   {
@@ -37104,7 +37121,7 @@ MESSAGE_REFERENCE = [
     "message": "{qualname} is not a setting type.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/new_item/draft_file.py": 86
+      "cdmw/ui/new_item/draft_file.py": 89
     }
   },
   {
@@ -37224,7 +37241,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key} has no icon file to shape the new one after",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 976
+      "cdmw/services/new_item_planning.py": 992
     }
   },
   {
@@ -37240,7 +37257,7 @@ MESSAGE_REFERENCE = [
     "message": "{self.template.string_key}'s family has no .pac to replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 829
+      "cdmw/services/new_item_planning.py": 843
     }
   },
   {
@@ -37376,7 +37393,7 @@ MESSAGE_REFERENCE = [
     "message": "{template.string_key} has no name key to copy the category from",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_planning.py": 687
+      "cdmw/services/new_item_planning.py": 701
     }
   },
   {
@@ -85737,7 +85754,7 @@ MESSAGE_REFERENCE = [
     "message": "The command {call.tool.command_id} is not registered now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 196
+      "cdmw/mcp/tools.py": 223
     }
   },
   {
@@ -93635,7 +93652,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name} and {wires[tool.wire]} have the same client name",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 215
+      "cdmw/mcp/tools.py": 242
     }
   },
   {
@@ -93643,7 +93660,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: a command tool is named after its command id",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 167
+      "cdmw/mcp/tools.py": 194
     }
   },
   {
@@ -93651,7 +93668,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: a tool whose class depends on the call is not listed as read",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 157
+      "cdmw/mcp/tools.py": 179
     }
   },
   {
@@ -93659,7 +93676,15 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: a typed tool is named <family>.<action>",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 172
+      "cdmw/mcp/tools.py": 199
+    }
+  },
+  {
+    "area": "other",
+    "message": "{tool.name}: an output schema is an object whose fields stay optional",
+    "recovery": "configuration",
+    "sources": {
+      "cdmw/mcp/tools.py": 189
     }
   },
   {
@@ -93667,7 +93692,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: an output tool names the arguments it writes to",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/tools.py": 155
+      "cdmw/mcp/tools.py": 177
     }
   },
   {
@@ -93675,7 +93700,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: clients cannot call {tool.wire}",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 150
+      "cdmw/mcp/tools.py": 172
     }
   },
   {
@@ -93683,7 +93708,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: command tools come from the registry",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 213
+      "cdmw/mcp/tools.py": 240
     }
   },
   {
@@ -93691,7 +93716,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: output path {name} is not an argument",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 160
+      "cdmw/mcp/tools.py": 182
     }
   },
   {
@@ -93699,7 +93724,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: runs_on must be {ON_WORKER}, {ON_UI} or {ON_CALL}",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 152
+      "cdmw/mcp/tools.py": 174
     }
   },
   {
@@ -93707,7 +93732,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: unknown effect class {tool.effect}",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/tools.py": 148
+      "cdmw/mcp/tools.py": 170
     }
   },
   {
@@ -93715,7 +93740,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.name}: {tool.family} is not a typed tool family",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/tools.py": 170
+      "cdmw/mcp/tools.py": 197
     }
   },
   {
@@ -103061,6 +103086,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Build Package did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 151
+    }
+  },
+  {
+    "area": "textures",
     "message": "Build cancelled before start.",
     "recovery": "cancelled",
     "sources": {
@@ -105260,6 +105293,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Replacer is busy; read textures_replace_state until it is not.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 99
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture conflict at {path}: {'; '.join(owners)}; the composed output differs from the required bytes.",
     "recovery": "input",
     "sources": {
@@ -105780,6 +105821,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 88
+    }
+  },
+  {
+    "area": "textures",
     "message": "The game file was not found in the archives.",
     "recovery": "missing",
     "sources": {
@@ -106036,10 +106085,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "There is no file {original}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 93
+    }
+  },
+  {
+    "area": "textures",
     "message": "There is no file {wanted}.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_files.py": 130
+    }
+  },
+  {
+    "area": "textures",
+    "message": "There is no queue row {min(missing)}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 73
     }
   },
   {
@@ -106489,6 +106554,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/texture_pipeline/preview.py": 261
+    }
+  },
+  {
+    "area": "textures",
+    "message": "add_files takes existing .png or .dds files in paths.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 84
     }
   },
   {
@@ -108773,6 +108846,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/textures/policy.py",
     "cdmw/mcp/texture_files.py",
     "cdmw/mcp/texture_pixels.py",
+    "cdmw/mcp/texture_replace_tools.py",
     "cdmw/services/mesh_live_texture_drafts.py",
     "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
@@ -110388,9 +110462,9 @@ SOURCE_COVERAGE = {
     "raise": 20
   },
   "cdmw/mcp/new_item_files.py": {
-    "code": 3,
-    "raise": 13,
-    "report": 1
+    "code": 4,
+    "raise": 14,
+    "report": 2
   },
   "cdmw/mcp/new_item_model.py": {
     "code": 3,
@@ -110511,13 +110585,18 @@ SOURCE_COVERAGE = {
     "raise": 12,
     "report": 4
   },
+  "cdmw/mcp/texture_replace_tools.py": {
+    "code": 5,
+    "raise": 8,
+    "report": 2
+  },
   "cdmw/mcp/texture_tools.py": {
     "code": 7,
     "raise": 13
   },
   "cdmw/mcp/tools.py": {
     "code": 1,
-    "raise": 14,
+    "raise": 15,
     "report": 1
   },
   "cdmw/mcp/translation_tools.py": {
@@ -111729,9 +111808,10 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/new_item_panel_search.py": {},
   "cdmw/services/new_item_planning.py": {
-    "diagnostic_field": 3,
-    "finding": 15,
-    "raise": 39
+    "diagnostic_field": 5,
+    "finding": 16,
+    "raise": 39,
+    "validation": 1
   },
   "cdmw/services/new_item_prices.py": {
     "raise": 1
@@ -111746,7 +111826,7 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/services/new_item_resource_copies.py": {
-    "finding": 1,
+    "finding": 2,
     "raise": 4
   },
   "cdmw/services/new_item_review.py": {},

@@ -27,6 +27,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **AI connections (experimental):** an AI app can select many Browse Archives files at once by path (**view_open** with **paths**), then extract the filtered list or a folder to a folder you name, export every selected model, export a model as OBJ with its neutral appearance, or list the paths of the shown, filtered or selected files, all through **files_browser_export**. Each export asks you first.
 - **AI connections (experimental):** AI apps can read CDMW's Help topics, the map of what AI tools reach and the recent AI calls as MCP resources, and start from four guided prompts (find and extract files, edit a model, start a new item, review what the AI app changed). Each prompt reminds the AI app that it is a helper you supervise, not a mod maker. **Settings > AI connections** also shows a JSON setup entry for other MCP clients.
 - **AI connections (experimental):** tools that answer in pages, such as **search_archive** and **search_characters**, list the shape of their pages (MCP `outputSchema`), so an AI app knows where the rows, the total and the next page token are.
+- **AI connections (experimental):** **textures_replace**, **textures_replace_state** and **textures_replace_build** work **Textures > Replace**: add edited files or a folder, choose where originals come from, Auto-Match, pick a local original, remove rows, and build the package into a folder you allow. Recolor, Upscale and the Review & Export dialog still go through the generic tools.
 
 ### Fixed
 
