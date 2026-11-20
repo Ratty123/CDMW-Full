@@ -21,6 +21,8 @@ from pathlib import Path
 
 from cdmw.domain.mesh.body_regions import build_body_region_map
 from cdmw.modding.mesh_parser import (
+    PAC_SKIN_GATE_DISABLED,
+    PAC_SKIN_GATE_OFFSET,
     PAC_SKIN_INFLUENCES,
     PAC_SKIN_MAX_BONE_INDEX,
     PAC_SKIN_PALETTE_SLOTS,
@@ -259,9 +261,20 @@ class PacSkinRoundTripTests(unittest.TestCase):
         self.assertGreater(checked, 100_000, "corpus too small to prove the round trip")
 
 
+def _ordinary_record() -> bytearray:
+    """A zeroed record with the cloth gate disabled, so it takes six influences.
+
+    A gate of 0 marks a cloth row, which keeps only four skeletal slots.
+    """
+
+    record = bytearray(40)
+    record[PAC_SKIN_GATE_OFFSET] = PAC_SKIN_GATE_DISABLED
+    return record
+
+
 class PacSkinEncodeTests(unittest.TestCase):
     def test_encoder_writes_the_packed_lanes(self) -> None:
-        record = bytearray(40)
+        record = _ordinary_record()
         pack_pac_skin_weights(record, (7, 1000), (0.5, 0.5), context="test vertex")
 
         slots, weights = _raw_influences(bytes(record), 0)
@@ -272,13 +285,13 @@ class PacSkinEncodeTests(unittest.TestCase):
         # Bytes outside the two influence lanes must be left alone.
         lanes = set(range(PAC_SKIN_SLOT_GROUPS[0], PAC_SKIN_SLOT_GROUPS[-1] + 4))
         lanes |= set(range(PAC_SKIN_WEIGHT_OFFSET, PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES))
-        self.assertTrue(all(record[position] == 0 for position in range(40) if position not in lanes))
+        self.assertTrue(all(record[position] == 0 for position in range(40) if position not in lanes | {PAC_SKIN_GATE_OFFSET}))
 
     def test_encoder_round_trips_all_six_influences(self) -> None:
         from cdmw.modding.mesh_parser import _decode_pac_skin_influences
 
         bones = (205, 187, 40, 3, PAC_SKIN_MAX_BONE_INDEX, 7)
-        record = bytearray(40)
+        record = _ordinary_record()
         pack_pac_skin_weights(record, bones, (0.4, 0.25, 0.15, 0.1, 0.06, 0.04), context="test vertex")
 
         decoded_bones, decoded_weights = _decode_pac_skin_influences(bytes(record), 0)
@@ -291,11 +304,41 @@ class PacSkinEncodeTests(unittest.TestCase):
 
         from cdmw.modding.mesh_parser import _decode_pac_skin_influences
 
-        record = bytearray(40)
+        record = _ordinary_record()
         pack_pac_skin_weights(record, (0,), (1.0,), context="test vertex")
 
         self.assertEqual(_decode_pac_skin_influences(bytes(record), 0)[0], (0,))
         self.assertEqual(record[PAC_SKIN_WEIGHT_OFFSET], 255)
+
+    def test_a_normalized_but_unchanged_row_keeps_its_bytes(self) -> None:
+        """Normalize Weights on a row that already sums to one must not requantize it.
+
+        The stored u8 weights need not sum to 255, so encoding the decoded row again
+        moves a count or two; the audit measured most selected rows changing.
+        """
+
+        from cdmw.modding.mesh_parser import SubMesh, _decode_pac_skin_influences
+
+        record = _ordinary_record()
+        pack_pac_skin_weights(record, (3, 9, 12), (0.6, 0.3, 0.1), context="test vertex")
+        # A stored row that sums to 254, as shipped rows can.
+        record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + 3] = bytes((150, 77, 27))
+        original = bytes(record)
+        bones, weights = _decode_pac_skin_influences(original, 0)
+        total = sum(weights)
+        noisy = tuple(weight / total * (1.0 + 1e-12) for weight in weights)
+        part = SubMesh(vertices=[(0.0, 0.0, 0.0)], faces=[], bone_indices=[bones], bone_weights=[noisy])
+        patch_pac_vertex_skin(record, part, 0, 0)
+        self.assertEqual(original, bytes(record))
+        # A real change is still written.
+        part.bone_weights = [(0.5, 0.4, 0.1)]
+        patch_pac_vertex_skin(record, part, 0, 0)
+        self.assertNotEqual(original, bytes(record))
+
+    def test_a_cloth_row_keeps_four_skeletal_slots(self) -> None:
+        record = bytearray(40)  # gate 0: a cloth row
+        with self.assertRaisesRegex(ValueError, "only four"):
+            pack_pac_skin_weights(record, (1, 2, 3, 4, 5), (0.2,) * 5, context="test vertex")
 
 
 class PacBonePaletteTests(unittest.TestCase):

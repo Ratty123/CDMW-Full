@@ -311,6 +311,8 @@ if (operation == "brush") {
     item_results.push_back(run_inset_edit_for_submesh(item, edit));
 } else if (operation == "compact_orphans") {
     item_results.push_back(run_compact_orphans_for_submesh(item));
+} else if (operation == "remove_collapsed_faces") {
+    item_results.push_back(run_remove_collapsed_faces_for_submesh(item, edit));
 } else if (operation == "split") {
     item_results.push_back(run_split_edit_for_submesh(item));
 } else if (operation == "duplicate") {

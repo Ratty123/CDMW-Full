@@ -6552,6 +6552,54 @@ class RustMeshAuthoringTests(unittest.TestCase):
             finally:
                 session.cancel()
 
+    def test_a_numeric_transform_past_the_source_bounds_finishes_like_a_viewport_move(self) -> None:
+        """mesh_action transform (the AI connection's route) left an identity topology contract.
+
+        That sent Finish to the exact topology writer, which never widens the source
+        bounds, so scaling by 1.05 was refused while the same viewport move worked.
+        """
+
+        from cdmw.modding.mesh_parser import parse_mesh
+
+        with tempfile.TemporaryDirectory() as temporary:
+            authoritative, session = self._create(Path(temporary) / "session")
+            source = session.shadow_service.working_mesh(session.shadow_session_id, clone=True)
+            selection = {
+                "vertices_by_submesh": {
+                    str(index): list(range(len(part.vertices))) for index, part in enumerate(source.submeshes)
+                },
+                "edges_by_submesh": {},
+                "faces_by_submesh": {},
+                "source_indices": [],
+            }
+            request = _request(session, "command_request", 1)
+            request.update(command="mesh_action", arguments={
+                "action": "transform", "selection": selection, "params": {"scale": [1.05, 1.05, 1.05]},
+            })
+            session.run_command(request)
+            finish = session.finish(_request(session, "finish_request", 2))
+            self.assertEqual("accepted", finish["status"])
+            output = Path(temporary) / "scaled.pac"
+            authoritative.rebuild_asset("authoritative-rust-test", output)
+            rebuilt = parse_mesh(output.read_bytes(), str(output)).submeshes[0].vertices
+            original = source.submeshes[0].vertices
+            source_span = max(v[0] for v in original) - min(v[0] for v in original)
+            rebuilt_span = max(v[0] for v in rebuilt) - min(v[0] for v in rebuilt)
+            self.assertAlmostEqual(source_span * 1.05, rebuilt_span, places=4)
+
+    def test_exact_output_refuses_delete_part_in_the_host(self) -> None:
+        """The Parts list blocks it; a direct request (the AI connection) must be refused too."""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            _authoritative, session = self._create(Path(temporary) / "session")
+            try:
+                with self.assertRaisesRegex(RustMeshValidationError, "Deleting whole parts requires Free Edit"):
+                    session._require_mesh_action_policy("delete", {"delete_parts": True})
+                # Face deletion on a PAC stays exact.
+                session._require_mesh_action_policy("delete", {})
+            finally:
+                session.cancel()
+
     def test_mesh_action_routes_normals_and_uv_through_shadow_history(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             _authoritative, session = self._create(Path(temporary) / "session")
@@ -6570,7 +6618,20 @@ class RustMeshAuthoringTests(unittest.TestCase):
                     "params": {},
                 },
             )
-            first = session.run_command(flip)
+            # Flip reverses winding, which Exact output refuses at Finish, so
+            # the host refuses it up front.
+            with self.assertRaisesRegex(RustMeshValidationError, "Flip Normals"):
+                session.run_command(flip)
+            sharpen = _request(session, "command_request", 1)
+            sharpen.update(
+                command="mesh_action",
+                arguments={
+                    "action": "sharpen_normals",
+                    "selection": face_selection,
+                    "params": {},
+                },
+            )
+            first = session.run_command(sharpen)
             uv_before = tuple(
                 session.shadow_service.working_mesh(
                     session.shadow_session_id,
@@ -6599,7 +6660,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 session.shadow_session_id,
                 clone=False,
             ).submeshes[0].uvs
-            self.assertEqual("flip_normals", first["result"]["action"])
+            self.assertEqual("sharpen_normals", first["result"]["action"])
             self.assertEqual("uv_transform", second["result"]["action"])
             self.assertEqual(2, view.undo_count)
             self.assertAlmostEqual(uv_before[0][0] + 0.125, uv_after[0][0])

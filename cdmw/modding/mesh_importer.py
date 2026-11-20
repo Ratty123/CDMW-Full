@@ -475,7 +475,10 @@ def _build_prepared_mesh_bytes(
     # nothing else. Falling through to the native builder or the generic PAC
     # rebuild would replace an exact result with a plausible one, so a contract
     # that cannot be served here raises instead of being quietly ignored.
-    if _has_topology_contract(mesh) and fmt != "pac":
+    if _has_topology_contract(mesh) and (fmt != "pac" or _only_identity_contracts(mesh, original_mesh)):
+        # An identity contract (left by a same-count native edit such as a
+        # numeric transform) is served by the same-count builder, as a viewport
+        # move is. The topology writer never widens the source bounds.
         mesh = _same_count_mesh_from_identity_contracts(fmt, mesh, original_mesh)
     if _has_topology_contract(mesh):
         if original_mesh is None:
@@ -600,6 +603,14 @@ def _same_count_mesh_from_identity_contracts(
         return same_count
     raise ValueError(
         f"Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}."
+    )
+
+
+def _only_identity_contracts(mesh: ParsedMesh, original_mesh: ParsedMesh | None) -> bool:
+    original_parts = tuple(getattr(original_mesh, "submeshes", ()) or ())
+    parts = tuple(mesh.submeshes or ())
+    return original_mesh is not None and len(parts) == len(original_parts) and all(
+        _is_identity_contract(part, source) for part, source in zip(parts, original_parts)
     )
 
 

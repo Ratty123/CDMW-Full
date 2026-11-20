@@ -3777,6 +3777,12 @@ impl LabApplication {
         self.cdmw_state["replacement"]["item_set"] == true
     }
 
+    /// A static model (PAM or PAMLOD). Their exact writers keep the source
+    /// faces and store no normals or tangents.
+    pub(super) fn cdmw_static_model(&self) -> bool {
+        matches!(state_str(&self.cdmw_state, "mesh_format"), Some("pam") | Some("pamlod"))
+    }
+
     fn draw_cdmw_selection_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         ui.label(RichText::new(crate::localization::tr("Selection")).strong());
         ui.horizontal(|ui| {
@@ -4090,6 +4096,11 @@ impl LabApplication {
 
     fn draw_cdmw_topology_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+        // The PAM and PAMLOD exact writers keep the source face list, so an
+        // exact Delete Selection there would only be refused at Finish.
+        let static_exact_delete = state_str(&self.cdmw_state, "output_policy") == Some("exact_game_asset")
+            && !self.cdmw_has_item_set()
+            && self.cdmw_static_model();
         let selected = self.selected_counts();
         ui.label(RichText::new(crate::localization::tr("Tool options")).strong());
         egui::Grid::new("cdmw-topology-options")
@@ -4164,7 +4175,7 @@ impl LabApplication {
         ui.label(RichText::new(crate::localization::tr("Actions")).strong());
         ui.horizontal_wrapped(|ui| {
             for (label, action, availability) in [
-                ("Delete Selection", "delete", selected.total() > 0),
+                ("Delete Selection", "delete", selected.total() > 0 && !static_exact_delete),
                 (
                     "Duplicate Selection",
                     "duplicate",
@@ -4196,7 +4207,9 @@ impl LabApplication {
                         },
                     )
                     .on_disabled_hover_text(crate::localization::tr(
-                        if !free_edit && action != "delete" {
+                        if action == "delete" && static_exact_delete {
+                            "Exact PAM and PAMLOD output keeps the source faces. Choose Free Edit to delete faces on this model."
+                        } else if !free_edit && action != "delete" {
                             "This topology action requires Free Edit output"
                         } else {
                             "Select the required mesh elements first"
@@ -4374,6 +4387,16 @@ impl LabApplication {
         .on_hover_text(crate::localization::tr(
             "Cyan sampled lines point away from the surface along the current vertex normals.",
         ));
+        let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+        // PAM and PAMLOD files store no normals or tangents; the game computes
+        // them from the faces, so these tools would change nothing in the file.
+        let static_exact = !free_edit && self.cdmw_static_model();
+        if static_exact {
+            ui.colored_label(
+                cdmw_readable(ui, Color32::from_rgb(245, 190, 75)),
+                crate::localization::tr("PAM and PAMLOD files store no normals or tangents. The game computes them from the faces."),
+            );
+        }
         ui.horizontal_wrapped(|ui| {
             for (label, action) in [
                 ("Recalculate Normals", "recalculate_normals"),
@@ -4387,14 +4410,22 @@ impl LabApplication {
                 // Create New Item's build keeps the template's tangent lanes, so a
                 // generated tangent would be silently lost on the way back.
                 let tangents_dropped = action == "generate_tangents" && self.cdmw_returns_to_new_item();
+                // Flip reverses face winding, which no exact writer can store.
+                let flip_blocked = action == "flip_normals"
+                    && state_str(&self.cdmw_state, "output_policy") == Some("exact_game_asset");
+                let enabled = selected && !tangents_dropped && !flip_blocked && !static_exact;
                 let response = ui
-                    .add_enabled(selected && !tangents_dropped, Button::new(crate::localization::tr(label)))
+                    .add_enabled(enabled, Button::new(crate::localization::tr(label)))
                     .on_hover_text(crate::localization::tr(if action == "copy_normals" {
                         "Copy Source Normals restores the matching original game-mesh normal rows."
                     } else {
                         "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay."
                     }))
-                    .on_disabled_hover_text(crate::localization::tr(if tangents_dropped {
+                    .on_disabled_hover_text(crate::localization::tr(if static_exact {
+                        "PAM and PAMLOD files store no normals or tangents, so this would change nothing in the file. Choose Free Edit to author them in a new package."
+                    } else if flip_blocked {
+                        "Flip Normals reverses face winding, which Exact output cannot write. Choose Free Edit to flip faces."
+                    } else if tangents_dropped {
                         "Create New Item builds tangents from the template, so generated tangents would not be kept."
                     } else {
                         "Select mesh elements or Parts first"

@@ -597,6 +597,7 @@ def test_the_tab_says_which_set_files_are_read_only_before_the_editor_shows() ->
         _set_rust_status=lambda text, error=False: events.append(("status", text)),
         status_message_requested=SimpleNamespace(emit=lambda text, error: events.append(("log", text))),
         _launch_rust_editor_process=lambda current: events.append(("launch", current)),
+        _show_session_textures=lambda _root: None,
     )
     MeshEditorRustEditorMixin._handle_rust_session_prepared(tab, 4, session)
     assert [kind for kind, _ in events[:3]] == ["status", "log", "launch"]

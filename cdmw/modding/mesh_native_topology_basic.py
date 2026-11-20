@@ -336,6 +336,51 @@ def apply_native_mesh_compact_orphans(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 15.0,
 ) -> MeshFaceDeleteResult | None:
+    return _apply_native_mesh_face_cleanup(
+        mesh,
+        submesh_indices,
+        {"operation": "compact_orphans"},
+        recompute_normals=recompute_normals,
+        stop_event=stop_event,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def apply_native_mesh_remove_collapsed_faces(
+    mesh: ParsedMesh,
+    submesh_indices: object = None,
+    *,
+    area_epsilon: float,
+    remove_unused_vertices: bool = True,
+    stop_event: threading.Event | None = None,
+    timeout_seconds: float = 15.0,
+) -> MeshFaceDeleteResult | None:
+    """Native Remove Collapsed Faces. Kept vertices keep their stored normals and tangents."""
+
+    return _apply_native_mesh_face_cleanup(
+        mesh,
+        submesh_indices,
+        {
+            "operation": "remove_collapsed_faces",
+            "area_epsilon": float(area_epsilon),
+            "remove_unused_vertices": bool(remove_unused_vertices),
+        },
+        recompute_normals=False,
+        stop_event=stop_event,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _apply_native_mesh_face_cleanup(
+    mesh: ParsedMesh,
+    submesh_indices: object,
+    edit: dict[str, object],
+    *,
+    recompute_normals: bool,
+    stop_event: threading.Event | None,
+    timeout_seconds: float,
+) -> MeshFaceDeleteResult | None:
+    operation = str(edit["operation"])
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
         return None
     binary = find_native_mesh_core_binary()
@@ -428,8 +473,8 @@ def apply_native_mesh_compact_orphans(
             {
                 "version": 1,
                 "backend": NATIVE_MESH_CORE_BACKEND_ID,
-                "operation": "compact_orphans",
-                "edit": {"operation": "compact_orphans"},
+                "operation": operation,
+                "edit": dict(edit),
                 "submeshes": submeshes,
             },
             **_native_job_kwargs(stop_event=stop_event, timeout_seconds=timeout_seconds),
