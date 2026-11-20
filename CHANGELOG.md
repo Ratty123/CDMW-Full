@@ -46,6 +46,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - **Browse Archives** no longer refuses to preview some files with "Preview dependencies could not be resolved": large uncompressed textures such as the world map fog bitmaps, the ICU `.dat` files, some tree impostors, and files named by an extension alone such as `.vce_meta`. Only a model still needs its complete set of related files before it is shown.
+- World models that name glow maps the game does not include now show with their textures in the 3D preview instead of as bare geometry with "Textures unavailable". In a sample of 44 world models this affected 7, among them houses, lamps and gates. The affected materials are shown without glow.
 - **Browse Archives** no longer reports "Texture loading failed" for world models that are shown with their textures, such as beacons and other layered-material statics, and no longer loads such a model again in the background.
 - **Browse Archives** no longer starts the first model over when the name index finishes while that model is still loading; right after opening a game this could turn a 5 second wait into 8 to 17 seconds.
 - **Textures > Upscale:** with **Overwrite existing DDS** off, **Start** reported every DDS it rebuilt with the native encoder as skipped ("output DDS already exists"), because it checked for the file after writing it. Those files now count as converted; only DDS files that were in the output folder before the run are skipped.

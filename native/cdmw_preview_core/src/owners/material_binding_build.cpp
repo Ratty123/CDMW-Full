@@ -849,6 +849,19 @@ static void finish_material_bindings(MaterialBindingBuildState& state, size_t si
     for (NativeMaterialConservationRow& row : state.package.material_conservation_rows) {
         if (row.parameter.kind != "texture" || row.parameter.texture_path.empty()
             || !row.logical_graph_edge) continue;
+        const std::string row_parameter_key = normalized_key(row.parameter.name);
+        // A source this row's own material wrapper has for another of its parameters.
+        const auto same_wrapper_source = [&](const char* parameter_key, bool exact_only) {
+            return std::any_of(state.bindings.begin(), state.bindings.end(), [&](const TextureBinding& binding) {
+                return normalized_key(binding.parameter_name) == parameter_key
+                    && !binding.source_path.empty()
+                    && (!exact_only || binding.source_authority == "exact_sidecar")
+                    && lower_copy(binding.component_scope_id) == lower_copy(row.component_scope_id)
+                    && lower_copy(binding.sidecar_path) == lower_copy(row.sidecar_path)
+                    && lower_copy(binding.owner_wrapper_item_id) == lower_copy(row.owner_wrapper_item_id)
+                    && binding.material_wrapper_index == row.material_wrapper_index;
+            });
+        };
         const TextureBinding* resolved = nullptr;
         const TextureBinding* cross_owner = nullptr;
         for (const TextureBinding& binding : state.bindings) {
@@ -895,22 +908,26 @@ static void finish_material_bindings(MaterialBindingBuildState& state, size_t si
             state.package.material_conservation_findings.push_back(
                 "cross_owner_binding:" + row.sidecar_path + ":"
                 + row.owner_wrapper_item_id + ":" + row.parameter.name);
-        } else if (normalized_key(row.parameter.name) == "emissivetexture"
-            && std::any_of(state.bindings.begin(), state.bindings.end(), [&](const TextureBinding& binding) {
-                return normalized_key(binding.parameter_name) == "emissiveintensitytexture"
-                    && !binding.source_path.empty()
-                    && binding.source_authority == "exact_sidecar"
-                    && lower_copy(binding.component_scope_id) == lower_copy(row.component_scope_id)
-                    && lower_copy(binding.sidecar_path) == lower_copy(row.sidecar_path)
-                    && lower_copy(binding.owner_wrapper_item_id) == lower_copy(row.owner_wrapper_item_id)
-                    && binding.material_wrapper_index == row.material_wrapper_index;
-            })) {
+        } else if (row_parameter_key == "emissivetexture"
+            && same_wrapper_source("emissiveintensitytexture", true)) {
             // The native scalar emission path takes precedence over RGB.
             // Keep the missing declaration as evidence, but it is not an active
             // preview edge and must not discard every other material map.
             row.declared_source_missing = true;
             row.status = "transported_inactive_rgb_emission";
             row.source_resolution_detail = "resolved_same_wrapper_emissive_intensity_takes_precedence";
+        } else if ((row_parameter_key == "emissivetexture" || row_parameter_key == "emissiveintensitytexture")
+            && !same_wrapper_source(
+                row_parameter_key == "emissivetexture" ? "emissiveintensitytexture" : "emissivetexture",
+                false)) {
+            // Many world materials declare an emission pair whose files the game
+            // does not ship. With no emission source in the wrapper the material
+            // does not glow; that must not discard its colour, normal and
+            // response maps. A missing half of a pair whose other half is active
+            // still fails below.
+            row.declared_source_missing = true;
+            row.status = "transported_inactive_missing_emission";
+            row.source_resolution_detail = "no_emission_source_in_same_wrapper";
         } else {
             row.status = "transported_source_unavailable";
             row.finding = "source_dds_unavailable";

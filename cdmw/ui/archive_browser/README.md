@@ -629,6 +629,9 @@ geometry-only native contract and displays **Textures unavailable**. It preserve
 saved texture choice and does not automatically retry the failed texture request.
 A missing source shared by several materials stays a missing-source warning when
 another material uses its own technique default; that default is never borrowed.
+A material whose glow maps (`_emissiveTexture` and `_emissiveIntensityTexture`) have no
+source anywhere is the exception: it is shown without glow and keeps its other textures,
+because many world models name glow maps the game does not include.
 Invalid material ownership and lost parameters still fail validation. The same warning
 covers a completed texture lookup with no usable texture sources; geometry-only mode and
 authored colour-only materials do not report missing textures.

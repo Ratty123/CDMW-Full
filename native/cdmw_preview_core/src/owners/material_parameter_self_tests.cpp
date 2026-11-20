@@ -521,8 +521,46 @@ static void run_material_source_resolution_self_test() {
         binding.parameter_name = "_emissiveIntensityTexture";
         binding.source_authority = "exact_sidecar";
         binding.source_path = "resolved-intensity.dds";
-        require_material_contract(finding(binding) == "source_dds_unavailable",
-            "another owner's intensity map suppressed a required RGB source");
+        const auto emission_row = [&](
+            const NativeMaterialConservationRow& declared, const TextureBinding& candidate) {
+            NativePackage package;
+            package.material_conservation_rows.push_back(declared);
+            MaterialBindingBuildState state{job, index, meshes, package, techniques};
+            state.bindings.push_back(candidate);
+            finish_material_bindings(state, 1);
+            return std::make_pair(
+                package.material_conservation_rows.front(), native_material_conservation_json(package));
+        };
+        {
+            // Another owner's intensity map is not this wrapper's emission source:
+            // the wrapper has none, so it does not glow and keeps its other maps.
+            const auto [unlit, unlit_json] = emission_row(row, binding);
+            require_material_contract(unlit.logical_graph_edge && !unlit.texture_resolved
+                && unlit.declared_source_missing && unlit.finding.empty()
+                && unlit.status == "transported_inactive_missing_emission"
+                && unlit_json.find("\"conserved\":true") != std::string::npos
+                && unlit_json.find("\"inactive_unavailable_texture_count\":1") != std::string::npos,
+                "a material without any emission source lost its other maps, or borrowed another owner's");
+            // Half of a pair is missing while the other half is active: still a failure.
+            NativeMaterialConservationRow intensity_row = row;
+            intensity_row.parameter.name = "_emissiveIntensityTexture";
+            TextureBinding rgb_binding = binding;
+            rgb_binding.parameter_name = "_emissiveTexture";
+            rgb_binding.owner_wrapper_item_id = row.owner_wrapper_item_id;
+            rgb_binding.material_wrapper_index = row.material_wrapper_index;
+            const auto [masked, masked_json] = emission_row(intensity_row, rgb_binding);
+            require_material_contract(masked.finding == "source_dds_unavailable"
+                && masked_json.find("\"conserved\":false") != std::string::npos,
+                "a missing intensity mask was dropped while its RGB emission stayed active");
+            // The parameter name decides, never an emission-like file name.
+            NativeMaterialConservationRow base_row = row;
+            base_row.parameter.name = "_baseColorTexture";
+            base_row.parameter.texture_path = "texture/missing_emi.dds";
+            const auto [base, base_json] = emission_row(base_row, TextureBinding{});
+            require_material_contract(base.finding == "source_dds_unavailable"
+                && base_json.find("\"conserved\":false") != std::string::npos,
+                "a missing base colour source was accepted as an unlit emission map");
+        }
         binding.owner_wrapper_item_id = row.owner_wrapper_item_id;
         binding.material_wrapper_index = row.material_wrapper_index;
         NativePackage inactive_package;

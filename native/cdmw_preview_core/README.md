@@ -39,9 +39,14 @@ Conservation retains every declared parameter, including an unavailable RGB
 emission map superseded by a resolved, exact same-wrapper emissive-intensity map.
 Such a row remains unresolved and is explicitly marked
 `transported_inactive_rgb_emission`; `inactive_unavailable_texture_count` reports
-this subset of `unresolved_texture_count`. Only these inactive missing sources
-may coexist with `conserved: true`. Missing active inputs and foreign-owner
-substitutions still fail conservation. No replacement DDS is generated.
+this subset of `unresolved_texture_count`. The same holds for a material
+wrapper whose `_emissiveTexture` and `_emissiveIntensityTexture` have no source
+at all, which is common in world models: both rows are marked
+`transported_inactive_missing_emission`, the material does not glow and its
+other maps stay. Only these inactive missing sources may coexist with
+`conserved: true`. Missing active inputs, a missing half of an emission pair
+whose other half resolved, and foreign-owner substitutions still fail
+conservation. No replacement DDS is generated.
 
 ## Windows paths and ownership
 
