@@ -88,6 +88,7 @@ class TextureJobOperationsMixin:
 
     def set_texture_job_busy(self, busy: bool) -> None:
         busy = busy or bool(getattr(self, "_texture_export_kind", ""))
+        was_busy = bool(self.job.busy)
         self.job.busy = busy
         if not hasattr(self, "asset_list"):
             return
@@ -101,6 +102,12 @@ class TextureJobOperationsMixin:
             matcher.set_external_busy(busy)
         if hasattr(self, "editor_export_page"):
             self.editor_export_page.setEnabled(not busy)
+        if was_busy and not busy:
+            # The editor greys its controls out while the shared job is busy, and it may
+            # have refreshed for the last time while the flag was still set.
+            editor = created_tool_widget(self.editor_container)
+            if editor is not None and not getattr(editor, "_shutting_down", False):
+                editor._refresh_ui()
 
     def finish_texture_operation(self, value=None) -> bool:
         operation = getattr(self, "_texture_export_operation", None)

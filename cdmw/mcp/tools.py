@@ -102,6 +102,10 @@ class Tool:
     command_id: str = ""
     title: str = ""
     keywords: tuple[str, ...] = field(default_factory=tuple)
+    #: What a successful call's ``structuredContent`` holds, as MCP ``outputSchema``. A paged
+    #: tool gets its page's shape without one. Fields stay optional: a client that checks
+    #: results against it never refuses a result CDMW sends.
+    output_schema: Mapping[str, object] | None = None
 
     @property
     def wire(self) -> str:
@@ -125,9 +129,27 @@ class Tool:
             schema["properties"] = properties
         return schema
 
+    def output_schema_for_clients(self) -> dict[str, object] | None:
+        if self.output_schema is not None:
+            return dict(self.output_schema)
+        if not self.paged:
+            return None
+        return {"type": "object", "properties": {
+            self.paged: {"type": "array", "description": "This page's rows."},
+            "total": {"type": "integer", "description": "Rows in every page together."},
+            "offset": {"type": "integer", "description": "Where this page starts."},
+            "next_page_token": {"type": "string", "description": "Pass it as page_token for the next page."}}}
+
     def listing(self) -> dict[str, object]:
         """The tool as MCP ``tools/list`` shows it."""
 
+        listed = self._listing()
+        output = self.output_schema_for_clients()
+        if output is not None:
+            listed["outputSchema"] = output
+        return listed
+
+    def _listing(self) -> dict[str, object]:
         return {
             "name": self.wire,
             "title": self.title or self.name,
@@ -160,6 +182,11 @@ def _check_tool(tool: Tool) -> None:
             raise ToolTableError(f"{tool.name}: output path {name!r} is not an argument")
     try:
         check_schema_shape(tool.input_schema, tool.name)
+        output = tool.output_schema_for_clients()
+        if output is not None:
+            check_schema_shape(output, f"{tool.name} output")
+            if output.get("type") != "object" or output.get("required"):
+                raise ValueError(f"{tool.name}: an output schema is an object whose fields stay optional")
     except ValueError as exc:
         raise ToolTableError(str(exc)) from None
     if tool.family == COMMAND_FAMILY:

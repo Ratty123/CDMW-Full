@@ -27,7 +27,7 @@ HOST_NAMES = (
     "_pending_hair_character", "_pending_hair_context",
     "_start_archive_material_context_resolution", "_texture_tools_panel", "_textures_panel", "archive_material_context_package_path",
     "archive_material_context_verified_for_rust", "archive_physics_profile_context",
-    "archive_session_retry_request", "close_standalone_session", "current_archive_selection",
+    "archive_session_dependencies", "archive_session_retry_request", "close_standalone_session", "current_archive_selection",
     "edit_item_set", "font", "hair_entry_status", "item_set_contexts",
     "mesh_editor_backend_reason_label", "mesh_editor_draft_manifest_path", "open_archive_session", "open_mesh_file_session_async",
     "open_selected_mesh_button", "settings", "standalone_archive_material_preview_model",

@@ -8424,8 +8424,8 @@ class RustMeshAuthoringSession:
                 and _mesh_topology_counts(candidate) != source_topology
             ):
                 raise RustMeshValidationError(
-                    "Generate Tangents would split vertices and cannot be written by Exact "
-                    "PAC output. Choose Free Edit before generating tangents for this mesh."
+                    "Generate Tangents would split vertices along a UV seam, and Exact output "
+                    "cannot add vertices. Choose Free Edit before generating tangents for this mesh."
                 )
             return self._preflight_mesh_document_capacity(candidate)
         finally:
@@ -8454,6 +8454,17 @@ class RustMeshAuthoringSession:
                 and action in {"separate", "split", "merge", "duplicate", "delete"}):
             return  # The service checks file ownership; the exact writer checks lineage.
         view = self.shadow_service.session_view(self.shadow_session_id)
+        if (
+            action == "delete"
+            and _command_truthy(params.get("delete_parts", False))
+            and view.output_policy != MeshOutputPolicy.FREE_EDIT.value
+        ):
+            # The same refusal the editor's Parts list gives. Exact output keeps
+            # the source Part table, so Finish would fail on the changed count.
+            raise RustMeshValidationError(
+                "Deleting whole parts requires Free Edit. To remove a part from the exported "
+                "game file, untick Include instead."
+            )
         capability_key = (
             "uv_auto_unwrap"
             if action == "uv_transform"

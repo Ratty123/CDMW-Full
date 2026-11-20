@@ -42,8 +42,28 @@ public static class ArchiveEntryClassifier
 
     public static string PackageLabel(string pamtPath)
     {
-        var file = System.IO.Path.GetFileName(pamtPath);
-        var parent = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(pamtPath));
-        return string.IsNullOrEmpty(parent) ? file : $"{parent}/{file}";
+        var file = System.IO.Path.GetFileName(pamtPath.Replace('\\', '/'));
+        var folder = PackageFolder(pamtPath, fallback: string.Empty);
+        return string.IsNullOrEmpty(folder) ? file : $"{folder}/{file}";
+    }
+
+    /// <summary>
+    /// The package folder of a .pamt path. A DLC package keeps its dlc/&lt;name&gt;/ folders in
+    /// front, because the base game and a DLC both have a folder named, for example, 0015.
+    /// </summary>
+    public static string PackageFolder(string pamtPath, string fallback = "package")
+    {
+        var parts = pamtPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+        {
+            return fallback;
+        }
+        var folders = parts[..^1];
+        if (folders.Length >= 3 && folders[^3].Equals("dlc", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Join('/', folders[^3..]);
+        }
+        var last = folders[^1].Trim();
+        return last.Length == 0 ? fallback : last;
     }
 }

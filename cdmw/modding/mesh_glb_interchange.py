@@ -523,12 +523,16 @@ def _float_accessor(
     view = _append_buffer_view(buffer, buffer_views, raw, target)
     accessor: dict[str, object] = {"bufferView": view, "componentType": 5126, "count": len(rows), "type": type_name}
     if include_min_max and rows:
+        # glTF validators compare min and max with the float32 values in the buffer, so
+        # take them from what is written, not from the float64 input.
         if values is not None and packed is not None:
-            accessor["min"] = [_first_extreme(values[:, axis], np.min) for axis in range(component_count)]
-            accessor["max"] = [_first_extreme(values[:, axis], np.max) for axis in range(component_count)]
+            stored = packed.astype(np.float64)
+            accessor["min"] = [_first_extreme(stored[:, axis], np.min) for axis in range(component_count)]
+            accessor["max"] = [_first_extreme(stored[:, axis], np.max) for axis in range(component_count)]
         else:
-            accessor["min"] = [min(float(row[axis]) for row in rows) for axis in range(component_count)]
-            accessor["max"] = [max(float(row[axis]) for row in rows) for axis in range(component_count)]
+            stored_rows = np.frombuffer(raw, dtype="<f4").reshape(len(rows), component_count).astype(np.float64)
+            accessor["min"] = [float(stored_rows[:, axis].min()) for axis in range(component_count)]
+            accessor["max"] = [float(stored_rows[:, axis].max()) for axis in range(component_count)]
     accessors.append(accessor)
     return len(accessors) - 1
 

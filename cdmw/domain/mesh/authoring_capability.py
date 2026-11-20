@@ -270,6 +270,48 @@ _NO_EXACT_ROUTE_DETAIL = (
     "and the generic rebuild would lose protected bytes."
 )
 
+#: PAM and PAMLOD export refuses any topology change ("PAM export cannot use
+#: this topology change safely yet"), so exact Face Delete is PAC only.
+_STATIC_TOPOLOGY_BLOCKED = AuthoringCapability(
+    AuthoringSupport.BLOCKED,
+    "Delete Selection has no exact writeback route on PAM and PAMLOD",
+    "The static model writers keep the source face list, so removed faces would block Finish. "
+    "Choose Free Edit to delete faces on this model.",
+)
+
+_FLIP_NORMALS_BLOCKED = AuthoringCapability(
+    AuthoringSupport.BLOCKED,
+    "Flip Normals reverses face winding, which has no exact writeback route",
+    "The exact writer keeps the source face order. Choose Free Edit to flip faces.",
+)
+
+#: Actions refused only under Exact output: key -> (formats or None for all, capability).
+_EXACT_ONLY_BLOCKED_ACTIONS: dict[str, tuple[frozenset[str] | None, AuthoringCapability]] = {
+    "flip_normals": (None, _FLIP_NORMALS_BLOCKED),
+    "delete": (frozenset({"pam", "pamlod"}), _STATIC_TOPOLOGY_BLOCKED),
+}
+
+#: Normal and tangent tools. PAM and PAMLOD store neither channel: the writer
+#: keeps positions and UVs, and normals are computed from the faces when the
+#: file is read, so these tools would report a change the file never gets.
+STATIC_NORMAL_ACTIONS = frozenset(
+    {
+        "recalculate_normals",
+        "generate_tangents",
+        "sharpen_normals",
+        "soften_normals",
+        "weighted_normals",
+        "copy_normals",
+    }
+)
+STATIC_MESH_FORMATS = frozenset({"pam", "pamlod"})
+
+_STATIC_NORMALS_NOT_STORED = AuthoringCapability(
+    AuthoringSupport.BLOCKED,
+    "PAM and PAMLOD files store no normals or tangents",
+    "The game computes them from the faces, so a normal or tangent edit would change nothing in the file.",
+)
+
 
 def geometry_authoring_capability(
     mesh_format: object,
@@ -374,6 +416,16 @@ def action_authoring_capability(
 
     operation = TOPOLOGY_OPERATION_BY_NATIVE_ACTION.get(key)
     reason = _BLOCKED_EXACT_AUTHORING_ACTIONS.get(key)
+    if key in STATIC_NORMAL_ACTIONS and normalized_format in STATIC_MESH_FORMATS:
+        geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
+        return geometry if not geometry.authorable else _STATIC_NORMALS_NOT_STORED
+    if policy is MeshOutputPolicy.EXACT_GAME_ASSET:
+        # Import Replacement rebuilds the Part, so these stay open there; the
+        # exact writer keeps the source faces and their winding.
+        exact_only = _EXACT_ONLY_BLOCKED_ACTIONS.get(key)
+        if exact_only is not None and (exact_only[0] is None or normalized_format in exact_only[0]):
+            geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)
+            return geometry if not geometry.authorable else exact_only[1]
     if operation is None and reason is None:
         return None
     geometry = geometry_authoring_capability(mesh_format, lod_index=lod_index)

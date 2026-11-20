@@ -10,6 +10,7 @@ from typing import Optional
 
 from .logging import get_logger
 from .mesh_builder_common import (
+    _quantize_u16,
     _align_static_vertex_sequences,
     _align_submesh_order_like_original,
     _apply_quantized_vertex_patches,
@@ -32,7 +33,9 @@ from .mesh_parser import (
     SubMesh,
     STRIDE_CANDIDATES,
     _compute_smooth_normals,
+    PAMLOD_VERSION,
     _dequant_u16,
+    _pamlod_level_blocks,
     parse_pam,
     parse_pamlod,
 )
@@ -498,13 +501,30 @@ def _serialize_pamlod_lod0_full_rebuild(
     original_parts = _pamlod_lod0_original_parts(original_data, layout)
     rebuilt_parts = _split_pamlod_lod0_edit_by_entries(lod0_submeshes, original_parts)
 
-    all_vertices = [
-        vertex
-        for lod_level in original_mesh.lod_levels[1:]
-        for submesh in lod_level
-        for vertex in submesh.vertices
-    ] + [vertex for part in rebuilt_parts for vertex in part.vertices]
-    bmin, bmax = _compute_bbox(all_vertices)
+    stated = _pamlod_level_blocks(original_data, int(layout["lod_count"]), int(layout["geom_off"]))
+    if stated is not None:
+        _table_off, stated_blocks = stated
+        lod0_start, lod0_size = stated_blocks[0]
+        if layout["vertex_base"] != lod0_start or layout["old_lod0_end"] != lod0_start + lod0_size:
+            raise ValueError(
+                "This PAMLOD's LOD0 geometry does not match its level block table, so its "
+                "lower LODs cannot be kept safely after a LOD0 vertex count change."
+            )
+        # Keep the source bounds unless LOD0 now reaches outside them. The lower
+        # levels are copied as stored, so unchanged bounds keep them exact.
+        orig_bmin = struct.unpack_from("<fff", original_data, 0x10)
+        orig_bmax = struct.unpack_from("<fff", original_data, 0x1C)
+        bmin, bmax = _expand_bbox_to_vertices(
+            orig_bmin, orig_bmax, [vertex for part in rebuilt_parts for vertex in part.vertices],
+        )
+    else:
+        all_vertices = [
+            vertex
+            for lod_level in original_mesh.lod_levels[1:]
+            for submesh in lod_level
+            for vertex in submesh.vertices
+        ] + [vertex for part in rebuilt_parts for vertex in part.vertices]
+        bmin, bmax = _compute_bbox(all_vertices)
     result = bytearray(original_data[:layout["vertex_base"]])
     struct.pack_into("<fff", result, 0x10, *bmin)
     struct.pack_into("<fff", result, 0x1C, *bmax)
@@ -547,7 +567,10 @@ def _serialize_pamlod_lod0_full_rebuild(
 
     result.extend(geom_data)
     result.extend(index_data)
-    result.extend(original_data[layout["old_lod0_end"]:])
+    if stated is not None:
+        _append_pamlod_lower_levels(result, original_mesh, original_data, stated, layout, bmin, bmax)
+    else:
+        result.extend(original_data[layout["old_lod0_end"]:])
     logger.info(
         "Built PAMLOD %s with full LOD0 rebuild: %d parts, %d verts, %d faces",
         mesh_path,
@@ -556,6 +579,61 @@ def _serialize_pamlod_lod0_full_rebuild(
         sum(len(part.faces) for part in rebuilt_parts),
     )
     return bytes(result)
+
+
+def _append_pamlod_lower_levels(
+    result: bytearray,
+    original_mesh: ParsedMesh,
+    original_data: bytes,
+    stated: tuple[int, list[tuple[int, int]]],
+    layout: dict,
+    bmin: tuple[float, float, float],
+    bmax: tuple[float, float, float],
+) -> None:
+    """Append the lower level blocks after a rebuilt LOD0 and restate the level table.
+
+    Each block starts on a 16-byte boundary, as the parser requires. When LOD0 widened
+    the bounds, the lower levels' quantized positions are re-encoded against the new
+    bounds so they keep their place.
+    """
+    table_off, blocks = stated
+    orig_bmin = struct.unpack_from("<fff", original_data, 0x10)
+    orig_bmax = struct.unpack_from("<fff", original_data, 0x1C)
+    requantize = (tuple(bmin), tuple(bmax)) != (tuple(orig_bmin), tuple(orig_bmax))
+    lower_levels = list(original_mesh.lod_levels or [])[1:]
+    new_blocks = [(blocks[0][0], len(result) - blocks[0][0])]
+    for level_index, (offset, size) in enumerate(blocks[1:], start=1):
+        result.extend(bytes((-len(result)) % 16))
+        block = bytearray(original_data[offset:offset + size])
+        if requantize and level_index - 1 < len(lower_levels):
+            for submesh in lower_levels[level_index - 1]:
+                for source_offset in getattr(submesh, "source_vertex_offsets", ()) or ():
+                    relative = int(source_offset) - offset
+                    if not 0 <= relative <= size - 6:
+                        raise ValueError("PAMLOD lower LOD vertex lies outside its stated level block.")
+                    quantized = struct.unpack_from("<HHH", block, relative)
+                    position = [
+                        _dequant_u16(quantized[axis], orig_bmin[axis], orig_bmax[axis]) for axis in range(3)
+                    ]
+                    struct.pack_into(
+                        "<HHH", block, relative,
+                        *(_quantize_u16(position[axis], bmin[axis], bmax[axis]) for axis in range(3)),
+                    )
+        new_blocks.append((len(result), size))
+        result.extend(block)
+    lod_count = int(layout["lod_count"])
+    if len(original_data) > PAMLOD_VERSION and original_data[PAMLOD_VERSION] == 3:
+        struct.pack_into(f"<{lod_count}I", result, table_off, *(start for start, _size in new_blocks))
+    else:
+        for level_index, (start, size) in enumerate(new_blocks):
+            struct.pack_into("<III", result, table_off + level_index * 12, start, size, 0)
+    restated = _pamlod_level_blocks(bytes(result), lod_count, int(layout["geom_off"]))
+    if restated != (table_off, new_blocks):
+        raise ValueError("Rebuilt PAMLOD level block table does not validate; the output was not written.")
+    reparsed = parse_pamlod(bytes(result), str(getattr(original_mesh, "path", "") or ""))
+    lower_counts = [[len(part.vertices) for part in level] for level in lower_levels]
+    if [[len(part.vertices) for part in level] for level in list(reparsed.lod_levels or [])[1:]] != lower_counts:
+        raise ValueError("Rebuilt PAMLOD lower LODs do not read back as the source levels; the output was not written.")
 
 
 def build_pamlod(mesh: ParsedMesh, original_data: bytes) -> bytes:

@@ -48,6 +48,7 @@ internal static class FullArchiveTestRunner
             ("preview_animation_references", PreviewAnimationReferencesAsync),
             ("query_sort_parity", QuerySortParityAsync),
             ("text_search_matching_rules", TextSearchMatchingRulesAsync),
+            ("dlc_package_folder", ArchiveQueryTests.DlcPackageFolderAsync),
             ("extension_index_query", ArchiveQueryTests.ExtensionSearchAsync),
             ("extension_index_cancellation", ArchiveQueryTests.CancellationAsync),
             ("extension_index_item_names", ArchiveQueryTests.ItemNamesAsync),

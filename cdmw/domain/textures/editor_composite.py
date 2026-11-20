@@ -101,12 +101,23 @@ def _blend_layer_region(
     *,
     opacity: int,
     mode: str,
+    keep_hidden_source_rgb: bool = False,
 ) -> np.ndarray:
+    """Blend ``src_region`` over ``dst_region``.
+
+    With ``keep_hidden_source_rgb`` (used when flattening layers), a pixel that stays
+    fully transparent over an empty backdrop keeps the layer's own colour. Game textures
+    store real colour under alpha 0 for mip maps and edge filtering, so an unedited
+    texture has to flatten back to the same bytes. Edits inside one layer (gradient,
+    paint) keep the layer's existing colour there instead.
+    """
     if (
         int(opacity) >= 100
         and (mode or "normal").strip().lower() == "normal"
         and not np.any(dst_region)
     ):
+        if keep_hidden_source_rgb:
+            return src_region
         transparent = src_region[..., 3] == 0
         if not np.any(transparent):
             return src_region
@@ -117,12 +128,21 @@ def _blend_layer_region(
     src = src_region.astype(np.float32) / 255.0
     src_alpha = src[..., 3:4] * max(0.0, min(1.0, float(opacity) / 100.0))
     dst_alpha = dst[..., 3:4]
-    blended_rgb = _blend_rgb_mode(dst[..., :3], src[..., :3], mode)
+    # Separable blend modes only apply where there is a backdrop (W3C compositing):
+    # over transparency a Multiply or Overlay layer shows its own colour.
+    blended_rgb = src[..., :3] * (1.0 - dst_alpha) + _blend_rgb_mode(dst[..., :3], src[..., :3], mode) * dst_alpha
     out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha)
     safe_alpha = np.where(out_alpha > 1e-6, out_alpha, 1.0)
     out_rgb = (blended_rgb * src_alpha + dst[..., :3] * dst_alpha * (1.0 - src_alpha)) / safe_alpha
     out = dst.copy()
-    out[..., :3] = np.where(out_alpha > 1e-6, out_rgb, out[..., :3])
+    # Where the result stays fully transparent, keep the hidden colour of the backdrop
+    # (or, when flattening, the layer's own hidden colour over an empty backdrop).
+    if keep_hidden_source_rgb:
+        backdrop_empty = ~np.any(dst_region, axis=-1, keepdims=True)
+        hidden_rgb = np.where(backdrop_empty, src[..., :3], dst[..., :3])
+    else:
+        hidden_rgb = dst[..., :3]
+    out[..., :3] = np.where(out_alpha > 1e-6, out_rgb, hidden_rgb)
     out[..., 3:4] = out_alpha
     return np.clip(np.round(out * 255.0), 0, 255).astype(np.uint8)
 
@@ -364,6 +384,7 @@ def _flatten_texture_editor_raster_layers(
             src_region,
             opacity=layer.opacity,
             mode=layer.blend_mode,
+            keep_hidden_source_rgb=True,
         )
     return base
 
@@ -463,6 +484,7 @@ def _flatten_texture_editor_raster_layers_region(
             src_region,
             opacity=layer.opacity,
             mode=layer.blend_mode,
+            keep_hidden_source_rgb=True,
         )
     return base
 

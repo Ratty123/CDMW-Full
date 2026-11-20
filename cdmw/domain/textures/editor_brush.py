@@ -592,7 +592,15 @@ def _selected_stamp_alpha(
     gy0 = context.active_layer.offset_y + ly0
     gx1 = gx0 + (lx1 - lx0)
     gy1 = gy0 + (ly1 - ly0)
-    return alpha * (context.selection_mask[gy0:gy1, gx0:gx1].astype(np.float32) / 255.0)
+    mask = context.selection_mask
+    mask_h, mask_w = mask.shape[:2]
+    # A layer can hang past the canvas. Pixels outside the canvas are never selected.
+    selected = np.zeros((gy1 - gy0, gx1 - gx0), dtype=np.float32)
+    cx0, cy0 = max(0, gx0), max(0, gy0)
+    cx1, cy1 = min(mask_w, gx1), min(mask_h, gy1)
+    if cx1 > cx0 and cy1 > cy0:
+        selected[cy0 - gy0:cy1 - gy0, cx0 - gx0:cx1 - gx0] = mask[cy0:cy1, cx0:cx1].astype(np.float32) / 255.0
+    return alpha * selected
 
 
 def _point_pressure(context: _StrokeContext, index: int) -> float:

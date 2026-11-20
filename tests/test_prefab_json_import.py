@@ -179,6 +179,18 @@ def test_prefab_edit_json_text_applies_same_length_placement_field_patch() -> No
     assert b"Spine2_B_Socket" not in patched
 
 
+def test_prefab_edit_json_saved_with_a_byte_order_mark_still_imports(tmp_path) -> None:
+    payload = _prefab_profile_payload()
+    document = build_prefab_edit_document(payload, "character/prefab/test.prefab")
+    document["editable"]["placement_fields"][0]["value"] = "Pelvis_L_Socket"
+    path = tmp_path / "edit.json"
+    path.write_text(json.dumps(document), encoding="utf-8-sig")  # Notepad's "UTF-8 with BOM"
+
+    for text in (path.read_text(encoding="utf-8"), path.read_text(encoding="utf-8-sig")):
+        patched = apply_prefab_edit_json(payload, text, virtual_path="character/prefab/test.prefab")
+        assert b"Pelvis_L_Socket" in patched
+
+
 def test_prefab_edit_json_rejects_length_changing_patch() -> None:
     payload = b"\xff\xff\x04\x00" + _lp("character/model/test_a.pac")
     document = build_prefab_edit_document(payload)

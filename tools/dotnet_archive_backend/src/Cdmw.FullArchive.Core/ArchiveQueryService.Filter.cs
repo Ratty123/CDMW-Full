@@ -200,19 +200,18 @@ public sealed partial class ArchiveQueryService
         public static PamtFacts Create(string sourcePamt, PackageTerm[]? packages)
         {
             var package = ArchiveEntryClassifier.PackageLabel(sourcePamt);
-            var packageDirectory = Path.GetFileName(Path.GetDirectoryName(sourcePamt));
-            if (string.IsNullOrWhiteSpace(packageDirectory))
-            {
-                packageDirectory = "package";
-            }
+            // The same folder the structure view and the export use (dlc/dlc_01/0015).
+            var packageDirectory = ArchiveEntryClassifier.PackageFolder(sourcePamt);
             return new PamtFacts(
                 packages is null || packages.Any(term => term.Matches(package, sourcePamt)),
                 $"{packageDirectory.Trim('/')}/");
         }
     }
 
+    // NonBacktracking runs in time linear in the input. With the backtracking engine a
+    // filter such as *a*a*a*a*a*a*a*a*a*a*a*b took 18 seconds over the full game.
     private static Regex WildcardRegex(string text) => new(
         "^" + Regex.Escape(text).Replace("\\*", ".*").Replace("\\?", ".") + "$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
         TimeSpan.FromMilliseconds(250));
 }

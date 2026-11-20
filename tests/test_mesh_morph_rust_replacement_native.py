@@ -5,6 +5,7 @@ import pytest
 
 from cdmw.domain.mesh import MeshEditSelection
 from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession, RustMeshValidationError
+from cdmw.services.mesh_rust_state_cache import RustMeshStateCache
 from tests.test_mesh_morph_authoring_native import resident, _positions, _assert_positions_equal
 from tests.test_mesh_morph_service import _author_command
 
@@ -13,6 +14,8 @@ def _bridge(service, session_id):
     bridge = object.__new__(RustMeshAuthoringSession)
     bridge.shadow_service = service
     bridge.shadow_session_id = session_id
+    # Built without __init__, so the dataclass default has to be supplied here.
+    bridge.state_cache = RustMeshStateCache()
     return bridge
 
 
