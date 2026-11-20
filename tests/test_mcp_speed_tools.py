@@ -126,6 +126,34 @@ def test_table_export_refuses_fields_that_are_not_speeds(speed, tmp_path):
               folder=str(folder), title="Fast")
 
 
+def test_table_export_multiplies_a_value_on_every_matching_row(speed, tmp_path, monkeypatch):
+    import cdmw.services.game_table_speed as service
+    from tests.test_game_table_edits import _ai_index
+
+    index = _ai_index([(1, "AIMove_Bear", True, [(5.0, 3.5, 180.0)]), (2, "AIMove_Boar", True, [(4.0, 3.0, -1.0)])])
+    monkeypatch.setattr(service, "archive_table_layers", lambda root, table, **_kw: [table])
+    monkeypatch.setattr(service, "load_table_index", lambda table, layers, **_kw: index)
+    written = []
+    monkeypatch.setattr(service, "export_speed_table_mod",
+                        lambda root, edits, **kw: written.append(list(edits)) or SimpleNamespace(
+                            folder=kw["parent"] / kw["title"], replaced=False))
+    folder = tmp_path / "mods"
+    folder.mkdir()
+    result = speed("speed.table_export", folder=str(folder), title="Fast AI",
+                   scale=[{"choice": "move", "factor": 1.5, "query": "bear"}, {"choice": "turn", "factor": 2}])
+    assert result["edits"] == 3 and [(edit.key, edit.value) for edit in written[0]] == [(1, 7.5), (1, 5.25), (1, 360.0)]
+    assert result["scaled"][1]["outside_range"] == 1 and "outside their range" in result["scaled"][1]["message"]
+    with pytest.raises(ToolError, match="either edits"):
+        speed("speed.table_export", folder=str(folder), title="Fast AI")
+    with pytest.raises(ToolError, match="either edits"):
+        speed("speed.table_export", folder=str(folder), title="Fast AI",
+              scale=[{"choice": "move", "factor": 2}],
+              edits=[{"table": "gimmickinfo", "key": 1, "target": "_pushObjectSpeedRate", "value": 2}])
+    with pytest.raises(ToolError, match="change no value"):
+        speed("speed.table_export", folder=str(folder), title="Fast AI",
+              scale=[{"choice": "move", "factor": 2, "query": "wolf"}])
+
+
 def _tab(**options):
     """The tab on one set, with a fake window around it, and a function that runs a `speed.` tool on it."""
 

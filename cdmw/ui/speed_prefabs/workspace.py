@@ -741,7 +741,7 @@ class SpeedPrefabsWorkspace(QWidget):
         choose.setSpacing(6)
         self.table_buttons: dict[str, QPushButton] = {}
         for table, label, detail in (
-                ("aimovespeedinfo", "AI movement speeds", "Move, minimum and turn speed of each AI move type."),
+                ("aimovespeedinfo", "AI movement speeds", "Move, minimum and turn speed of each AI speed row."),
                 ("gimmickinfo", "Pushed objects", "How fast objects move when pushed.")):
             button = QPushButton(label)
             button.setObjectName(f"speedTableButton_{table}")

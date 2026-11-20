@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
 
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QLineEdit,
+                               QMessageBox, QPushButton, QVBoxLayout, QWidget)
 
 from cdmw.core.static_table_records import editable_kinds
 from cdmw.models import ArchiveEntry
@@ -26,8 +27,18 @@ from cdmw.services.game_table_edits import (
     mod_destination,
     write_table_edit_mod,
 )
+from cdmw.services.game_table_speed import (
+    BULK_MAX_FACTOR,
+    BULK_MIN_FACTOR,
+    bulk_message,
+    scale_speed_rows,
+    speed_choices,
+    speed_row_count,
+)
 from cdmw.ui.new_item.game_tables_editor import GameTablesEditor
 
+#: Above this many changes from one multiply, the page asks first: writing them takes a while.
+BULK_ASK_ABOVE = 5000
 _SUFFIXES = (".staticinfoheader", ".staticinfobody")
 
 
@@ -45,15 +56,21 @@ class GameTableEditPanel(QWidget):
     """`GameTablesEditor` with a mod name and a Write button; the owner does the work.
 
     Speed & Prefabs shows one in its Game tables page; `GameTableEditDialog` wraps one for
-    tables opened from Browse Archives.
+    tables opened from Browse Archives. With ``bulk`` (the speed tables only) a row under the
+    rows list multiplies one speed value on every row the filter matches.
     """
 
-    def __init__(self, parent=None, *, side_by_side: bool = False):
+    def __init__(self, parent=None, *, side_by_side: bool = False, bulk: bool = False):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.editor = GameTablesEditor(include_speed=True, side_by_side=side_by_side)
         layout.addWidget(self.editor, 1)
+        self.scale_button = None
+        #: Answers "add this many changes?"; a test or a tool can put its own answer here.
+        self.confirm_bulk = self._ask_bulk
+        if bulk and self.editor.rows_layout is not None:
+            self._build_bulk_row()
         row = QHBoxLayout()
         row.addWidget(QLabel("Mod name:"))
         self.mod_name = QLineEdit("Game table edits")
@@ -76,6 +93,91 @@ class GameTableEditPanel(QWidget):
 
     def _update_write(self, *_args) -> None:
         self.write.setEnabled(bool(self.editor.edits()))
+
+    # --- one factor on every matching row ---------------------------------------------------
+
+    def _build_bulk_row(self) -> None:
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        row.addWidget(QLabel("Multiply"))
+        self.scale_field = QComboBox()
+        self.scale_field.setObjectName("tableScaleFieldCombo")
+        self.scale_field.setToolTip("The speed value to multiply. Move and minimum speed are the move speed and "
+                                    "the minimum move speed of every speed entry of a row; they change together.")
+        self.scale_field.currentIndexChanged.connect(lambda _index: self._refresh_bulk())
+        row.addWidget(self.scale_field, 1)
+        row.addWidget(QLabel("by"))
+        self.scale_factor = QDoubleSpinBox()
+        self.scale_factor.setObjectName("tableScaleFactorSpin")
+        self.scale_factor.setProperty("cleanField", True)
+        self.scale_factor.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.scale_factor.setRange(BULK_MIN_FACTOR, BULK_MAX_FACTOR)
+        self.scale_factor.setDecimals(2)
+        self.scale_factor.setSingleStep(0.1)
+        self.scale_factor.setSuffix("x")
+        self.scale_factor.setValue(1.0)
+        self.scale_factor.setFixedWidth(76)
+        self.scale_factor.lineEdit().setTextMargins(4, 0, 6, 0)
+        row.addWidget(self.scale_factor)
+        self.scale_button = QPushButton("Add matching rows")
+        self.scale_button.setObjectName("tableScaleButton")
+        self.scale_button.setToolTip(
+            "Adds a change for every row the filter matches, not only the 500 listed. The game's value is "
+            "multiplied, so pressing twice does not stack; 1.00x takes the changes back. Units are not known "
+            "and these edits have not been tested in game.")
+        self.scale_button.clicked.connect(self.add_scaled_rows)
+        row.addWidget(self.scale_button)
+        layout = self.editor.rows_layout
+        layout.insertLayout(layout.indexOf(self.editor.message), row)
+        self._bulk_table = ""
+        self.editor.rows_changed.connect(lambda _count: self._refresh_bulk())
+        self._refresh_bulk()
+
+    def _refresh_bulk(self) -> None:
+        """The value list follows the loaded table, and the button carries the real number of matches."""
+
+        index = self.editor.index()
+        table = index.table if index is not None else ""
+        if table != self._bulk_table:
+            self._bulk_table = table
+            self.scale_field.blockSignals(True)
+            self.scale_field.clear()
+            for choice, label in speed_choices(table):
+                self.scale_field.addItem(label, choice)
+            self.scale_field.blockSignals(False)
+        choice = str(self.scale_field.currentData() or "")
+        count = speed_row_count(index, choice, self.editor.search.text()) if index is not None and choice else 0
+        usable = bool(choice)
+        self.scale_field.setEnabled(usable)
+        self.scale_factor.setEnabled(usable)
+        self.scale_button.setEnabled(usable and count > 0)
+        self.scale_button.setText(f"Add {count:,} matching rows" if usable else "Add matching rows")
+
+    def add_scaled_rows(self) -> bool:
+        """Multiply the chosen value on every matching row into Changes in this mod; False when not done."""
+
+        index = self.editor.index()
+        choice = str(self.scale_field.currentData() or "") if self.scale_button is not None else ""
+        if index is None or not choice:
+            return False
+        try:
+            result = scale_speed_rows(index, choice=choice, factor=float(self.scale_factor.value()),
+                                      query=self.editor.search.text())
+        except TableEditError as exc:
+            self.editor.message.setText(str(exc))
+            return False
+        if len(result.edits) > BULK_ASK_ABOVE and not self.confirm_bulk(len(result.edits)):
+            return False
+        self.editor.merge_edits(result.edits, result.labels, result.owners, remove=result.restore)
+        self.editor.message.setText(bulk_message(result))
+        return True
+
+    def _ask_bulk(self, count: int) -> bool:
+        answer = QMessageBox.question(
+            self, "Edit Game Table Values",
+            f"Add {count:,} changes? Writing a mod with this many changes can take minutes and cannot be "
+            "stopped part-way.")
+        return answer == QMessageBox.StandardButton.Yes
 
 
 class GameTableEditDialog(QDialog):

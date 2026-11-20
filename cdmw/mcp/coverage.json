@@ -623,7 +623,7 @@
     {
       "id": "tables.editor_edit",
       "area": "Browse Archives",
-      "what": "Edit Game Table Values: open, load, set, restore and remove values",
+      "what": "Edit Game Table Values: open, load, set, restore, remove and clear values; on the Speed & Prefabs page, multiply a speed on every matching row (experimental)",
       "class": "edit",
       "tool": "tables.editor_edit"
     },
@@ -2272,7 +2272,7 @@
     {
       "id": "speed.table_export",
       "area": "Speed Tuning",
-      "what": "Write game table speed edits as a DMM mod (experimental)",
+      "what": "Write game table speed edits, or one factor on every matching row, as a DMM mod (experimental)",
       "class": "output",
       "tool": "speed.table_export"
     },

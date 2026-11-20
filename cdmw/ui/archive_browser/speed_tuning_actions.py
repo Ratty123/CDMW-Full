@@ -133,7 +133,7 @@ class ArchiveSpeedTuningActionsMixin:
             except (ActionChartError, OSError, ValueError):
                 return ()
 
-        panel = GameTableEditPanel(side_by_side=True)
+        panel = GameTableEditPanel(side_by_side=True, bulk=True)
         panel.setObjectName("speedGameTablePanel")
         panel.editor.set_table_choice_visible(False)  # the page's own AI movement / Pushed objects buttons choose
         self._attach_game_table_panel(panel)

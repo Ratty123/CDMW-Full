@@ -186,3 +186,77 @@ class SimpleEntry:
     def __init__(self, path):
         self.path = path
         self.basename = path.rsplit('/', 1)[-1]
+
+
+# -- many changes at once (Speed & Prefabs' Game tables page) --------------------------------
+
+
+def test_many_changes_merge_once_keep_their_labels_and_go_together(app):
+    from cdmw.services.game_table_speed import scale_speed_rows
+    from cdmw.ui.archive_browser.game_table_actions import GameTableEditPanel
+    from cdmw.ui.new_item.game_tables_editor import GameTablesEditor
+    from tests.test_game_table_edits import _ai_index
+
+    assert GameTableEditPanel().scale_button is None  # Edit Game Table Values has no multiply row
+    assert GameTableEditPanel(side_by_side=True).scale_button is None
+    plain = GameTablesEditor(include_speed=True)
+    assert plain.rows_layout is None and plain.pending_box is None
+
+    panel = GameTableEditPanel(side_by_side=True, bulk=True)
+    editor = panel.editor
+    assert not panel.scale_button.isEnabled() and panel.scale_field.count() == 0  # no table loaded yet
+    index = _ai_index([(key, f"AIMove_{name}", True, [(5.0, 3.5, 180.0), (8.0, 6.0, 90.0)])
+                       for key, name in enumerate(("Bear", "Boar", "Deer"), start=1)])
+    editor.set_index(index)
+    assert [panel.scale_field.itemText(n) for n in range(panel.scale_field.count())] == [
+        "Move and minimum speed", "Turn speed"]
+    assert panel.scale_button.text() == "Add 3 matching rows" and not panel.write.isEnabled()
+    editor.search.setText("b")
+    assert panel.scale_button.text() == "Add 2 matching rows"
+    editor.search.setText("wolf")
+    assert panel.scale_button.text() == "Add 0 matching rows" and not panel.scale_button.isEnabled()
+    editor.search.setText("")
+
+    emitted = []
+    editor.edits_changed.connect(emitted.append)
+    panel.scale_factor.setValue(1.5)
+    panel.scale_button.click()
+    assert len(emitted) == 1 and len(editor.edits()) == 12 and panel.write.isEnabled()
+    assert editor.message.text() == "12 values in 3 rows added to Changes in this mod."
+    assert editor.pending_box.title() == "Changes in this mod (12)"
+    assert editor.pending.item(0, 1).text() == "AIMove_Bear (1)"
+    assert editor.pending.item(0, 2).text() == "Speed entry 1: minimum move speed"
+    panel.scale_button.click()  # the game's value is multiplied: pressing twice does not stack
+    assert len(editor.edits()) == 12 and {edit.value for edit in editor.edits()} == {7.5, 5.25, 12.0, 9.0}
+
+    editor.clear_index()  # another table loads: the changes keep their row and value texts
+    assert editor.pending.item(0, 2).text() == "Speed entry 1: minimum move speed"
+    assert not panel.scale_button.isEnabled()
+    editor.set_index(index)
+
+    editor.pending.selectRow(0)
+    editor.pending.selectionModel().select(
+        editor.pending.model().index(1, 0),
+        editor.pending.selectionModel().SelectionFlag.Select | editor.pending.selectionModel().SelectionFlag.Rows)
+    editor.remove.click()
+    assert len(editor.edits()) == 10
+
+    panel.scale_field.setCurrentIndex(1)
+    panel.scale_factor.setValue(2.0)
+    asked = []
+    panel.confirm_bulk = lambda count: asked.append(count) or False
+    import cdmw.ui.archive_browser.game_table_actions as actions
+
+    limit, actions.BULK_ASK_ABOVE = actions.BULK_ASK_ABOVE, 5
+    try:
+        assert not panel.add_scaled_rows() and asked == [6] and len(editor.edits()) == 10  # the answer was no
+    finally:
+        actions.BULK_ASK_ABOVE = limit
+    assert panel.add_scaled_rows() and len(editor.edits()) == 16
+
+    panel.scale_field.setCurrentIndex(0)
+    panel.scale_factor.setValue(1.0)  # back at the game's values: the move changes are taken back
+    panel.scale_button.click()
+    assert len(editor.edits()) == 6 and editor.message.text() == "12 values are back at the game's value."
+    assert scale_speed_rows(index, choice="turn", factor=2.0).edits == editor.edits()
+    panel.deleteLater()

@@ -117,6 +117,8 @@ class GameTablesEditor(QWidget):
 
     load_requested = Signal(str)
     edits_changed = Signal(object)
+    #: The rows the filter matches changed: the number of matches, not capped at the rows listed.
+    rows_changed = Signal(int)
 
     def __init__(self, parent=None, *, include_speed: bool = False, side_by_side: bool = False):
         super().__init__(parent)
@@ -125,6 +127,10 @@ class GameTablesEditor(QWidget):
         self._shown_key = None
         self._edits: dict[tuple, TableFieldEdit] = {}
         self._labels: dict[tuple, str] = {}
+        #: The class that owns a nested value, kept so a change keeps its label after another table loads.
+        self._owners: dict[tuple, str] = {}
+        self.rows_layout = None
+        self.pending_box = None
         layout = QVBoxLayout(self)
         if side_by_side:
             layout.setContentsMargins(0, 0, 0, 0)
@@ -220,6 +226,7 @@ class GameTablesEditor(QWidget):
             self.message.setObjectName("HintLabel")
             self.message.setWordWrap(True)
             rows_layout.addWidget(self.message)
+            self.rows_layout = rows_layout
             splitter.addWidget(rows_box)
             right = QWidget()
             column = QVBoxLayout(right)
@@ -237,6 +244,9 @@ class GameTablesEditor(QWidget):
             self.pending_layout.setContentsMargins(*box_margins)
             self.pending_layout.setSpacing(8)
             pending_title.setVisible(False)
+            self.pending_box = pending_box
+            # Many changes can come at once here (one factor on every matching row), so several can go at once.
+            self.pending.setSelectionMode(QAbstractItemView.ExtendedSelection)
             self.pending_layout.addWidget(self.pending, 1)
             self.pending_layout.addLayout(buttons)
             column.addWidget(pending_box, 2)
@@ -327,11 +337,41 @@ class GameTablesEditor(QWidget):
         self._fill_pending()
         self._fill_values()
 
+    def merge_edits(self, edits, labels=None, owners=None, remove=()) -> None:
+        """Add or replace many changes at once and take back the ``remove`` keys; says so once.
+
+        ``labels`` maps (table, key, target) to the row's text and ``owners`` to the class of a
+        nested value, as `_set_value` records them for a single change.
+        """
+
+        for key in remove:
+            self._edits.pop(tuple(key), None)
+        for edit in edits or ():
+            self._edits[(edit.table, edit.key, edit.target)] = edit
+        self._labels.update(labels or {})
+        self._owners.update(owners or {})
+        self._changed()
+
+    def index(self):
+        """The loaded `TableEditIndex`, or None."""
+
+        return self._index
+
+    def matching_rows(self) -> tuple:
+        """Every row the filter matches, not only the ones listed."""
+
+        if self._index is None:
+            return ()
+        needle = self.search.text().strip().casefold()
+        return tuple(row for row in self._index.rows
+                     if not needle or needle in row.name.casefold() or needle == str(row.key))
+
     def clear_index(self) -> None:
         self._index = None
         self.rows.setRowCount(0)
         self.values.setRowCount(0)
         self._update_controls()
+        self.rows_changed.emit(0)
 
     # --- internals ------------------------------------------------------------------
 
@@ -344,9 +384,7 @@ class GameTablesEditor(QWidget):
         self.rows.setRowCount(0)
         if self._index is None:
             return
-        needle = self.search.text().strip().casefold()
-        matches = [row for row in self._index.rows
-                   if not needle or needle in row.name.casefold() or needle == str(row.key)]
+        matches = self.matching_rows()
         shown = matches[:ROW_LIMIT]
         self.rows.setRowCount(len(shown))
         for position, row in enumerate(shown):
@@ -362,6 +400,7 @@ class GameTablesEditor(QWidget):
             self.message.setText(f"Showing the first {len(shown):,} of {len(matches):,} matching rows; "
                                  "type more of a name to narrow them.")
         self._fill_values()
+        self.rows_changed.emit(len(matches))
 
     def _selected_row(self):
         if self._index is None:
@@ -433,6 +472,7 @@ class GameTablesEditor(QWidget):
         else:
             self._edits[key] = TableFieldEdit(self._index.table, row.key, value.target, stored)
             self._labels[key] = f"{row.name} ({row.key})"
+            self._owners[key] = getattr(value, "owner", "") or ""
         self.message.setText("")
         self._changed()
 
@@ -444,10 +484,10 @@ class GameTablesEditor(QWidget):
             self._changed()
 
     def _remove_selected(self) -> None:
-        items = self.pending.selectedItems()
-        if items:
-            key = self.pending.item(items[0].row(), 0).data(_KEY_ROLE)
-            self._edits.pop(key, None)
+        lines = {item.row() for item in self.pending.selectedItems()}
+        if lines:
+            for line in lines:
+                self._edits.pop(self.pending.item(line, 0).data(_KEY_ROLE), None)
             self._changed()
 
     def _changed(self) -> None:
@@ -467,10 +507,17 @@ class GameTablesEditor(QWidget):
             self.pending.setItem(position, 1, QTableWidgetItem(self._labels.get(key, str(edit.key))))
             self.pending.setItem(position, 2, QTableWidgetItem(value_label(edit.target, self._owner(edit))))
             self.pending.setItem(position, 3, QTableWidgetItem(str(edit.value)))
+        if self.pending_box is not None:
+            self.pending_box.setTitle(f"Changes in this mod ({len(edits):,})" if edits else "Changes in this mod")
         self._update_controls()
 
     def _owner(self, edit) -> str:
-        if isinstance(edit.target, str) or self._index is None or self._index.table != edit.table:
+        if isinstance(edit.target, str):
+            return ""
+        known = self._owners.get((edit.table, edit.key, edit.target))
+        if known:
+            return known
+        if self._index is None or self._index.table != edit.table:
             return ""
         row = next((row for row in self._index.rows if row.key == edit.key), None)
         value = next((value for value in (row.values if row else ()) if value.target == edit.target), None)

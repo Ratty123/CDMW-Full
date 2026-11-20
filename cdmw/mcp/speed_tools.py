@@ -352,18 +352,36 @@ def _table_rows(call):
 def _table_export(call):
     from cdmw.core.static_table_records import TableFieldEdit
     from cdmw.mcp.rail_actions import output
-    from cdmw.services.game_table_speed import export_speed_table_mod
+    from cdmw.services.game_table_speed import bulk_message, export_speed_table_mod, scaled_speed_table_edits
 
     args = call.arguments
+    if bool(args.get("edits")) == bool(args.get("scale")):
+        raise ToolError(INVALID_ARGUMENTS, "Give either edits (single values) or scale (a factor on every "
+                                           "matching row), not both.")
     folder = output(call, args["folder"], folder=True)
     edits = [TableFieldEdit(item["table"], int(item["key"]),
                             item["target"] if isinstance(item["target"], str) else tuple(item["target"]),
-                            float(item["value"])) for item in args["edits"]]
+                            float(item["value"])) for item in args.get("edits") or ()]
+    scaled = []
+    for item in args.get("scale") or ():
+        result = scaled_speed_table_edits(call.context.game_folder(), choice=item["choice"],
+                                          factor=float(item["factor"]), query=str(item.get("query") or ""),
+                                          stop_event=call.cancel_event)
+        edits += result.edits
+        scaled.append({"choice": item["choice"], "factor": float(item["factor"]), "edits": len(result.edits),
+                       "rows": result.rows, "dlc_only": result.dlc_only, "outside_range": result.outside_range,
+                       "result_outside": result.result_outside, "message": bulk_message(result)})
+    if not edits:
+        raise ToolError(INVALID_ARGUMENTS, "These factors change no value: " + " ".join(
+            item["message"] for item in scaled))
     log: list[str] = []
     result = export_speed_table_mod(call.context.game_folder(), edits, parent=folder, title=args["title"],
                                     on_log=log.append, stop_event=call.cancel_event)
-    return {"folder": str(result.folder), "replaced": bool(result.replaced), "edits": len(edits),
+    data = {"folder": str(result.folder), "replaced": bool(result.replaced), "edits": len(edits),
             "note": "Enable the mod in DMM and click Mount. Game table speed edits have not been tested in game."}
+    if scaled:
+        data["scaled"] = scaled
+    return data
 
 
 def _workspace(call):
@@ -587,9 +605,17 @@ def speed_tools() -> list[Tool]:
               "object speed (gimmickinfo), with the values each row holds now.", _table_rows,
               {"table": {"type": "string", "enum": ["", "aimovespeedinfo", "gimmickinfo"]}},
               service="game_table_speed.speed_table_rows", paged="rows"),
-        _tool("speed.table_export", OUTPUT, "Write game table speed edits (rows and targets as speed.table_rows "
-              "lists them) as a DMM mod 'title' in 'folder', as Edit Game Table Values does.", _table_export,
-              {"edits": {"type": "array", "minItems": 1, "maxItems": 2000, "items": {
+        _tool("speed.table_export", OUTPUT, "Write game table speed edits as a DMM mod 'title' in 'folder', as "
+              "Edit Game Table Values does: either edits (rows and targets as speed.table_rows lists them) or "
+              "scale, which multiplies one speed value (choice move, turn or push) by a factor on every row whose "
+              "name contains query (every row without it). The game's value is multiplied; values that would "
+              "leave their range are left and counted.", _table_export,
+              {"scale": {"type": "array", "minItems": 1, "maxItems": 8, "items": {
+                  "type": "object", "required": ["choice", "factor"], "additionalProperties": False,
+                  "properties": {"choice": {"type": "string", "enum": ["move", "turn", "push"]},
+                                 "factor": {"type": "number", "minimum": 0.01, "maximum": 100},
+                                 "query": _TEXT}}},
+               "edits": {"type": "array", "minItems": 1, "maxItems": 2000, "items": {
                   "type": "object", "required": ["table", "key", "target", "value"], "additionalProperties": False,
                   "properties": {"table": {"type": "string", "enum": ["aimovespeedinfo", "gimmickinfo"]},
                                  "key": {"type": "integer", "minimum": 0},
@@ -597,7 +623,7 @@ def speed_tools() -> list[Tool]:
                                             "description": "A field name, or the list path speed.table_rows gives."},
                                  "value": {"type": "number"}}}},
                "folder": _PATH, "title": {"type": "string", "minLength": 1, "maxLength": 120}},
-              ("edits", "folder", "title"), service="game_table_speed.export_speed_table_mod",
+              ("folder", "title"), service="game_table_speed.export_speed_table_mod",
               output_folders=("folder",)),
     ]
 

@@ -9,7 +9,8 @@ DMM's mods folder, never into the game.
 
 The same editor sits on the Game tables page of the Speed & Prefabs tab
 (experimental) with its own changes and mod name; ``where`` "speed_prefabs"
-points the three tools at that page instead of the dialog.
+points the three tools at that page instead of the dialog. That page alone can
+multiply one speed value on every row the filter matches (action ``scale``).
 
 Nothing here reads or writes a table itself: loading and writing run on the
 shell's worker as the dialog's buttons start them.
@@ -25,6 +26,8 @@ from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.rail_actions import BOOL, PATH, ROW, TEXT, choices, page, press, required, tool, ui, window
 
 PAGE = 100
+#: The changes one state lists; a multiply can add thousands.
+CHANGES = 500
 _KEY = {"type": "integer"}
 SPEED_TAB = "speed_prefabs"
 #: The tables the Speed & Prefabs tab offers on its Game tables page.
@@ -98,8 +101,15 @@ def _state(archive, arguments=None, *, tab=None) -> dict[str, object]:
         "tables": tables,
         "changes": [{"change": position, "table": edit.table, "table_name": names.get(edit.table, edit.table),
                      "row": edit.key, "target": str(edit.target), "value": edit.value}
-                    for position, edit in enumerate(editor.edits())],
+                    for position, edit in enumerate(editor.edits()[:CHANGES])],
+        "change_count": len(editor.edits()),
     }
+    if getattr(dialog, "scale_button", None) is not None:
+        state["scale"] = {"choices": [str(dialog.scale_field.itemData(position))
+                                      for position in range(dialog.scale_field.count())],
+                          "choice": str(dialog.scale_field.currentData() or ""),
+                          "factor": float(dialog.scale_factor.value()), "button": dialog.scale_button.text(),
+                          "can_add": dialog.scale_button.isEnabled()}
     if index is None:
         return state
     query = str(arguments.get("query") or "").strip().casefold()
@@ -221,6 +231,12 @@ def _edit(call):
             editor.pending.selectRow(position)
             press(editor.remove)
             return _state(archive, tab=tab)
+        if action == "clear":
+            _clear(editor)
+            return _state(archive, tab=tab)
+        if action == "scale":
+            _scale(dialog, args)
+            return _state(archive, tab=tab)
         index = _index(editor)
         if index is None:
             raise ToolError(UNAVAILABLE, "Load a table first.")
@@ -239,6 +255,56 @@ def _edit(call):
         return _state(archive, {"row": row.key}, tab=tab)
 
     return ui(call, change)
+
+
+def _clear(editor) -> None:
+    """Remove every change, with the page's own Remove button."""
+
+    from PySide6.QtWidgets import QAbstractItemView
+
+    if editor.pending.selectionMode() == QAbstractItemView.SelectionMode.ExtendedSelection:
+        editor.pending.selectAll()
+        if editor.pending.rowCount():
+            press(editor.remove)
+        return
+    while editor.pending.rowCount():  # the dialog's list takes one selected change at a time
+        editor.pending.selectRow(0)
+        press(editor.remove)
+
+
+def _scale(panel, args) -> None:
+    """Multiply one speed value on every matching row, with the Game tables page's own row."""
+
+    if getattr(panel, "scale_button", None) is None:
+        raise ToolError(REFUSED, "Multiplying a value on every matching row is offered on the Game tables page "
+                                 "of the Speed & Prefabs tab only; give where speed_prefabs.")
+    editor = panel.editor
+    if _index(editor) is None:
+        raise ToolError(UNAVAILABLE, "Load a table first.")
+    choice = str(required(args, "choice"))
+    factor = float(required(args, "factor"))
+    editor.search.setText(str(args.get("query") or ""))
+    position = panel.scale_field.findData(choice)
+    if position < 0:
+        offered = [str(panel.scale_field.itemData(number)) for number in range(panel.scale_field.count())]
+        raise ToolError(INVALID_ARGUMENTS, f"The loaded {editor.loaded_table()} table offers: "
+                        + (", ".join(offered) or "no value to multiply") + ".")
+    panel.scale_field.setCurrentIndex(position)
+    panel.scale_factor.setValue(factor)
+    if not panel.scale_button.isEnabled():
+        raise ToolError(NOT_FOUND, "No row matches that text.")
+    asked = []
+    previous = panel.confirm_bulk
+    panel.confirm_bulk = lambda count: asked.append(count) or bool(args.get("confirm"))
+    try:
+        done = panel.add_scaled_rows()
+    finally:
+        panel.confirm_bulk = previous
+    if not done and asked:
+        raise ToolError(REFUSED, f"That adds {asked[0]:,} changes; writing them can take minutes. Give confirm "
+                                 "to add them.")
+    if not done:
+        raise ToolError(INVALID_ARGUMENTS, editor.message.text() or "The values could not be multiplied.")
 
 
 def _write(call):
@@ -314,13 +380,19 @@ def game_table_tools():
         tool("tables.editor_edit", EDIT,
              "Work Edit Game Table Values: open it on a table (table, or path of a .staticinfobody file), load "
              "another table, set a value (row, value, new_value) or restore it, remove a change, or name the "
-             "mod. The dialog's own range checks apply; DLC-only rows cannot change. where speed_prefabs works "
-             "the Game tables page of the Speed & Prefabs tab instead (experimental): open and load show the "
-             "page on aimovespeedinfo or gimmickinfo.",
+             "mod; clear removes every change. The dialog's own range checks apply; DLC-only rows cannot "
+             "change. where speed_prefabs works the Game tables page of the Speed & Prefabs tab instead "
+             "(experimental): open and load show the page on aimovespeedinfo or gimmickinfo, and scale "
+             "multiplies one speed value (choice: move, turn or push) by factor on every row that query "
+             "matches, adding the changes to the mod; the game's value is multiplied, so 1 takes them back, "
+             "values that would leave their range are left and counted in message, and more than 5,000 changes "
+             "need confirm.",
              "ui:GameTableEditDialog.editor", _edit,
-             {"action": choices("open", "load", "set", "restore", "remove", "name"), "table": TEXT, "path": PATH,
+             {"action": choices("open", "load", "set", "restore", "remove", "clear", "scale", "name"),
+              "table": TEXT, "path": PATH,
               "row": _KEY, "value": ROW, "new_value": {"type": ["string", "number"]}, "change": ROW,
-              "name": TEXT, "where": _WHERE},
+              "name": TEXT, "query": TEXT, "choice": {"type": "string", "enum": ["move", "turn", "push"]},
+              "factor": {"type": "number", "minimum": 0.01, "maximum": 100}, "confirm": BOOL, "where": _WHERE},
              ("action",)),
         tool("tables.editor_write", OUTPUT,
              "Press Write DMM Mod: write the changed tables as a new mod in DMM's mods folder. The game's "

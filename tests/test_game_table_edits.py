@@ -194,3 +194,90 @@ def test_pushed_object_speed_is_an_editable_float_and_a_speed_row():
 def test_ai_move_speed_members_get_readable_labels():
     assert target_label(("_aiMoveSpeedDataList", 0, "_targetMoveSpeed"), "AIMoveSpeedData") == \
         "Speed entry 1: move speed"
+
+
+# -- one factor on every matching row ------------------------------------------------------
+
+
+def _ai_index(rows):
+    """An AI movement index built by hand: (key, name, in_base, [(move, minimum, turn), ...])."""
+
+    from cdmw.core.static_table_records import EDITABLE_MEMBERS
+    from cdmw.services.game_table_edits import EditableRow, EditableValue, TableEditIndex
+
+    rules = EDITABLE_MEMBERS["aimovespeedinfo"]
+    fields = ("_targetMoveSpeed", "_minMoveSpeed", "_maxRotationSpeed")
+    built = []
+    for key, name, in_base, entries in rows:
+        values = tuple(EditableValue(("_aiMoveSpeedDataList", number, field), field, value,
+                                     rules[("AIMoveSpeedData", field)], "AIMoveSpeedData")
+                       for number, entry in enumerate(entries) for field, value in zip(fields, entry))
+        built.append(EditableRow(key, name, "aimovespeedinfo", values, in_base))
+    return TableEditIndex("aimovespeedinfo", tuple(built), 0)
+
+
+def test_one_factor_reaches_every_matching_row_and_leaves_what_it_cannot_scale():
+    from cdmw.services.game_table_speed import bulk_message, matching_rows, scale_speed_rows, speed_row_count
+
+    index = _ai_index([
+        (1, "AIMove_Bear", True, [(5.0, 3.5, 180.0), (8.0, 6.0, -1.0)]),
+        (2, "AIMove_Boar", True, [(400.0, 3.0, 90.0)]),      # move speed x1.5 would pass 500
+        (3, "AIMove_Bird", False, [(5.0, 3.5, 180.0)]),      # only in the DLC copy
+        (12, "AIMove_Deer", True, [(2.0, -1.0, 360.0)]),     # a minimum the game holds outside its range
+    ])
+    assert [row.key for row in matching_rows(index, "b")] == [1, 2, 3]
+    assert [row.key for row in matching_rows(index, "12")] == [12]  # the exact key, not part of one
+    assert speed_row_count(index, "move") == 4 and speed_row_count(index, "move", "bear") == 1
+
+    moved = scale_speed_rows(index, choice="move", factor=1.5)
+    assert {(edit.key, edit.target[1], edit.target[2]): edit.value for edit in moved.edits} == {
+        (1, 0, "_targetMoveSpeed"): 7.5, (1, 0, "_minMoveSpeed"): 5.25,
+        (1, 1, "_targetMoveSpeed"): 12.0, (1, 1, "_minMoveSpeed"): 9.0}
+    # Boar and Deer keep both values of the entry: one of the pair cannot be scaled.
+    assert (moved.matched, moved.rows, moved.dlc_only, moved.outside_range, moved.result_outside) == (4, 1, 1, 1, 1)
+    key = ("aimovespeedinfo", 1, ("_aiMoveSpeedDataList", 0, "_targetMoveSpeed"))
+    assert moved.labels[key] == "AIMove_Bear (1)" and moved.owners[key] == "AIMoveSpeedData"
+    assert bulk_message(moved) == ("4 values in 1 rows added to Changes in this mod. Left as they are: 1 rows only "
+                                   "in the DLC copy, 1 values outside their range (such as -1), 1 results outside "
+                                   "the allowed range.")
+    assert scale_speed_rows(index, choice="move", factor=1.5).edits == moved.edits  # from the game's value: no stacking
+
+    turned = scale_speed_rows(index, choice="turn", factor=2.0, query="bear")
+    assert [(edit.target[1], edit.value) for edit in turned.edits] == [(0, 360.0)] and turned.outside_range == 1
+
+    back = scale_speed_rows(index, choice="move", factor=1.0)
+    assert not back.edits and len(back.restore) == 6 and bulk_message(back).startswith("6 values are back")
+    assert bulk_message(scale_speed_rows(index, choice="move", factor=2.0, query="wolf")) == \
+        "No matching row holds this value."
+
+    with pytest.raises(TableEditError, match="not of"):
+        scale_speed_rows(index, choice="push", factor=2.0)
+    with pytest.raises(TableEditError, match="Unknown speed value"):
+        scale_speed_rows(index, choice="fly", factor=2.0)
+    for factor in (0, 0.001, 101, float("nan"), True):
+        with pytest.raises(TableEditError, match="between 0.01 and 100"):
+            scale_speed_rows(index, choice="move", factor=factor)
+
+
+def test_a_multiplied_table_composes_and_reads_back():
+    from cdmw.services.game_table_edits import TableLayer, load_table_index
+    from cdmw.services.game_table_speed import scale_speed_rows
+    from tests.test_static_table_records import minimal_record
+
+    records = []
+    for key, name in ((7, "Crate"), (8, "Barrel"), (9, "Cart")):
+        raw, width = minimal_record("gimmickinfo", key, name)
+        records.append((key, raw))
+    body, header = table(records, width=width)
+    layers = [TableLayer("gimmickinfo", header, body)]
+    # A minimal row holds 0, which is outside the range: the factor leaves it and says so.
+    untouched = scale_speed_rows(load_table_index("gimmickinfo", layers), choice="push", factor=2.0)
+    assert not untouched.edits and untouched.outside_range == 3
+    first = compose_table_edits("gimmickinfo", layers, [TableFieldEdit("gimmickinfo", key, "_pushObjectSpeedRate", 1.0)
+                                                         for key in (7, 8, 9)])
+    layers = [TableLayer("gimmickinfo", first.header, first.body)]
+    result = scale_speed_rows(load_table_index("gimmickinfo", layers), choice="push", factor=2.0, query="a")
+    assert sorted(edit.key for edit in result.edits) == [7, 8, 9] and result.rows == 3
+    edited = compose_table_edits("gimmickinfo", layers, result.edits)
+    again = load_table_index("gimmickinfo", [TableLayer("gimmickinfo", edited.header, edited.body)])
+    assert [row.values[0].value for row in again.rows] == [2.0, 2.0, 2.0]
