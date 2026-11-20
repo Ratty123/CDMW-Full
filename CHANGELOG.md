@@ -26,6 +26,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **AI connections (experimental):** an AI app can also select several rows of a list at once, tick a row's box (such as the rows **Textures > Replace** exports), edit a table cell where you could edit it, open and close tree branches, and press keys such as Esc or Delete on a control. A key that can delete, such as Delete, asks you first.
 - **AI connections (experimental):** an AI app can select many Browse Archives files at once by path (**view_open** with **paths**), then extract the filtered list or a folder to a folder you name, export every selected model, export a model as OBJ with its neutral appearance, or list the paths of the shown, filtered or selected files, all through **files_browser_export**. Each export asks you first.
 - **AI connections (experimental):** AI apps can read CDMW's Help topics, the map of what AI tools reach and the recent AI calls as MCP resources, and start from four guided prompts (find and extract files, edit a model, start a new item, review what the AI app changed). Each prompt reminds the AI app that it is a helper you supervise, not a mod maker. **Settings > AI connections** also shows a JSON setup entry for other MCP clients.
+- **AI connections (experimental):** **new_item_build** can add the item to a mod you already made (**Add to existing mod**), keeping that mod's items. It no longer unticks the box; the plan is rebuilt on that mod first.
 
 ### Fixed
 

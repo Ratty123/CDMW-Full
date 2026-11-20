@@ -1,5 +1,7 @@
 """The Output panel's plan review and worker-backed mod writing."""
 
+from pathlib import Path
+
 from cdmw.mcp.errors import UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.new_item_workflow import (
@@ -91,12 +93,20 @@ def _build(call):
         if not page.controller.has_current_plan or panel.output_mode.currentData() != "folder":
             raise ToolError(UNAVAILABLE, panel.plan_state.plain_text(),
                             {"action": "Refresh the plan in folder mode first."})
-        if panel.add_to_mod.isChecked():
-            panel.add_to_mod.setChecked(False)
+        adding = bool(a.get("add_to_existing"))
+        if panel.add_to_mod.isChecked() != adding:
+            # Add to existing mod builds the plan on that mod, so changing it makes the plan stale.
+            panel.add_to_mod.setChecked(adding)
+        if adding and Path(panel.export_root.text() or ".") != folder:
+            panel.browse_button.click()
         if not page.controller.has_current_plan:
-            raise ToolError(UNAVAILABLE, panel.plan_state.plain_text())
-        panel.browse_button.click()
-        if panel.export_root.text() != str(folder):
+            raise ToolError(UNAVAILABLE, panel.plan_state.plain_text(),
+                            {"action": "The plan now builds on that mod: refresh it with new_item_plan, then build "
+                                       "again with the same folder." if adding else
+                                       "Refresh the plan in folder mode first."})
+        if not adding:
+            panel.browse_button.click()
+        if Path(panel.export_root.text() or ".") != folder:
             raise ToolError(UNAVAILABLE, "Choose an output folder first.")
         if "mod_name" in a:
             set_control(panel.mod_name, a["mod_name"])
@@ -125,9 +135,12 @@ def output_tools():
              paged="files"),
         Tool(name="new_item.build", family="new_item", title="Write a new item mod folder",
              description="Write the current folder-mode plan in a new subfolder of an existing folder "
-                         "outside the game. Read new_item_plan for completion, warnings and file changes.",
-             input_schema=object_schema({"folder": PATH, "mod_name": TEXT, "zip": BOOL, "answers": ANSWERS_SCHEMA},
-                                        ["folder"]),
+                         "outside the game, or with add_to_existing into that existing mod folder itself, keeping "
+                         "its items (Add to existing mod). Adding builds the plan on that mod: the first call "
+                         "says to refresh the plan, then build again. Read new_item_plan for completion, warnings "
+                         "and file changes.",
+             input_schema=object_schema({"folder": PATH, "mod_name": TEXT, "zip": BOOL, "add_to_existing": BOOL,
+                                         "answers": ANSWERS_SCHEMA}, ["folder"]),
              effect=OUTPUT, route="ui:OutputPanel.export_button", handler=_build, runs_on=ON_CALL,
              output_folders=("folder",)),
     ]
