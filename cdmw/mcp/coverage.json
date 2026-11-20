@@ -1808,6 +1808,34 @@
       "tool": "files.browser_export"
     },
     {
+      "id": "files.hkx_state",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: joints, limits, names and changes",
+      "class": "read",
+      "tool": "files.hkx_state"
+    },
+    {
+      "id": "files.hkx_edit",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: open, joint limits and stiffness, scale all, rename, reset",
+      "class": "edit",
+      "tool": "files.hkx_edit"
+    },
+    {
+      "id": "files.hkx_save",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: Save HKX File",
+      "class": "output",
+      "tool": "files.hkx_save"
+    },
+    {
+      "id": "files.hkx_save_mod",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: Save as DMM Mod (fills the mod-ready export prompt)",
+      "class": "output",
+      "tool": "files.hkx_save_mod"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
@@ -2683,9 +2711,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/hkx_physics_editor_dialog.py|HkxPhysicsEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.hkx_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/mesh_batch_export_dialog.py|BatchMeshExportDialog",
