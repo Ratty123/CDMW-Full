@@ -621,6 +621,20 @@
       "tool": "tables.editor_write"
     },
     {
+      "id": "files.decal_read",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: the selected decal's settings",
+      "class": "read",
+      "tool": "files.decal_read"
+    },
+    {
+      "id": "files.decal_save",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: change settings and save a loose .paseq copy",
+      "class": "output",
+      "tool": "files.decal_save"
+    },
+    {
       "id": "strings.get",
       "area": "Translation Studio",
       "what": "Game strings by key or words",
@@ -2854,9 +2868,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/skinned_decal_dialog.py|SkinnedDecalDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.decal_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
