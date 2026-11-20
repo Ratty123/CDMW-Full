@@ -15,7 +15,11 @@ from cdmw.domain.textures.editor_composite import (
     _resize_array,
     flatten_texture_editor_layers,
 )
-from cdmw.domain.textures.editor_selection_masks import _selection_from_mask, build_texture_editor_selection_mask
+from cdmw.domain.textures.editor_selection_masks import (
+    _selection_from_mask,
+    _unfeathered_selection,
+    build_texture_editor_selection_mask,
+)
 from cdmw.models import TextureEditorDocument, TextureEditorLayer, TextureEditorSelection
 
 
@@ -98,7 +102,7 @@ def crop_texture_editor_document_to_bounds(
                 thumbnail_cache_key=uuid.uuid4().hex,
             )
         )
-    cropped_selection = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    cropped_selection = build_texture_editor_selection_mask(document.width, document.height, _unfeathered_selection(document.selection))
     next_selection = TextureEditorSelection(inverted=False, feather_radius=max(0, int(document.selection.feather_radius)))
     if cropped_selection is not None:
         next_selection = _selection_from_mask(
@@ -198,7 +202,7 @@ def flip_texture_editor_document(
                 thumbnail_cache_key=uuid.uuid4().hex,
             )
         )
-    selection_mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    selection_mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered_selection(document.selection))
     if selection_mask is not None:
         if horizontal:
             selection_mask = np.ascontiguousarray(np.flip(selection_mask, axis=1))
@@ -254,7 +258,7 @@ def rotate_texture_editor_document_90(
                 thumbnail_cache_key=uuid.uuid4().hex,
             )
         )
-    selection_mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    selection_mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered_selection(document.selection))
     if selection_mask is not None:
         selection_mask = np.ascontiguousarray(np.rot90(selection_mask, rotation_k))
         next_selection = _selection_from_mask(
@@ -316,7 +320,7 @@ def resize_texture_editor_document_image(
                 thumbnail_cache_key=uuid.uuid4().hex,
             )
         )
-    selection_mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    selection_mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered_selection(document.selection))
     if selection_mask is not None:
         resized_selection = _resize_array(selection_mask, target_width, target_height, nearest=False)
         next_selection = _selection_from_mask(
@@ -379,7 +383,7 @@ def resize_texture_editor_document_canvas(
         )
         for layer in document.layers
     )
-    selection_mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    selection_mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered_selection(document.selection))
     if selection_mask is not None:
         next_mask = np.zeros((target_height, target_width), dtype=np.uint8)
         src_x0 = max(0, -delta_x)

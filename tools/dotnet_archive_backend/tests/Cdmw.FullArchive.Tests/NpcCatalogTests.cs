@@ -141,6 +141,7 @@ internal static class NpcCatalogTests
             .Concat(U32((uint)Encoding.UTF8.GetByteCount(row.Value))).Concat(Encoding.UTF8.GetBytes(row.Value))).ToArray();
         Add("gamedata/stringtable/binary__/eng/character.paloc", Loc((1, "Hero"), (2, "Hero Guard"), (3, "Ghost")), "0036");
         Add("gamedata/stringtable/binary__/ara/character.paloc", Loc((1, "البطل")), "0036");
+        Add("gamedata/stringtable/binary__/ita/character.paloc", Loc((3, "Heroldo")), "0036");
 
         NpcCatalogSnapshot Build(CancellationToken token = default) => ArchiveNpcCatalogBuilder.Build(
             fixture.Root, "fixture-generation", inventory, entry => bytes[entry.EntryId], token);
@@ -193,6 +194,10 @@ internal static class NpcCatalogTests
         var byName = catalog.Search(new("fixture", Query: "Hero"));
         Check(byName.Rows[0].Key == "npc:1" && byName.Rows[1].Key == "npc:2", "exact English name did not rank first");
         Check(catalog.Search(new("fixture", Query: "البطل")).Rows.Single().Key == "npc:1", "other-language names are not searchable");
+        Check(byName.Rows.All(row => row.Key != "npc:3"), "a query matched part of a word in another language's name");
+        Check(catalog.Search(new("fixture", Query: "heroldo")).Rows.Single().Key == "npc:3", "a whole word in another language's name did not match");
+        Check(catalog.Search(new("fixture", Query: "البط")).Rows.Single().Key == "npc:1", "part of a non-Latin name did not match");
+        Check(catalog.Search(new("fixture", Query: "ero")).TotalMatches == 0, "a query matched the middle of an English word");
         Check(catalog.Search(new("fixture", Query: "guard_internal")).Rows.Single().Key == "npc:2", "internal names are not searchable");
         var byPiece = catalog.Search(new("fixture", Query: "cd_phm_00_cloak_00_0446.pac"));
         Check(byPiece.Rows.Select(row => row.Key).Order().SequenceEqual(new[] { "appearance:" + orphan, "npc:1", "npc:2" }),

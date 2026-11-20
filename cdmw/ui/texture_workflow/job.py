@@ -48,6 +48,8 @@ class TextureJobAsset:
     package_path: Path | None = None
     original_entry: object | None = None
     replacement_item: ReplaceAssistantItem | None = None
+    # Set when this row holds a second document for a texture that is already open.
+    second_document: bool = False
 
     @property
     def source_binding(self) -> TextureEditorSourceBinding:
@@ -57,6 +59,10 @@ class TextureJobAsset:
     @property
     def label(self) -> str:
         if self.session is not None:
+            document = self.session.document
+            project = getattr(document, "project_path", None) if document is not None else None
+            if self.second_document and project:
+                return f"{self.session.label} ({Path(project).name})"
             return self.session.label
         return self.binding.display_name or (self.source_path.name if self.source_path else "Material")
 
@@ -124,17 +130,22 @@ class TextureJob:
             binding = document.source_binding
             asset = next((item for item in self.assets.values() if item.session is session), None)
             if asset is None and binding.source_identity_path:
+                # Only adopt a row that has no live document. Rebinding a row that does
+                # would hide its document (and any unsaved edits) behind the new one.
                 asset = next((item for item in self.assets.values()
-                              if item.binding.source_identity_path == binding.source_identity_path), None)
+                              if item.session is None
+                              and item.binding.source_identity_path == binding.source_identity_path), None)
                 if asset is not None:
                     asset.session = session
                     asset.source_path = Path(binding.source_path) if binding.source_path else None
             if asset is None:
                 source = binding.source_path
-                if source:
+                if source and not self._source_has_live_session(Path(source), binding):
                     asset = self.add_source(Path(source), binding)
                 else:
-                    asset = TextureJobAsset(None, binding)
+                    # A second document for a texture that is already open, for example a
+                    # saved project made from it, gets its own row.
+                    asset = TextureJobAsset(Path(source) if source else None, binding, second_document=bool(source))
                     self.assets[asset.key] = asset
                     self.selected.add(asset.key)
                 asset.session = session
@@ -143,6 +154,16 @@ class TextureJob:
                 or self.assets.get(self.active_asset_key, asset).session is not None
             ):
                 self.active_asset_key = asset.key
+
+    def _source_has_live_session(self, path: Path, binding: TextureEditorSourceBinding) -> bool:
+        identity = _source_key(path)
+        return any(
+            item.session is not None and (
+                (binding.source_identity_path and item.binding.source_identity_path == binding.source_identity_path)
+                or (item.source_path is not None and _source_key(item.source_path) == identity)
+            )
+            for item in self.assets.values()
+        )
 
     def set_selected(self, keys) -> None:
         self.selected = set(keys).intersection(self.assets)

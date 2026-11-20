@@ -290,7 +290,7 @@ def _adjustment_layer_from_dict(data: Dict[str, object]) -> TextureEditorAdjustm
         name=str(data.get("name", "Adjustment")),
         adjustment_type=str(data.get("adjustment_type", "levels") or "levels"),
         enabled=bool(data.get("enabled", True)),
-        opacity=int(data.get("opacity", 100) or 100),
+        opacity=int(100 if data.get("opacity") is None else data.get("opacity")),
         parameters=parameters,
         mask_layer_id=str(data.get("mask_layer_id", "")),
         revision=int(data.get("revision", 0) or 0),
