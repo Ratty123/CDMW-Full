@@ -645,9 +645,17 @@ class _Planner(EffectPlanningMixin):
             self.manifest["item_groups"] = []
             return
         from cdmw.services.new_item_tables import row_pair
-        names = []
+        names, dlc_only = [], []
+        base_pair = self.snapshot.itemgroupinfo
+        base_keys = None
         for group in groups:
             pair = row_pair(self.snapshot,'itemgroupinfo',group.key)
+            if pair is not base_pair:
+                if base_keys is None:
+                    from cdmw.core.structured_binary_editor import parse_pabgh_table
+                    base_keys = {row.row_id for row in parse_pabgh_table(base_pair.header, payload=base_pair.payload).rows}
+                if group.key not in base_keys:
+                    dlc_only.append(group.name)
             payload,header = self.table_data(pair)
             grown = add_group_members(group, [int(self.spec.item_key)], after=template_key if template_key in group.members else None)
             payload, header = apply_item_group_row(payload, header, grown)
@@ -655,6 +663,9 @@ class _Planner(EffectPlanningMixin):
             self.patch(pair.header_entry,header,'ItemGroupInfo directory')
             names.append(group.name)
         self.manifest["item_groups"] = names
+        if dlc_only:
+            from cdmw.services.dmm_dlc_tables import dlc_only_group_note
+            self.warnings.append("For DMM: " + dlc_only_group_note(dlc_only))
 
     def plan_store(self) -> None:
         from cdmw.services.new_item_shops import plan_shops

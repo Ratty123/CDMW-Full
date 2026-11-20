@@ -69,8 +69,12 @@ class ModFolderPayload:
 
     path: Optional[Path] = None
     entry: object = None
+    #: Bytes CDMW built for the base, such as a table with the mod's DMM operations applied.
+    data: Optional[bytes] = None
 
     def read_bytes(self) -> bytes:
+        if self.data is not None:
+            return self.data
         if self.path is not None:
             return self.path.read_bytes()
         if self.entry is None:
@@ -254,6 +258,14 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
                    "Use Check mods for game updates to review its recorded dependencies.")
     elif on_log:
         on_log("This older mod has no portable game baseline. Its game compatibility is unknown.")
+    # A DMM export keeps the parts, shop lines and groups of its items only as
+    # operations. Apply them, so the base holds the same tables as the CDUMM layout.
+    from cdmw.services.dmm_mod_base import operation_payloads
+    folded = operation_payloads(folder, snapshot, payloads, stop_event=stop_event)
+    if folded:
+        payloads = {**payloads, **{path: ModFolderPayload(data=data) for path, data in folded.items()}}
+        if on_log:
+            on_log(f"Read the mod's DMM part, shop and item group operations back into {len(folded)} table file(s).")
     entries = dict(snapshot.entries)
     added = set()
     for path, payload in payloads.items():

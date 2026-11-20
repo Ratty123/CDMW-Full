@@ -24,6 +24,14 @@ _SHOP_OR_GROUP_TABLE = re.compile(
     r"^gamedata/binarystaticinfo__/bin/(storeinfo|itemgroupinfo)(\.dlc_\d+)?\.(staticinfobody|staticinfoheader|pabgb|pabgh)$")
 
 
+def is_operation_table(path: str) -> bool:
+    """A table whose CDMW additions reach DMM as operations instead of a copy."""
+    from cdmw.services.dmm_part_table import PART_TABLE
+
+    path = str(path or "").replace("\\", "/").lower()
+    return bool(_SHOP_OR_GROUP_TABLE.match(path)) or path == PART_TABLE
+
+
 class DmmTableError(ValueError):
     """A DLC table change that DMM cannot be given."""
 
@@ -131,6 +139,7 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
     """`files` with DLC shop and group copies replaced by the same additions in the base tables."""
     result = dict(files)
     moved = {"storeinfo": 0, "itemgroupinfo": 0}
+    skipped: list[str] = []
     for path in sorted(files):
         match = _DLC_TABLE.match(path)
         if not match:
@@ -150,6 +159,12 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
             if before.get(key) is not None and row.raw == before[key].raw:
                 continue
             target = base_rows.get(key)
+            if target is None and name == "itemgroupinfo":
+                # DMM cannot be given a group only the DLC has. Leave the item out of it
+                # rather than refuse the export; the plan already warned about it.
+                _group_additions(before.get(key), row)
+                skipped.append(row.name)
+                continue
             if target is None:
                 raise DmmTableError(f"{'Shop' if name == 'storeinfo' else 'Item group'} {row.name!r} exists only in the DLC, "
                                     "and DMM does not take a mod's copy of a DLC table.")
@@ -169,7 +184,17 @@ def fold_dlc_additions(files: Mapping[str, bytes], read_game: Callable[[str], Op
     if on_log and any(moved.values()):
         on_log(f"Moved {moved['storeinfo']} shop line(s) and {moved['itemgroupinfo']} item group member(s) from the DLC's "
                "copies into the base tables, where DMM takes them and carries them into the DLC's shops and groups.")
+    if on_log and skipped:
+        on_log(dlc_only_group_note(skipped))
     return result
+
+
+def dlc_only_group_note(names) -> str:
+    """Why a DMM export leaves an item out of item groups that only the DLC has."""
+    listed = ", ".join(sorted(set(names)))
+    return (f"Item group(s) {listed} exist only in the DLC's item group table, and DMM does not take a mod's copy of "
+            "a DLC table. The DMM export leaves the item out of them, so it may not appear in that category in game. "
+            "The CDUMM layout keeps them. To leave them out on purpose, choose the item groups yourself.")
 
 
 def plan_item_keys(manifest, *, own_only: bool = False) -> set[int]:
