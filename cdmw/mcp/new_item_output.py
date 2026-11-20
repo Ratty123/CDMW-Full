@@ -67,7 +67,10 @@ def _notify_export(call, panel, path):
             state.update(status="failed" if panel._export_error else "cancelled", message=panel._export_error)
             return
         answer(dialog)
-        state.update(status="written", path=str(getattr(result, "package_root", None) or result.path), asked=asked)
+        written = getattr(result, "package_root", None) or getattr(result, "folder", None) or result.path
+        state.update(status="written", path=str(written), asked=asked)
+        if getattr(result, "replaced", False):
+            state["replaced"] = True
         if getattr(result, "zip_path", None) is not None:
             state["zip"] = str(result.zip_path)
 
@@ -128,6 +131,45 @@ def _build(call):
     return act(call, write, answers={"folder": str(folder)})
 
 
+def _send(call):
+    """Send to DMM: the mod goes straight into DMM's mods folder, through the page's own button."""
+    from cdmw.mcp.game_table_tools import _mods_folder
+
+    a, context = call.arguments, call.context
+    mods = checked_output(context, _mods_folder(call, a.get("dmm_folder")), existing=True)
+
+    def send():
+        page = workflow(context)
+        idle(page)
+        panel = page.output_panel
+        if not page.controller.has_current_plan or panel.output_mode.currentData() != "folder":
+            raise ToolError(UNAVAILABLE, panel.plan_state.plain_text(),
+                            {"action": "Refresh the plan in folder mode first."})
+        if a.get("dmm_folder"):
+            # The page reads its own settings for DMM's folder: point them at the folder the tool checked.
+            from cdmw.services.dmm_send import DMM_FOLDER_SETTING
+            from cdmw.ui.widgets import request_settings_sync
+            panel._settings.setValue(DMM_FOLDER_SETTING, str(a["dmm_folder"]))
+            request_settings_sync(panel._settings)
+        if "mod_name" in a:
+            set_control(panel.mod_name, a["mod_name"])
+        if not panel.send_dmm_button.isEnabled():
+            raise ToolError(UNAVAILABLE, panel.export_problem.plain_text() or panel.send_dmm_button.toolTip())
+        state, notify = _notify_export(call, panel, mods)
+        started = panel._send_to_dmm(notify=notify)
+        if not started and state["status"] == "running":
+            # The page asked before replacing an earlier copy and the answer was no.
+            state.update(status="cancelled", message=panel._export_error or
+                         "Not sent: a mod of that name that CDMW sent earlier is in DMM's mods folder; "
+                         "send again with replace to replace it.")
+        return _started(panel, state, started)
+
+    answers = {"confirm": "yes" if a.get("replace") else "no"}
+    if a.get("dmm_folder"):
+        answers["folder"] = str(a["dmm_folder"])
+    return {**act(call, send, answers=answers), "dmm_mods_folder": str(mods)}
+
+
 def output_tools():
     return [
         Tool(name="new_item.plan", family="new_item", title="Read the New Item plan review",
@@ -147,4 +189,13 @@ def output_tools():
                                          "answers": ANSWERS_SCHEMA}, ["folder"]),
              effect=OUTPUT, route="ui:OutputPanel.export_button", handler=_build, runs_on=ON_CALL,
              output_folders=("folder",)),
+        Tool(name="new_item.send_to_dmm", family="new_item", title="Send the new item to DMM",
+             description="Press Send to DMM: write the current folder-mode plan as a mod straight into DMM's mods "
+                         "folder (the remembered DMM folder, or dmm_folder: the folder that contains DMM.exe). With "
+                         "Add to existing mod it updates that mod. replace allows replacing a copy CDMW sent "
+                         "earlier under the same name. Then the user enables it in DMM and mounts it.",
+             input_schema=object_schema({"dmm_folder": PATH, "mod_name": TEXT, "replace": BOOL,
+                                         "answers": ANSWERS_SCHEMA}),
+             effect=OUTPUT, route="ui:OutputPanel.send_dmm_button", handler=_send, runs_on=ON_CALL,
+             output_folders=("dmm_folder",)),
     ]
