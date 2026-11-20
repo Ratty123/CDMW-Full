@@ -11,6 +11,7 @@ selection, so a refusal is seen, not just "sent".
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 
@@ -137,6 +138,8 @@ def _send_edit(call, command: str, arguments: dict[str, object]) -> dict[str, ob
 NO_OUTPUT_COMMANDS = ("This Mesh Editor helper does not take these commands from CDMW; it is older than this "
                       "app (host_output_commands_v1).")
 NO_CAMERA = "This Mesh Editor helper does not take its camera from CDMW; it is older than this app (host_camera_v1)."
+NO_VIEW_STATE = ("This Mesh Editor helper does not take its view settings from CDMW; it is older than this app "
+                 "(host_view_state_v1).")
 #: The commands that need host_output_commands_v1 (cdmw_session.rs, host_cdmw_output_command).
 OUTPUT_COMMANDS = ("vertex_edit", "hair_begin", "hair_texture_export", "export_free_edit", "import_editable_package",
                    "morph_export_recipe", "morph_export_preset", "replacement_export_rig")
@@ -497,6 +500,48 @@ def _camera(call) -> dict[str, object]:
     raise ToolError(FAILED, "The Mesh Editor did not report its camera.")
 
 
+#: mesh.view's arguments, as set_view_state takes them (cdmw_session.rs, decode_set_view_state).
+_VIEW_KEYS = ("reset", "selection_shape", "selection_operation", "selection_xray", "brush_radius", "brush_strength",
+              "brush_falloff", "colours", "wire_width", "vertex_size", "show_parts", "hide_parts")
+_HEX = {"type": "string", "minLength": 7, "maxLength": 7, "description": "#RRGGBB"}
+_PARTS = {"type": "array", "items": {"type": "integer", "minimum": 0}, "maxItems": 4096}
+
+
+def _view_effect(call) -> str:
+    return EDIT if any(call.arguments.get(key) is not None for key in _VIEW_KEYS) else READ
+
+
+def _view(call) -> dict[str, object]:
+    from cdmw.mcp.mesh_tools import ready_document
+
+    a = call.arguments
+    values = {key: a[key] for key in _VIEW_KEYS if a.get(key) is not None}
+    for name, colour in (values.get("colours") or {}).items():
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(colour)):
+            raise ToolError(INVALID_ARGUMENTS, f"colours.{name} must be #RRGGBB.")
+    shown = set(values.get("show_parts") or ())
+    if shown & set(values.get("hide_parts") or ()):
+        raise ToolError(INVALID_ARGUMENTS, "A part can be in show_parts or hide_parts, not both.")
+
+    def send() -> bool:
+        tab = ready_document(call.context)
+        if not getattr(tab, "standalone_rust_view_state_supported", False):
+            raise ToolError(UNAVAILABLE, NO_VIEW_STATE)
+        return tab.set_view_state_in_view(values)
+
+    if not call.context.ui_call(send):
+        raise ToolError(FAILED, "The Mesh Editor did not take the view settings.")
+    deadline = time.monotonic() + ARRIVE_S
+    while time.monotonic() < deadline:
+        call.check_cancelled()
+        report = call.context.ui_call(
+            lambda: getattr(ready_document(call.context), "standalone_rust_view_state", None))
+        if report is not None:
+            return {"view": dict(report)}
+        time.sleep(0.03)
+    raise ToolError(FAILED, "The Mesh Editor did not report its view settings.")
+
+
 def mesh_edit_tools() -> list[Tool]:
     label = {"type": "string", "maxLength": 128}
     return [
@@ -602,6 +647,32 @@ def mesh_edit_tools() -> list[Tool]:
                                          "distance": {"type": "number", "minimum": 0.0001}, "target": _VEC3,
                                          "frame": {"type": "boolean"}}),
              effect=READ, route="helper:set_camera", handler=_camera, runs_on=ON_WORKER),
+        Tool(name="mesh.view", family="mesh", title="Mesh Editor view settings",
+             description="Read or set how the Mesh Editor shows and selects, as its Selection, brush and Overlay "
+                         "appearance panels and the Parts list's eye buttons do: selection_shape, "
+                         "selection_operation, selection_xray (also select what is behind the front surface), "
+                         "brush_radius in pixels (also Grab's radius), brush_strength (negative only for "
+                         "Inflate), brush_falloff, overlay colours as #RRGGBB, wire_width, vertex_size, and parts "
+                         "to show or hide by number. reset 'overlay' restores the four overlay colours, "
+                         "'colours' the background and screen grid; it runs before the other values. Values "
+                         "left out stay as they are; with none, it only reads. The mesh is not changed, but "
+                         "hiding a part drops it from the selection. Returns the settings as the editor holds "
+                         "them, with hidden_parts.",
+             input_schema=object_schema({
+                 "reset": {"type": "string", "enum": ["overlay", "colours"]},
+                 "selection_shape": {"type": "string", "enum": ["click", "brush", "rectangle", "lasso"]},
+                 "selection_operation": {"type": "string", "enum": ["replace", "add", "subtract", "toggle"]},
+                 "selection_xray": {"type": "boolean"},
+                 "brush_radius": {"type": "number", "minimum": 4, "maximum": 240},
+                 "brush_strength": {"type": "number", "minimum": -1, "maximum": 1},
+                 "brush_falloff": {"type": "string", "enum": ["smooth", "linear", "constant"]},
+                 "colours": object_schema({"wire": _HEX, "vertex": _HEX, "selection": _HEX,
+                                           "live_selection": _HEX, "grid": _HEX}),
+                 "wire_width": {"type": "number", "minimum": 0.5, "maximum": 6},
+                 "vertex_size": {"type": "number", "minimum": 0.5, "maximum": 10},
+                 "show_parts": _PARTS, "hide_parts": _PARTS}),
+             effect=EDIT, effect_of=_view_effect, route="helper:set_view_state", handler=_view,
+             runs_on=ON_WORKER),
         Tool(name="mesh.vertex_edit", family="mesh", title="Edit vertex parameters",
              description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' and the "
                          "channels it may edit come from mesh_panels' vertex_parameters section; 'edits' are as "

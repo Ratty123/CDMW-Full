@@ -1157,6 +1157,13 @@
       "tool": "mesh.camera"
     },
     {
+      "id": "mesh.view",
+      "area": "Mesh Editor",
+      "what": "Selection shape, operation and X-ray, brush radius, strength and falloff, overlay colours and sizes, part visibility",
+      "class": "edit",
+      "tool": "mesh.view"
+    },
+    {
       "id": "mesh.vertex_edit",
       "area": "Mesh Editor",
       "what": "Vertex Parameters: edit the selected vertices' values",
@@ -3573,21 +3580,15 @@
     },
     {
       "key": "helper_control:brush.falloff",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:brush.radius",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:brush.strength",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:camera.back",
@@ -3635,15 +3636,11 @@
     },
     {
       "key": "helper_control:display.colours.reset",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.grid_colour",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.mode",
@@ -3651,45 +3648,31 @@
     },
     {
       "key": "helper_control:display.overlay.live_selection_colour",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.reset",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.selection_colour",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.vertex_colour",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.vertex_size",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.wire_colour",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:display.overlay.wire_width",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:history.timeline",
@@ -3834,9 +3817,7 @@
     },
     {
       "key": "helper_control:parts.visibility",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:policy.exact_free_edit",
@@ -3920,15 +3901,11 @@
     },
     {
       "key": "helper_control:selection.operation",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:selection.shape",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:selection.shrink",
@@ -3940,9 +3917,7 @@
     },
     {
       "key": "helper_control:selection.xray",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:session.clear_selection",
@@ -4063,9 +4038,7 @@
     },
     {
       "key": "helper_control:transform.grab_radius",
-      "gap": "not_built",
-      "item": 10,
-      "milestone": "P13 MCP gap plan item 10: a new message to the Mesh Editor's helper"
+      "tool": "mesh.view"
     },
     {
       "key": "helper_control:transform.nudge.+x",

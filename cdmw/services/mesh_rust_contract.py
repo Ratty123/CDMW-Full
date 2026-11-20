@@ -52,6 +52,10 @@ RUST_HOST_HIGHLIGHT_PART_CAPABILITY = "host_highlight_part_v1"
 RUST_HOST_OUTPUT_COMMANDS_CAPABILITY = "host_output_commands_v1"
 # Optional hello capability: the helper takes "set_camera" and answers with a "camera" event.
 RUST_HOST_CAMERA_CAPABILITY = "host_camera_v1"
+# Optional hello capability: the helper takes "set_view_state" (selection shape, operation
+# and X-ray, brush, overlay colours and sizes, part visibility) and answers with a
+# "view_state" event.
+RUST_HOST_VIEW_STATE_CAPABILITY = "host_view_state_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",
