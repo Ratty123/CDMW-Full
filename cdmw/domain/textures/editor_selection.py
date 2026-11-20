@@ -50,7 +50,7 @@ def apply_texture_editor_rect_selection(
     y1 = max(y0, min(document.height, int(y + h)))
     if x1 > x0 and y1 > y0:
         incoming[y0:y1, x0:x1] = 255
-    existing = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    existing = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     combined = _combine_selection_masks(existing, incoming, combine_mode=combine_mode)
     return dataclasses.replace(
         document,
@@ -74,7 +74,7 @@ def apply_texture_editor_lasso_selection(
             polygon_points=tuple((float(x), float(y)) for x, y in polygon_points),
         ),
     )
-    existing = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    existing = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     combined = _combine_selection_masks(existing, incoming, combine_mode=combine_mode)
     return dataclasses.replace(
         document,
@@ -116,7 +116,7 @@ def grow_texture_editor_selection(
     pixels: int,
 ) -> TextureEditorDocument:
     amount = max(0, int(pixels))
-    mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     if mask is None or amount <= 0:
         return document
     kernel_size = max(1, (amount * 2) + 1)
@@ -134,7 +134,7 @@ def shrink_texture_editor_selection(
     pixels: int,
 ) -> TextureEditorDocument:
     amount = max(0, int(pixels))
-    mask = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    mask = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     if mask is None or amount <= 0:
         return document
     kernel_size = max(1, (amount * 2) + 1)
@@ -202,7 +202,7 @@ def load_texture_editor_layer_mask_as_selection(
     if mask_region.shape[:2] != (dy1 - dy0, dx1 - dx0):
         return document
     canvas_mask[dy0:dy1, dx0:dx1] = mask_region[..., 3]
-    existing = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    existing = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     combined = _combine_selection_masks(existing, canvas_mask, combine_mode=combine_mode)
     return dataclasses.replace(
         document,
@@ -429,7 +429,7 @@ def load_texture_editor_layer_channel_as_selection(
             255.0,
         ).astype(np.uint8)
     canvas_mask[dy0:dy1, dx0:dx1] = np.maximum(canvas_mask[dy0:dy1, dx0:dx1], channel_patch)
-    existing = build_texture_editor_selection_mask(document.width, document.height, document.selection)
+    existing = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
     combined = _combine_selection_masks(existing, canvas_mask, combine_mode=combine_mode)
     return dataclasses.replace(
         document,
