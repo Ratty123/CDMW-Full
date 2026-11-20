@@ -72,12 +72,13 @@ def test_workspace_and_language_files_reach_the_real_window(real, tmp_path):
     assert Path(result["paths"]["output_root"]).is_dir()
 
     exported = tmp_path / "en_language.json"
-    real.ok("app_language_export", {"save_file": str(exported)})
+    # The export's completion box is read and closed by the tool, not left waiting.
+    assert "Exported language file" in real.ok("app_language_export", {"save_file": str(exported)})["report"]
     payload = json.loads(exported.read_text(encoding="utf-8-sig"))
     assert payload
     payload["language_code"], payload["language_name"] = "xx-test", "Test Language"
     translated = tmp_path / "xx_language.json"
     translated.write_text(json.dumps(payload), encoding="utf-8")
     imported = real.ok("app_language_import", {"file": str(translated)})
-    assert imported["language"] == "xx-test"
+    assert imported["language"] == "xx-test" and "Imported language" in imported["report"]
     real.ok("app_settings_set", {"key": "appearance/language", "value": "en"})

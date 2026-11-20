@@ -83832,7 +83832,7 @@ MESSAGE_REFERENCE = [
     "message": "Save the language file as a .json file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 68
+      "cdmw/mcp/setup_tools.py": 100
     }
   },
   {
@@ -85002,7 +85002,7 @@ MESSAGE_REFERENCE = [
     "message": "The Setup panel is not available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 41
+      "cdmw/mcp/setup_tools.py": 73
     }
   },
   {
@@ -86403,7 +86403,7 @@ MESSAGE_REFERENCE = [
     "message": "The workspace folder does not exist: {folder}",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 35
+      "cdmw/mcp/setup_tools.py": 67
     }
   },
   {
@@ -86539,7 +86539,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no language file {source}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 81
+      "cdmw/mcp/setup_tools.py": 114
     }
   },
   {
@@ -86731,7 +86731,7 @@ MESSAGE_REFERENCE = [
     "message": "This is not a CDMW language file: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 85
+      "cdmw/mcp/setup_tools.py": 118
     }
   },
   {
@@ -93283,7 +93283,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} did not finish in time. CDMW's status line says why.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/setup_tools.py": 28
+      "cdmw/mcp/setup_tools.py": 53
     }
   },
   {
@@ -107956,6 +107956,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/read_tools.py",
     "cdmw/mcp/saved_work_tools.py",
     "cdmw/mcp/server.py",
+    "cdmw/mcp/setup_tools.py",
     "cdmw/mcp/speed_tools.py",
     "cdmw/mcp/tools.py",
     "cdmw/mcp/transport.py",
@@ -109862,9 +109863,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/setup_lines.py": {},
   "cdmw/mcp/setup_tools.py": {
-    "code": 5,
-    "raise": 6,
-    "report": 1
+    "code": 6,
+    "raise": 7,
+    "report": 2
   },
   "cdmw/mcp/speed_tools.py": {
     "code": 8,
