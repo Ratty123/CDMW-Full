@@ -2889,8 +2889,10 @@ ERROR_REFERENCE = [
     "group": "mesh_validation",
     "code": "failed",
     "messages": [
+      "Body & Face Finder did not show that row in time. {detail}",
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
+      "Showing the files did not finish in time.",
       "The Mesh Editor did not take the command.",
       "The Mesh Editor did not take the export.",
       "The Mesh Editor did not take the selection.",
@@ -2902,9 +2904,11 @@ ERROR_REFERENCE = [
       "The {editor.kind} editor did not finish the history step.",
       "The {editor.kind} history moved outside the turn.",
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
+      "{title} did not finish in time. {status}",
       "{what} did not finish in time. CDMW's status line says why."
     ],
     "sources": [
+      "cdmw/mcp/character_finder_tools.py",
       "cdmw/mcp/jobs.py",
       "cdmw/mcp/mesh_edit_tools.py",
       "cdmw/mcp/mesh_tools.py",
@@ -2975,6 +2979,7 @@ ERROR_REFERENCE = [
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
       "Give either factor (with optional offsets or category) or values.",
+      "Give key and path from a search_characters row.",
       "Give key or name",
       "Give key, character_id or appearance_path.",
       "Give key, keys or search",
@@ -2989,6 +2994,7 @@ ERROR_REFERENCE = [
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
+      "Row {row} is not a mirror model; only those have file URLs.",
       "Save the language file as a .json file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
@@ -2998,6 +3004,8 @@ ERROR_REFERENCE = [
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
+      "The export folder does not exist: {folder}",
+      "The finder did not list that row for its path; give the key and path of one search_characters row, with its view and tab.",
       "The local file path must be absolute.",
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
@@ -3049,6 +3057,7 @@ ERROR_REFERENCE = [
       "{where}.{name} is required"
     ],
     "sources": [
+      "cdmw/mcp/character_finder_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/local_file_tools.py",
       "cdmw/mcp/mesh_edit_tools.py",
@@ -3753,6 +3762,7 @@ ERROR_REFERENCE = [
       "Only you can use this control in CDMW: AI connections, their approvals, Full access, the game folder and what writes into the game are never driven by a tool.",
       "Row {row} is not a downloaded copy; only downloaded mirror folders can be deleted this way.",
       "The current animation draft was kept.",
+      "The export stopped; see asked for the window's message.",
       "{destination} already exists; name a new package."
     ],
     "sources": [
@@ -41013,7 +41023,7 @@ MESSAGE_REFERENCE = [
     "message": "A checked row is absent from the current Model Library results.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 131
+      "cdmw/mcp/model_library_tools.py": 161
     }
   },
   {
@@ -47308,7 +47318,7 @@ MESSAGE_REFERENCE = [
     "message": "Give the rows of the downloaded copies to delete.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 179
+      "cdmw/mcp/model_library_tools.py": 209
     }
   },
   {
@@ -59097,7 +59107,15 @@ MESSAGE_REFERENCE = [
     "message": "Row {row} is not a downloaded copy; only downloaded mirror folders can be deleted this way.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 175
+      "cdmw/mcp/model_library_tools.py": 205
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Row {row} is not a mirror model; only those have file URLs.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 40
     }
   },
   {
@@ -61281,7 +61299,7 @@ MESSAGE_REFERENCE = [
     "message": "The delete question has no Delete button.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 158
+      "cdmw/mcp/model_library_tools.py": 188
     }
   },
   {
@@ -62099,7 +62117,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no result row {row}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 171
+      "cdmw/mcp/model_library_tools.py": 37
     }
   },
   {
@@ -62481,6 +62499,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service_rebuild.py": 744
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This row cannot be previewed in Browse Archives; download it first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/model_library_tools.py": 111
     }
   },
   {
@@ -63581,7 +63607,7 @@ MESSAGE_REFERENCE = [
     "message": "Use models_output with download_use for a mirror row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 83
+      "cdmw/mcp/model_library_tools.py": 108
     }
   },
   {
@@ -63877,7 +63903,7 @@ MESSAGE_REFERENCE = [
     "message": "Wait for the current Model Library task to finish.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/model_library_tools.py": 114
+      "cdmw/mcp/model_library_tools.py": 144
     }
   },
   {
@@ -76144,6 +76170,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Body & Face Finder did not show that row in time. {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 96
+    }
+  },
+  {
+    "area": "other",
+    "message": "Body & Face Finder needs an updated archive helper and scanned archives.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 38
+    }
+  },
+  {
+    "area": "other",
     "message": "Body & Face Finder needs an updated archive helper.",
     "recovery": "internal",
     "sources": {
@@ -76523,6 +76565,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW's window is not ready yet.",
     "recovery": "internal",
     "sources": {
+      "cdmw/mcp/character_finder_tools.py": 35,
       "cdmw/mcp/control_tools.py": 37,
       "cdmw/mcp/npc_tools.py": 130,
       "cdmw/mcp/rail_actions.py": 36
@@ -79658,6 +79701,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/speed_tools.py": 228
+    }
+  },
+  {
+    "area": "other",
+    "message": "Give key and path from a search_characters row.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 56
     }
   },
   {
@@ -84302,6 +84353,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Showing the files did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 119
+    }
+  },
+  {
+    "area": "other",
     "message": "Sidecar texture refs used: {len(binding_rows)}; found {ready_binding_count}; missing {missing_binding_count}",
     "recovery": "missing",
     "sources": {
@@ -85391,6 +85450,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The export folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 142
+    }
+  },
+  {
+    "area": "other",
     "message": "The extended table does not parse back the way it was written.",
     "recovery": "format",
     "sources": {
@@ -85403,6 +85470,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/mcp/ui_tree.py": 594
+    }
+  },
+  {
+    "area": "other",
+    "message": "The finder did not list that row for its path; give the key and path of one search_characters row, with its view and tab.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 93
     }
   },
   {
@@ -91551,6 +91626,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{button.text().rstrip('…')} is not available for this row now. {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 153
+    }
+  },
+  {
+    "area": "other",
+    "message": "{button.text()} is not available for this row. {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 107
+    }
+  },
+  {
+    "area": "other",
     "message": "{chart} is not in the game archives.",
     "recovery": "internal",
     "sources": {
@@ -93044,6 +93135,22 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/core/stringinfo_table.py": 130
+    }
+  },
+  {
+    "area": "other",
+    "message": "{title} did not finish in time. {status}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 175
+    }
+  },
+  {
+    "area": "other",
+    "message": "{title} did not start.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/character_finder_tools.py": 157
     }
   },
   {
@@ -98806,6 +98913,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "Start an animation edit first (placement_animation start).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/placement_tools.py": 865
+    }
+  },
+  {
+    "area": "placement",
     "message": "Start an animation edit first.",
     "recovery": "internal",
     "sources": {
@@ -99050,6 +99165,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 299
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The export did not finish in time. {detail}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/placement_tools.py": 882
+    }
+  },
+  {
+    "area": "placement",
+    "message": "The export stopped; see asked for the window's message.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/placement_tools.py": 880
     }
   },
   {
@@ -99330,6 +99461,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/placement_studio/carry_plan.py": 416
+    }
+  },
+  {
+    "area": "placement",
+    "message": "There are no edited files to export.",
+    "recovery": "empty",
+    "sources": {
+      "cdmw/mcp/placement_tools.py": 869
     }
   },
   {
@@ -99977,7 +100116,7 @@ MESSAGE_REFERENCE = [
     "message": "include must contain saveable keys from the pending change list.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/placement_tools.py": 850
+      "cdmw/mcp/placement_tools.py": 927
     }
   },
   {
@@ -107947,6 +108086,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/hair_registration.py",
     "cdmw/domain/library/scene_selection.py",
     "cdmw/mcp/bridge.py",
+    "cdmw/mcp/character_finder_tools.py",
     "cdmw/mcp/control_tools.py",
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
@@ -109716,6 +109856,11 @@ SOURCE_COVERAGE = {
     "report": 2
   },
   "cdmw/mcp/catalogue.py": {},
+  "cdmw/mcp/character_finder_tools.py": {
+    "code": 7,
+    "raise": 13,
+    "report": 2
+  },
   "cdmw/mcp/classification.py": {},
   "cdmw/mcp/control_tools.py": {
     "code": 4,
@@ -109767,8 +109912,9 @@ SOURCE_COVERAGE = {
     "raise": 8
   },
   "cdmw/mcp/model_library_tools.py": {
-    "code": 5,
-    "raise": 11
+    "code": 7,
+    "raise": 14,
+    "report": 1
   },
   "cdmw/mcp/names.py": {},
   "cdmw/mcp/new_item_draft.py": {
@@ -109815,10 +109961,10 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/mcp/placement_tools.py": {
-    "code": 5,
+    "code": 6,
     "diagnostic_field": 1,
     "finding": 1,
-    "raise": 25,
+    "raise": 29,
     "report": 14
   },
   "cdmw/mcp/protocol_surface.py": {

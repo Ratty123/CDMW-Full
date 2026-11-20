@@ -530,6 +530,20 @@
       "tool": "npcs.open"
     },
     {
+      "id": "characters.finder_buttons",
+      "area": "Body & Face Finder",
+      "what": "Show exact or related files, Open in NPC Finder, Create Hair and Edit Hair for a result",
+      "class": "edit",
+      "tool": "characters.finder"
+    },
+    {
+      "id": "characters.export",
+      "area": "Body & Face Finder",
+      "what": "Export FBX of a result, and Kliff's Character Creator look",
+      "class": "output",
+      "tool": "characters.export"
+    },
+    {
       "id": "text.search",
       "area": "Search File Text",
       "what": "Search inside the archives' text files",
@@ -2759,9 +2773,7 @@
     },
     {
       "key": "dialog:cdmw/ui/character_finder/dialog.py|CharacterFinderDialog",
-      "gap": "generic_only",
-      "item": 15,
-      "milestone": "P13 MCP gap plan item 15: Placement, finders, Research and library leftovers"
+      "tool": "characters.finder"
     },
     {
       "key": "dialog:cdmw/ui/npc_finder/dialog.py|NpcFinderDialog",

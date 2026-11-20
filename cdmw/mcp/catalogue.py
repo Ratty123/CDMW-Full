@@ -10,6 +10,7 @@ def typed_tools() -> list[Tool]:
     from cdmw.mcp.app_tools import app_tools
     from cdmw.mcp.archive_tools import archive_tools
     from cdmw.mcp.browse_archive_tools import browse_archive_tools
+    from cdmw.mcp.character_finder_tools import character_finder_tools
     from cdmw.mcp.control_tools import control_tools
     from cdmw.mcp.diagnostics_tools import diagnostics_tools
     from cdmw.mcp.item_icon_tools import item_icon_tools
@@ -37,4 +38,4 @@ def typed_tools() -> list[Tool]:
             *mesh_edit_tools(), *texture_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(),
             *local_file_tools(), *saved_work_tools(), *mod_management_tools(), *translation_tools(),
             *text_search_tools(), *model_library_tools(), *item_icon_tools(), *research_tools(), *settings_tools(), *setup_tools(),
-            *speed_tools(), *diagnostics_tools(), *turn_tools(), *npc_tools()]
+            *speed_tools(), *diagnostics_tools(), *turn_tools(), *npc_tools(), *character_finder_tools()]
