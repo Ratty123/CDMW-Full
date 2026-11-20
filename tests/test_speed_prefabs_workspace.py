@@ -1,4 +1,4 @@
-"""Speed Tuning window (experimental), offscreen, with fake sets."""
+"""Speed & Prefabs tab (experimental), offscreen, with fake sets."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from cdmw.services.animation_speed_service import (
     SpeedSet,
     plan_speed_edits,
 )
-from cdmw.ui.archive_browser.speed_tuning_dialog import WINDOW_TITLE, SpeedTuningDialog, plan_summary
+from cdmw.ui.speed_prefabs.workspace import TOOL_TITLE, SpeedPrefabsWorkspace, plan_summary
 from tests.test_action_chart_binary import CLIPS, chart_bytes
 
 ATTACK, IDLE = CLIPS
@@ -62,13 +62,16 @@ def _dialog(**kwargs):
         prefab_categories=(("cameras", "Scene cameras"), ("moving", "Moving objects")),
     )
     options.update(kwargs)
-    dialog = SpeedTuningDialog(characters, **options)
+    dialog = SpeedPrefabsWorkspace(characters, **options)
     return dialog, calls
 
 
-def test_the_window_is_marked_experimental_and_fills_from_a_set(qt_app):
+def test_the_tab_is_marked_experimental_and_fills_from_a_set(qt_app):
+    from PySide6.QtWidgets import QLabel
+
     dialog, _calls = _dialog()
-    assert "Experimental" in dialog.windowTitle() == WINDOW_TITLE
+    assert TOOL_TITLE == "Speed & Prefabs"
+    assert any(label.text() == "Experimental" for label in dialog.findChildren(QLabel))
     assert dialog.character_combo.count() == 2 and dialog.set_list.count() == 2
     assert not dialog.export_button.isEnabled()  # no set open yet
     assert dialog.select_set(PATH)
@@ -77,6 +80,7 @@ def test_the_window_is_marked_experimental_and_fills_from_a_set(qt_app):
     assert "included by this set" in dialog.linked_label.text() and dialog.linked_checkbox.isChecked()
     assert dialog.linked_paths() == (LINKED,)
     assert not dialog.export_button.isEnabled()  # nothing changed yet
+    assert dialog.move_table.horizontalHeader().sectionSize(4) == 112
     for widget in (dialog.set_factor_spin, dialog.move_table, dialog.export_button, dialog.prefab_table):
         assert widget.objectName()
 
@@ -127,27 +131,46 @@ def test_review_text_summarises_each_kind():
     assert plan_summary(()).startswith("No speed values change")
 
 
-def test_prefab_search_lists_results_by_category_and_opens_one(qt_app):
+def test_prefab_search_shows_progress_lists_results_and_opens_one_beside_them(qt_app):
+    from PySide6.QtWidgets import QLabel
+
     dialog, calls = _dialog()
     dialog.prefab_category_combo.setCurrentIndex(1)
     dialog.prefab_search_button.click()
     assert calls.searches == ["cameras"] and not dialog.prefab_search_button.isEnabled()
+    assert not dialog.prefab_progress.isHidden()
+    dialog.show_prefab_progress(500, 2000)
+    assert dialog.prefab_progress.maximum() == 2000 and dialog.prefab_progress.value() == 500
+    assert "500 of 2,000" in dialog.prefab_status_label.text()
     dialog.show_prefab_results([{"path": "object/prefab/cam.prefab", "category_label": "Scene cameras",
                                  "members": ["CameraComponent"]}])
+    assert dialog.prefab_progress.isHidden()
     assert dialog.prefab_table.rowCount() == 1 and dialog.prefab_table.item(0, 1).text() == "Scene cameras"
+    assert dialog.prefab_table.item(0, 0).text() == "cam.prefab"
+    assert dialog.prefab_table.item(0, 0).toolTip() == "object/prefab/cam.prefab"
+    assert dialog.prefab_table.item(0, 2).text() == "Camera"
     assert dialog.prefab_search_button.isEnabled()
     dialog.prefab_table.selectRow(0)
-    assert dialog.prefab_open_button.isEnabled()
-    dialog.prefab_open_button.click()
     assert calls.prefabs == ["object/prefab/cam.prefab"]
+    inspector = QLabel("inspector")
+    dialog.show_prefab_inspector("object/prefab/cam.prefab", inspector)
+    assert dialog.prefab_host.currentWidget() is inspector and dialog.state()["prefab_open"].endswith("cam.prefab")
+    dialog.show_prefab_inspector("object/prefab/gone.prefab", None, note="Could not read it")
+    assert dialog.prefab_host.currentIndex() == 0 and "Could not read" in dialog.prefab_empty_detail.text()
 
 
-def test_game_tables_page_opens_each_speed_table(qt_app):
+def test_game_tables_page_loads_each_speed_table_in_place(qt_app):
+    from cdmw.ui.archive_browser.game_table_actions import GameTableEditPanel
+
     opened = []
-    dialog, _calls = _dialog(open_game_table=opened.append)
-    dialog.table_buttons["aimovespeedinfo"].click()
+    panel = GameTableEditPanel(side_by_side=True)
+    dialog, _calls = _dialog(open_game_table=opened.append, game_table_panel=panel)
+    assert panel.parent() is not None
+    dialog.show_page("tables")
+    assert opened == ["aimovespeedinfo"]  # the first visit loads the first table
     dialog.table_buttons["gimmickinfo"].click()
     assert opened == ["aimovespeedinfo", "gimmickinfo"]
+    assert dialog.table_buttons["gimmickinfo"].isChecked() and not dialog.table_buttons["aimovespeedinfo"].isChecked()
 
 
 def test_the_actions_open_the_window_and_the_game_table_editor(qt_app, monkeypatch):
@@ -158,59 +181,76 @@ def test_the_actions_open_the_window_and_the_game_table_editor(qt_app, monkeypat
     )
     from cdmw.services.animation_speed_service import SpeedExportResult
 
-    opened = []
-    browser = SimpleNamespace(_open_game_table_editor=opened.append, _open_action_chart_editor=lambda path: None)
-    ArchiveSpeedTuningActionsMixin._open_speed_game_table(browser, "gimmickinfo")
-    assert opened[0].path.endswith("gimmickinfo.staticinfobody")
     text = speed_export_message(SpeedExportResult(None, "Fast", (), 0, (PATH,)), True)
     assert "removed" in text
     text = speed_export_message(SpeedExportResult(__import__("pathlib").Path("m"), "Fast", (PATH,), 2), False)
     assert "experimental" in text and PATH in text
 
 
-def test_the_window_opens_on_a_loading_page_and_fills_when_the_sets_are_read(qt_app):
-    dialog = SpeedTuningDialog((), load_set=lambda path: _chart(path), plan=lambda *args: ())
+def test_the_tab_opens_on_a_loading_page_and_fills_when_the_sets_are_read(qt_app):
+    retried = []
+    dialog = SpeedPrefabsWorkspace((), load_set=lambda path: _chart(path), plan=lambda *args: (),
+                                   prefab_search=lambda category: None, retry_load=lambda: retried.append(True))
     dialog.show_loading("Indexing the game's action charts and clips")
     assert dialog.loading and "Indexing" in dialog.loading_detail.text()
-    dialog.set_characters((SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),))
-    assert not dialog.loading and dialog.character_combo.count() == 1 and dialog.select_set(PATH)
+    assert not dialog.prefab_search_button.isEnabled()  # the search needs the file index
+    dialog.open_set(PATH)  # remembered until the sets are read
+    dialog.set_characters((SpeedCharacter("Kliff", (SpeedSet(SECOND, "Dagger"), SpeedSet(PATH, "Sword"))),))
+    assert not dialog.loading and dialog.character_combo.count() == 1
+    assert dialog.set_list.currentItem().text() == "Sword" and dialog.prefab_search_button.isEnabled()
     dialog.show_load_error("No character action charts were found in the game archives.")
     assert dialog.load_failed and "No character" in dialog.loading_detail.text()
+    dialog.retry_button.click()
+    assert retried == [True] and dialog.loading and not dialog.load_failed
 
 
-def test_opening_speed_tuning_shows_the_window_before_the_charts_are_read(qt_app):
+def test_opening_speed_tuning_shows_the_tab_and_reads_the_charts_once(qt_app):
     from PySide6.QtWidgets import QWidget
 
+    from cdmw.ui.archive_browser.game_table_actions import ArchiveGameTableActionsMixin
     from cdmw.ui.archive_browser.speed_tuning_actions import ArchiveSpeedTuningActionsMixin, PreparedSpeedTuning
 
-    tasks = []
+    tasks, activated = [], []
 
-    class Browser(ArchiveSpeedTuningActionsMixin, QWidget):
-        def __init__(self):
+    class Browser(ArchiveSpeedTuningActionsMixin, ArchiveGameTableActionsMixin, QWidget):
+        def __init__(self, root="C:/game"):
             super().__init__()
+            self.root = root
             self.shell = SimpleNamespace(
                 set_status_message=lambda *args, **kwargs: None,
+                _activate_tool_key=activated.append,
+                _background_task_active=lambda: bool(tasks),
                 _run_utility_task_when_idle=lambda **kwargs: tasks.append(kwargs))
 
         def _action_chart_root(self):
-            return "C:/game"
+            return self.root
+
+        def _game_table_root(self):
+            return self.root
 
         def _open_action_chart_editor(self, path):
             pass
 
     browser = Browser()
+    workspace = browser.create_speed_workspace()
+    browser.shell.speed_prefabs_tab = workspace
+    assert workspace.loading and len(tasks) == 1
     browser._open_speed_tuning(PATH)
-    dialog = browser._speed_tuning_dialogs[0]
-    assert dialog.isVisible() and dialog.loading and len(tasks) == 1
-    browser._open_speed_tuning()  # still reading: raises the same window, starts no second read
-    assert len(tasks) == 1 and browser._speed_tuning_dialogs == [dialog]
+    assert activated == ["speed_prefabs"] and len(tasks) == 1  # still reading: no second read
     characters = (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),)
     tasks[0]["on_complete"](PreparedSpeedTuning(SimpleNamespace(), characters))
-    assert not dialog.loading and dialog.set_list.currentItem() is not None
-    browser._open_speed_tuning()  # a second open raises the same window
-    assert len(tasks) == 1 and browser._speed_tuning_dialogs == [dialog]
-    dialog.close()
-    browser._open_speed_tuning()
+    assert not workspace.loading and workspace.set_list.currentItem().text() == "Sword"
+    browser._open_speed_game_table("gimmickinfo")
+    assert workspace.current_page() == "tables" and workspace.table_buttons["gimmickinfo"].isChecked()
+    assert tasks[-1]["status_message"] == "Reading the gimmickinfo table..."
+
+    failing = Browser()
+    other = failing.create_speed_workspace()
     tasks[-1]["on_error"]("The archives are not open.")
-    assert browser._speed_tuning_dialogs[-1].load_failed
-    assert "not open" in browser._speed_tuning_dialogs[-1].loading_detail.text()
+    assert other.load_failed and "not open" in other.loading_detail.text()
+    failing.shell.speed_prefabs_tab = other
+    failing._open_speed_tuning()  # opening again after a failure reads again
+    assert not other.load_failed
+
+    empty = Browser(root="")
+    assert empty.create_speed_workspace().load_failed

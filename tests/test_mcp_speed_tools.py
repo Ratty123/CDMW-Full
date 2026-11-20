@@ -43,7 +43,8 @@ def speed(stored, tmp_path, monkeypatch):
 
 def test_every_tool_is_experimental_in_the_speed_family_with_the_right_class():
     assert set(TOOLS) == {"speed.sets", "speed.set", "speed.preview", "speed.export", "speed.prefab_search",
-                          "speed.prefab_values", "speed.prefab_export", "speed.table_rows", "speed.table_export"}
+                          "speed.prefab_values", "speed.prefab_export", "speed.table_rows", "speed.table_export",
+                          "speed.workspace"}
     for tool in TOOLS.values():
         assert tool.family == "speed" and "Experimental" in tool.description
         assert tool.input_schema["type"] == "object" and tool.input_schema["additionalProperties"] is False
@@ -120,3 +121,36 @@ def test_table_export_refuses_fields_that_are_not_speeds(speed, tmp_path):
     with pytest.raises(ToolError, match="not a game table speed field"):
         speed("speed.table_export", edits=[{"table": "gimmickinfo", "key": 1, "target": "_key", "value": 2}],
               folder=str(folder), title="Fast")
+
+
+def test_workspace_tool_shows_the_tab_on_a_page_and_reports_what_it_shows():
+    pytest.importorskip("PySide6")
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication
+
+    from cdmw.services.animation_speed_service import SpeedCharacter, SpeedSet
+    from cdmw.ui.speed_prefabs.workspace import SpeedPrefabsWorkspace
+
+    QApplication.instance() or QApplication([])
+    tables, prefabs = [], []
+    workspace = SpeedPrefabsWorkspace((SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),),
+                                      load_set=lambda path: (_ for _ in ()).throw(OSError("not read in this test")),
+                                      plan=lambda *args: (), open_game_table=tables.append,
+                                      open_prefab=prefabs.append, prefab_search=lambda category: None)
+    activated = []
+    window = SimpleNamespace(shell=SimpleNamespace(_tool_widgets_by_key={"speed_prefabs": workspace},
+                                                   _activate_tool_key=activated.append))
+    context = SimpleNamespace(window=window, settings=None, game_folder=lambda: "")
+    tool = TOOLS["speed.workspace"]
+
+    def run(**arguments):
+        return tool.handler(ToolCall(tool, validate_arguments(arguments, tool.input_schema), context))
+
+    state = run(page="prefabs")
+    assert activated == ["speed_prefabs"] and state["page"] == "prefabs" and state["characters"] == ["Kliff"]
+    state = run(table="gimmickinfo")
+    assert tables[-1] == "gimmickinfo" and state["page"] == "tables"
+    run(prefab="object/prefab/cam.prefab")
+    assert prefabs == ["object/prefab/cam.prefab"]
+    assert tool.effect == READ and "Experimental" in tool.description

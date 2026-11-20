@@ -268,6 +268,34 @@ def _table_export(call):
             "note": "Enable the mod in DMM and click Mount. Game table speed edits have not been tested in game."}
 
 
+def _workspace(call):
+    """The Speed & Prefabs tab: open it on a page or set, pick a prefab or table, and report what it shows."""
+
+    from cdmw.mcp.rail_actions import page, ui
+
+    arguments = call.arguments
+
+    def operation():
+        workspace = page(call, "speed_prefabs")
+        if arguments.get("open", True):
+            call.context.window.shell._activate_tool_key("speed_prefabs")
+        if arguments.get("set"):
+            workspace.open_set(str(arguments["set"]))
+        if arguments.get("page"):
+            workspace.show_page(str(arguments["page"]))
+        if arguments.get("prefab"):
+            if workspace.loading:
+                raise ToolError(UNAVAILABLE, "The game's file index is still being read; try again shortly.")
+            workspace.show_page("prefabs")
+            workspace._open_prefab(str(arguments["prefab"]))
+        if arguments.get("table"):
+            workspace.show_page("tables")
+            workspace._open_table(str(arguments["table"]))
+        return workspace.state()
+
+    return ui(call, operation)
+
+
 def _tool(name, effect, description, handler, properties=None, required=(), **options):
     options.setdefault("runs_on", ON_WORKER)
     return Tool(name=name, family="speed", title=name, description=EXPERIMENTAL + description,
@@ -277,7 +305,20 @@ def _tool(name, effect, description, handler, properties=None, required=(), **op
 
 
 def speed_tools() -> list[Tool]:
+    from cdmw.mcp.rail_actions import tool
+
     return [
+        tool("speed.workspace", READ, EXPERIMENTAL + "The Speed & Prefabs tab (Authoring): show it, optionally on a "
+             "page, a set (chart path), a prefab (opened in its Prefab Inspector beside the search results) or a "
+             "speed table (loaded in place), and return what it shows: the set and its factors, the review, the "
+             "prefab search results and the open prefab, and the loaded table. Factors, exports and edits go "
+             "through the other speed tools or the tab's own controls.",
+             "ui:SpeedPrefabsWorkspace", _workspace,
+             {"open": {"type": "boolean", "default": True},
+              "page": {"type": "string", "enum": ["", "animation", "prefabs", "tables"]},
+              "set": _TEXT, "prefab": _TEXT,
+              "table": {"type": "string", "enum": ["", "aimovespeedinfo", "gimmickinfo"]}},
+             keywords=("speed", "experimental", "speed & prefabs")),
         _tool("speed.sets", READ, "Characters and their animation speed sets (one action chart each), with labels "
               "and upper or lower body. Needs the game folder set.", _sets,
               {"character": _TEXT}, service="animation_speed_service.list_characters", paged="sets"),

@@ -145,8 +145,16 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         known_paths: Mapping[str, Sequence[str]] | None = None,
         find_users: Callable[[str], Sequence[str]] | None = None,
         speed_filter: bool = False,
+        embedded: bool = False,
+        heading: str = "",
     ) -> None:
         super().__init__(parent)
+        # Embedded, the inspector is a page inside another tool (Speed & Prefabs) rather than
+        # a window: no Close button, and Save changes hands the file over at once.
+        self._embedded = bool(embedded)
+        if self._embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
+        self._heading = heading or (title.split(" - ", 1)[1] if " - " in title else title)
         self.setWindowTitle(title)
         self.resize(980, 660)
         # `_opened` is the file as it arrived and never changes; `_original` is
@@ -181,25 +189,34 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
     # -- construction ----------------------------------------------------
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        self.banner = QLabel(self._banner_text())
-        self.banner.setWordWrap(True)
-        layout.addWidget(self.banner)
-
-        # A modder meeting a prefab for the first time needs to know what kind
-        # of thing it is before any of the rows mean anything.
-        self.intro = QLabel(
+        if self._embedded:
+            layout.setContentsMargins(0, 0, 0, 0)
+        intro_text = (
             "A prefab is a parts list: which files an object is built from, and where each "
             "part sits. Saving writes a separate mod package - your game files are never "
             "changed."
         )
+        heading_box = QWidget(self)
+        heading = QVBoxLayout(heading_box)
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(2)
+        self.title_label = QLabel(self._heading)
+        self.title_label.setObjectName("prefabInspectorTitle")
+        self.title_label.setStyleSheet("font-size: 12pt; font-weight: 600;")
+        self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.title_label.setToolTip(intro_text)
+        heading.addWidget(self.title_label)
+        self.banner = QLabel(self._banner_text())
+        self.banner.setObjectName("HintLabel")
+        self.banner.setWordWrap(True)
+        self.banner.setToolTip(intro_text)
+        heading.addWidget(self.banner)
+        layout.addWidget(heading_box)
+        # The intro sentence now lives in the heading's tooltip; the label stays for callers
+        # that read it, hidden, so the rows get the room.
+        self.intro = QLabel(intro_text)
         self.intro.setWordWrap(True)
-        # No hard-coded colour: the app follows the system light/dark theme, and a
-        # fixed grey turns unreadable in one of them.
-        font = self.intro.font()
-        font.setItalic(True)
-        self.intro.setFont(font)
-        self.intro.setMinimumHeight(self.intro.fontMetrics().height() * 2)
-        layout.addWidget(self.intro)
+        self.intro.setVisible(False)
 
         tabs = QTabWidget(self)
         tabs.addTab(self._build_objects_tab(), "What this prefab contains")
@@ -216,6 +233,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # the old label ("Save changes", "Write the changes into a copy") read as
         # if the save had already happened.
         self.apply_button = QPushButton("Save changes...")
+        self.apply_button.setProperty("primaryAction", True)
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
         self.apply_button.setToolTip(
@@ -233,9 +251,10 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.browse_button.clicked.connect(self._browse_for_selected_row)
         row.addWidget(self.browse_button)
         row.addStretch(1)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(self.reject)
-        row.addWidget(buttons)
+        if not self._embedded:
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(self.reject)
+            row.addWidget(buttons)
         layout.addLayout(row)
 
         # Hidden until there is something to say: an empty box that large just
@@ -365,6 +384,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # on a laptop screen. Wrapping costs a known trap in return, that a
         # wrapped label reports a one-line height, so the height is set too.
         self.objects_hint = QLabel(self._objects_hint())
+        self.objects_hint.setObjectName("HintLabel")
         self.objects_hint.setWordWrap(True)
         self.objects_hint.setMinimumHeight(self.objects_hint.fontMetrics().height() * 2)
         box.addWidget(self.objects_hint)
@@ -966,7 +986,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # like a completed save, and the export prompt that appears on close
         # comes as a surprise.
         self._log(
-            "Nothing has been written yet. Close this window and you will be asked "
+            "Nothing has been written yet. Choose where to save the mod package next."
+            if self._embedded
+            else "Nothing has been written yet. Close this window and you will be asked "
             "where to save the mod package."
         )
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)

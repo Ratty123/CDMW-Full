@@ -2254,6 +2254,13 @@
       "what": "Write game table speed edits as a DMM mod (experimental)",
       "class": "output",
       "tool": "speed.table_export"
+    },
+    {
+      "id": "speed.workspace",
+      "area": "Speed & Prefabs",
+      "what": "Show the Speed & Prefabs tab on a page, set, prefab or speed table, and read what it shows (experimental)",
+      "class": "read",
+      "tool": "speed.workspace"
     }
   ],
   "surfaces": [
@@ -4142,15 +4149,15 @@
       "tool": "translation.review"
     },
     {
-      "key": "dialog:cdmw/ui/archive_browser/speed_tuning_dialog.py|SpeedTuningDialog",
-      "tool": "speed.export"
+      "key": "rail_page:speed_prefabs",
+      "tool": "speed.workspace"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Speed Tuning (Experimental)...",
+      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Speed & Prefabs (Experimental)...",
       "command": "browse.speed_tuning"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/actions.py|Speed Tuning (Experimental)...",
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Speed & Prefabs (Experimental)...",
       "command": "browse.speed_tuning"
     },
     {

@@ -12,7 +12,7 @@ import math
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+    QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw.core.static_table_records import TableFieldEdit
 from cdmw.services.active_ui_translation import translate_active_ui_text
@@ -118,7 +118,7 @@ class GameTablesEditor(QWidget):
     load_requested = Signal(str)
     edits_changed = Signal(object)
 
-    def __init__(self, parent=None, *, include_speed: bool = False):
+    def __init__(self, parent=None, *, include_speed: bool = False, side_by_side: bool = False):
         super().__init__(parent)
         self._include_speed = include_speed
         self._index = None
@@ -126,13 +126,16 @@ class GameTablesEditor(QWidget):
         self._edits: dict[tuple, TableFieldEdit] = {}
         self._labels: dict[tuple, str] = {}
         layout = QVBoxLayout(self)
-        intro = QLabel("Change values in existing rows of the game's tables. Only values whose storage is proven "
-                       "on every shipped row are offered. Their effect in game has not been verified.")
+        intro = QLabel("Change values in existing rows of the game's tables. Their effect in game has not "
+                       "been verified.")
+        intro.setObjectName("HintLabel")
         intro.setWordWrap(True)
+        intro.setToolTip("Only values whose storage is proven on every shipped row are offered.")
         layout.addWidget(intro)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("Table:"))
+        self.table_label = QLabel("Table:")
+        top.addWidget(self.table_label)
         self.table = QComboBox()
         for kind, label in sorted(table_names(include_speed=include_speed).items(), key=lambda item: item[1].casefold()):
             self.table.addItem(label, kind)
@@ -143,22 +146,27 @@ class GameTablesEditor(QWidget):
         top.addWidget(self.load)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter rows by name or key")
+        self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._fill_rows)
         top.addWidget(self.search, 1)
         layout.addLayout(top)
+        self.busy = QProgressBar()
+        self.busy.setRange(0, 0)
+        self.busy.setTextVisible(False)
+        self.busy.setMaximumHeight(6)
+        self.busy.setVisible(False)
+        layout.addWidget(self.busy)
 
-        # Stacked, each with its own stretch: Create New Item's Rust view gives a table room
-        # only as a stretched child of a column; side by side in a row both collapse to a line.
         self.rows = QTableWidget(0, 3)
         self.rows.setHorizontalHeaderLabels(["Key", "Name", "Copy"])
         self._configure(self.rows)
+        self.rows.horizontalHeader().setStretchLastSection(False)
+        self.rows.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.rows.itemSelectionChanged.connect(self._fill_values)
-        layout.addWidget(self.rows, 3)
         self.values = QTableWidget(0, 4)
         self.values.setHorizontalHeaderLabels(["Value", "Current", "In this mod", "About"])
         self._configure(self.values)
         self.values.itemSelectionChanged.connect(self._value_selected)
-        layout.addWidget(self.values, 2)
 
         edit = QHBoxLayout()
         edit.addWidget(QLabel("New value:"))
@@ -173,19 +181,43 @@ class GameTablesEditor(QWidget):
         self.restore.setToolTip("Remove this mod's change to the selected value.")
         self.restore.clicked.connect(self._restore_value)
         edit.addWidget(self.restore)
-        layout.addLayout(edit)
 
-        layout.addWidget(QLabel("Changes in this mod:"))
+        pending_title = QLabel("Changes in this mod:")
         self.pending = QTableWidget(0, 4)
         self.pending.setHorizontalHeaderLabels(["Table", "Row", "Value", "New value"])
         self._configure(self.pending)
-        layout.addWidget(self.pending, 2)
         buttons = QHBoxLayout()
         self.remove = QPushButton("Remove selected change")
         self.remove.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove)
         buttons.addStretch(1)
-        layout.addLayout(buttons)
+        if side_by_side:
+            # Rows on the left, the selected row's values and this mod's changes on the right,
+            # so a wide tab shows all three without scrolling.
+            splitter = QSplitter(Qt.Orientation.Horizontal)
+            splitter.setChildrenCollapsible(False)
+            splitter.addWidget(self.rows)
+            right = QWidget()
+            column = QVBoxLayout(right)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.addWidget(self.values, 3)
+            column.addLayout(edit)
+            column.addWidget(pending_title)
+            column.addWidget(self.pending, 2)
+            column.addLayout(buttons)
+            splitter.addWidget(right)
+            splitter.setStretchFactor(0, 2)
+            splitter.setStretchFactor(1, 3)
+            layout.addWidget(splitter, 1)
+        else:
+            # Stacked, each with its own stretch: Create New Item's Rust view gives a table room
+            # only as a stretched child of a column; side by side in a row both collapse to a line.
+            layout.addWidget(self.rows, 3)
+            layout.addWidget(self.values, 2)
+            layout.addLayout(edit)
+            layout.addWidget(pending_title)
+            layout.addWidget(self.pending, 2)
+            layout.addLayout(buttons)
         self.message = QLabel()
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
@@ -203,6 +235,12 @@ class GameTablesEditor(QWidget):
 
     # --- host interface -------------------------------------------------------------
 
+    def set_table_choice_visible(self, visible: bool) -> None:
+        """Hide the table list and Load button when the host picks the table (Speed & Prefabs)."""
+
+        for widget in (self.table_label, self.table, self.load):
+            widget.setVisible(visible)
+
     def current_table(self) -> str:
         return str(self.table.currentData() or "")
 
@@ -211,6 +249,7 @@ class GameTablesEditor(QWidget):
 
     def set_loading(self, loading: bool) -> None:
         self.load.setEnabled(not loading)
+        self.busy.setVisible(loading)
         if loading:
             self.message.setText("Reading the table from the game's archives…")
 
@@ -231,10 +270,12 @@ class GameTablesEditor(QWidget):
             text += f" {index.refused:,} rows use a layout this build cannot read and are not listed."
         self.message.setText(text)
         self.load.setEnabled(True)
+        self.busy.setVisible(False)
         self._fill_rows()
 
     def show_error(self, message: str) -> None:
         self.load.setEnabled(True)
+        self.busy.setVisible(False)
         self.message.setText(str(message))
 
     def edits(self) -> tuple[TableFieldEdit, ...]:

@@ -1,13 +1,13 @@
-"""Speed Tuning (experimental): set how fast moves play, review, and export a DMM mod.
+"""Speed & Prefabs (experimental): the Authoring tab for how fast things play.
 
-The Animation page works on action charts: pick a character and a set (one chart), set a
+Animation speed works on action charts: pick a character and a set (one chart), set a
 factor for the whole set, per kind of move or per move, review what changes and export.
-The Prefabs page lists prefabs that carry speed values (effects, cameras, moving objects,
-NPC routes, weather) and opens one in the Prefab Inspector with its Speed values filter on.
+Prefabs lists prefabs that carry speed values (effects, cameras, moving objects, NPC
+routes, weather) and shows the chosen one in the Prefab Inspector beside the list. Game
+tables holds Edit Game Table Values for the two speed tables.
 
-The dialog does no archive work itself: the Archive Browser passes the calls in, so the
-dialog can be tested with fakes. Writing speeds into the running game stays in Crimson
-Live Edit.
+The tab does no archive work itself: the Archive Browser passes the calls in, so it can
+be tested with fakes. Writing speeds into the running game stays in Crimson Live Edit.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
     QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
@@ -50,7 +49,7 @@ from cdmw.services.animation_speed_service import (
     SpeedPlan,
 )
 
-WINDOW_TITLE = "Speed Tuning (Experimental)"
+TOOL_TITLE = "Speed & Prefabs"
 _PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 _MOVE_COLUMNS = ("Move", "Kind", "Seconds", "Windows", "Factor")
 
@@ -99,12 +98,14 @@ def plan_summary(plans: Sequence[SpeedPlan]) -> str:
     return "\n".join(lines)
 
 
-class SpeedTuningDialog(QDialog):
-    """Speed factors for one set at a time, exported as a DMM mod by the caller."""
+class SpeedPrefabsWorkspace(QWidget):
+    """Speed factors for one set at a time, prefab speed values and speed tables, in one tab."""
+
+    PAGES = ("animation", "prefabs", "tables")
 
     def __init__(
         self,
-        characters: Sequence[SpeedCharacter],
+        characters: Sequence[SpeedCharacter] = (),
         *,
         load_set: Callable[[str], SpeedChart],
         plan: Callable[[str, SpeedFactors, Sequence[str]], Sequence[SpeedPlan]],
@@ -115,12 +116,12 @@ class SpeedTuningDialog(QDialog):
         open_prefab: Optional[Callable[[str], None]] = None,
         prefab_categories: Sequence[tuple[str, str]] = (),
         open_game_table: Optional[Callable[[str], None]] = None,
+        game_table_panel: Optional[QWidget] = None,
+        retry_load: Optional[Callable[[], None]] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.setObjectName("speedTuningDialog")
-        self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1180, 760)
+        self.setObjectName("speedPrefabsWorkspace")
         self._characters = tuple(characters)
         self._load_set = load_set
         self._plan = plan
@@ -130,10 +131,16 @@ class SpeedTuningDialog(QDialog):
         self._prefab_search = prefab_search
         self._open_prefab = open_prefab
         self._open_game_table = open_game_table
+        self._retry_load = retry_load
+        self._pending_set = ""
         self._chart: Optional[SpeedChart] = None
         self._linked: tuple[tuple[str, bool], ...] = ()
         self._move_factors: dict[str, float] = {}
         self._filling = False
+        self._prefab_path = ""
+        self._prefab_searching = False
+        self.prefab_inspector: Optional[QWidget] = None
+        self.game_table_panel = game_table_panel
         self.last_plans: tuple[SpeedPlan, ...] = ()
         self._review_timer = QTimer(self)
         self._review_timer.setSingleShot(True)
@@ -141,7 +148,7 @@ class SpeedTuningDialog(QDialog):
         self._review_timer.timeout.connect(self.refresh_review)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
         header = QHBoxLayout()
         header.setSpacing(10)
@@ -154,26 +161,39 @@ class SpeedTuningDialog(QDialog):
             "A factor multiplies the game's speed: 2x plays twice as fast. Exports a DMM mod; game files are only read.",
             "To try speeds in the running game without a mod, use Crimson Live Edit."), 1)
         layout.addLayout(header)
-        self.stack = QStackedWidget()
-        self.stack.setObjectName("speedTuningStack")
-        self.stack.addWidget(self._build_loading_page())
         self.tabs = QTabWidget()
-        self.tabs.setObjectName("speedTuningTabs")
-        self.stack.addWidget(self.tabs)
-        self.stack.setCurrentWidget(self.tabs)
-        layout.addWidget(self.stack, 1)
-        self.tabs.addTab(self._build_animation_page(), "Animation speed")
+        self.tabs.setObjectName("speedPrefabsTabs")
+        self.tabs.setDocumentMode(True)
+        layout.addWidget(self.tabs, 1)
+        # Only the animation page waits for the chart index: prefabs wait for it to search,
+        # and the game tables need nothing from it.
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("speedAnimationStack")
+        self.stack.addWidget(self._build_loading_page())
+        self.stack.addWidget(self._build_animation_page())
+        self.stack.setCurrentIndex(1)
+        self.tabs.addTab(self.stack, "Animation speed")
         self.tabs.addTab(self._build_prefab_page(prefab_categories), "Prefabs")
         self.tabs.addTab(self._build_table_page(), "Game tables")
-        bottom = QHBoxLayout()
-        bottom.addStretch(1)
-        close = QPushButton("Close")
-        close.setObjectName("speedCloseButton")
-        close.clicked.connect(self.reject)
-        bottom.addWidget(close)
-        layout.addLayout(bottom)
+        self.tabs.currentChanged.connect(self._page_changed)
         self._fill_characters()
         self._sync_buttons()
+
+    # --- pages --------------------------------------------------------------------------
+
+    def current_page(self) -> str:
+        return self.PAGES[self.tabs.currentIndex()]
+
+    def show_page(self, page: str) -> None:
+        if page in self.PAGES:
+            self.tabs.setCurrentIndex(self.PAGES.index(page))
+
+    def _page_changed(self, index: int) -> None:
+        # The first visit to Game tables reads the AI movement table, so the page is never empty.
+        if self.PAGES[index] == "tables" and self.game_table_panel is not None:
+            editor = getattr(self.game_table_panel, "editor", None)
+            if editor is not None and not editor.loaded_table() and editor.load.isEnabled():
+                self._open_table(next(iter(self.table_buttons)))
 
     # --- loading ------------------------------------------------------------------------
 
@@ -200,12 +220,17 @@ class SpeedTuningDialog(QDialog):
         self.loading_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_detail.setWordWrap(True)
         column.addWidget(self.loading_detail)
+        self.retry_button = QPushButton("Try Again")
+        self.retry_button.setObjectName("speedRetryButton")
+        self.retry_button.setVisible(False)
+        self.retry_button.clicked.connect(self._retry)
+        column.addWidget(self.retry_button, 0, Qt.AlignmentFlag.AlignHCenter)
         column.addStretch(2)
         return page
 
     @property
     def load_failed(self) -> bool:
-        return self.loading and not self.loading_bar.isVisibleTo(self)
+        return self.loading and self.retry_button.isVisibleTo(self)
 
     @property
     def loading(self) -> bool:
@@ -216,23 +241,50 @@ class SpeedTuningDialog(QDialog):
 
         self.loading_title.setText("Reading the game's action charts…")
         self.loading_bar.setVisible(True)
+        self.retry_button.setVisible(False)
         if detail:
             self.loading_detail.setText(detail)
         self.stack.setCurrentIndex(0)
+        self._sync_buttons()
 
     def show_load_error(self, message: str) -> None:
-        self.loading_title.setText("Speed Tuning could not read the action charts.")
+        self.loading_title.setText("The action charts could not be read.")
         self.loading_bar.setVisible(False)
         self.loading_detail.setText(str(message))
+        self.retry_button.setVisible(self._retry_load is not None)
         self.stack.setCurrentIndex(0)
+        self._sync_buttons()
+
+    def _retry(self) -> None:
+        if self._retry_load is not None:
+            self.show_loading("The first time takes a few seconds.")
+            self._retry_load()
 
     def set_characters(self, characters: Sequence[SpeedCharacter]) -> None:
         """Fill the sets once they are read, and leave the loading page."""
 
         self._characters = tuple(characters)
         self._fill_characters()
-        self.stack.setCurrentWidget(self.tabs)
+        self.stack.setCurrentIndex(1)
         self._sync_buttons()
+        pending, self._pending_set = self._pending_set, ""
+        if pending:
+            self.select_set(pending)
+        elif self.set_list.currentItem() is None:
+            first = next((row for row in range(self.set_list.count()) if not self.set_list.item(row).isHidden()), -1)
+            if first >= 0:
+                self.set_list.setCurrentRow(first)
+
+    def open_set(self, path: str) -> None:
+        """Show the animation page on ``path``; while loading, select it once the sets are read."""
+
+        self.show_page("animation")
+        if not path:
+            return
+        if self.loading:
+            self._pending_set = path
+        else:
+            self.select_set(path)
 
     # --- building -----------------------------------------------------------------------
 
@@ -337,9 +389,14 @@ class SpeedTuningDialog(QDialog):
         self.move_table.setHorizontalHeaderLabels(list(_MOVE_COLUMNS))
         header = self.move_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, len(_MOVE_COLUMNS)):
+        for column in range(1, len(_MOVE_COLUMNS) - 1):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        # The factor box keeps one fixed width, so its arrows stay usable however long the names are.
+        header.setSectionResizeMode(len(_MOVE_COLUMNS) - 1, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(len(_MOVE_COLUMNS) - 1, 112)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.move_table.verticalHeader().setVisible(False)
+        self.move_table.verticalHeader().setDefaultSectionSize(30)
         self.move_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.move_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.move_table.setWordWrap(False)
@@ -392,47 +449,81 @@ class SpeedTuningDialog(QDialog):
     def _build_prefab_page(self, categories: Sequence[tuple[str, str]]) -> QWidget:
         page = QWidget()
         page.setObjectName("speedPrefabPage")
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.addWidget(_hint(
-            "Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's moves.",
-            "Search, then open a prefab in the Prefab Inspector with its Speed values filter on, and use Scale by "
-            "factor there. Prefab speed edits have not been tested in game."))
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Category:"))
+        row = QHBoxLayout(page)
+        row.setContentsMargins(8, 8, 8, 8)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
+        row.addWidget(splitter)
+
+        left = QGroupBox("Find prefabs")
+        left.setToolTip("Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's "
+                        "moves. Prefab speed edits have not been tested in game.")
+        layout = QVBoxLayout(left)
+        layout.setSpacing(6)
+        search = QHBoxLayout()
         self.prefab_category_combo = QComboBox()
         self.prefab_category_combo.setObjectName("speedPrefabCategoryCombo")
+        self.prefab_category_combo.setToolTip("Category")
         self.prefab_category_combo.addItem("All categories", "")
         for key, label in categories:
             self.prefab_category_combo.addItem(label, key)
-        row.addWidget(self.prefab_category_combo, 1)
-        self.prefab_search_button = QPushButton("Search Prefabs")
+        search.addWidget(self.prefab_category_combo, 1)
+        self.prefab_search_button = QPushButton("Search")
         self.prefab_search_button.setObjectName("speedPrefabSearchButton")
-        self.prefab_search_button.setToolTip("The first search reads every prefab and takes a few minutes.")
+        self.prefab_search_button.setToolTip("The first search reads every prefab and takes a few minutes; "
+                                             "later searches are quick.")
         self.prefab_search_button.clicked.connect(self._search_prefabs)
-        self.prefab_search_button.setEnabled(self._prefab_search is not None)
-        row.addWidget(self.prefab_search_button)
-        layout.addLayout(row)
-        self.prefab_status_label = QLabel()
+        search.addWidget(self.prefab_search_button)
+        layout.addLayout(search)
+        self.prefab_progress = QProgressBar()
+        self.prefab_progress.setObjectName("speedPrefabProgress")
+        self.prefab_progress.setTextVisible(False)
+        self.prefab_progress.setMaximumHeight(8)
+        self.prefab_progress.setVisible(False)
+        layout.addWidget(self.prefab_progress)
+        self.prefab_status_label = _hint("Choose a category and search.")
         self.prefab_status_label.setObjectName("speedPrefabStatusLabel")
         layout.addWidget(self.prefab_status_label)
         self.prefab_table = QTableWidget(0, 3)
         self.prefab_table.setObjectName("speedPrefabTable")
-        self.prefab_table.setHorizontalHeaderLabels(["Prefab", "Category", "Speed members"])
-        self.prefab_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.prefab_table.setHorizontalHeaderLabels(["Prefab", "Category", "Speed values"])
+        header = self.prefab_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.prefab_table.verticalHeader().setVisible(False)
         self.prefab_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.prefab_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.prefab_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.prefab_table.itemSelectionChanged.connect(self._sync_buttons)
-        self.prefab_table.itemDoubleClicked.connect(lambda _item: self._open_selected_prefab())
+        self.prefab_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.prefab_table.setWordWrap(False)
+        self.prefab_table.itemSelectionChanged.connect(self._prefab_selected)
         layout.addWidget(self.prefab_table, 1)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        self.prefab_open_button = QPushButton("Open in Prefab Inspector")
-        self.prefab_open_button.setObjectName("speedPrefabOpenButton")
-        self.prefab_open_button.clicked.connect(self._open_selected_prefab)
-        buttons.addWidget(self.prefab_open_button)
-        layout.addLayout(buttons)
+        left.setMinimumWidth(320)
+        splitter.addWidget(left)
+
+        self.prefab_host = QStackedWidget()
+        self.prefab_host.setObjectName("speedPrefabInspectorHost")
+        empty = QWidget()
+        empty_layout = QVBoxLayout(empty)
+        empty_layout.addStretch(1)
+        title = QLabel("No prefab selected")
+        title.setObjectName("EmptyStateTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(title)
+        self.prefab_empty_detail = QLabel("Search, then pick a prefab to see and scale its speed values here.")
+        self.prefab_empty_detail.setObjectName("EmptyStateDetail")
+        self.prefab_empty_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.prefab_empty_detail.setWordWrap(True)
+        empty_layout.addWidget(self.prefab_empty_detail)
+        empty_layout.addStretch(2)
+        self.prefab_host.addWidget(empty)
+        splitter.addWidget(self.prefab_host)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        splitter.setSizes([460, 700])
         return page
 
     def _build_table_page(self) -> QWidget:
@@ -440,29 +531,33 @@ class SpeedTuningDialog(QDialog):
         page.setObjectName("speedTablePage")
         layout = QVBoxLayout(page)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(10)
-        layout.addWidget(_hint(
-            "Game tables open in Edit Game Table Values, which writes a DMM mod.",
-            "Units are not known, and these edits have not been tested in game."))
+        layout.setSpacing(8)
+        choose = QHBoxLayout()
+        choose.setSpacing(6)
         self.table_buttons: dict[str, QPushButton] = {}
-        for table, title, detail, label in (
-                ("aimovespeedinfo", "AI movement speeds", "Move, minimum and turn speed of each AI move type.",
-                 "Open AI Movement Speeds..."),
-                ("gimmickinfo", "Pushed objects", "How fast objects move when pushed.", "Open Pushed Object Speed...")):
-            card = QGroupBox(title)
-            card_layout = QHBoxLayout(card)
-            card_layout.addWidget(_hint(detail), 1)
+        for table, label, detail in (
+                ("aimovespeedinfo", "AI movement speeds", "Move, minimum and turn speed of each AI move type."),
+                ("gimmickinfo", "Pushed objects", "How fast objects move when pushed.")):
             button = QPushButton(label)
             button.setObjectName(f"speedTableButton_{table}")
+            button.setCheckable(True)
+            button.setToolTip(detail + " Units are not known, and these edits have not been tested in game.")
             button.setEnabled(self._open_game_table is not None)
             button.clicked.connect(lambda _checked=False, name=table: self._open_table(name))
-            card_layout.addWidget(button)
-            layout.addWidget(card)
+            choose.addWidget(button)
             self.table_buttons[table] = button
-        layout.addStretch(1)
+        choose.addStretch(1)
+        layout.addLayout(choose)
+        if self.game_table_panel is not None:
+            layout.addWidget(self.game_table_panel, 1)
+        else:
+            layout.addWidget(_hint("Game tables open in Edit Game Table Values, which writes a DMM mod."))
+            layout.addStretch(1)
         return page
 
     def _open_table(self, table: str) -> None:
+        for name, button in self.table_buttons.items():
+            button.setChecked(name == table)
         if self._open_game_table is not None:
             self._open_game_table(table)
 
@@ -694,8 +789,12 @@ class SpeedTuningDialog(QDialog):
                                       else "Set a factor other than 1x first.")
         self.reset_button.setEnabled(chart_open)
         self.open_chart_button.setEnabled(chart_open and self._open_chart is not None)
-        if hasattr(self, "prefab_open_button"):
-            self.prefab_open_button.setEnabled(self._open_prefab is not None and bool(self.selected_prefab()))
+        if hasattr(self, "prefab_search_button"):
+            ready = self._prefab_search is not None and not self.loading and not self._prefab_searching
+            self.prefab_search_button.setEnabled(ready)
+            self.prefab_search_button.setToolTip(
+                "Waiting for the game's file index." if self.loading and not self.load_failed
+                else "The first search reads every prefab and takes a few minutes; later searches are quick.")
 
     def _export_clicked(self) -> None:
         if self._chart is not None and self._export is not None:
@@ -714,22 +813,42 @@ class SpeedTuningDialog(QDialog):
     def _search_prefabs(self) -> None:
         if self._prefab_search is None:
             return
-        self.prefab_status_label.setText("Searching the game's prefabs...")
-        self.prefab_search_button.setEnabled(False)
+        self._prefab_searching = True
+        self.prefab_status_label.setText("Searching the game's prefabs…")
+        self.prefab_progress.setRange(0, 0)
+        self.prefab_progress.setVisible(True)
+        self._sync_buttons()
         self._prefab_search(self.prefab_category())
+
+    def show_prefab_progress(self, done: int, total: int, detail: str = "") -> None:
+        """How far the caller's search worker got; ``total`` 0 keeps the bar moving without a count."""
+
+        if total > 0:
+            self.prefab_progress.setRange(0, int(total))
+            self.prefab_progress.setValue(min(int(done), int(total)))
+            self.prefab_status_label.setText(detail or f"{done:,} of {total:,} prefabs read…")
+        elif detail:
+            self.prefab_status_label.setText(detail)
+        self.prefab_progress.setVisible(True)
 
     def show_prefab_results(self, rows: Sequence[Mapping[str, object]], *, note: str = "") -> None:
         """Rows with path, category label and members; called by the caller's search worker."""
 
-        self.prefab_search_button.setEnabled(self._prefab_search is not None)
+        self._prefab_searching = False
+        self.prefab_progress.setVisible(False)
         self.prefab_table.setRowCount(len(rows))
         for number, row in enumerate(rows):
-            path = QTableWidgetItem(str(row.get("path", "")))
-            path.setData(_PATH_ROLE, str(row.get("path", "")))
+            full = str(row.get("path", ""))
+            path = QTableWidgetItem(full.rsplit("/", 1)[-1])
+            path.setData(_PATH_ROLE, full)
+            path.setToolTip(full)
             self.prefab_table.setItem(number, 0, path)
             self.prefab_table.setItem(number, 1, QTableWidgetItem(str(row.get("category_label", row.get("category", "")))))
-            self.prefab_table.setItem(number, 2, QTableWidgetItem(", ".join(str(m) for m in row.get("members", ()))))
-        self.prefab_status_label.setText(note or f"{len(rows)} prefab(s) found.")
+            members = [str(m) for m in row.get("members", ())]
+            cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
+            cell.setToolTip("\n".join(members))
+            self.prefab_table.setItem(number, 2, cell)
+        self.prefab_status_label.setText(note or f"{len(rows):,} prefab(s) found.")
         self._sync_buttons()
 
     def selected_prefab(self) -> str:
@@ -739,10 +858,60 @@ class SpeedTuningDialog(QDialog):
         item = self.prefab_table.item(rows[0].row(), 0)
         return str(item.data(_PATH_ROLE)) if item is not None else ""
 
-    def _open_selected_prefab(self) -> None:
+    def _prefab_selected(self) -> None:
         path = self.selected_prefab()
-        if path and self._open_prefab is not None:
+        if path and path != self._prefab_path and self._open_prefab is not None:
             self._open_prefab(path)
 
+    def show_prefab_inspector(self, path: str, inspector: Optional[QWidget], *, note: str = "") -> None:
+        """Show ``inspector`` beside the list for ``path``; None shows ``note`` instead."""
 
-__all__ = ["SpeedTuningDialog", "WINDOW_TITLE", "plan_summary"]
+        old = self.prefab_inspector
+        self.prefab_inspector = inspector
+        self._prefab_path = path if inspector is not None else ""
+        if inspector is not None:
+            self.prefab_host.addWidget(inspector)
+            self.prefab_host.setCurrentWidget(inspector)
+        else:
+            self.prefab_empty_detail.setText(note or "Search, then pick a prefab to see and scale its speed values here.")
+            self.prefab_host.setCurrentIndex(0)
+        if old is not None and old is not inspector:
+            self.prefab_host.removeWidget(old)
+            old.deleteLater()
+
+    def state(self) -> dict[str, object]:
+        """What the tab shows, for the speed.workspace tool."""
+
+        chart = self._chart
+        editor = getattr(self.game_table_panel, "editor", None)
+        return {
+            "page": self.current_page(),
+            "loading": self.loading and not self.load_failed,
+            "load_error": self.loading_detail.text() if self.load_failed else "",
+            "characters": [character.name for character in self._characters],
+            "set": chart.path if chart is not None else "",
+            "set_label": chart.label if chart is not None else "",
+            "factors": self.factors().to_data() if chart is not None else None,
+            "linked": list(self.linked_paths()),
+            "can_export": self.export_button.isEnabled(),
+            "review": self.review_text.toPlainText(),
+            "prefab_category": self.prefab_category(),
+            "prefab_searching": self._prefab_searching,
+            "prefab_status": self.prefab_status_label.text(),
+            "prefabs": [str(self.prefab_table.item(row, 0).data(_PATH_ROLE))
+                        for row in range(self.prefab_table.rowCount())],
+            "prefab_open": self._prefab_path,
+            "table": editor.current_table() if editor is not None else "",
+            "table_loaded": editor.loaded_table() if editor is not None else "",
+        }
+
+
+def _short_member(member: str) -> str:
+    """`CloudDensityVolumeComponent._cloudDriftSpeed` reads as `CloudDensityVolume.cloudDriftSpeed`."""
+
+    owner, _, field = member.partition(".")
+    owner = owner.removesuffix("Component")
+    return f"{owner}.{field.lstrip('_')}" if field else owner
+
+
+__all__ = ["SpeedPrefabsWorkspace", "TOOL_TITLE", "plan_summary"]

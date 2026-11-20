@@ -10996,14 +10996,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Could not open Speed Tuning: {result}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 102
-    }
-  },
-  {
-    "area": "archive",
     "message": "Could not open {chart_path}: {result}",
     "recovery": "internal",
     "sources": {
@@ -11052,6 +11044,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Could not read the action charts: {result}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 176
+    }
+  },
+  {
+    "area": "archive",
     "message": "Could not read the character action packages: {result}",
     "recovery": "format",
     "sources": {
@@ -11080,15 +11080,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/action_chart_actions.py": 354
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Could not read {path}: {exc}",
-    "recovery": "format",
-    "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 272,
-      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 523
     }
   },
   {
@@ -12802,7 +12793,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before writing it.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/game_table_actions.py": 135
+      "cdmw/ui/archive_browser/game_table_actions.py": 191
     }
   },
   {
@@ -12931,7 +12922,7 @@ MESSAGE_REFERENCE = [
     "message": "No character action charts were found in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 61
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 63
     }
   },
   {
@@ -15352,18 +15343,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Speed Tuning could not read the action charts.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 224
-    }
-  },
-  {
-    "area": "archive",
     "message": "Speed Tuning export failed: {result}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 216
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 236
     }
   },
   {
@@ -16473,6 +16456,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The game's action charts are still being read.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 110
+    }
+  },
+  {
+    "area": "archive",
     "message": "The gimmick cache header is truncated.",
     "recovery": "format",
     "sources": {
@@ -16943,14 +16934,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 179
-    }
-  },
-  {
-    "area": "archive",
-    "message": "These factors cannot be applied: {exc}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 681
     }
   },
   {
@@ -21182,7 +21165,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not check what else uses {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 697
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 717
     }
   },
   {
@@ -21319,6 +21302,14 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/prefab_inspector_actions.py": 77
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Could not read {path}: {exc}",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/speed_prefabs/workspace.py": 618
     }
   },
   {
@@ -22182,7 +22173,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to apply: nothing was changed.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 899
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 919
     }
   },
   {
@@ -22198,7 +22189,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing written: you cancelled at the review step.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 902
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 922
     }
   },
   {
@@ -22367,7 +22358,7 @@ MESSAGE_REFERENCE = [
     "message": "Partly read. {head}{where} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{caveat}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 307
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 326
     }
   },
   {
@@ -23152,7 +23143,7 @@ MESSAGE_REFERENCE = [
     "message": "Refused: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 939,
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 959,
       "cdmw/ui/archive_browser/prefab_inspector_structure.py": 130
     }
   },
@@ -23507,6 +23498,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_hkx_editing.py": 389
+    }
+  },
+  {
+    "area": "formats",
+    "message": "The action charts could not be read.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/speed_prefabs/workspace.py": 251
     }
   },
   {
@@ -23896,6 +23895,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "These factors cannot be applied: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/speed_prefabs/workspace.py": 776
+    }
+  },
+  {
+    "area": "formats",
     "message": "This HKX file has no joints CDMW can edit.",
     "recovery": "internal",
     "sources": {
@@ -23923,7 +23930,7 @@ MESSAGE_REFERENCE = [
     "message": "This file could not be read as a prefab: {self._error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 256
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 275
     }
   },
   {
@@ -26105,7 +26112,7 @@ MESSAGE_REFERENCE = [
     "message": "{companion.role} ({companion.detail}) is MISSING: nothing at {companion.path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 598
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 618
     }
   },
   {
@@ -34727,7 +34734,7 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 341
+      "cdmw/ui/new_item/game_tables_editor.py": 382
     }
   },
   {
@@ -78895,7 +78902,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact status providers must cover the stable tool registry.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/compact/snapshots.py": 392
+      "cdmw/ui/shell/compact/snapshots.py": 401
     }
   },
   {
@@ -78919,7 +78926,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact tool categories must match the stable category order.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/compact/registry.py": 38
+      "cdmw/ui/shell/compact/registry.py": 39
     }
   },
   {
@@ -78927,7 +78934,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact tool keys must be unique.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/shell/compact/registry.py": 36
+      "cdmw/ui/shell/compact/registry.py": 37
     }
   },
   {
@@ -86928,6 +86935,14 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/mod_merge_service.py": 285
+    }
+  },
+  {
+    "area": "other",
+    "message": "The game's file index is still being read; try again shortly.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 288
     }
   },
   {
@@ -111974,7 +111989,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/speed_tools.py": {
     "code": 8,
-    "raise": 9,
+    "raise": 10,
     "report": 1
   },
   "cdmw/mcp/summary.py": {},
@@ -113962,12 +113977,9 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/archive_browser/speed_tuning_actions.py": {
     "dialog": 1,
-    "display": 3,
+    "display": 2,
     "failure": 1,
-    "raise": 1
-  },
-  "cdmw/ui/archive_browser/speed_tuning_dialog.py": {
-    "display": 3
+    "raise": 2
   },
   "cdmw/ui/archive_browser/static_preview_thumbnail.py": {},
   "cdmw/ui/archive_browser/static_replacement_accept_state.py": {
@@ -115358,6 +115370,10 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/window_runtime_state.py": {},
   "cdmw/ui/shell/workbench.py": {},
   "cdmw/ui/shell/workspace_controller.py": {
+    "display": 3
+  },
+  "cdmw/ui/speed_prefabs/__init__.py": {},
+  "cdmw/ui/speed_prefabs/workspace.py": {
     "display": 3
   },
   "cdmw/ui/startup_splash_host.py": {},
