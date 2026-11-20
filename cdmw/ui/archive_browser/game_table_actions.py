@@ -69,6 +69,8 @@ class GameTableEditPanel(QWidget):
         else:
             layout.addLayout(row)
         self.layers: dict[str, list] = {}
+        #: Tables being read or waiting to be, so a second click starts no second read.
+        self.loading: set[str] = set()
         self.editor.edits_changed.connect(self._update_write)
         self._update_write()
 
@@ -105,6 +107,10 @@ class GameTableEditDialog(QDialog):
     @property
     def layers(self) -> dict[str, list]:
         return self.panel.layers
+
+    @property
+    def loading(self) -> set[str]:
+        return self.panel.loading
 
     def _update_write(self, *_args) -> None:
         self.panel._update_write()
@@ -153,12 +159,12 @@ class ArchiveGameTableActionsMixin:
 
     def _load_game_table(self, dialog: GameTableEditDialog, table: str) -> None:
         # Reading a table waits its turn behind another task (such as Speed & Prefabs reading
-        # the action charts) instead of refusing; writing still refuses, below.
-        when_idle = getattr(self.shell, "_run_utility_task_when_idle", None)
-        if when_idle is None and self._game_table_task_refused(dialog):
+        # the action charts or searching prefabs) instead of refusing; writing still refuses, below.
+        from cdmw.ui.archive_browser.shell_idle import run_task_when_shell_idle
+
+        if table in dialog.loading:
             return
-        if when_idle is not None and self.shell._background_task_active():
-            dialog.editor.message.setText("Waiting for the current background task, then reading the table…")
+        dialog.loading.add(table)
         root = self._game_table_root()
         entries = tuple(getattr(self, "archive_entries", ()) or ())
         scan = (lambda _root: entries) if entries else None
@@ -168,21 +174,30 @@ class ArchiveGameTableActionsMixin:
             return layers, load_table_index(table, layers, stop_event=stop_event)
 
         def _loaded(result) -> None:
-            layers, index = result
+            dialog.loading.discard(table)
+            layers, index = result if isinstance(result, tuple) and len(result) == 2 else (None, None)
             if not isinstance(index, TableEditIndex):
                 dialog.editor.show_error("Reading the table returned unexpected data.")
                 return
             dialog.layers[table] = layers
-            dialog.editor.set_index(index)
+            editor = dialog.editor
+            if editor.current_table() != table and editor.loaded_table() == editor.current_table():
+                # The user went back to the table that is still shown while this one was read.
+                editor.refresh_loaded()
+                return
+            editor.set_index(index)
 
-        if when_idle is not None:
-            self.shell._run_utility_task_when_idle(status_message=f"Reading the {table} table...", task=_load,
-                                                   on_complete=_loaded, on_error=dialog.editor.show_error,
-                                                   task_accepts_cancel=True)
-        else:
-            self.shell._run_utility_task(status_message=f"Reading the {table} table...", task=_load,
-                                         on_complete=_loaded, on_error=dialog.editor.show_error,
-                                         task_accepts_cancel=True)
+        def _failed(message: str) -> None:
+            dialog.loading.discard(table)
+            dialog.editor.show_error(message)
+
+        def _waiting() -> None:
+            dialog.editor.set_loading(True)
+            dialog.editor.message.setText("Waiting for the current background task, then reading the table…")
+
+        run_task_when_shell_idle(self.shell, dialog, status_message=f"Reading the {table} table...", task=_load,
+                                 on_complete=_loaded, on_error=_failed, on_waiting=_waiting,
+                                 on_start=lambda: dialog.editor.set_loading(True), task_accepts_cancel=True)
 
     def _write_game_table_mod(self, dialog: GameTableEditDialog) -> None:
         edits = dialog.editor.edits()

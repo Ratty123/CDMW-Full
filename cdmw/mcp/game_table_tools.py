@@ -7,6 +7,10 @@ pressing the dialog's own controls, so its range checks and its DLC-only
 refusal apply. ``tables.editor_write`` presses Write DMM Mod; the mod goes into
 DMM's mods folder, never into the game.
 
+The same editor sits on the Game tables page of the Speed & Prefabs tab
+(experimental) with its own changes and mod name; ``where`` "speed_prefabs"
+points the three tools at that page instead of the dialog.
+
 Nothing here reads or writes a table itself: loading and writing run on the
 shell's worker as the dialog's buttons start them.
 """
@@ -18,10 +22,16 @@ from pathlib import Path
 
 from cdmw.mcp.errors import INVALID_ARGUMENTS, NOT_FOUND, REFUSED, UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, OUTPUT, READ
-from cdmw.mcp.rail_actions import BOOL, PATH, ROW, TEXT, choices, press, required, tool, ui, window
+from cdmw.mcp.rail_actions import BOOL, PATH, ROW, TEXT, choices, page, press, required, tool, ui, window
 
 PAGE = 100
 _KEY = {"type": "integer"}
+SPEED_TAB = "speed_prefabs"
+#: The tables the Speed & Prefabs tab offers on its Game tables page.
+SPEED_TABLES = ("aimovespeedinfo", "gimmickinfo")
+_WHERE = {"type": "string", "enum": ["dialog", SPEED_TAB], "default": "dialog",
+          "description": "dialog is Browse Archives' Edit Game Table Values window; speed_prefabs is the Game "
+                         "tables page of the Speed & Prefabs tab (experimental), which holds its own changes."}
 
 
 def _archive(call):
@@ -31,7 +41,18 @@ def _archive(call):
     return archive
 
 
-def _dialog(archive, *, needed=True):
+def _speed_tab(call):
+    """The Speed & Prefabs tab, or None when the call is about the dialog."""
+
+    if (call.arguments.get("where") or "dialog") != SPEED_TAB:
+        return None
+    return page(call, SPEED_TAB)
+
+
+def _dialog(archive, *, needed=True, tab=None):
+    if tab is not None:
+        # The tab's page has the dialog's parts: editor, mod_name, write and layers.
+        return tab.game_table_panel
     dialog = getattr(archive, "_game_table_dialog", None)
     if dialog is None and needed:
         raise ToolError(UNAVAILABLE, "Edit Game Table Values is not open. Open it with tables_editor_edit "
@@ -59,21 +80,22 @@ def _values(editor, row) -> list[dict[str, object]]:
     return values
 
 
-def _state(archive, arguments=None) -> dict[str, object]:
+def _state(archive, arguments=None, *, tab=None) -> dict[str, object]:
     from cdmw.ui.new_item.game_tables_editor import table_names
 
     arguments = arguments or {}
-    dialog = _dialog(archive, needed=False)
+    dialog = _dialog(archive, needed=False, tab=tab)
+    tables = sorted(_editable()) if tab is None else list(SPEED_TABLES)
     if dialog is None:
-        return {"open": False, "tables": sorted(_editable())}
+        return {"open": False, "tables": tables}
     editor = dialog.editor
     index = _index(editor)
-    names = table_names()
+    names = table_names(include_speed=True)
     state: dict[str, object] = {
         "open": dialog.isVisible(), "table": editor.current_table(), "loaded": editor.loaded_table(),
         "loading": not editor.load.isEnabled(), "message": editor.message.text(),
         "mod_name": dialog.mod_name.text(), "can_write": dialog.write.isEnabled(),
-        "tables": sorted(_editable()),
+        "tables": tables,
         "changes": [{"change": position, "table": edit.table, "table_name": names.get(edit.table, edit.table),
                      "row": edit.key, "target": str(edit.target), "value": edit.value}
                     for position, edit in enumerate(editor.edits())],
@@ -109,7 +131,19 @@ def _row(index, key):
 
 
 def _read(call):
-    return ui(call, lambda: _state(_archive(call), call.arguments))
+    return ui(call, lambda: _state(_archive(call), call.arguments, tab=_speed_tab(call)))
+
+
+def _show_speed_table(call, tab, args) -> None:
+    """Show the tab's Game tables page on one of its two tables, as its own buttons do."""
+
+    table = str(args.get("table") or "")
+    if table not in SPEED_TABLES:
+        raise ToolError(INVALID_ARGUMENTS, "The Speed & Prefabs tab offers these tables: " + ", ".join(SPEED_TABLES)
+                        + ". Other tables open in the dialog.", {"tables": list(SPEED_TABLES)})
+    window(call).shell._activate_tool_key(SPEED_TAB)
+    tab.open_table(table)  # before the page, whose first visit would read the other table
+    tab.show_page("tables")
 
 
 def _show_row(editor, key) -> None:
@@ -160,10 +194,14 @@ def _edit(call):
 
     def change():
         archive = _archive(call)
+        tab = _speed_tab(call)
+        if tab is not None and action in ("open", "load"):
+            _show_speed_table(call, tab, args)
+            return _state(archive, tab=tab)
         if action == "open":
             _open(archive, args)
             return _state(archive)
-        dialog = _dialog(archive)
+        dialog = _dialog(archive, tab=tab)
         editor = dialog.editor
         if action == "load":
             table = required(args, "table")
@@ -175,14 +213,14 @@ def _edit(call):
             return _state(archive)
         if action == "name":
             dialog.mod_name.setText(str(required(args, "name")).strip())
-            return _state(archive)
+            return _state(archive, tab=tab)
         if action == "remove":
             position = required(args, "change")
             if not 0 <= position < editor.pending.rowCount():
                 raise ToolError(NOT_FOUND, "There is no change with that number; tables_editor_state lists them.")
             editor.pending.selectRow(position)
             press(editor.remove)
-            return _state(archive)
+            return _state(archive, tab=tab)
         index = _index(editor)
         if index is None:
             raise ToolError(UNAVAILABLE, "Load a table first.")
@@ -198,7 +236,7 @@ def _edit(call):
                 raise ToolError(INVALID_ARGUMENTS, editor.message.text())
         else:  # restore
             press(editor.restore)
-        return _state(archive, {"row": row.key})
+        return _state(archive, {"row": row.key}, tab=tab)
 
     return ui(call, change)
 
@@ -219,11 +257,12 @@ def _write(call):
 
     def write():
         archive = _archive(call)
-        dialog = _dialog(archive)
+        tab = _speed_tab(call)
+        dialog = _dialog(archive, tab=tab)
         if args.get("name"):
             dialog.mod_name.setText(str(args["name"]).strip())
         press(dialog.write)
-        return {**_state(archive), "dmm_mods_folder": str(mods) if mods is not None else ""}
+        return {**_state(archive, tab=tab), "dmm_mods_folder": str(mods) if mods is not None else ""}
 
     return ui(call, write, answers)
 
@@ -267,24 +306,28 @@ def game_table_tools():
     return [
         tool("tables.editor_state", READ,
              "Read Browse Archives' Edit Game Table Values dialog: the loaded table, its rows in pages (query "
-             "filters by name or key), one row's values with row, and the changes in this mod.",
+             "filters by name or key), one row's values with row, and the changes in this mod. where "
+             "speed_prefabs reads the Game tables page of the Speed & Prefabs tab instead (experimental).",
              "ui:GameTableEditDialog", _read,
              {"query": TEXT, "offset": ROW, "count": {"type": "integer", "minimum": 1, "maximum": 500},
-              "row": _KEY}),
+              "row": _KEY, "where": _WHERE}),
         tool("tables.editor_edit", EDIT,
              "Work Edit Game Table Values: open it on a table (table, or path of a .staticinfobody file), load "
              "another table, set a value (row, value, new_value) or restore it, remove a change, or name the "
-             "mod. The dialog's own range checks apply; DLC-only rows cannot change.",
+             "mod. The dialog's own range checks apply; DLC-only rows cannot change. where speed_prefabs works "
+             "the Game tables page of the Speed & Prefabs tab instead (experimental): open and load show the "
+             "page on aimovespeedinfo or gimmickinfo.",
              "ui:GameTableEditDialog.editor", _edit,
              {"action": choices("open", "load", "set", "restore", "remove", "name"), "table": TEXT, "path": PATH,
               "row": _KEY, "value": ROW, "new_value": {"type": ["string", "number"]}, "change": ROW,
-              "name": TEXT},
+              "name": TEXT, "where": _WHERE},
              ("action",)),
         tool("tables.editor_write", OUTPUT,
              "Press Write DMM Mod: write the changed tables as a new mod in DMM's mods folder. The game's "
-             "archives are not changed. replace writes over a mod of the same name CDMW wrote earlier.",
+             "archives are not changed. replace writes over a mod of the same name CDMW wrote earlier. where "
+             "speed_prefabs presses it on the Game tables page of the Speed & Prefabs tab (experimental).",
              "ui:GameTableEditDialog.write", _write,
-             {"name": TEXT, "dmm_folder": PATH, "replace": BOOL}, output_folders=("dmm_folder",)),
+             {"name": TEXT, "dmm_folder": PATH, "replace": BOOL, "where": _WHERE}, output_folders=("dmm_folder",)),
     ]
 
 

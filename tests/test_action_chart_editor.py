@@ -839,7 +839,7 @@ def test_the_action_charts_button_works_with_nothing_selected(qt_app):
     button = ArchiveActionChartActionsMixin._build_action_chart_button(browser)
     actions = button.menu().actions()
     assert [action.text() for action in actions] == ["Find Action Chart by Character...", "Open Action Chart Mod...",
-                                                     "Speed Tuning (Experimental)..."]
+                                                     "Speed & Prefabs (Experimental)..."]
     for action in actions:
         action.trigger()
     assert triggered == ["find", "mod", "speed"]

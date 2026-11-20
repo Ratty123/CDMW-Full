@@ -173,6 +173,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # expected bytes are what makes the staleness check able to fail.
         self._value_edits: dict[int, tuple[bytes, bytes]] = {}
         self.result_payload: PrefabInspectorResult | None = None
+        # The payload Save changes last handed to on_save; a later edit makes it stale.
+        self._saved_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
         # It costs a second decode, so it is computed once per payload: here,
@@ -185,6 +187,22 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             self._error = str(exc)
         self._speed_filter_requested = bool(speed_filter)
         self._build_ui()
+
+    # -- embedded in another tool ------------------------------------------
+    def done(self, result: int) -> None:  # noqa: A003 - Qt override
+        # Esc, Enter and anything else that closes a dialog would hide an embedded inspector
+        # and leave an empty space in its host; there it stays until the host replaces it.
+        if not self._embedded:
+            super().done(result)
+
+    def has_unsaved_changes(self) -> bool:
+        """Edited rows or object changes that Save changes has not handed over yet."""
+
+        return self.revert_button.isEnabled() and not self._handed_over()
+
+    def _handed_over(self) -> bool:
+        payload = self.result_payload
+        return payload is not None and payload is self._saved_payload
 
     # -- construction ----------------------------------------------------
     def _build_ui(self) -> None:
@@ -240,7 +258,10 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
         self.apply_button.setToolTip(
-            "Build the edited file. You choose where to save the mod package after "
+            "Build the edited file. You choose where to save the mod package next; "
+            "the game files are never touched."
+            if self._embedded
+            else "Build the edited file. You choose where to save the mod package after "
             "closing this window; the game files are never touched."
         )
         self.revert_button = QPushButton("Undo all changes")
@@ -416,7 +437,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.speed_only_box = QCheckBox("Speed values (experimental)")
         self.speed_only_box.setObjectName("prefabSpeedOnlyBox")
         self.speed_only_box.setToolTip(
-            "Show only the speed values Speed Tuning knows: camera speeds, spin and wind speed-up, cloud drift. "
+            "Show only the speed values Speed & Prefabs knows: camera speeds, spin and wind speed-up, cloud drift. "
             "Prefab speed edits have not been tested in game."
         )
         self.speed_only_box.toggled.connect(lambda _on: self._apply_object_filter())
@@ -737,6 +758,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             self._log(f"    ... and {len(others) - 40:,} more")
 
     def _refresh_pending_state(self) -> None:
+        self._saved_payload = None  # an edit since the last Save changes
         replacements = self.collect_replacements()
         warnings = [
             self._warning_for(old, new)
@@ -1001,8 +1023,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             "where to save the mod package."
         )
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)
-        if self._on_save is not None:
-            self._on_save(result.data, summary)
+        self._saved_payload = self.result_payload
+        if self._on_save is not None and self._on_save(result.data, summary) is False:
+            self._saved_payload = None  # the host's export was cancelled: the edits are still unsaved
 
 
 __all__ = ["PrefabInspectorDialog", "PrefabInspectorResult"]

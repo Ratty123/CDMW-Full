@@ -3050,6 +3050,7 @@ ERROR_REFERENCE = [
       "That cell holds a whole number.",
       "That name is empty once cleaned up.",
       "That page token belongs to another tool.",
+      "The Speed & Prefabs tab offers these tables: {detail}. Other tables open in the dialog.",
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
@@ -3659,6 +3660,7 @@ ERROR_REFERENCE = [
       "The loaded archive index has no such texture.",
       "The loaded {index.table} table has no row {key}.",
       "The mesh has parts 0 to {len(parts) - 1}.",
+      "The tab lists no set {arguments['set']}; speed_sets lists them.",
       "The table has {table.rowCount()} rows.",
       "There is no animation {index}; files_action_chart_state lists them.",
       "There is no animation {index}; this chart has {len(chart.animations)}.",
@@ -3689,6 +3691,7 @@ ERROR_REFERENCE = [
       "This appearance lists no piece {a['piece']}.",
       "This event has no field {field}.",
       "This joint has no {key}.",
+      "This set has no move {detail}; speed_set lists its clips.",
       "{clean_label(action.text())} has no submenu.",
       "{clean_label(found.text())} has no submenu.",
       "{dialog.table_combo.itemText(table)} has no entry {old}.",
@@ -3905,6 +3908,7 @@ ERROR_REFERENCE = [
       "The edit was not applied.",
       "The export stopped; see asked for the window's message.",
       "The export was refused.",
+      "The prefab open in the tab has unsaved changes. Save them there, or give discard_changes to drop them.",
       "The review lists warnings; give accept_warnings to save anyway.",
       "This event has no fields CDMW can change.",
       "This row exists only in the DLC copy; a DMM mod cannot change it.",
@@ -11047,7 +11051,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the action charts: {result}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 176
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 195
     }
   },
   {
@@ -12793,7 +12797,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod before writing it.",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/game_table_actions.py": 195
+      "cdmw/ui/archive_browser/game_table_actions.py": 210
     }
   },
   {
@@ -12922,7 +12926,7 @@ MESSAGE_REFERENCE = [
     "message": "No character action charts were found in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 63
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 64
     }
   },
   {
@@ -15346,7 +15350,7 @@ MESSAGE_REFERENCE = [
     "message": "Speed Tuning export failed: {result}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 236
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 261
     }
   },
   {
@@ -16459,7 +16463,7 @@ MESSAGE_REFERENCE = [
     "message": "The game's action charts are still being read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 110
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 116
     }
   },
   {
@@ -21165,7 +21169,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not check what else uses {path}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 726
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 747
     }
   },
   {
@@ -21309,7 +21313,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 704
+      "cdmw/ui/speed_prefabs/workspace.py": 775
     }
   },
   {
@@ -22173,7 +22177,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to apply: nothing was changed.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 928
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 950
     }
   },
   {
@@ -22189,7 +22193,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing written: you cancelled at the review step.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 931
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 953
     }
   },
   {
@@ -22358,7 +22362,7 @@ MESSAGE_REFERENCE = [
     "message": "Partly read. {head}{where} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{caveat}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 333
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 354
     }
   },
   {
@@ -23143,7 +23147,7 @@ MESSAGE_REFERENCE = [
     "message": "Refused: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 968,
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 990,
       "cdmw/ui/archive_browser/prefab_inspector_structure.py": 130
     }
   },
@@ -23505,7 +23509,7 @@ MESSAGE_REFERENCE = [
     "message": "The action charts could not be read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 312
+      "cdmw/ui/speed_prefabs/workspace.py": 340
     }
   },
   {
@@ -23898,7 +23902,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 872
+      "cdmw/ui/speed_prefabs/workspace.py": 954
     }
   },
   {
@@ -23930,7 +23934,7 @@ MESSAGE_REFERENCE = [
     "message": "This file could not be read as a prefab: {self._error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 282
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 303
     }
   },
   {
@@ -26112,7 +26116,7 @@ MESSAGE_REFERENCE = [
     "message": "{companion.role} ({companion.detail}) is MISSING: nothing at {companion.path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 627
+      "cdmw/ui/archive_browser/prefab_inspector_dialog.py": 648
     }
   },
   {
@@ -34734,7 +34738,7 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 414
+      "cdmw/ui/new_item/game_tables_editor.py": 423
     }
   },
   {
@@ -77404,7 +77408,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/mcp/action_chart_tools.py": 31,
       "cdmw/mcp/decal_tools.py": 35,
-      "cdmw/mcp/game_table_tools.py": 30,
+      "cdmw/mcp/game_table_tools.py": 40,
       "cdmw/mcp/sound_tools.py": 29
     }
   },
@@ -77533,7 +77537,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not know DMM's folder yet. Give dmm_folder: the folder that contains DMM.exe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 254
+      "cdmw/mcp/game_table_tools.py": 293
     }
   },
   {
@@ -77589,7 +77593,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no proven values to edit in the {table} table.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 151
+      "cdmw/mcp/game_table_tools.py": 185
     }
   },
   {
@@ -80042,7 +80046,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Game Table Values is not open. Open it with tables_editor_edit action open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 37
+      "cdmw/mcp/game_table_tools.py": 58
     }
   },
   {
@@ -80820,7 +80824,7 @@ MESSAGE_REFERENCE = [
     "message": "Give either factor (with optional offsets or category) or values.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 228
+      "cdmw/mcp/speed_tools.py": 233
     }
   },
   {
@@ -80892,7 +80896,7 @@ MESSAGE_REFERENCE = [
     "message": "Give the table, or the archive path of a .staticinfobody or .staticinfoheader file.",
     "recovery": "format",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 148
+      "cdmw/mcp/game_table_tools.py": 182
     }
   },
   {
@@ -82622,7 +82626,7 @@ MESSAGE_REFERENCE = [
     "message": "Load a table first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 188
+      "cdmw/mcp/game_table_tools.py": 226
     }
   },
   {
@@ -83183,7 +83187,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the mod (at most 120 characters).",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 635
+      "cdmw/services/animation_speed_service.py": 638
     }
   },
   {
@@ -83489,7 +83493,7 @@ MESSAGE_REFERENCE = [
     "message": "No game folder is set: the user sets it in Settings > Paths.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 52
+      "cdmw/mcp/speed_tools.py": 57
     }
   },
   {
@@ -83618,6 +83622,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/recolor_variants.py": 358
+    }
+  },
+  {
+    "area": "other",
+    "message": "No set is open in the tab; give set (speed_sets lists them).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 338
     }
   },
   {
@@ -85059,7 +85071,7 @@ MESSAGE_REFERENCE = [
     "message": "Row {key} is not listed in the dialog.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 123
+      "cdmw/mcp/game_table_tools.py": 157
     }
   },
   {
@@ -85067,7 +85079,7 @@ MESSAGE_REFERENCE = [
     "message": "Row {row.key} has values 0 to {len(row.values) - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 134
+      "cdmw/mcp/game_table_tools.py": 168
     }
   },
   {
@@ -85758,7 +85770,7 @@ MESSAGE_REFERENCE = [
     "message": "Speed factors must be an object with set, kinds and moves.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 145
+      "cdmw/services/animation_speed_service.py": 148
     }
   },
   {
@@ -86190,7 +86202,7 @@ MESSAGE_REFERENCE = [
     "message": "That value is not listed in the dialog.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 139
+      "cdmw/mcp/game_table_tools.py": 173
     }
   },
   {
@@ -86359,6 +86371,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/setup_tools.py": 73
+    }
+  },
+  {
+    "area": "other",
+    "message": "The Speed & Prefabs tab offers these tables: {detail}. Other tables open in the dialog.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/game_table_tools.py": 142
     }
   },
   {
@@ -86718,7 +86738,7 @@ MESSAGE_REFERENCE = [
     "message": "The dialog lists no table {table}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 172
+      "cdmw/mcp/game_table_tools.py": 210
     }
   },
   {
@@ -86939,14 +86959,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The game's file index is still being read; try again shortly.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/mcp/speed_tools.py": 288
-    }
-  },
-  {
-    "area": "other",
     "message": "The game's mount list ({MOUNT_LIST}) still names {', '.join(mount_entries)}, and CDMW cannot rewrite the mount list of the current game version. Use Steam's Verify integrity of game files first, then check again.",
     "recovery": "write",
     "sources": {
@@ -87134,7 +87146,7 @@ MESSAGE_REFERENCE = [
     "message": "The loaded {index.table} table has no row {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 107
+      "cdmw/mcp/game_table_tools.py": 129
     }
   },
   {
@@ -87334,7 +87346,7 @@ MESSAGE_REFERENCE = [
     "message": "The modded copy of {path} has a different layout than the game's.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 362
+      "cdmw/services/animation_speed_service.py": 365
     }
   },
   {
@@ -87423,7 +87435,7 @@ MESSAGE_REFERENCE = [
     "message": "The package path must end in {PACKAGE_EXTENSION}.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 215
+      "cdmw/mcp/speed_tools.py": 220
     }
   },
   {
@@ -87464,6 +87476,22 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/painting_picture.py": 177
+    }
+  },
+  {
+    "area": "other",
+    "message": "The prefab open in the tab has unsaved changes. Save them there, or give discard_changes to drop them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 297
+    }
+  },
+  {
+    "area": "other",
+    "message": "The prefab search cannot start now.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 331
     }
   },
   {
@@ -87820,6 +87848,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "The tab lists no set {arguments['set']}; speed_sets lists them.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 336
+    }
+  },
+  {
+    "area": "other",
     "message": "The table does not parse back the way it was rewritten.",
     "recovery": "format",
     "sources": {
@@ -88080,7 +88116,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no change with that number; tables_editor_state lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 182
+      "cdmw/mcp/game_table_tools.py": 220
     }
   },
   {
@@ -88184,7 +88220,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors change no speed value in this set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 650
+      "cdmw/services/animation_speed_service.py": 653
     }
   },
   {
@@ -88192,7 +88228,7 @@ MESSAGE_REFERENCE = [
     "message": "These values change nothing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 230
+      "cdmw/mcp/speed_tools.py": 235
     }
   },
   {
@@ -88440,7 +88476,15 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 194
+      "cdmw/mcp/game_table_tools.py": 232
+    }
+  },
+  {
+    "area": "other",
+    "message": "This set has no move {detail}; speed_set lists its clips.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/speed_tools.py": 349
     }
   },
   {
@@ -88728,7 +88772,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 171
+      "cdmw/mcp/speed_tools.py": 176
     }
   },
   {
@@ -88784,7 +88828,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown move kind {kind}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 258
+      "cdmw/services/animation_speed_service.py": 261
     }
   },
   {
@@ -88792,7 +88836,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown move kind(s): {', '.join(unknown)}. Kinds are {', '.join(KIND_LABELS)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 150
+      "cdmw/services/animation_speed_service.py": 153
     }
   },
   {
@@ -92154,7 +92198,7 @@ MESSAGE_REFERENCE = [
       "cdmw/mcp/protocol_surface.py": 94,
       "cdmw/mcp/read_tools.py": 363,
       "cdmw/modding/working_mod_recipe.py": 123,
-      "cdmw/services/animation_speed_service.py": 443,
+      "cdmw/services/animation_speed_service.py": 446,
       "cdmw/services/diagnostic_bundle_service.py": 107,
       "cdmw/services/diagnostics_service.py": 233,
       "cdmw/services/old_install_removal.py": 596,
@@ -93223,7 +93267,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 695
+      "cdmw/services/animation_speed_service.py": 698
     }
   },
   {
@@ -93319,7 +93363,7 @@ MESSAGE_REFERENCE = [
     "message": "{destination} already exists; name a new package.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 217
+      "cdmw/mcp/speed_tools.py": 222
     }
   },
   {
@@ -93607,7 +93651,7 @@ MESSAGE_REFERENCE = [
     "message": "{given} is not DMM's folder (the one that contains DMM.exe).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 250
+      "cdmw/mcp/game_table_tools.py": 289
     }
   },
   {
@@ -94247,7 +94291,7 @@ MESSAGE_REFERENCE = [
     "message": "{other} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 580
+      "cdmw/services/animation_speed_service.py": 583
     }
   },
   {
@@ -94335,7 +94379,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not an editable action chart.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 414
+      "cdmw/services/animation_speed_service.py": 417
     }
   },
   {
@@ -94343,8 +94387,8 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 189,
-      "cdmw/services/animation_speed_service.py": 411
+      "cdmw/mcp/speed_tools.py": 194,
+      "cdmw/services/animation_speed_service.py": 414
     }
   },
   {
@@ -95016,7 +95060,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} must be between {MIN_FACTOR} and {MAX_FACTOR}; got {float(value)}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 250
+      "cdmw/services/animation_speed_service.py": 253
     }
   },
   {
@@ -95024,7 +95068,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} must be numbers between {MIN_FACTOR} and {MAX_FACTOR}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 248
+      "cdmw/services/animation_speed_service.py": 251
     }
   },
   {
@@ -111806,8 +111850,8 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/mcp/game_table_tools.py": {
-    "code": 14,
-    "raise": 17,
+    "code": 15,
+    "raise": 18,
     "report": 3
   },
   "cdmw/mcp/hkx_tools.py": {
@@ -111988,9 +112032,9 @@ SOURCE_COVERAGE = {
     "report": 2
   },
   "cdmw/mcp/speed_tools.py": {
-    "code": 8,
-    "raise": 10,
-    "report": 1
+    "code": 14,
+    "raise": 20,
+    "report": 3
   },
   "cdmw/mcp/summary.py": {},
   "cdmw/mcp/text_search_tools.py": {
@@ -113946,6 +113990,7 @@ SOURCE_COVERAGE = {
     "failure": 1,
     "report": 1
   },
+  "cdmw/ui/archive_browser/shell_idle.py": {},
   "cdmw/ui/archive_browser/sidecar_index.py": {
     "diagnostic_field": 1,
     "diagnostic_text": 1,

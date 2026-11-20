@@ -41,7 +41,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 233,
+          "line": 248,
           "sink": "information"
         }
       ]
@@ -421,7 +421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 158,
+          "line": 172,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -946,7 +946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 770,
+          "line": 792,
           "sink": "setText"
         }
       ]
@@ -991,7 +991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 158,
+          "line": 172,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -1461,7 +1461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 303,
+          "line": 306,
           "sink": "setText"
         }
       ]
@@ -1491,7 +1491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 303,
+          "line": 306,
           "sink": "setText"
         }
       ]
@@ -5091,7 +5091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 221,
+          "line": 240,
           "sink": "_hint"
         }
       ]
@@ -5156,7 +5156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 414,
+          "line": 466,
           "sink": "setToolTip"
         }
       ]
@@ -5326,7 +5326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 752,
+          "line": 823,
           "sink": "setToolTip"
         }
       ]
@@ -5466,7 +5466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 807,
+          "line": 829,
           "sink": "setToolTip"
         }
       ]
@@ -5476,17 +5476,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 207,
+          "line": 225,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 212,
+          "line": 230,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 217,
+          "line": 235,
           "sink": "QLabel"
         }
       ]
@@ -5836,7 +5836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 364,
+          "line": 415,
           "sink": "setToolTip"
         }
       ]
@@ -6196,7 +6196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 622,
+          "line": 681,
           "sink": "QPushButton"
         }
       ]
@@ -6776,12 +6776,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 421,
+          "line": 473,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 425,
+          "line": 477,
           "sink": "setToolTip"
         }
       ]
@@ -8466,7 +8466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
+          "line": 197,
           "sink": "getOpenFileName"
         }
       ]
@@ -8476,7 +8476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 156,
+          "line": 170,
           "sink": "addButton"
         }
       ]
@@ -10066,7 +10066,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 543,
+          "line": 598,
           "sink": "addItem"
         }
       ]
@@ -10791,7 +10791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 479,
+          "line": 532,
           "sink": "QCheckBox"
         }
       ]
@@ -10801,7 +10801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 481,
+          "line": 534,
           "sink": "setToolTip"
         }
       ]
@@ -11411,7 +11411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 146,
+          "line": 160,
           "sink": "setInformativeText"
         }
       ]
@@ -12006,7 +12006,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 236,
+          "line": 255,
           "sink": "addTab"
         }
       ]
@@ -12261,8 +12261,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 150,
+          "line": 156,
           "sink": "show_error"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/shell_idle.py",
+          "line": 46,
+          "sink": "on_error"
         }
       ]
     },
@@ -12861,7 +12866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 993,
+          "line": 1015,
           "sink": "_log"
         }
       ]
@@ -12906,7 +12911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 429,
+          "line": 481,
           "sink": "_hint"
         }
       ]
@@ -19011,7 +19016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 367,
+          "line": 413,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -19636,7 +19641,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 348,
+          "line": 357,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -23121,7 +23126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 231,
+          "line": 248,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -23571,7 +23576,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 242,
+          "line": 260,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Build the edited file. You choose where to save the mod package next; the game files are never touched.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
+          "line": 260,
           "sink": "setToolTip"
         }
       ]
@@ -23936,7 +23951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 222,
+          "line": 239,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -23946,7 +23961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 272,
+          "line": 289,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -27666,12 +27681,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 542,
+          "line": 597,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 565,
+          "line": 620,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -28236,7 +28251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 549,
+          "line": 570,
           "sink": "QAction"
         }
       ]
@@ -28261,7 +28276,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 631,
+          "line": 690,
           "sink": "_hint"
         }
       ]
@@ -28381,7 +28396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 610,
+          "line": 631,
           "sink": "setToolTip"
         }
       ]
@@ -28436,7 +28451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 232,
+          "line": 235,
           "sink": "QGroupBox"
         }
       ]
@@ -28591,7 +28606,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 370,
+          "line": 421,
           "sink": "setToolTip"
         },
         {
@@ -29471,7 +29486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 218,
+          "line": 237,
           "sink": "setToolTip"
         }
       ]
@@ -29521,7 +29536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 367,
+          "line": 413,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -30241,7 +30256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 196,
+          "line": 213,
           "sink": "log"
         }
       ]
@@ -31266,7 +31281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 231,
+          "line": 248,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -31601,7 +31616,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 560,
+          "line": 397,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 615,
           "sink": "_hint"
         }
       ]
@@ -32156,7 +32176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 396,
+          "line": 390,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 447,
           "sink": "QLabel"
         }
       ]
@@ -40291,7 +40316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 528,
+          "line": 549,
           "sink": "_log"
         }
       ]
@@ -40876,7 +40901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 536,
+          "line": 557,
           "sink": "QAction"
         }
       ]
@@ -41106,7 +41131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 726,
+          "line": 747,
           "sink": "_log"
         }
       ]
@@ -41666,7 +41691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 176,
+          "line": 195,
           "sink": "set_status_message"
         }
       ]
@@ -41761,12 +41786,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 315,
+          "line": 353,
           "sink": "show_prefab_inspector"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 704,
+          "line": 775,
           "sink": "setText"
         }
       ]
@@ -44671,7 +44696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 348,
+          "line": 357,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -45151,7 +45176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 822,
+          "line": 844,
           "sink": "setHeaderLabels"
         }
       ]
@@ -48172,6 +48197,16 @@
       ]
     },
     {
+      "key": "Discard the unsaved changes to {value_0}?",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1121,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Discard vertical offset (raw bits)",
       "origins": [
         {
@@ -50766,7 +50801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 478,
+          "line": 499,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -50776,7 +50811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 500,
+          "line": 521,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -51261,7 +51296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 84,
+          "line": 86,
           "sink": "setWindowTitle"
         }
       ]
@@ -52221,7 +52256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 505,
+          "line": 560,
           "sink": "setToolTip"
         }
       ]
@@ -54416,7 +54451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 419,
+          "line": 428,
           "sink": "setText"
         }
       ]
@@ -55106,7 +55141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 799,
+          "line": 821,
           "sink": "QLabel"
         }
       ]
@@ -55181,7 +55216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 358,
+          "line": 404,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -56141,7 +56176,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 216,
+          "line": 235,
           "sink": "QLabel"
         },
         {
@@ -56926,7 +56961,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 507,
+          "line": 562,
           "sink": "QPushButton"
         }
       ]
@@ -57021,7 +57056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 144,
+          "line": 158,
           "sink": "setWindowTitle"
         }
       ]
@@ -57691,12 +57726,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 209,
+          "line": 234,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 222,
+          "line": 247,
           "sink": "warning"
         }
       ]
@@ -60886,7 +60921,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 822,
+          "line": 844,
           "sink": "setHeaderLabels"
         },
         {
@@ -60961,7 +60996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 226,
+          "line": 244,
           "sink": "addTab"
         }
       ]
@@ -61646,7 +61681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 406,
+          "line": 427,
           "sink": "setPlaceholderText"
         }
       ]
@@ -61836,7 +61871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 456,
+          "line": 509,
           "sink": "setPlaceholderText"
         }
       ]
@@ -62611,7 +62646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 533,
+          "line": 588,
           "sink": "QGroupBox"
         }
       ]
@@ -62871,7 +62906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 56,
+          "line": 57,
           "sink": "log"
         }
       ]
@@ -66686,7 +66721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 324,
+          "line": 345,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -67271,7 +67306,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 238,
+          "line": 257,
           "sink": "addTab"
         }
       ]
@@ -67281,7 +67316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 640,
+          "line": 699,
           "sink": "_hint"
         }
       ]
@@ -72221,7 +72256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 411,
+          "line": 432,
           "sink": "setToolTip"
         }
       ]
@@ -73146,7 +73181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 822,
+          "line": 844,
           "sink": "setHeaderLabels"
         }
       ]
@@ -76556,7 +76591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 367,
+          "line": 413,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -77756,12 +77791,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
+          "line": 197,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 184,
+          "line": 201,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -77771,7 +77806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 180,
+          "line": 197,
           "sink": "getOpenFileName"
         }
       ]
@@ -77781,7 +77816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 184,
+          "line": 201,
           "sink": "getSaveFileName"
         }
       ]
@@ -78091,7 +78126,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 54,
+          "line": 55,
           "sink": "log"
         }
       ]
@@ -81366,7 +81401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 155,
+          "line": 169,
           "sink": "addButton"
         }
       ]
@@ -87146,7 +87181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 191,
+          "line": 206,
           "sink": "show_error"
         }
       ]
@@ -88616,7 +88651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 157,
+          "line": 171,
           "sink": "addButton"
         }
       ]
@@ -99236,7 +99271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 545,
+          "line": 566,
           "sink": "QAction"
         }
       ]
@@ -99341,7 +99376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 451,
+          "line": 503,
           "sink": "QGroupBox"
         }
       ]
@@ -99636,7 +99671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 426,
+          "line": 447,
           "sink": "setToolTip"
         }
       ]
@@ -100406,7 +100441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 195,
+          "line": 210,
           "sink": "warning"
         }
       ]
@@ -104246,7 +104281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 674,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -105056,7 +105091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 731,
+          "line": 752,
           "sink": "_log"
         }
       ]
@@ -105346,7 +105381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 587,
+          "line": 645,
           "sink": "QLabel"
         }
       ]
@@ -106396,7 +106431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 145,
+          "line": 159,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -108171,7 +108206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 476,
+          "line": 497,
           "sink": "python-return:_objects_hint"
         }
       ]
@@ -108196,7 +108231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 997,
+          "line": 1019,
           "sink": "_log"
         }
       ]
@@ -108206,7 +108241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 997,
+          "line": 1019,
           "sink": "_log"
         }
       ]
@@ -108316,7 +108351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 928,
+          "line": 950,
           "sink": "_log"
         }
       ]
@@ -108426,7 +108461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 358,
+          "line": 404,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -108436,7 +108471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 931,
+          "line": 953,
           "sink": "_log"
         }
       ]
@@ -108671,7 +108706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 432,
+          "line": 453,
           "sink": "setHeaderLabels"
         }
       ]
@@ -109536,7 +109571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 805,
+          "line": 827,
           "sink": "QCheckBox"
         }
       ]
@@ -109576,7 +109611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 410,
+          "line": 431,
           "sink": "QCheckBox"
         }
       ]
@@ -111501,7 +111536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 503,
+          "line": 558,
           "sink": "QPushButton"
         }
       ]
@@ -117361,7 +117396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 333,
+          "line": 354,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -119366,7 +119401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 674,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -121561,7 +121596,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 565,
+          "line": 620,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -121656,7 +121691,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 599,
+          "line": 657,
           "sink": "QGroupBox"
         }
       ]
@@ -121666,12 +121701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 121,
+          "line": 132,
           "sink": "PrefabInspectorDialog"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 319,
+          "line": 364,
           "sink": "PrefabInspectorDialog"
         }
       ]
@@ -121681,12 +121716,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 215,
+          "line": 232,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 265,
+          "line": 282,
           "sink": "information"
         }
       ]
@@ -121751,12 +121786,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 212,
+          "line": 229,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 263,
+          "line": 280,
           "sink": "set_status_message"
         }
       ]
@@ -121936,7 +121971,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 237,
+          "line": 256,
           "sink": "addTab"
         }
       ]
@@ -122591,13 +122626,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 157,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 191,
-          "sink": "_run_utility_task_when_idle"
+          "line": 214,
+          "sink": "run_task_when_shell_idle"
         }
       ]
     },
@@ -128946,7 +128976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 622,
+          "line": 681,
           "sink": "QPushButton"
         }
       ]
@@ -129026,7 +129056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 249,
+          "line": 270,
           "sink": "setToolTip"
         }
       ]
@@ -129131,7 +129161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 564,
+          "line": 585,
           "sink": "setToolTip"
         }
       ]
@@ -131036,12 +131066,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 267,
+          "line": 292,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 303,
+          "line": 330,
           "sink": "setText"
         }
       ]
@@ -131191,7 +131221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 286,
+          "line": 289,
           "sink": "setText"
         }
       ]
@@ -131201,7 +131231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 173,
+          "line": 180,
           "sink": "show_error"
         }
       ]
@@ -131241,12 +131271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 263,
+          "line": 288,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 264,
+          "line": 289,
           "sink": "emit"
         }
       ]
@@ -131256,13 +131286,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 179,
-          "sink": "_run_utility_task_when_idle"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 183,
-          "sink": "_run_utility_task"
+          "line": 198,
+          "sink": "run_task_when_shell_idle"
         }
       ]
     },
@@ -134751,7 +134776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 968,
+          "line": 990,
           "sink": "_log"
         },
         {
@@ -137406,7 +137431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 207,
+          "line": 222,
           "sink": "question"
         },
         {
@@ -139576,7 +139601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 500,
+          "line": 555,
           "sink": "QPushButton"
         }
       ]
@@ -142946,7 +142971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 788,
+          "line": 810,
           "sink": "_log"
         }
       ]
@@ -142966,7 +142991,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 490,
+          "line": 543,
           "sink": "QGroupBox"
         }
       ]
@@ -144776,7 +144801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 209,
+          "line": 212,
           "sink": "QGroupBox"
         },
         {
@@ -145776,7 +145801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 184,
+          "line": 201,
           "sink": "getSaveFileName"
         }
       ]
@@ -145986,7 +146011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 238,
+          "line": 256,
           "sink": "QPushButton"
         }
       ]
@@ -147266,12 +147291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 424,
+          "line": 445,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 553,
+          "line": 574,
           "sink": "QAction"
         }
       ]
@@ -148341,7 +148366,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 547,
+          "line": 602,
           "sink": "QPushButton"
         },
         {
@@ -148641,7 +148666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 816,
+          "line": 838,
           "sink": "setPlaceholderText"
         }
       ]
@@ -148826,7 +148851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 375,
+          "line": 426,
           "sink": "setPlaceholderText"
         }
       ]
@@ -149011,12 +149036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 591,
+          "line": 649,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 972,
+          "line": 1134,
           "sink": "setText"
         }
       ]
@@ -149126,8 +149151,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 286,
-          "sink": "_run_utility_task_when_idle"
+          "line": 311,
+          "sink": "run_task_when_shell_idle"
         }
       ]
     },
@@ -149146,7 +149171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 913,
+          "line": 1009,
           "sink": "setText"
         }
       ]
@@ -151136,7 +151161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 674,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -155551,7 +155576,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 363,
+          "line": 414,
           "sink": "QGroupBox"
         },
         {
@@ -155666,7 +155691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 884,
+          "line": 966,
           "sink": "setToolTip"
         }
       ]
@@ -155931,7 +155956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 381,
+          "line": 427,
           "sink": "python-return:reason"
         }
       ]
@@ -155951,7 +155976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 153,
+          "line": 174,
           "sink": "show_load_error"
         }
       ]
@@ -155961,7 +155986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 173,
+          "line": 190,
           "sink": "set_status_message"
         }
       ]
@@ -156071,7 +156096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 212,
+          "line": 237,
           "sink": "setToolTip"
         }
       ]
@@ -158287,11 +158312,11 @@
       ]
     },
     {
-      "key": "Show only the speed values Speed Tuning knows: camera speeds, spin and wind speed-up, cloud drift. Prefab speed edits have not been tested in game.",
+      "key": "Show only the speed values Speed & Prefabs knows: camera speeds, spin and wind speed-up, cloud drift. Prefab speed edits have not been tested in game.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 418,
+          "line": 439,
           "sink": "setToolTip"
         }
       ]
@@ -158921,7 +158946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 353,
+          "line": 362,
           "sink": "setText"
         }
       ]
@@ -162811,7 +162836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 250,
+          "line": 267,
           "sink": "log"
         }
       ]
@@ -163388,6 +163413,11 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 92,
           "sink": "python-data:REPORT_TOOLS"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1121,
+          "sink": "question"
         }
       ]
     },
@@ -163411,7 +163441,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 189,
+          "line": 212,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Speed & Prefabs lists no set for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 97,
           "sink": "set_status_message"
         }
       ]
@@ -163421,7 +163461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 229,
+          "line": 254,
           "sink": "log"
         }
       ]
@@ -163431,7 +163471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 240,
+          "line": 265,
           "sink": "information"
         }
       ]
@@ -163441,7 +163481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 236,
+          "line": 261,
           "sink": "set_status_message"
         }
       ]
@@ -163451,7 +163491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 241,
+          "line": 266,
           "sink": "set_status_message"
         }
       ]
@@ -163491,7 +163531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 413,
+          "line": 465,
           "sink": "QGroupBox"
         }
       ]
@@ -163506,7 +163546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 565,
+          "line": 620,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -163516,7 +163556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 416,
+          "line": 437,
           "sink": "QCheckBox"
         }
       ]
@@ -163566,7 +163606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 534,
+          "line": 589,
           "sink": "setToolTip"
         }
       ]
@@ -166681,12 +166721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 250,
+          "line": 271,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 540,
+          "line": 561,
           "sink": "QAction"
         }
       ]
@@ -171026,7 +171066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 312,
+          "line": 340,
           "sink": "setText"
         }
       ]
@@ -173311,12 +173351,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 549,
+          "line": 604,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 891,
+          "line": 973,
           "sink": "setToolTip"
         }
       ]
@@ -173326,12 +173366,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 279,
+          "line": 304,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 321,
+          "line": 349,
           "sink": "show_loading"
         }
       ]
@@ -174711,7 +174751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 727,
+          "line": 798,
           "sink": "setText"
         }
       ]
@@ -176031,12 +176071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 277,
+          "line": 302,
           "sink": "show_prefab_results"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 284,
+          "line": 309,
           "sink": "show_prefab_results"
         }
       ]
@@ -177796,7 +177836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 872,
+          "line": 954,
           "sink": "setPlainText"
         }
       ]
@@ -178981,7 +179021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 282,
+          "line": 303,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -179011,7 +179051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 674,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -179646,7 +179686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 697,
+          "line": 718,
           "sink": "AssetPickerDialog"
         }
       ]
@@ -179816,12 +179856,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 350,
+          "line": 359,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 414,
+          "line": 423,
           "sink": "setText"
         }
       ]
@@ -179871,7 +179911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 674,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -181171,7 +181211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 221,
+          "line": 240,
           "sink": "_hint"
         }
       ]
@@ -182826,7 +182866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 284,
+          "line": 309,
           "sink": "QPushButton"
         }
       ]
@@ -183371,7 +183411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 785,
+          "line": 857,
           "sink": "setToolTip"
         }
       ]
@@ -184376,7 +184416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 246,
+          "line": 267,
           "sink": "QPushButton"
         }
       ]
@@ -184471,7 +184511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 563,
+          "line": 584,
           "sink": "QAction"
         }
       ]
@@ -189391,7 +189431,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 432,
+          "line": 453,
           "sink": "setHeaderLabels"
         },
         {
@@ -189626,7 +189666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 225,
+          "line": 228,
           "sink": "QGroupBox"
         }
       ]
@@ -191442,11 +191482,26 @@
       ]
     },
     {
+      "key": "Waiting for the current background task to finish…",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 220,
+          "sink": "show_loading"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 317,
+          "sink": "show_prefab_progress"
+        }
+      ]
+    },
+    {
       "key": "Waiting for the current background task, then reading the table…",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 161,
+          "line": 196,
           "sink": "setText"
         }
       ]
@@ -191466,7 +191521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 891,
+          "line": 973,
           "sink": "setToolTip"
         }
       ]
@@ -192756,7 +192811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 822,
+          "line": 844,
           "sink": "setHeaderLabels"
         },
         {
@@ -192771,7 +192826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 432,
+          "line": 453,
           "sink": "setHeaderLabels"
         },
         {
@@ -192901,7 +192956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 225,
+          "line": 243,
           "sink": "addTab"
         }
       ]
@@ -193256,7 +193311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 558,
+          "line": 579,
           "sink": "QAction"
         }
       ]
@@ -193466,7 +193521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 559,
+          "line": 580,
           "sink": "setToolTip"
         }
       ]
@@ -193596,7 +193651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 420,
+          "line": 472,
           "sink": "QLabel"
         }
       ]
@@ -194816,22 +194871,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 195,
+          "line": 210,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 205,
+          "line": 220,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 207,
+          "line": 222,
           "sink": "question"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 233,
+          "line": 248,
           "sink": "information"
         }
       ]
@@ -195486,7 +195541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 235,
+          "line": 250,
           "sink": "_run_utility_task"
         }
       ]
@@ -195601,7 +195656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 243,
+          "line": 268,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -195676,7 +195731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 225,
+          "line": 240,
           "sink": "show_error"
         }
       ]
@@ -195966,7 +196021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 232,
+          "line": 247,
           "sink": "set_status_message"
         }
       ]
@@ -196046,7 +196101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 215,
+          "line": 232,
           "sink": "information"
         }
       ]
@@ -196056,7 +196111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 220,
+          "line": 237,
           "sink": "set_status_message"
         }
       ]
@@ -196066,7 +196121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 265,
+          "line": 282,
           "sink": "information"
         }
       ]
@@ -196076,7 +196131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 270,
+          "line": 287,
           "sink": "set_status_message"
         }
       ]
@@ -196196,7 +196251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 233,
+          "line": 248,
           "sink": "information"
         }
       ]
@@ -221001,7 +221056,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 71,
+          "line": 78,
           "sink": "setSuffix"
         },
         {
@@ -221386,7 +221441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
-          "line": 145,
+          "line": 159,
           "sink": "setText"
         }
       ]
@@ -221861,7 +221916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 850,
+          "line": 872,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -221901,7 +221956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 854,
+          "line": 876,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -222526,7 +222581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 739,
+          "line": 810,
           "sink": "setText"
         }
       ]
@@ -222726,7 +222781,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 990,
+          "line": 1012,
           "sink": "_log"
         },
         {
@@ -223191,7 +223246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 625,
+          "line": 684,
           "sink": "setToolTip"
         }
       ]
@@ -223341,7 +223396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 733,
+          "line": 754,
           "sink": "_log"
         }
       ]
@@ -224221,7 +224276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 850,
+          "line": 872,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -224516,7 +224571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 120,
+          "line": 126,
           "sink": "set_status_message"
         }
       ]
@@ -224926,7 +224981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 310,
+          "line": 348,
           "sink": "show_prefab_inspector"
         }
       ]
@@ -225521,7 +225576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 267,
+          "line": 292,
           "sink": "log"
         }
       ]
@@ -225531,12 +225586,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 268,
+          "line": 293,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 925,
+          "line": 1021,
           "sink": "setText"
         }
       ]
@@ -225631,7 +225686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 748,
+          "line": 819,
           "sink": "setText"
         }
       ]
@@ -225641,7 +225696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 751,
+          "line": 822,
           "sink": "setText"
         }
       ]
@@ -225826,7 +225881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 947,
+          "line": 1043,
           "sink": "setText"
         }
       ]
@@ -225896,7 +225951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 770,
+          "line": 792,
           "sink": "setText"
         }
       ]
@@ -226101,7 +226156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 303,
+          "line": 306,
           "sink": "setText"
         }
       ]
@@ -227436,7 +227491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 726,
+          "line": 797,
           "sink": "setText"
         }
       ]
@@ -227446,7 +227501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 724,
+          "line": 795,
           "sink": "setText"
         }
       ]
@@ -227876,7 +227931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
-          "line": 298,
+          "line": 319,
           "sink": "python-return:_banner_text"
         }
       ]
@@ -228066,7 +228121,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1010,
+          "line": 1179,
           "sink": "python-return:_short_member"
         }
       ]
@@ -228221,7 +228276,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 435,
+          "line": 487,
           "sink": "QLabel"
         },
         {
@@ -228236,7 +228291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 367,
+          "line": 413,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -229391,7 +229446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 158,
+          "line": 172,
           "sink": "python-return:plan_summary"
         }
       ]

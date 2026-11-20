@@ -206,9 +206,12 @@ class GameTablesEditor(QWidget):
             splitter.setChildrenCollapsible(False)
             splitter.setHandleWidth(8)
             splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
+            # The app draws group boxes without a frame: these margins put each box's contents
+            # straight under its heading, as on the other pages of Speed & Prefabs.
+            box_margins = (6, 6, 6, 4)
             rows_box = QGroupBox("Rows")
             rows_layout = QVBoxLayout(rows_box)
-            rows_layout.setContentsMargins(12, 10, 12, 10)
+            rows_layout.setContentsMargins(*box_margins)
             rows_layout.setSpacing(8)
             top.removeWidget(self.search)
             rows_layout.addWidget(self.search)
@@ -224,14 +227,14 @@ class GameTablesEditor(QWidget):
             column.setSpacing(8)
             values_box = QGroupBox("Values of the selected row")
             values_layout = QVBoxLayout(values_box)
-            values_layout.setContentsMargins(12, 10, 12, 10)
+            values_layout.setContentsMargins(*box_margins)
             values_layout.setSpacing(8)
             values_layout.addWidget(self.values, 1)
             values_layout.addLayout(edit)
             column.addWidget(values_box, 3)
             pending_box = QGroupBox("Changes in this mod")
             self.pending_layout = QVBoxLayout(pending_box)
-            self.pending_layout.setContentsMargins(12, 10, 12, 10)
+            self.pending_layout.setContentsMargins(*box_margins)
             self.pending_layout.setSpacing(8)
             pending_title.setVisible(False)
             self.pending_layout.addWidget(self.pending, 1)
@@ -309,6 +312,12 @@ class GameTablesEditor(QWidget):
         self.load.setEnabled(True)
         self.busy.setVisible(False)
         self.message.setText(str(message))
+
+    def refresh_loaded(self) -> None:
+        """Show the loaded table's own state again, after a read that was for another table."""
+
+        if self._index is not None:
+            self.set_index(self._index)
 
     def edits(self) -> tuple[TableFieldEdit, ...]:
         return tuple(self._edits[key] for key in sorted(self._edits, key=lambda k: (k[0], k[1], str(k[2]))))

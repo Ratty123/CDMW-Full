@@ -33,6 +33,7 @@ from cdmw.services.animation_speed_service import (
     read_speed_set,
 )
 from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.ui.archive_browser.shell_idle import run_task_when_shell_idle
 
 COMMAND_ID = "browse.speed_tuning"
 COMMAND_LABEL = "Speed & Prefabs (Experimental)..."
@@ -76,7 +77,8 @@ class ArchiveSpeedTuningActionsMixin:
         def _show(workspace) -> None:
             if workspace.load_failed:
                 self._load_speed_workspace(workspace)
-            workspace.open_set(chart_path)
+            if not workspace.open_set(chart_path):
+                self._report_unlisted_speed_set(chart_path)
 
         shell = self.shell
         container = getattr(shell, "speed_prefabs_tab", None)
@@ -89,6 +91,10 @@ class ArchiveSpeedTuningActionsMixin:
             when_created(_show)
         else:
             _show(container)
+
+    def _report_unlisted_speed_set(self, chart_path: str) -> None:
+        # Only the charts of playable characters are sets; say so instead of showing another set unexplained.
+        self.shell.set_status_message(f"Speed & Prefabs lists no set for {chart_path}.", error=True)
 
     def _open_current_archive_speed_tuning(self) -> None:
         entry = self._current_archive_action_chart_entry()
@@ -134,11 +140,24 @@ class ArchiveSpeedTuningActionsMixin:
             open_game_table=lambda table: self._show_game_table(panel, table),
             game_table_panel=panel,
             retry_load=lambda: self._load_speed_workspace(workspace),
+            on_show=lambda: self._refresh_speed_workspace(workspace),
         )
         workspace.setObjectName(TOOL_KEY)
         self._speed_workspace = workspace
         self._load_speed_workspace(workspace)
         return workspace
+
+    def _refresh_speed_workspace(self, workspace) -> None:
+        """Called when the tab is shown: read again when the game folder changed or was set meanwhile."""
+
+        state = getattr(self, "_speed_state", None) or {}
+        if state.get("reading") or not isValid(workspace):
+            return
+        root = self._action_chart_root()
+        if root and root != state.get("root"):
+            if state.get("index") is not None:
+                workspace.clear_sets()  # sets and prefabs of the other game folder
+            self._load_speed_workspace(workspace)
 
     def _load_speed_workspace(self, workspace) -> None:
         """Read the chart index and every character's sets on a worker, showing each step."""
@@ -149,12 +168,12 @@ class ArchiveSpeedTuningActionsMixin:
         if state.get("reading"):
             return
         root = self._action_chart_root()
+        state["root"] = root
+        state.pop("index", None)
         if not root:
             workspace.show_load_error("Set the game folder in Browse Archives first.")
             return
         state["reading"] = True
-        status_message = "Preparing Speed & Prefabs (experimental)..."
-        self.shell.set_status_message(status_message)
         workspace.show_loading()
         relay = _LoadingRelay(self)
         relay.message.connect(lambda text: isValid(workspace) and workspace.loading and workspace.show_loading(text))
@@ -181,18 +200,24 @@ class ArchiveSpeedTuningActionsMixin:
             if not isValid(workspace):
                 return
             state["index"] = result.index
+            wanted = workspace.pending_set
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             try:
                 workspace.set_characters(result.characters)
             finally:
                 QApplication.restoreOverrideCursor()
-            self.shell.set_status_message("Speed & Prefabs (experimental) is ready.")
+            if wanted and not workspace.has_set(wanted):
+                self._report_unlisted_speed_set(wanted)
+            else:
+                self.shell.set_status_message("Speed & Prefabs (experimental) is ready.")
 
-        self.shell._run_utility_task_when_idle(
-            status_message=status_message,
+        run_task_when_shell_idle(
+            self.shell, workspace,
+            status_message="Preparing Speed & Prefabs (experimental)...",
             task=_task,
             on_complete=_done,
             on_error=_failed,
+            on_waiting=lambda: workspace.show_loading("Waiting for the current background task to finish…"),
             show_archive_progress=True,
         )
 
@@ -283,22 +308,35 @@ class ArchiveSpeedTuningActionsMixin:
             if isValid(workspace):
                 workspace.show_prefab_results((), note=f"The search failed: {message}")
 
-        self.shell._run_utility_task_when_idle(
+        run_task_when_shell_idle(
+            self.shell, workspace,
             status_message="Searching prefabs for speed values...",
             task=_task,
             on_complete=_done,
             on_error=_failed,
+            on_waiting=lambda: workspace.show_prefab_progress(
+                0, 0, "Waiting for the current background task to finish…"),
             show_archive_progress=True,
         )
 
     def _open_speed_game_table(self, table: str) -> None:
         """Speed & Prefabs' Game tables page on ``table``."""
 
-        self._open_speed_tuning()
-        workspace = getattr(self, "_speed_workspace", None)
-        if workspace is not None and isValid(workspace):
+        def _show(workspace) -> None:
+            workspace.open_table(table)  # first, so the page's first visit reads no other table
             workspace.show_page("tables")
-            workspace._open_table(table)
+
+        shell = self.shell
+        container = getattr(shell, "speed_prefabs_tab", None)
+        activate = getattr(shell, "_activate_tool_key", None)
+        if container is None or not callable(activate):
+            return
+        activate(TOOL_KEY)
+        when_created = getattr(container, "when_created", None)
+        if callable(when_created):
+            when_created(_show)  # at once when the tab exists, else as soon as it is built
+        else:
+            _show(container)
 
     def _open_speed_prefab(self, workspace, index: ChartArchiveIndex, path: str) -> None:
         """Show ``path`` in the Prefab Inspector beside the search results, speed values first."""
@@ -314,13 +352,21 @@ class ArchiveSpeedTuningActionsMixin:
         except Exception as exc:  # noqa: BLE001 - shown to the user
             workspace.show_prefab_inspector(path, None, note=f"Could not read {path}: {exc}")
             return
+
+        def _save(patched: bytes, summary: str) -> bool:
+            # As the Inspector's own window: nothing to export when nothing changed. False when the
+            # user cancelled the export question, so the tab still counts the edits as unsaved.
+            return patched == data or self._offer_prefab_export(entry, data, patched, summary) is not False
+
+        users = getattr(self, "_prefab_users_finder", None)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             inspector = PrefabInspectorDialog(
                 data,
                 title=f"Prefab Inspector - {entry.basename}",
                 parent=workspace,
-                on_save=lambda patched, summary: self._offer_prefab_export(entry, data, patched, summary),
+                on_save=_save,
+                find_users=users(entry) if callable(users) else None,
                 speed_filter=True,
                 embedded=True,
             )

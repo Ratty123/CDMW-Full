@@ -1,9 +1,14 @@
-"""The `speed.` tools (experimental): Speed Tuning's services, without driving its window.
+"""The `speed.` tools (experimental): Speed & Prefabs' services, and its tab.
 
 Animation speed works on action charts: list sets, read one as moves, preview factors,
 export a DMM mod. Prefab speed lists prefabs that declare speed values, reads one
 prefab's values, and saves scaled values as an item package. Game table speed reads the
 AI movement and pushed-object speed rows; their edits go through Edit Game Table Values.
+
+`speed.workspace` shows the Speed & Prefabs tab and reports what it shows, and
+`speed.workspace_edit` works its controls (factors, the linked charts box, the prefab
+search) so the user sees and reviews the same thing. The tab's Game tables page is
+reached by the `tables.editor_` tools with where "speed_prefabs".
 
 Nothing here writes into the game folder or the running game: exports go to a folder
 the client names, checked by the server before anyone is asked.
@@ -14,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cdmw.mcp.errors import INVALID_ARGUMENTS, NOT_FOUND, REFUSED, UNAVAILABLE, ToolError
-from cdmw.mcp.names import OUTPUT, READ
+from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.tools import ON_WORKER, Tool, object_schema
 
 EXPERIMENTAL = "Experimental: "
@@ -280,17 +285,71 @@ def _workspace(call):
         if arguments.get("open", True):
             call.context.window.shell._activate_tool_key("speed_prefabs")
         if arguments.get("set"):
-            workspace.open_set(str(arguments["set"]))
+            if not workspace.open_set(str(arguments["set"])):
+                raise ToolError(NOT_FOUND, f"The tab lists no set {arguments['set']}; speed_sets lists them.")
         if arguments.get("page"):
             workspace.show_page(str(arguments["page"]))
         if arguments.get("prefab"):
             if workspace.loading:
-                raise ToolError(UNAVAILABLE, "The game's file index is still being read; try again shortly.")
+                raise ToolError(UNAVAILABLE, _not_ready(workspace))
             workspace.show_page("prefabs")
-            workspace._open_prefab(str(arguments["prefab"]))
+            if not workspace.open_prefab(str(arguments["prefab"]), discard=bool(arguments.get("discard_changes"))):
+                raise ToolError(REFUSED, "The prefab open in the tab has unsaved changes. Save them there, or "
+                                         "give discard_changes to drop them.")
+            if not workspace.state()["prefab_open"]:
+                raise ToolError(NOT_FOUND, workspace.prefab_empty_detail.text())
         if arguments.get("table"):
+            workspace.open_table(str(arguments["table"]))  # before the page, whose first visit reads a table
             workspace.show_page("tables")
-            workspace._open_table(str(arguments["table"]))
+        return workspace.state()
+
+    return ui(call, operation)
+
+
+def _not_ready(workspace) -> str:
+    state = workspace.state()
+    return state["load_error"] or "The game's file index is still being read; try again shortly."
+
+
+def _workspace_edit(call):
+    """Work the tab's own controls: factors and the linked charts box of the open set, or the prefab search."""
+
+    from cdmw.mcp.rail_actions import page, ui
+    from cdmw.services.animation_speed_service import SpeedFactors, SpeedTuningError
+
+    arguments = call.arguments
+    action = arguments["action"]
+
+    def operation():
+        workspace = page(call, "speed_prefabs")
+        call.context.window.shell._activate_tool_key("speed_prefabs")
+        if workspace.loading:
+            raise ToolError(UNAVAILABLE, _not_ready(workspace))
+        if action == "search":
+            workspace.show_page("prefabs")
+            if not workspace.search_prefabs(arguments.get("category")):
+                raise ToolError(UNAVAILABLE, workspace.prefab_search_button.toolTip()
+                                or "The prefab search cannot start now.")
+            return workspace.state()
+        workspace.show_page("animation")
+        if arguments.get("set") and not workspace.open_set(str(arguments["set"])):
+            raise ToolError(NOT_FOUND, f"The tab lists no set {arguments['set']}; speed_sets lists them.")
+        if not workspace.state()["set"]:
+            raise ToolError(UNAVAILABLE, "No set is open in the tab; give set (speed_sets lists them).")
+        if action == "reset":
+            workspace.reset_factors()
+        else:  # factors
+            try:
+                factors = SpeedFactors.from_data(arguments.get("factors") or {})
+            except SpeedTuningError as exc:
+                raise ToolError(INVALID_ARGUMENTS, str(exc)) from None
+            known = {clip.lower(): clip for clip in workspace.move_clips()}
+            unknown = sorted(clip for clip in factors.moves if clip.lower() not in known)
+            if unknown:
+                raise ToolError(NOT_FOUND, "This set has no move " + ", ".join(unknown[:5])
+                                + "; speed_set lists its clips.")
+            workspace.apply_factors(factors, arguments.get("linked"))
+        workspace.refresh_review()
         return workspace.state()
 
     return ui(call, operation)
@@ -311,14 +370,27 @@ def speed_tools() -> list[Tool]:
         tool("speed.workspace", READ, EXPERIMENTAL + "The Speed & Prefabs tab (Authoring): show it, optionally on a "
              "page, a set (chart path), a prefab (opened in its Prefab Inspector beside the search results) or a "
              "speed table (loaded in place), and return what it shows: the set and its factors, the review, the "
-             "prefab search results and the open prefab, and the loaded table. Factors, exports and edits go "
-             "through the other speed tools or the tab's own controls.",
+             "prefab search results and the open prefab, and the loaded table. A prefab with unsaved changes "
+             "stays open unless discard_changes is given. speed_workspace_edit sets the tab's factors and starts "
+             "its prefab search; tables_editor_state, _edit and _write with where speed_prefabs work its Game "
+             "tables page; exports go through speed_export and speed_prefab_export or the tab's own buttons.",
              "ui:SpeedPrefabsWorkspace", _workspace,
              {"open": {"type": "boolean", "default": True},
               "page": {"type": "string", "enum": ["", "animation", "prefabs", "tables"]},
-              "set": _TEXT, "prefab": _TEXT,
+              "set": _TEXT, "prefab": _TEXT, "discard_changes": {"type": "boolean", "default": False},
               "table": {"type": "string", "enum": ["", "aimovespeedinfo", "gimmickinfo"]}},
              keywords=("speed", "experimental", "speed & prefabs")),
+        tool("speed.workspace_edit", EDIT, EXPERIMENTAL + "Work the Speed & Prefabs tab's own controls, so the "
+             "user sees the same thing: action factors puts factors (and linked) into the open set's sliders and "
+             "move list, or into 'set' when given; reset puts them back to 1; search presses the Prefabs page's "
+             "Search for a category (the first search takes minutes; read the results with speed_workspace). "
+             "Nothing is written: the user reviews and presses Export, or speed_export writes the mod.",
+             "ui:SpeedPrefabsWorkspace.factors", _workspace_edit,
+             {"action": {"type": "string", "enum": ["factors", "reset", "search"]},
+              "set": _TEXT, "factors": _FACTORS,
+              "linked": {"type": "boolean", "description": "Tick or untick Also change linked charts."},
+              "category": {"type": "string", "enum": ["", "cameras", "moving", "weather"]}},
+             ("action",), keywords=("speed", "experimental", "speed & prefabs")),
         _tool("speed.sets", READ, "Characters and their animation speed sets (one action chart each), with labels "
               "and upper or lower body. Needs the game folder set.", _sets,
               {"character": _TEXT}, service="animation_speed_service.list_characters", paged="sets"),

@@ -982,3 +982,54 @@ def test_scale_by_two_yields_the_doubled_pending_value_and_revert_restores_it(qt
     assert not dialog._value_edits
     values = speed_values(decode_prefab_binary(dialog._original))
     assert values[0].value == 2.0
+
+
+def _embedded_inspector(qt_app: QApplication):
+    """The inspector as Speed & Prefabs shows it: inside a page, with its own Save button."""
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+    host = QWidget()
+    saved: list[bytes] = []
+    inspector = PrefabInspectorDialog(_value_fixture(), parent=host, embedded=True,
+                                     on_save=lambda data, summary: saved.append(data))
+    QVBoxLayout(host).addWidget(inspector)
+    host.show()
+    qt_app.processEvents()
+    return host, inspector, saved
+
+
+def test_escape_does_not_hide_the_inspector_inside_a_page(qt_app: QApplication) -> None:
+    """A QDialog hides itself on Esc; inside Speed & Prefabs that left an empty pane with no way back."""
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    host, inspector, _saved = _embedded_inspector(qt_app)
+    QApplication.sendEvent(inspector, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape,
+                                                Qt.KeyboardModifier.NoModifier))
+    inspector.reject()
+    qt_app.processEvents()
+    assert inspector.isVisible()
+    assert "closing this window" not in inspector.apply_button.toolTip()
+    host.close()
+
+
+def test_the_page_can_ask_whether_changes_are_unsaved(qt_app: QApplication) -> None:
+    from cdmw.domain.archives.prefab_values import encode_value
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _VALUE_ROLE
+
+    host, inspector, saved = _embedded_inspector(qt_app)
+    assert not inspector.has_unsaved_changes()
+    row = next(child for index in range(inspector.tree.topLevelItemCount())
+               for parent in [inspector.tree.topLevelItem(index)]
+               for child in (parent.child(n) for n in range(parent.childCount())) if child.data(0, _VALUE_ROLE))
+    offset, type_name, raw, _member = row.data(0, _VALUE_ROLE)
+    inspector._value_edits[offset] = (raw, encode_value(type_name, raw, 1.25))
+    inspector._refresh_pending_state()
+    assert inspector.has_unsaved_changes()
+    inspector._confirm_changes = lambda: True
+    inspector._apply_changes()  # Save changes hands the edited file to the page
+    assert len(saved) == 1 and not inspector.has_unsaved_changes()
+    inspector._on_save = lambda data, summary: False  # the page's export question was cancelled
+    inspector._apply_changes()
+    assert inspector.has_unsaved_changes()
+    host.close()

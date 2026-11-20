@@ -136,8 +136,11 @@ class SpeedFactors:
         return all(_unit(value) for value in values)
 
     def to_data(self) -> dict[str, object]:
-        return {"set": float(self.set), "kinds": {k: float(v) for k, v in self.kinds.items() if not _unit(v)},
-                "moves": {k: float(v) for k, v in self.moves.items() if not _unit(v)}}
+        kinds = {k: float(v) for k, v in self.kinds.items() if not _unit(v)}
+        # A move held at 1 is a real choice while a kind factor would otherwise apply to it, so
+        # it is saved then: dropping it made the move take its kind's factor when the mod was reopened.
+        moves = {k: float(v) for k, v in self.moves.items() if kinds or not _unit(v)}
+        return {"set": float(self.set), "kinds": kinds, "moves": moves}
 
     @classmethod
     def from_data(cls, value: object) -> "SpeedFactors":

@@ -111,6 +111,14 @@ def test_factors_from_data_checks_kinds_and_ranges():
         SpeedFactors.from_data({"set": 7})
 
 
+def test_a_move_held_at_one_under_a_kind_factor_is_kept_in_the_saved_factors():
+    held = SpeedFactors(1.0, {"attack": 2.0}, {"a.paa": 1.0, "b.paa": 1.5})
+    assert held.to_data() == {"set": 1.0, "kinds": {"attack": 2.0}, "moves": {"a.paa": 1.0, "b.paa": 1.5}}
+    assert SpeedFactors.from_data(held.to_data()) == held  # reopening the mod shows the move at 1, not at 2
+    # With no kind factor a move at 1 changes nothing and is left out, so an untouched set saves as before.
+    assert SpeedFactors(1.5, {"attack": 1.0}, {"a.paa": 1.0}).to_data() == {"set": 1.5, "kinds": {}, "moves": {}}
+
+
 def test_reading_a_set_lists_moves_by_clip(stored, tmp_path):
     index = _index(tmp_path, [stored(PATH, chart_bytes())])
     speed = read_speed_set(index, _read, PATH)

@@ -160,6 +160,67 @@ def test_prefab_search_shows_progress_lists_results_and_opens_one_beside_them(qt
     assert dialog.prefab_host.currentIndex() == 0 and "Could not read" in dialog.prefab_empty_detail.text()
 
 
+def _prefab_rows(*names):
+    return [{"path": f"object/prefab/{name}.prefab", "category_label": "Moving and wind-driven objects",
+             "members": ["VelocityComponent", "WindComponent"]} for name in names]
+
+
+def test_prefab_list_columns_share_the_width_and_never_scroll_sideways(qt_app):
+    from PySide6.QtCore import Qt
+
+    dialog, _calls = _dialog()
+    dialog.resize(1100, 700)
+    dialog.show()
+    dialog.show_page("prefabs")
+    dialog.show_prefab_results(_prefab_rows("a_very_long_prefab_file_name_for_a_wind_driven_object_0001", "crate"))
+    qt_app.processEvents()
+    table = dialog.prefab_table
+    header = table.horizontalHeader()
+    assert table.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert sum(header.sectionSize(column) for column in range(3)) <= table.viewport().width()
+    assert header.sectionSize(0) >= header.sectionSize(2)  # the name gets the room before the speed values
+    dialog.resize(760, 700)
+    qt_app.processEvents()
+    assert sum(header.sectionSize(column) for column in range(3)) <= table.viewport().width()
+    dialog.close()
+
+
+def test_picking_another_prefab_asks_before_dropping_unsaved_changes(qt_app):
+    from PySide6.QtWidgets import QLabel
+
+    answers, asked = [False], []
+
+    class Inspector(QLabel):
+        unsaved = True
+
+        def has_unsaved_changes(self):
+            return self.unsaved
+
+    def confirm(name):
+        asked.append(name)
+        return answers[-1]
+
+    dialog, calls = _dialog(confirm_discard=confirm)
+    dialog._open_prefab = lambda path: (calls.prefabs.append(path),
+                                        dialog.show_prefab_inspector(path, Inspector(path)))
+    dialog.show_prefab_results(_prefab_rows("first", "second"))
+    dialog.prefab_table.selectRow(0)
+    assert calls.prefabs == ["object/prefab/first.prefab"] and not asked
+    dialog.prefab_table.selectRow(1)  # the answer is no: the first prefab stays open and selected
+    assert asked == ["first.prefab"] and calls.prefabs == ["object/prefab/first.prefab"]
+    assert dialog.selected_prefab() == "object/prefab/first.prefab" and dialog.state()["prefab_unsaved_changes"]
+    assert not dialog.open_prefab("object/prefab/second.prefab", discard=False)  # an AI tool never asks
+    answers.append(True)
+    dialog.prefab_table.selectRow(1)
+    assert calls.prefabs[-1] == "object/prefab/second.prefab" and dialog.selected_prefab().endswith("second.prefab")
+    dialog.prefab_inspector.unsaved = False
+    dialog.prefab_table.selectRow(0)  # nothing unsaved: no question
+    assert len(asked) == 2 and calls.prefabs[-1] == "object/prefab/first.prefab"
+    # A new search keeps the open prefab marked when it is listed again.
+    dialog.show_prefab_results(_prefab_rows("zero", "first"))
+    assert dialog.selected_prefab() == "object/prefab/first.prefab" and len(calls.prefabs) == 3
+
+
 def test_game_tables_page_loads_each_speed_table_in_place(qt_app):
     from cdmw.ui.archive_browser.game_table_actions import GameTableEditPanel
 
@@ -201,27 +262,61 @@ def test_the_tab_opens_on_a_loading_page_and_fills_when_the_sets_are_read(qt_app
     assert dialog.set_list.currentItem().text() == "Sword" and dialog.prefab_search_button.isEnabled()
     dialog.show_load_error("No character action charts were found in the game archives.")
     assert dialog.load_failed and "No character" in dialog.loading_detail.text()
+    # The failure is still known, and Search says why it is off, while another page shows.
+    dialog.show()
+    dialog.show_page("prefabs")
+    qt_app.processEvents()
+    assert dialog.load_failed and dialog.state()["loading"] is False and "No character" in dialog.state()["load_error"]
+    assert "No character" in dialog.prefab_search_button.toolTip()
+    dialog.show_page("animation")
     dialog.retry_button.click()
     assert retried == [True] and dialog.loading and not dialog.load_failed
+    dialog.close()
 
 
-def test_opening_speed_tuning_shows_the_tab_and_reads_the_charts_once(qt_app):
+def test_a_set_that_is_not_listed_is_reported_not_silently_ignored(qt_app):
+    dialog, _calls = _dialog()
+    assert dialog.has_set(PATH) and not dialog.has_set("actionchart/bin__/npc/wolf.paac")
+    assert dialog.open_set(PATH) and not dialog.open_set("actionchart/bin__/npc/wolf.paac")
+    assert dialog.state()["set"] == PATH  # the open set stays
+
+
+class _Shell:
+    """The shell's one-task-at-a-time worker, with the tasks held so a test can finish them."""
+
+    def __init__(self):
+        self.tasks, self.activated, self.status = [], [], []
+        self.worker_thread = None
+        self.other_task = False  # Text Search or a texture export
+        self.busy_once_started = False  # a started task keeps the worker until the test frees it
+
+    def set_status_message(self, message, error=False):
+        self.status.append((message, error))
+
+    def _activate_tool_key(self, key):
+        self.activated.append(key)
+
+    def _background_task_active(self):
+        return self.worker_thread is not None or self.other_task
+
+    def _run_utility_task(self, **kwargs):
+        assert not self._background_task_active(), "the shell would drop this task"
+        self.tasks.append(kwargs)
+        if self.busy_once_started:
+            self.worker_thread = object()
+
+
+def _browser(root="C:/game"):
     from PySide6.QtWidgets import QWidget
 
     from cdmw.ui.archive_browser.game_table_actions import ArchiveGameTableActionsMixin
-    from cdmw.ui.archive_browser.speed_tuning_actions import ArchiveSpeedTuningActionsMixin, PreparedSpeedTuning
-
-    tasks, activated = [], []
+    from cdmw.ui.archive_browser.speed_tuning_actions import ArchiveSpeedTuningActionsMixin
 
     class Browser(ArchiveSpeedTuningActionsMixin, ArchiveGameTableActionsMixin, QWidget):
-        def __init__(self, root="C:/game"):
+        def __init__(self):
             super().__init__()
             self.root = root
-            self.shell = SimpleNamespace(
-                set_status_message=lambda *args, **kwargs: None,
-                _activate_tool_key=activated.append,
-                _background_task_active=lambda: bool(tasks),
-                _run_utility_task_when_idle=lambda **kwargs: tasks.append(kwargs))
+            self.shell = _Shell()
 
         def _action_chart_root(self):
             return self.root
@@ -232,29 +327,135 @@ def test_opening_speed_tuning_shows_the_tab_and_reads_the_charts_once(qt_app):
         def _open_action_chart_editor(self, path):
             pass
 
-    browser = Browser()
+    return Browser()
+
+
+def _wait(qt_app, done, timeout=3.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while not done() and time.monotonic() < deadline:
+        qt_app.processEvents()
+        time.sleep(0.01)
+    assert done()
+
+
+def test_opening_speed_tuning_shows_the_tab_and_reads_the_charts_once(qt_app):
+    from cdmw.ui.archive_browser.speed_tuning_actions import PreparedSpeedTuning
+
+    browser = _browser()
+    tasks = browser.shell.tasks
     workspace = browser.create_speed_workspace()
     browser.shell.speed_prefabs_tab = workspace
     assert workspace.loading and len(tasks) == 1
     browser._open_speed_tuning(PATH)
-    assert activated == ["speed_prefabs"] and len(tasks) == 1  # still reading: no second read
+    assert browser.shell.activated == ["speed_prefabs"] and len(tasks) == 1  # still reading: no second read
     characters = (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),)
     tasks[0]["on_complete"](PreparedSpeedTuning(SimpleNamespace(), characters))
     assert not workspace.loading and workspace.set_list.currentItem().text() == "Sword"
     browser._open_speed_game_table("gimmickinfo")
     assert workspace.current_page() == "tables" and workspace.table_buttons["gimmickinfo"].isChecked()
     assert tasks[-1]["status_message"] == "Reading the gimmickinfo table..."
+    workspace.table_buttons["gimmickinfo"].click()  # a second click while it is read starts no second read
+    assert len(tasks) == 2
 
-    failing = Browser()
+    browser._open_speed_tuning("actionchart/bin__/npc/wolf.paac")  # not a set: said, not silently ignored
+    assert browser.shell.status[-1] == ("Speed & Prefabs lists no set for actionchart/bin__/npc/wolf.paac.", True)
+
+    failing = _browser()
     other = failing.create_speed_workspace()
-    tasks[-1]["on_error"]("The archives are not open.")
+    failing.shell.tasks[-1]["on_error"]("The archives are not open.")
     assert other.load_failed and "not open" in other.loading_detail.text()
     failing.shell.speed_prefabs_tab = other
+    other.show_page("tables")  # the failure is remembered while another page shows
     failing._open_speed_tuning()  # opening again after a failure reads again
-    assert not other.load_failed
+    assert not other.load_failed and len(failing.shell.tasks) == 3  # the charts, the first table, the charts again
 
-    empty = Browser(root="")
+    empty = _browser(root="")
     assert empty.create_speed_workspace().load_failed
+
+
+def test_the_game_table_opens_when_the_tab_is_built_later(qt_app):
+    browser = _browser()
+    created = []
+    browser.shell.speed_prefabs_tab = SimpleNamespace(when_created=created.append)
+    browser._open_speed_game_table("gimmickinfo")  # the tab does not exist yet: nothing to act on now
+    assert browser.shell.activated == ["speed_prefabs"] and len(created) == 1
+    workspace = browser.create_speed_workspace()
+    created[0](workspace)
+    assert workspace.current_page() == "tables" and workspace.table_buttons["gimmickinfo"].isChecked()
+
+
+def test_page_tasks_wait_for_a_running_task_instead_of_giving_up(qt_app):
+    from cdmw.ui.archive_browser.speed_tuning_actions import PreparedSpeedTuning
+
+    browser = _browser()
+    shell = browser.shell
+    shell.worker_thread = object()  # another task runs, longer than the shell's own five-second wait
+    workspace = browser.create_speed_workspace()
+    qt_app.processEvents()
+    assert workspace.loading and not shell.tasks and "Waiting" in workspace.loading_detail.text()
+    shell.worker_thread = None
+    _wait(qt_app, lambda: len(shell.tasks) == 1)
+    shell.tasks[0]["on_complete"](PreparedSpeedTuning(SimpleNamespace(paths_by_extension={}),
+                                                      (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),)))
+
+    shell.worker_thread = object()
+    workspace.show_page("prefabs")
+    workspace.prefab_search_button.click()
+    workspace.show_page("tables")  # the first visit reads the AI movement table
+    qt_app.processEvents()
+    assert len(shell.tasks) == 1 and "Waiting" in workspace.prefab_status_label.text()
+    assert "Waiting" in workspace.game_table_panel.editor.message.text()
+    shell.busy_once_started = True  # the first of the two runs; the other keeps waiting for its turn
+    shell.worker_thread = None
+    _wait(qt_app, lambda: len(shell.tasks) == 2)
+    import time
+
+    until = time.monotonic() + 0.4  # longer than two polls
+    while time.monotonic() < until:
+        qt_app.processEvents()
+        time.sleep(0.01)
+    assert len(shell.tasks) == 2
+    shell.worker_thread = None
+    _wait(qt_app, lambda: len(shell.tasks) == 3)
+    assert {task["status_message"] for task in shell.tasks[1:]} == {"Searching prefabs for speed values...",
+                                                                    "Reading the aimovespeedinfo table..."}
+
+
+def test_a_task_the_shell_would_drop_is_reported_on_the_page(qt_app):
+    browser = _browser()
+    browser.shell.other_task = True  # Text Search or a texture export: the shell starts nothing and says nothing
+    workspace = browser.create_speed_workspace()
+    assert workspace.load_failed and "Another background task" in workspace.loading_detail.text()
+    browser.shell.other_task = False
+    workspace.retry_button.click()
+    assert workspace.loading and not workspace.load_failed and len(browser.shell.tasks) == 1
+
+
+def test_showing_the_tab_reads_again_after_the_game_folder_changes(qt_app):
+    from cdmw.ui.archive_browser.speed_tuning_actions import PreparedSpeedTuning
+
+    browser = _browser(root="")
+    workspace = browser.create_speed_workspace()
+    assert workspace.load_failed and not browser.shell.tasks
+    browser.root = "C:/game"  # set in Browse Archives meanwhile
+    workspace.show()
+    qt_app.processEvents()
+    assert workspace.loading and not workspace.load_failed and len(browser.shell.tasks) == 1
+    browser.shell.tasks[0]["on_complete"](PreparedSpeedTuning(
+        SimpleNamespace(), (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"),)),)))
+    assert workspace.state()["characters"] == ["Kliff"]
+    workspace.hide()
+    workspace.show()
+    assert len(browser.shell.tasks) == 1  # the same folder: nothing is read again
+
+    browser.root = "D:/other-game"
+    workspace.hide()
+    workspace.show()
+    assert workspace.loading and len(browser.shell.tasks) == 2
+    assert workspace.state()["characters"] == [] and workspace.state()["set"] == ""  # the old folder's sets are gone
+    workspace.close()
 
 
 def test_factor_sliders_follow_their_fields_on_a_log_scale(qt_app):
@@ -274,6 +475,31 @@ def test_factor_sliders_follow_their_fields_on_a_log_scale(qt_app):
     whole = dialog.findChild(QSlider, "speedSetFactorSpinSlider")
     whole.setValue(whole.minimum())
     assert dialog.set_factor_spin.value() == 0.1
+
+
+def test_a_dragged_slider_gives_round_factors_and_keeps_its_place(qt_app):
+    dialog, _calls = _dialog()
+    dialog.select_set(PATH)
+    slider, spin = dialog.kind_sliders["attack"], dialog.kind_spins["attack"]
+    seen = set()
+    for position in range(slider.minimum(), slider.maximum() + 1):
+        slider.setValue(position)
+        assert slider.value() == position  # the handle stays under the pointer
+        assert abs(spin.value() * 20 - round(spin.value() * 20)) < 1e-6  # steps of 0.05
+        seen.add(round(spin.value(), 2))
+    assert {0.1, 0.5, 1.0, 1.5, 2.0, 5.0} <= seen
+    spin.setValue(1.23)  # a typed value is kept as typed, and the handle follows it
+    assert spin.value() == 1.23 and dialog.factors().kinds == {"attack": 1.23}
+
+
+def test_factors_can_be_put_into_the_controls_at_once(qt_app):
+    dialog, _calls = _dialog()
+    dialog.select_set(PATH)
+    dialog.apply_factors(SpeedFactors(1.5, {"attack": 2.0}, {ATTACK: 1.0}), linked=False)
+    assert dialog.set_factor_spin.value() == 1.5 and dialog.kind_spins["attack"].value() == 2.0
+    assert dialog.move_table.cellWidget(0, 4).value() == 1.0 and dialog.move_table.cellWidget(1, 4).value() == 2.0
+    assert dialog.factors() == SpeedFactors(1.5, {"attack": 2.0}, {ATTACK: 1.0}) and dialog.linked_paths() == ()
+    assert dialog.move_clips()[0] == ATTACK
 
 
 def test_scrolling_over_a_move_factor_scrolls_the_list_not_the_value(qt_app):
