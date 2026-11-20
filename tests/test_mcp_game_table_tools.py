@@ -57,10 +57,19 @@ def browse(tmp_path, app, monkeypatch):
     (dmm / "DMM.exe").write_bytes(b"")
     client = RailClient(tmp_path, window=SimpleNamespace(archive=browser, shell=browser.shell))
     yield client, browser, written, dmm
+    from PySide6.QtCore import QEvent
+
     dialog = getattr(browser, "_game_table_dialog", None)
     if dialog is not None:
         dialog.close()
+        dialog.deleteLater()
     browser.deleteLater()
+    # Delete them now, not at some later test's event loop, so nothing of this test outlives it,
+    # and flush the remembered DMM folder to this test's settings file before the file goes.
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    from cdmw.ui.widgets import _flush_requested_settings_syncs
+
+    _flush_requested_settings_syncs()
 
 
 def test_open_read_set_and_write_a_table_through_the_dialog(browse) -> None:
