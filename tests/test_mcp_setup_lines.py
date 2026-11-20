@@ -20,7 +20,9 @@ def test_the_packaged_exe_is_the_command_every_client_starts(monkeypatch) -> Non
     assert setup_lines.bridge_command() == (exe, ["--mcp-bridge"])
     lines = setup_lines.client_setup_lines()
     assert set(lines) == {"Claude Code", "Codex CLI", "Codex CLI (config.toml)",
-                          "Claude Desktop (claude_desktop_config.json)"}
+                          "Claude Desktop (claude_desktop_config.json)", "Other MCP clients (JSON, stdio)"}
+    assert json.loads(lines["Other MCP clients (JSON, stdio)"]) == {
+        "cdmw": {"type": "stdio", "command": exe, "args": ["--mcp-bridge"]}}
     desktop = json.loads(lines["Claude Desktop (claude_desktop_config.json)"])
     assert desktop == {"mcpServers": {"cdmw": {"command": exe, "args": ["--mcp-bridge"]}}}
     # User scope, so Claude Code finds CDMW whatever folder it is started in.
