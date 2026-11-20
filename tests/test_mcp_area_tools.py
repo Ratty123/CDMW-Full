@@ -1303,6 +1303,11 @@ def test_select_topology_output_and_findings_take_the_real_host_path(editor, con
     for index in (0, 1):
         assert after_rows[index][2] == pytest.approx(before_rows[index][2] + 0.25, abs=1e-4)
     assert after_rows[2] == pytest.approx(before_rows[2])
+    # Exact output refuses Flip Normals (it reverses winding) before anything changes.
+    # Checked before the delete below, which removes this part's only triangles.
+    mcp.ok("mesh_select", {"faces": {"0": [0]}})
+    flipped = mcp.ok("mesh_mesh_action", {"action": "flip_normals"})
+    assert flipped["history"] == flipped["history_before"], flipped
     chosen = mcp.ok("mesh_select", {"faces": {"0": [0, 1]}})
     deleted = mcp.ok("mesh_topology", {"action": "delete"})
     assert deleted["done"], deleted
@@ -1312,10 +1317,6 @@ def test_select_topology_output_and_findings_take_the_real_host_path(editor, con
     # CDMW sends no selection of its own: the helper acts on its selection, as its buttons do.
     assert from_cdmw[-1]["command"] == "topology" and "selection" not in from_cdmw[-1]["arguments"]
     assert mcp.error("mesh_transform", {})["code"] == "invalid_arguments"
-    # Exact output refuses Flip Normals (it reverses winding) before anything changes.
-    mcp.ok("mesh_select", {"faces": {"0": [0]}})
-    flipped = mcp.ok("mesh_mesh_action", {"action": "flip_normals"})
-    assert flipped["history"] == flipped["history_before"], flipped
     findings = mcp.ok("mesh_findings")
     assert isinstance(findings, dict) and findings
     # Free Edit needs a folder outside the game; the policy then reads back.
