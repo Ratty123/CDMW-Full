@@ -8,7 +8,9 @@ the tool that covers it or an accepted gap:
   names the tool that takes points instead;
 * ``writes_into_game``: no tool ever covers it, under any setting;
 * ``user_only``: only the user may do it, because it could change the AI
-  connection settings, the approvals or the game folder (section 7, answer 8).
+  connection settings, the approvals or the game folder (section 7, answer 8);
+* ``accepted``: Fredric decided that no tool covers it (for now); the row says
+  why and when.
 
 ``tests/test_mcp_coverage.py`` fails when a command appears without a row,
 when a row names a tool or a command that does not exist, and when a built
@@ -22,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 
 COVERAGE_FILE = Path(__file__).with_name("coverage.json")
-GAPS = ("not_built", "needs_pointer", "writes_into_game", "user_only")
+GAPS = ("not_built", "needs_pointer", "writes_into_game", "user_only", "accepted")
 
 
 @lru_cache(maxsize=1)
