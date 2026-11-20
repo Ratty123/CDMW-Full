@@ -189,7 +189,9 @@ def _model_rows(view, offset: int, limit: int) -> tuple[list[dict[str, object]],
                 if check is not None:
                     entry["checked"] = check in (Qt.CheckState.Checked, 2)
                 flags = model.flags(index)
-                if flags & Qt.ItemFlag.ItemIsUserCheckable and flags & Qt.ItemFlag.ItemIsEnabled:
+                # Qt's list items are user-checkable by default; a row has a tick box only with a check state.
+                if (check is not None and flags & Qt.ItemFlag.ItemIsUserCheckable
+                        and flags & Qt.ItemFlag.ItemIsEnabled):
                     entry["checkable"] = True
                 editable = [column for column in range(_columns(model, parent))
                             if model.flags(model.index(row, column, parent)) & Qt.ItemFlag.ItemIsEditable]
@@ -716,7 +718,8 @@ def _act_on_rows(view, action: str, *, row, rows, extend: bool, column, value, g
     if not flags & Qt.ItemFlag.ItemIsEnabled:
         raise ToolError(UNAVAILABLE, "That row is disabled now.")
     if action in ("check", "uncheck"):
-        if not flags & Qt.ItemFlag.ItemIsUserCheckable:
+        if (not flags & Qt.ItemFlag.ItemIsUserCheckable
+                or cell.data(Qt.ItemDataRole.CheckStateRole) is None):
             raise ToolError(UNAVAILABLE, "That row has no box you can tick.")
         state = Qt.CheckState.Checked if action == "check" else Qt.CheckState.Unchecked
         if not model.setData(cell, state.value, Qt.ItemDataRole.CheckStateRole):
