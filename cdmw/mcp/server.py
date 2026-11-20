@@ -251,9 +251,29 @@ class McpServer:
             return {"tools": [tool.listing() for tool in self.listed_tools()]}
         if method == "tools/call":
             return self.call_tool(session, params, cancel)
-        if method in ("resources/list", "prompts/list"):
-            return {"resources": []} if method == "resources/list" else {"prompts": []}
+        if method in ("resources/list", "resources/read", "resources/templates/list", "prompts/list",
+                      "prompts/get"):
+            return self._protocol_surface(method, params)
         raise _RpcError(METHOD_NOT_FOUND, f"CDMW does not offer {method}.")
+
+    def _protocol_surface(self, method: str, params: dict) -> dict[str, object]:
+        from cdmw.mcp import protocol_surface as surface
+
+        if method == "resources/list":
+            return {"resources": surface.list_resources()}
+        if method == "resources/templates/list":
+            return {"resourceTemplates": []}
+        if method == "prompts/list":
+            return {"prompts": surface.list_prompts()}
+        try:
+            if method == "resources/read":
+                return surface.read_resource(str(params.get("uri") or ""), audit=self.audit)
+            return surface.get_prompt(str(params.get("name") or ""), params.get("arguments"))
+        except surface.ResourceNotFound as exc:
+            # MCP: an unknown resource is -32002.
+            raise _RpcError(-32002, str(exc), {"uri": str(params.get("uri") or "")}) from None
+        except (surface.PromptNotFound, ValueError) as exc:
+            raise _RpcError(INVALID_PARAMS, str(exc)) from None
 
     def _initialize(self, session: McpSession, params: dict) -> dict[str, object]:
         wanted = str(params.get("protocolVersion") or "")
@@ -262,7 +282,8 @@ class McpServer:
         session.client = str(info.get("name") or "MCP client")[:80]
         return {
             "protocolVersion": session.protocol,
-            "capabilities": {"tools": {"listChanged": False}},
+            "capabilities": {"tools": {"listChanged": False}, "resources": {"listChanged": False},
+                             "prompts": {"listChanged": False}},
             "serverInfo": {"name": SERVER_NAME, "title": "Crimson Desert Mod Workbench", "version": _app_version()},
             "instructions": INSTRUCTIONS,
         }

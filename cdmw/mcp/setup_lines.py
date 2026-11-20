@@ -41,4 +41,7 @@ def client_setup_lines(command: str | None = None, args: list[str] | None = None
                                     f"args = [{toml_args}]"),
         "Claude Desktop (claude_desktop_config.json)": json.dumps(
             {"mcpServers": {SERVER_KEY: {"command": command, "args": args}}}, indent=2),
+        # Most other MCP clients take a stdio server in this shape.
+        "Other MCP clients (JSON, stdio)": json.dumps(
+            {SERVER_KEY: {"type": "stdio", "command": command, "args": args}}, indent=2),
     }
