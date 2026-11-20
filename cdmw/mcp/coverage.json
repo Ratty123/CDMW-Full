@@ -1825,6 +1825,27 @@
       "tool": "textures.replace_build"
     },
     {
+      "id": "textures.recolor_read",
+      "area": "Textures > Recolor",
+      "what": "The analysed mod's targets, the template, the outputs and the log",
+      "class": "read",
+      "tool": "textures.recolor_state"
+    },
+    {
+      "id": "textures.recolor_setup",
+      "area": "Textures > Recolor",
+      "what": "Analyze Mod, choose, edit, save, import or review a template, pick targets, preview or open one in the editor",
+      "class": "edit",
+      "tool": "textures.recolor"
+    },
+    {
+      "id": "textures.recolor_build",
+      "area": "Textures > Recolor",
+      "what": "Build Variants",
+      "class": "output",
+      "tool": "textures.recolor_build"
+    },
+    {
       "id": "saved.list",
       "area": "Drafts & Mods",
       "what": "List drafts, mods, item packages and projects",

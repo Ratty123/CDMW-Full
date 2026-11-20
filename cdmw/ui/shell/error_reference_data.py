@@ -2893,6 +2893,8 @@ ERROR_REFERENCE = [
       "Browse Archives did not find the set's files in time.",
       "Browse Archives did not save the decal copy in time.",
       "Build Package did not finish in time.",
+      "Build Variants did not finish in time.",
+      "Build Variants wrote nothing; the log says why.",
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
       "Nothing was written: {what} did not finish. CDMW's message says why.",
@@ -2933,6 +2935,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/server.py",
       "cdmw/mcp/setup_tools.py",
       "cdmw/mcp/texture_files.py",
+      "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/turn_tools.py",
       "cdmw/mcp/ui_actions.py",
@@ -3053,18 +3056,22 @@ ERROR_REFERENCE = [
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
       "There is no file {original}.",
       "There is no language file {source}.",
+      "There is no mod folder or ZIP at {source}.",
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
       "This is not a CDMW language file: {exc}",
       "Unknown argument {extra[0]}",
       "Unknown category {category}; use one of {', '.join(CATEGORIES)}.",
+      "Unknown manager output {sorted(unknown)[0]}; the page offers {sorted(tab.profile_checkboxes)}.",
+      "Unknown template field {sorted(unknown)[0]}.",
       "Unknown {name}: {options[name]}.",
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
       "action must be one of {', '.join(_ACTIONS)}.",
       "add_files takes existing .png or .dds files in paths.",
       "arguments must be an object",
+      "import_templates takes an existing .json file.",
       "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to four keys).",
       "menu names an entry by its text, or a path such as 'Export > Export File'.",
       "offset is past the end ({len(data)} bytes)",
@@ -3075,6 +3082,7 @@ ERROR_REFERENCE = [
       "row applies to a list, table or tree.",
       "row is needed: a row's number or its text.",
       "rows is needed: a list of row numbers or texts.",
+      "targets takes targets (ids to build) or active (one id).",
       "value must be a number.",
       "{action} applies to a list, table or tree.",
       "{action} applies to a tree.",
@@ -3083,6 +3091,8 @@ ERROR_REFERENCE = [
       "{args['action']} takes {minimum} to {maximum} points.",
       "{label} is not a number: {text}",
       "{len(found)} controls have the text {text}; name one by its widget id.",
+      "{name} is a colour such as #C85A30.",
+      "{name} is a whole number from {control.minimum()} to {control.maximum()}.",
       "{name} is required",
       "{name} is required for this action.",
       "{what}: '{key}' is not a part number.",
@@ -3131,6 +3141,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/ui_menus.py",
@@ -3613,6 +3624,7 @@ ERROR_REFERENCE = [
       "The Texture Editor has no tool {tool}. textures_state lists them.",
       "The Textures panel has no texture {wanted}. textures_list lists them.",
       "The adjustments are: {', '.join(kinds)}.",
+      "The analysis has no target {target_id}.",
       "The archives have no file {missing[0]}.",
       "The archives have no {wanted}.",
       "The command {call.tool.command_id} is not registered now.",
@@ -3688,6 +3700,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/tools.py",
@@ -103820,6 +103833,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Analyze a Source Mod first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 138
+    }
+  },
+  {
+    "area": "textures",
     "message": "Archive Browser is open. Could not find {normalized_path} in the loaded archive index.",
     "recovery": "missing",
     "sources": {
@@ -103864,6 +103885,46 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_replace_tools.py": 151
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Build Variants did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 260
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Build Variants did not start.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 251
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Build Variants is unavailable: check textures_recolor_state.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 245
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Build Variants is unavailable: {detail}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 245
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Build Variants wrote nothing; the log says why.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 264
     }
   },
   {
@@ -106067,6 +106128,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Recolor is busy; read textures_recolor_state until it is not.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 183
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture Replacer is busy; read textures_replace_state until it is not.",
     "recovery": "locked",
     "sources": {
@@ -106423,6 +106492,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_tools.py": 213
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The analysis has no target {target_id}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 142
     }
   },
   {
@@ -106875,6 +106952,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "There is no mod folder or ZIP at {source}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 173
+    }
+  },
+  {
+    "area": "textures",
     "message": "There is no queue row {min(missing)}.",
     "recovery": "missing",
     "sources": {
@@ -107007,6 +107092,22 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/texture_panel_persistence.py": 395
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Unknown manager output {sorted(unknown)[0]}; the page offers {sorted(tab.profile_checkboxes)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 237
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Unknown template field {sorted(unknown)[0]}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 112
     }
   },
   {
@@ -107519,6 +107620,14 @@ MESSAGE_REFERENCE = [
       "cdmw/core/texture_pipeline/planning.py": 88,
       "cdmw/modding/scene_texture_discovery.py": 356,
       "tools/correlate_renderdoc_dds_paths.py": 38
+    }
+  },
+  {
+    "area": "textures",
+    "message": "import_templates takes an existing .json file.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 177
     }
   },
   {
@@ -108089,6 +108198,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "targets takes targets (ids to build) or active (one id).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 204
+    }
+  },
+  {
+    "area": "textures",
     "message": "texture dimensions cannot be negative",
     "recovery": "input",
     "sources": {
@@ -108374,6 +108491,22 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/final_package_texture_plan.py": 589
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{name} is a colour such as #C85A30.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 129
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{name} is a whole number from {control.minimum()} to {control.maximum()}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_recolor_tools.py": 120
     }
   },
   {
@@ -109625,6 +109758,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/textures/policy.py",
     "cdmw/mcp/texture_files.py",
     "cdmw/mcp/texture_pixels.py",
+    "cdmw/mcp/texture_recolor_tools.py",
     "cdmw/mcp/texture_replace_tools.py",
     "cdmw/services/mesh_live_texture_drafts.py",
     "cdmw/services/texture_document_authority.py",
@@ -111389,6 +111523,12 @@ SOURCE_COVERAGE = {
     "code": 9,
     "raise": 12,
     "report": 4
+  },
+  "cdmw/mcp/texture_recolor_tools.py": {
+    "code": 10,
+    "diagnostic_field": 1,
+    "raise": 20,
+    "report": 6
   },
   "cdmw/mcp/texture_replace_tools.py": {
     "code": 5,
