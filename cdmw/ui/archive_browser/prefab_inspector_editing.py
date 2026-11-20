@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.domain.archives.prefab_values import (
     Placement,
+    decode_value,
     describe_value,
     encode_value,
     editable_kind,
@@ -288,6 +289,81 @@ class PrefabEditingMixin:
             or item.data(0, VALUE_ROLE)
         )
 
+    # -- speed values (Speed Tuning, experimental) --------------------------------------
+    def speed_offsets(self) -> frozenset[int]:
+        """Offsets of the catalogue speed values the walk reached in this prefab."""
+        cached = getattr(self, "_speed_offset_cache", None)
+        document = getattr(self, "_document", None)
+        if cached is not None and cached[0] is document:
+            return cached[1]
+        from cdmw.services.prefab_speed_service import speed_values
+
+        offsets = frozenset(value.offset for value in speed_values(document)) if document is not None else frozenset()
+        self._speed_offset_cache = (document, offsets)
+        return offsets
+
+    def _is_speed_row(self, item: QTreeWidgetItem) -> bool:
+        stored = item.data(0, VALUE_ROLE)
+        return bool(stored) and stored[0] in self.speed_offsets()
+
+    def scalable_rows(self) -> list[QTreeWidgetItem]:
+        """Selected value rows that hold floats; with none selected under the speed filter, every speed row shown."""
+        rows = [item for item in self.tree.selectedItems() if self._scalable(item)]
+        if rows or not getattr(self, "speed_only_box", None) or not self.speed_only_box.isChecked():
+            return rows
+        found = []
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                if not child.isHidden() and self._is_speed_row(child) and self._scalable(child):
+                    found.append(child)
+        return found
+
+    @staticmethod
+    def _scalable(item: QTreeWidgetItem) -> bool:
+        stored = item.data(0, VALUE_ROLE)
+        return bool(stored) and editable_kind(stored[1], stored[2]) in {"float", "float2", "float3", "float4"}
+
+    def scale_rows(self, rows: list[QTreeWidgetItem], factor: float) -> int:
+        """Multiply each row's current value by `factor` as a pending edit; returns the rows changed."""
+        import math
+
+        if not math.isfinite(float(factor)) or not 0 < float(factor) <= 100:
+            raise ValueError("The factor must be above 0 and at most 100.")
+        changed = 0
+        for item in rows:
+            offset, type_name, original_raw, _member = item.data(0, VALUE_ROLE)
+            pending = self._value_edits.get(offset)
+            current = decode_value(type_name, pending[1] if pending else original_raw)
+            value = tuple(v * factor for v in current) if isinstance(current, tuple) else current * factor
+            new_raw = encode_value(type_name, original_raw, value)
+            if new_raw == original_raw:
+                self._value_edits.pop(offset, None)
+            else:
+                self._value_edits[offset] = (original_raw, new_raw)
+            item.setText(2, describe_value(type_name, new_raw))
+            item.setBackground(2, QBrush(CHANGED_COLOUR) if offset in self._value_edits else QBrush())
+            changed += 1
+        if changed:
+            self._log(f"Scaled {changed} value(s) by {factor:g}.")
+            self._refresh_pending_state()
+        return changed
+
+    def _ask_scale_selected(self) -> None:
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+        rows = self.scalable_rows()
+        if not rows:
+            QMessageBox.information(self, "Scale by factor (experimental)", "Select one or more number rows first.")
+            return
+        factor, accepted = QInputDialog.getDouble(
+            self, "Scale by factor (experimental)",
+            f"Multiply {len(rows)} value(s) by (2 doubles them; prefab speed edits are untested in game):",
+            1.0, 0.01, 100.0, 3)
+        if accepted:
+            self.scale_rows(rows, factor)
+
     def _apply_object_filter(self) -> None:
         """Narrow the tree to matching rows, keeping their objects visible.
 
@@ -297,6 +373,8 @@ class PrefabEditingMixin:
         """
         needle = self.object_filter.text().strip().lower()
         changeable_only = self.changeable_only_box.isChecked()
+        speed_box = getattr(self, "speed_only_box", None)
+        speed_only = bool(speed_box is not None and speed_box.isChecked())
         shown = 0
         for index in range(self.tree.topLevelItemCount()):
             parent = self.tree.topLevelItem(index)
@@ -311,11 +389,13 @@ class PrefabEditingMixin:
                 )
                 if changeable_only and not self._row_is_changeable(child):
                     matches = False
+                if speed_only and not self._is_speed_row(child):
+                    matches = False
                 child.setHidden(not matches)
                 visible_children += int(matches)
-            parent.setHidden(visible_children == 0 and not (parent_matches and not changeable_only))
+            parent.setHidden(visible_children == 0 and not (parent_matches and not changeable_only and not speed_only))
             shown += visible_children
-        if not needle and not changeable_only:
+        if not needle and not changeable_only and not speed_only:
             self.match_count.setText("")
             return
         self.match_count.setText(

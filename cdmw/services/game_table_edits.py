@@ -44,6 +44,8 @@ TABLE_LABELS = {
     "mercenaryinfo": "Mercenaries and pets",
     "skill": "Skills",
     "wantedinfo": "Bounties",
+    "aimovespeedinfo": "AI movement speeds (experimental)",
+    "gimmickinfo": "Gimmicks (experimental)",
 }
 FIELD_LABELS = {
     "_defaultSlotCount": "Starting slots",
@@ -64,11 +66,16 @@ FIELD_LABELS = {
     "_deadDropPercent": "drop chance on death",
     "_throwDropPercent": "drop chance when thrown",
     "_experience": "experience",
+    "_pushObjectSpeedRate": "Pushed object speed rate",
+    "_targetMoveSpeed": "move speed",
+    "_minMoveSpeed": "minimum move speed",
+    "_maxRotationSpeed": "turn speed",
 }
 MEMBER_GROUPS = {
     "DropInfoData": "Drop",
     "CharacterEquipmentData": "Equipment",
     "CharacterLevelData": "Level",
+    "AIMoveSpeedData": "Speed entry",
 }
 
 

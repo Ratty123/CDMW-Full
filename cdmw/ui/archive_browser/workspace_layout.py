@@ -53,6 +53,10 @@ class ArchiveWorkspaceLayoutMixin:
         from cdmw.ui.archive_browser.old_install_removal import install_old_install_removal
 
         install_old_install_removal(self)
+        # Speed Tuning (experimental) as a command, so the palette and AI tools reach it.
+        from cdmw.ui.archive_browser.speed_tuning_actions import install_speed_tuning_command
+
+        install_speed_tuning_command(self)
 
 
 __all__ = ["ArchiveWorkspaceLayoutMixin"]

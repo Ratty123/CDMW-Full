@@ -834,13 +834,15 @@ def test_the_action_charts_button_works_with_nothing_selected(qt_app):
 
     triggered: list[str] = []
     browser = SimpleNamespace(_open_action_chart_finder=lambda: triggered.append("find"),
-                              _open_action_chart_mod=lambda: triggered.append("mod"))
+                              _open_action_chart_mod=lambda: triggered.append("mod"),
+                              _open_speed_tuning=lambda: triggered.append("speed"))
     button = ArchiveActionChartActionsMixin._build_action_chart_button(browser)
     actions = button.menu().actions()
-    assert [action.text() for action in actions] == ["Find Action Chart by Character...", "Open Action Chart Mod..."]
+    assert [action.text() for action in actions] == ["Find Action Chart by Character...", "Open Action Chart Mod...",
+                                                     "Speed Tuning (Experimental)..."]
     for action in actions:
         action.trigger()
-    assert triggered == ["find", "mod"]
+    assert triggered == ["find", "mod", "speed"]
 
 
 # --- other charts that play a clip ---------------------------------------------------

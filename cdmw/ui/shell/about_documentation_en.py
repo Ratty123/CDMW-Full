@@ -536,6 +536,18 @@ class AboutDocumentationEnglishMixin:
                 <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Clip changes (once every chart that plays the clip was changed), the chart speed rate and speed windows worked in game; other timing values and event edits have not been tested in game yet.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
+                <h4>Speed Tuning (Experimental)</h4>
+                <ol>
+                  <li>In Archive Browser, click Action Charts and choose Speed Tuning (Experimental)..., or right-click an action chart (.paac) and choose Speed Tuning (Experimental)....</li>
+                  <li>On Animation speed, pick a character and a set. A set is one action chart, such as Two-handed sword or Basic (legs).</li>
+                  <li>Set a factor from 0.1x to 5x: for the whole set, for a kind of move (attacks, jumps, guard and parry, dodges, draw and sheathe, movement, idle) or for one move. 2x plays twice as fast. A move's own factor beats its kind's; the whole-set factor scales the chart's speed rate on top.</li>
+                  <li>Leave Also change these moves in the charts that include this set's clips ticked: a move can play from another chart, so a change to one chart alone can show nothing in game.</li>
+                  <li>Check the Review, click Export DMM Mod..., name the mod and click Send to DMM, then enable it in DMM and click Mount. Sets exported under one mod name collect in one mod; a set put back to 1x leaves it.</li>
+                  <li>On Prefabs, search for prefabs that carry speed values (scene cameras, spinning and wind-driven objects, cloud drift) and open one in the Prefab Inspector with Speed values ticked. Select rows and click Scale by factor..., then Save changes....</li>
+                  <li>On Game tables, open AI movement speeds or the pushed object speed rate in Edit Game Table Values.</li>
+                </ol>
+                <p>Chart speed windows and the chart speed rate worked in game when changed through Crimson Live Edit. Prefab and game table speed edits have not been tested in game, and prefab effect (emitter) speeds cannot be edited yet because CDMW cannot read that far into those prefabs. The game's files are only read. To try speeds in the running game without a mod, use Crimson Live Edit. AI apps reach all of this through the experimental speed tools.</p>
+                <p>Edit Game Table Values also offers AI movement speeds and the pushed object speed rate (experimental, not tested in game).</p>
                 <h4>Edit game table values</h4>
                 <ol>
                   <li>In Archive Browser, right-click a game data table (<code>.staticinfoheader</code> or <code>.staticinfobody</code>), such as inventory or dropsetinfo, and choose Edit Game Table Values....</li>

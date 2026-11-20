@@ -53,6 +53,7 @@ from cdmw.ui.archive_browser.appearance_swap import ArchiveAppearanceSwapMixin
 from cdmw.ui.archive_browser.binary_sidecar_actions import ArchiveBinarySidecarActionsMixin
 from cdmw.ui.archive_browser.prefab_inspector_actions import ArchivePrefabInspectorActionsMixin
 from cdmw.ui.archive_browser.action_chart_actions import ArchiveActionChartActionsMixin
+from cdmw.ui.archive_browser.speed_tuning_actions import ArchiveSpeedTuningActionsMixin
 from cdmw.ui.archive_browser.game_table_actions import ArchiveGameTableActionsMixin
 from cdmw.ui.archive_browser.pab_json_actions import ArchivePabJsonActionsMixin
 from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin
@@ -149,6 +150,7 @@ class ArchiveBrowserWorkspace(
     ArchiveBinarySidecarActionsMixin,
     ArchivePrefabInspectorActionsMixin,
     ArchiveActionChartActionsMixin,
+    ArchiveSpeedTuningActionsMixin,
     ArchiveGameTableActionsMixin,
     ArchivePrefabJsonActionsMixin,
     ArchivePabJsonActionsMixin,

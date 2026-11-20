@@ -92,6 +92,9 @@ class ArchiveActionChartActionsMixin:
         find_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())
         open_action = menu.addAction("Open Action Chart Mod...")
         open_action.triggered.connect(lambda _checked=False: self._open_action_chart_mod())
+        speed_action = menu.addAction("Speed Tuning (Experimental)...")
+        speed_action.setToolTip("Make attacks, dodges and other moves play faster or slower, and save it as a DMM mod.")
+        speed_action.triggered.connect(lambda _checked=False: self._open_speed_tuning())
         button.setMenu(menu)
         return button
 

@@ -166,3 +166,31 @@ def test_create_new_item_refuses_table_edits_for_item_packages():
     planner, _patched = _planner([TableFieldEdit("inventory", 2, "_maxSlotCount", 480)], independent=True)
     with pytest.raises(NewItemPlanError, match="DMM mod folders only"):
         plan_table_edits(planner)
+
+
+# -- Speed Tuning (experimental): game table speeds ------------------------------------
+
+
+def test_pushed_object_speed_is_an_editable_float_and_a_speed_row():
+    import struct
+
+    from cdmw.services.game_table_edits import TableLayer, load_table_index
+    from cdmw.services.game_table_speed import speed_rows_from_index
+    from tests.test_static_table_records import minimal_record
+
+    raw, width = minimal_record("gimmickinfo", 7, "Crate")
+    body, header = table([(7, raw)], width=width)
+    layers = [TableLayer("gimmickinfo", header, body)]
+    rows = speed_rows_from_index(load_table_index("gimmickinfo", layers))
+    assert [(row["key"], [value["target"] for value in row["values"]]) for row in rows] == [
+        (7, ["_pushObjectSpeedRate"])]
+    edited = compose_table_edits("gimmickinfo", layers, [TableFieldEdit("gimmickinfo", 7, "_pushObjectSpeedRate", 2.5)])
+    record = decode_static_table("gimmickinfo", edited.header, edited.body).records[0]
+    assert struct.unpack("<f", record.field("_pushObjectSpeedRate").value.to_bytes(4, "little"))[0] == 2.5
+    with pytest.raises(TableEditError, match="outside"):
+        compose_table_edits("gimmickinfo", layers, [TableFieldEdit("gimmickinfo", 7, "_pushObjectSpeedRate", 0.0)])
+
+
+def test_ai_move_speed_members_get_readable_labels():
+    assert target_label(("_aiMoveSpeedDataList", 0, "_targetMoveSpeed"), "AIMoveSpeedData") == \
+        "Speed entry 1: move speed"
