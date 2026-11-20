@@ -119,3 +119,75 @@ def test_the_hair_setup_choice_reaches_the_component():
     component._pending_hair_context = None
     assert host._pending_hair_context is None
     host.deleteLater()
+
+
+def _flows_called_with_the_component():
+    """(module, function) pairs the component's own code calls with ``self`` as the first argument."""
+
+    found = set()
+    for module in (tab_rust_editor, tab_rust_process):
+        tree = ast.parse(inspect.getsource(module))
+        imported = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("cdmw.ui.mesh_editor."):
+                for alias in node.names:
+                    imported[alias.asname or alias.name] = (node.module, alias.name)
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in imported
+                    and node.args and isinstance(node.args[0], ast.Name) and node.args[0].id == "self"):
+                found.add(imported[node.func.id])
+    return sorted(found)
+
+
+def _tab_names(tree):
+    """Names read from ``tab``, and names the module itself assigns on ``tab`` (state it keeps there)."""
+
+    reads, writes = set(), set()
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in {"getattr", "hasattr"} and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name) and node.args[0].id == "tab"
+                and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str)):
+            reads.add(node.args[1].value)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "tab":
+            (writes if isinstance(node.ctx, ast.Store) else reads).add(node.attr)
+    return reads, writes
+
+
+def test_flows_that_receive_the_component_read_only_declared_names():
+    """A flow that reads a host name the component does not declare gets ``None`` back.
+
+    ``archive_session_dependencies`` was missing, so Fit to body and Hair Tools no
+    longer saw the session's own archive files (same class as the PR 38 pickers).
+    """
+
+    import importlib
+
+    from cdmw.ui.mesh_editor.live_edit import component as component_module
+
+    known = set(component_module.HOST_NAMES) | set(component_module.STATE_NAMES) | set(dir(LiveEditComponent))
+    flows = _flows_called_with_the_component()
+    assert ("cdmw.ui.mesh_editor.hair_flow", "prepare_hair_event") in flows
+    assert ("cdmw.ui.mesh_editor.refit_reference_preparation", "prepare_refit_fit_event") in flows
+    missing = []
+    for module_name, function_name in flows:
+        tree = ast.parse(inspect.getsource(importlib.import_module(module_name)))
+        _, kept_by_module = _tab_names(tree)
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == function_name and node.args.args \
+                    and node.args.args[0].arg == "tab":
+                reads, _ = _tab_names(node)
+                missing.extend(
+                    f"{module_name}.{function_name}: {name}" for name in sorted(reads - known - kept_by_module)
+                )
+    assert missing == []
+
+
+def test_the_session_dependencies_reach_the_hair_and_refit_flows():
+    QApplication.instance() or QApplication([])
+    host = QWidget()
+    component = LiveEditComponent(host)
+    marker = object()
+    host.archive_session_dependencies = marker
+    assert component.archive_session_dependencies is marker
+    host.deleteLater()

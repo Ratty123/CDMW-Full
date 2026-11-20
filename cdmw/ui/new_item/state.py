@@ -279,6 +279,8 @@ class NewItemDraft:
         self.template_key = template_key
         self.model_source = ModelSource.TEMPLATE
         self.grid_values = {}
+        # Added stat columns belong to the old template's stat grid.
+        self.extra_stat_keys = []
         self.extra_levels = 0
         self.price_values = {}
         self.include_perk_prices = True
@@ -639,7 +641,8 @@ def grid_values_from_edits(
 def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDraft:
     """A copy of the draft re-pointed at a template, with the per-template fields cleared."""
 
-    copy = replace(draft, grid_values=dict(draft.grid_values), price_values=dict(draft.price_values))
+    copy = replace(draft, grid_values=dict(draft.grid_values), price_values=dict(draft.price_values),
+                   extra_stat_keys=list(draft.extra_stat_keys))
     copy.reset_for_template(template_key)
     return copy
 

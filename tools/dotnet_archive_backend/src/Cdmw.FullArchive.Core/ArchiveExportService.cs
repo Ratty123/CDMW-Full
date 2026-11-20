@@ -94,6 +94,7 @@ public sealed class ArchiveExportService(
                             // The superseded file may still be decoding or writing.
                             await decodes.DrainAsync(items, progress, entryIds.Count).ConfigureAwait(false);
                             TryDeleteFile(publishFiles[supersededIndex].StagedPath);
+                            MarkSuperseded(items, publishFiles[supersededIndex], entry);
                             publishFiles.RemoveAt(supersededIndex);
                         }
                     }
@@ -430,16 +431,10 @@ public sealed class ArchiveExportService(
     private static string StructurePath(ArchiveSession session, long entryId) =>
         StructurePath(session.ReadEntry(entryId));
 
-    private static string PackageRoot(ArchiveEntryDto entry)
-    {
-        var normalizedSource = entry.SourcePamt.Replace('/', Path.DirectorySeparatorChar);
-        var packageRoot = Path.GetFileName(Path.GetDirectoryName(normalizedSource));
-        if (string.IsNullOrWhiteSpace(packageRoot))
-        {
-            packageRoot = "package";
-        }
-        return packageRoot.Trim('/');
-    }
+    // dlc/dlc_01/0015 for a DLC package, so base and DLC copies of a file do not
+    // export to the same path.
+    private static string PackageRoot(ArchiveEntryDto entry) =>
+        ArchiveEntryClassifier.PackageFolder(entry.SourcePamt).Trim('/');
 
     private static string FindAvailableOutputPath(
         string destination,
@@ -697,6 +692,24 @@ public sealed class ArchiveExportService(
         manifestPath,
         items.Take(MaximumReportedItems).ToArray(),
         items.Count > MaximumReportedItems);
+
+    // Two selected files that land on the same output path: the later one wins, and the
+    // report says so instead of listing both as exported.
+    private static void MarkSuperseded(List<ArchiveExportItem> items, PublishFile superseded, ArchiveEntryDto winner)
+    {
+        var slot = items.FindLastIndex(item =>
+            item.SourcePath == superseded.Entry!.Path &&
+            string.Equals(item.OutputPath, superseded.FinalPath, StringComparison.OrdinalIgnoreCase) &&
+            item.Status is "exported" or "renamed");
+        if (slot >= 0)
+        {
+            items[slot] = items[slot] with
+            {
+                Status = "replaced",
+                Message = $"replaced by {ArchiveEntryClassifier.PackageLabel(winner.SourcePamt)} copy of the same path",
+            };
+        }
+    }
 
     private static void AddItem(List<ArchiveExportItem> items, ArchiveExportItem item)
     {

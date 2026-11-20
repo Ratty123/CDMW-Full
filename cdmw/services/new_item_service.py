@@ -552,11 +552,23 @@ class NewItemService:
             snapshot = stock_snapshot(game_root, stop_event=stop_event)
             read_game = lambda path: snapshot.payload(path) if snapshot.has_entry(path) else None  # noqa: E731
             carried_plan, targets = plan_for_dmm(carried_plan, read_game)
+        dependencies = tuple({"path": row["path"], "sha256": row["sha256"]} for row in plan.manifest.get("sources", ()))
+        if targets is not None:
+            # DMM applies the operations to the game's own tables. A plan built on a DMM mod
+            # base read those tables with the earlier items' operations applied, and that is
+            # not what a later update check finds in the game; record the game's tables.
+            import hashlib
+
+            from cdmw.services.dmm_dlc_tables import is_operation_table
+            dependencies = tuple(
+                dict(row, sha256=hashlib.sha256(read_game(row["path"])).hexdigest())
+                if is_operation_table(row["path"]) and row["path"] not in carried_plan.loose_files
+                and read_game(row["path"]) is not None else row
+                for row in dependencies)
         from cdmw.core.mod_compatibility import capture_patch_compatibility
         compatibility = plan.export_compatibility or capture_patch_compatibility(carried_plan.patches, carried_plan.additions,
             game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in carried_plan.meta_files),
-            dependencies=tuple({"path": row["path"], "sha256": row["sha256"]}
-                for row in plan.manifest.get("sources", ())), stop_event=stop_event)
+            dependencies=dependencies, stop_event=stop_event)
         raise_if_cancelled(stop_event, "New item export cancelled.")
         written = export_overlay_mod(
             carried_plan, root,

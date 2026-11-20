@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import List, Optional, Tuple
 
@@ -173,3 +174,12 @@ def build_texture_editor_selection_mask(
     if selection.inverted:
         mask = 255 - mask
     return mask if np.any(mask) else None
+
+
+def _unfeathered_selection(selection: TextureEditorSelection) -> TextureEditorSelection:
+    """The stored selection without its feather.
+
+    Feather is applied when the mask is read. A command that edits or moves the stored
+    selection has to start from the sharp mask, or every command would blur it again.
+    """
+    return dataclasses.replace(selection, feather_radius=0) if int(selection.feather_radius or 0) else selection

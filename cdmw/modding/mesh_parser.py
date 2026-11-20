@@ -737,6 +737,7 @@ def parse_pam(data: bytes, filename: str = "") -> ParsedMesh:
     # Compute normals for all submeshes
     for sm in result.submeshes:
         sm.normals = _compute_smooth_normals(sm.vertices, sm.faces)
+    _attach_static_source_vertex_maps(result)
 
     result.total_vertices = sum(len(sm.vertices) for sm in result.submeshes)
     result.total_faces = sum(len(sm.faces) for sm in result.submeshes)
@@ -745,6 +746,28 @@ def parse_pam(data: bytes, filename: str = "") -> ParsedMesh:
     logger.info("Parsed PAM %s: %d submeshes, %d verts, %d faces",
                 filename, len(result.submeshes), result.total_vertices, result.total_faces)
     return result
+
+
+def _attach_static_source_vertex_maps(result: ParsedMesh) -> None:
+    """Give every record-backed PAM/PAMLOD Part its parse-order source map.
+
+    A static Part's vertex i is the i-th unique source record the parser read
+    (its offset is ``source_vertex_offsets[i]``) and the static writers write
+    vertex i back to that record. That is the same proof ``parse_pac`` states
+    for PAC rows. Without it, exact output refuses every same-count edit that
+    did not pass through the native editor in the current session (Open Package,
+    Vertex Parameters, a continued draft).
+    """
+    seen: set[int] = set()
+    for level in [result.submeshes, *list(result.lod_levels or ())]:
+        for submesh in level or ():
+            if id(submesh) in seen:
+                continue
+            seen.add(id(submesh))
+            count = len(submesh.vertices)
+            if submesh.source_vertex_map or not count or len(submesh.source_vertex_offsets) != count:
+                continue
+            submesh.source_vertex_map = list(range(count))
 
 
 def _parse_independent_meshes(data, entries, geom_off, bmin, bmax, result):
@@ -1138,6 +1161,8 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
     else:
         logger.warning("PAMLOD %s has no consistent level block table; scanning for its layout", filename)
         result.lod_levels = _scan_pamlod_levels(data, lod_count, geom_off, bmin, bmax)
+
+    _attach_static_source_vertex_maps(result)
 
     # Use requested LOD level as the main submeshes
     if lod_level < len(result.lod_levels) and result.lod_levels[lod_level]:

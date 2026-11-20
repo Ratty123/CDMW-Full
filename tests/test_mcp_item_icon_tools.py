@@ -25,6 +25,9 @@ def test_item_icons_changes_and_export_use_the_compatible_output(tmp_path):
         destination = out / entry.path
         assert result["destination"].casefold() == str(destination).casefold()
         wait_for(destination.is_file)
+        # The worker writes the file before it reports; let it finish and show its notice before the
+        # next call, so nothing of this export is still running when the test tears the tab down.
+        wait_for(lambda: tab._output_thread is None and tab._mcp_icon_output is not None)
         with Image.open(destination) as image:
             assert image.size == (16, 16)
         assert client.call("item_icons.make", folder=str(out))["error"]["code"] == "refused"

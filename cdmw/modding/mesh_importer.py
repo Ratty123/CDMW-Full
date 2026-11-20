@@ -475,7 +475,10 @@ def _build_prepared_mesh_bytes(
     # nothing else. Falling through to the native builder or the generic PAC
     # rebuild would replace an exact result with a plausible one, so a contract
     # that cannot be served here raises instead of being quietly ignored.
-    if _has_topology_contract(mesh) and fmt != "pac":
+    if _has_topology_contract(mesh) and (fmt != "pac" or _only_identity_contracts(mesh, original_mesh)):
+        # An identity contract (left by a same-count native edit such as a
+        # numeric transform) is served by the same-count builder, as a viewport
+        # move is. The topology writer never widens the source bounds.
         mesh = _same_count_mesh_from_identity_contracts(fmt, mesh, original_mesh)
     if _has_topology_contract(mesh):
         if original_mesh is None:
@@ -600,6 +603,14 @@ def _same_count_mesh_from_identity_contracts(
         return same_count
     raise ValueError(
         f"Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}."
+    )
+
+
+def _only_identity_contracts(mesh: ParsedMesh, original_mesh: ParsedMesh | None) -> bool:
+    original_parts = tuple(getattr(original_mesh, "submeshes", ()) or ())
+    parts = tuple(mesh.submeshes or ())
+    return original_mesh is not None and len(parts) == len(original_parts) and all(
+        _is_identity_contract(part, source) for part, source in zip(parts, original_parts)
     )
 
 
@@ -863,6 +874,7 @@ def _apply_operation_channels_to_original(
         return edited_mesh
     rebuilt = copy.deepcopy(original_mesh)
     _copy_cdmw_attrs(edited_mesh, rebuilt)
+    _keep_source_lod_identity(original_mesh, edited_mesh, rebuilt)
     rebuilt.path = str(edited_mesh.path or rebuilt.path or "")
     rebuilt.format = str(edited_mesh.format or rebuilt.format or "")
     try:
@@ -912,6 +924,32 @@ def apply_operation_channels_to_original(
         edited_mesh,
         active_lod_index=active_lod_index,
     )
+
+
+def _keep_source_lod_identity(original_mesh: ParsedMesh, edited_mesh: ParsedMesh, rebuilt: ParsedMesh) -> None:
+    """Keep every source LOD when a package returns only the LODs it exported.
+
+    Export writes the active LOD only, so a PAMLOD package sidecar names one
+    level. The rebuilt mesh keeps all of the source levels (only same-count
+    channels are copied onto them), so its LOD identity is the source's. That
+    is only taken when each returned level agrees with the source level of the
+    same index; a package from another layout still reaches the LOD identity
+    blocker.
+    """
+    if not hasattr(original_mesh, "_cdmw_mesh_asset_lods") or not hasattr(edited_mesh, "_cdmw_mesh_asset_lods"):
+        return
+    from cdmw.domain.mesh.export_validation import _mesh_lod_identity, _stable_metadata_value
+
+    original_identity = _mesh_lod_identity(original_mesh) or ()
+    edited_identity = _mesh_lod_identity(edited_mesh) or ()
+    if not original_identity or len(edited_identity) >= len(original_identity):
+        return
+    by_index = {entry["lod_index"]: _stable_metadata_value(entry) for entry in original_identity}
+    if not edited_identity or any(
+        by_index.get(entry["lod_index"]) != _stable_metadata_value(entry) for entry in edited_identity
+    ):
+        return
+    setattr(rebuilt, "_cdmw_mesh_asset_lods", copy.deepcopy(getattr(original_mesh, "_cdmw_mesh_asset_lods")))
 
 
 def _copy_cdmw_attrs(source: ParsedMesh, target: ParsedMesh) -> None:

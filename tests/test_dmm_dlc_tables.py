@@ -147,3 +147,46 @@ def test_a_swap_placement_is_refused_for_dmm_with_its_reason(tmp_path):
     plan = service.plan(swap, snapshot)  # A .cdmw package already refuses a swap.
     with pytest.raises(DmmTableError, match="Swap placement"):
         plan_for_dmm(plan, _read(snapshot))
+
+
+def _dlc_only_group_game(tmp_path):
+    """The DLC fixture, with group 17011 only in the DLC's table (like the ship groups)."""
+    import tests.test_new_item_compact_dlc as fixture
+    from tests.compact_item_fixtures import files as base_files, group, table
+
+    def files():
+        source = base_files()
+        source[ROOT + "itemgroupinfo.staticinfobody"], source[ROOT + "itemgroupinfo.staticinfoheader"] = table(
+            [(17010, group(17010, "ItemGroup_Base", [fixture.TEMPLATE]))], 2)
+        return source
+    original = fixture.files
+    fixture.files = files
+    try:
+        return fixture.setup(tmp_path, dlc=True)
+    finally:
+        fixture.files = original
+
+
+def test_a_group_only_the_dlc_has_is_left_out_of_dmm_output_with_a_warning(tmp_path):
+    from cdmw.services.dmm_dlc_tables import plan_for_dmm
+
+    service, snapshot = _dlc_only_group_game(tmp_path)
+    plan = service.plan(spec("DmmShipPart"), snapshot, capture_independent=True)
+    assert set(plan.manifest["item_groups"]) == {"ItemGroup_Base", "ItemGroup_Equip"}
+    warning = next(w for w in plan.warnings if w.startswith("For DMM:"))
+    assert "ItemGroup_Equip" in warning and "ItemGroup_Base" not in warning
+    logs = []
+    dmm_plan, targets = plan_for_dmm(plan, _read(snapshot), on_log=logs.append)
+    groups = [(intent["key"], intent["new"]) for target in targets if target["file"] == "itemgroupinfo.pabgb"
+              for intent in target["intents"]]
+    assert groups == [(17010, plan.spec.item_key)]
+    assert any("ItemGroup_Equip" in line and "leaves the item out" in line for line in logs)
+    # The same item exports for DMM.
+    service.export_loose(plan, tmp_path / "out", manager="DMM")
+    assert (tmp_path / "out" / "CDMW items - shops and groups.json").is_file()
+
+
+def test_a_group_in_the_base_table_gets_no_dmm_warning(tmp_path):
+    service, snapshot = setup(tmp_path, dlc=True)
+    plan = service.plan(spec("DmmOrdinary"), snapshot, capture_independent=True)
+    assert not [w for w in plan.warnings if w.startswith("For DMM:")]

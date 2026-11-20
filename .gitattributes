@@ -1,1 +1,4 @@
 * text=auto
+# The golden Create New Item fixture is hashed byte for byte (its material file has CRLF line
+# endings, as the game ships it). Keep its bytes the same on every checkout.
+tests/fixtures/new_item_golden/** -text

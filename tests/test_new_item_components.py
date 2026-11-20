@@ -287,7 +287,7 @@ def test_item_package_leaves_out_components_but_keeps_the_shared_cut_rules(studi
     # The fixture's material files are stand-ins that package mode cannot parse.
     monkeypatch.setattr(references, "parse_pac_xml_references", lambda data, check=None: SimpleNamespace(
         rewrite_textures=lambda mapping, check=None: data))
-    monkeypatch.setattr(copies, "copy_material_textures", lambda planner, material, mapping: (material, []))
+    monkeypatch.setattr(copies, "copy_material_textures", lambda planner, material, mapping, stock=None: (material, []))
     # Its stand-in side files also fail the full package audit; the descriptor rule is asserted below.
     monkeypatch.setattr(packages, "audit_plan", lambda plan, snapshot, stop_event=None: None)
     service, snapshot, controller = studio

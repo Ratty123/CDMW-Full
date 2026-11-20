@@ -614,6 +614,41 @@
       "tool": "tables.row"
     },
     {
+      "id": "tables.editor_state",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: the loaded table, its rows, a row's values and this mod's changes",
+      "class": "read",
+      "tool": "tables.editor_state"
+    },
+    {
+      "id": "tables.editor_edit",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: open, load, set, restore and remove values",
+      "class": "edit",
+      "tool": "tables.editor_edit"
+    },
+    {
+      "id": "tables.editor_write",
+      "area": "Browse Archives",
+      "what": "Edit Game Table Values: Write DMM Mod",
+      "class": "output",
+      "tool": "tables.editor_write"
+    },
+    {
+      "id": "files.decal_read",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: the selected decal's settings",
+      "class": "read",
+      "tool": "files.decal_read"
+    },
+    {
+      "id": "files.decal_save",
+      "area": "Browse Archives",
+      "what": "Edit Skinned Decal: change settings and save a loose .paseq copy",
+      "class": "output",
+      "tool": "files.decal_save"
+    },
+    {
       "id": "strings.get",
       "area": "Translation Studio",
       "what": "Game strings by key or words",
@@ -1223,6 +1258,13 @@
       "tool": "mesh.build_mod"
     },
     {
+      "id": "mesh.session",
+      "area": "Mesh Editor",
+      "what": "After Finish: Resume current edit, Start next edit pass, Add to Archive Browser, Check mesh, Return to Create New Item; and Name Draft",
+      "class": "edit",
+      "tool": "mesh.session"
+    },
+    {
       "id": "placement.pointer",
       "area": "Placement & Animations",
       "what": "Viewport translation and rotation by numbers, and timeline keys by track and time",
@@ -1762,6 +1804,27 @@
       "milestone": "P13: the current editor offers grain and pattern brush strokes."
     },
     {
+      "id": "textures.replace_queue_read",
+      "area": "Textures > Replace",
+      "what": "The queue: edited files, matched originals and status",
+      "class": "read",
+      "tool": "textures.replace_state"
+    },
+    {
+      "id": "textures.replace_queue",
+      "area": "Textures > Replace",
+      "what": "Add files or a folder, reload, where originals come from, Auto-Match, a local original for a row, remove or clear",
+      "class": "edit",
+      "tool": "textures.replace"
+    },
+    {
+      "id": "textures.replace_build",
+      "area": "Textures > Replace",
+      "what": "Build Package",
+      "class": "output",
+      "tool": "textures.replace_build"
+    },
+    {
       "id": "saved.list",
       "area": "Drafts & Mods",
       "what": "List drafts, mods, item packages and projects",
@@ -1858,6 +1921,104 @@
       "what": "Extract a file or current selection",
       "class": "output",
       "tool": "files.browser_export"
+    },
+    {
+      "id": "files.hkx_state",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: joints, limits, names and changes",
+      "class": "read",
+      "tool": "files.hkx_state"
+    },
+    {
+      "id": "files.hkx_edit",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: open, joint limits and stiffness, scale all, rename, reset",
+      "class": "edit",
+      "tool": "files.hkx_edit"
+    },
+    {
+      "id": "files.hkx_save",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: Save HKX File",
+      "class": "output",
+      "tool": "files.hkx_save"
+    },
+    {
+      "id": "files.hkx_save_mod",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: Save as DMM Mod (fills the mod-ready export prompt)",
+      "class": "output",
+      "tool": "files.hkx_save_mod"
+    },
+    {
+      "id": "files.sound_bank_read",
+      "area": "Browse Archives",
+      "what": "Edit Sound Bank: list a bank's values and what each object can add",
+      "class": "read",
+      "tool": "files.sound_bank_read"
+    },
+    {
+      "id": "files.sound_bank_write",
+      "area": "Browse Archives",
+      "what": "Edit Sound Bank as Loose Mod: change values and properties, write a mod package",
+      "class": "output",
+      "tool": "files.sound_bank_write"
+    },
+    {
+      "id": "files.audio_import",
+      "area": "Browse Archives",
+      "what": "Import WAV as Loose Mod (fills the mod-ready export prompt)",
+      "class": "output",
+      "tool": "files.audio_import"
+    },
+    {
+      "id": "files.action_chart_state",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: read the chart, an animation's values and events, a names table",
+      "class": "read",
+      "tool": "files.action_chart_state"
+    },
+    {
+      "id": "files.action_chart_edit",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: open, edit rate, timing, clips, events and names, apply, reset",
+      "class": "edit",
+      "tool": "files.action_chart_edit"
+    },
+    {
+      "id": "files.action_chart_export",
+      "area": "Browse Archives",
+      "what": "Action Chart Editor: Export DMM Mod to a folder",
+      "class": "output",
+      "tool": "files.action_chart_export"
+    },
+    {
+      "id": "files.skeleton_read",
+      "area": "Browse Archives",
+      "what": "Add Bones: list a skeleton's bones",
+      "class": "read",
+      "tool": "files.skeleton_read"
+    },
+    {
+      "id": "files.skeleton_add_bones",
+      "area": "Browse Archives",
+      "what": "Add Bones: add child bones and save the skeleton as a mod package",
+      "class": "output",
+      "tool": "files.skeleton_add_bones"
+    },
+    {
+      "id": "files.prefab_read",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: list a prefab's objects and fields",
+      "class": "read",
+      "tool": "files.prefab_read"
+    },
+    {
+      "id": "files.prefab_save",
+      "area": "Browse Archives",
+      "what": "Prefab Inspector: change paths and save a loose mod package",
+      "class": "output",
+      "tool": "files.prefab_save"
     },
     {
       "id": "archive.export",
@@ -2655,15 +2816,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_editor_dialog.py|ActionChartEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_export_dialog.py|ActionChartExportDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.action_chart_export"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/action_chart_finder_dialog.py|ActionChartFinderDialog",
@@ -2685,15 +2842,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/game_table_actions.py|GameTableEditDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "tables.editor_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/hkx_physics_editor_dialog.py|HkxPhysicsEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.hkx_edit"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/mesh_batch_export_dialog.py|BatchMeshExportDialog",
@@ -2703,9 +2856,7 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pab_bone_editor_dialog.py|PabBoneEditorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.skeleton_add_bones"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/pac_xml_editor_dialog_shell.py|PacXmlEditorDialog",
@@ -2721,15 +2872,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_dialog.py|PrefabInspectorDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_review.py|PrefabChangeReview",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.prefab_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/prefab_inspector_widgets.py|AssetPickerDialog",
@@ -2757,15 +2904,11 @@
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/skinned_decal_dialog.py|SkinnedDecalDialog",
-      "gap": "generic_only",
-      "item": 13,
-      "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
+      "tool": "files.decal_save"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/sound_bank_editor.py|SoundBankEditorDialog",
-      "gap": "generic_only",
-      "item": 14,
-      "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+      "tool": "files.sound_bank_write"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py|_EmbeddedAlignmentBuilderDialog",
@@ -2841,9 +2984,7 @@
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/saved_work_naming.py|NameDraftDialog",
-      "gap": "generic_only",
-      "item": 8,
-      "milestone": "P13 MCP gap plan item 8: Mesh Editor tools on CDMW's Qt side"
+      "tool": "mesh.session"
     },
     {
       "key": "dialog:cdmw/ui/model_preview_settings_dialog.py|ModelPreviewSettingsDialog",

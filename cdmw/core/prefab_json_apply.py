@@ -148,7 +148,8 @@ def rebuild_prefab_no_edit_from_edit_document(data: bytes, document: Mapping[str
 
 def apply_prefab_edit_json(data: bytes, document_text: str, *, virtual_path: str='', roles: Sequence[str]=SUPPORTED_PREFAB_EDIT_ROLES) -> bytes:
     try:
-        document = json.loads(document_text)
+        # Notepad's "UTF-8 with BOM" leaves a byte order mark in front of the text.
+        document = json.loads(str(document_text).lstrip('\ufeff'))
     except json.JSONDecodeError as exc:
         raise PrefabEditJsonError('Prefab edit JSON is not valid JSON.') from exc
     return apply_prefab_edit_document(data, _as_mapping(document, 'document'), virtual_path=virtual_path, roles=roles)

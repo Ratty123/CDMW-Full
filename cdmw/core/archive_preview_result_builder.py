@@ -117,6 +117,7 @@ build_binary_strings_preview = _archive_proxy("build_binary_strings_preview")
 build_bnk_soundbank_preview = _archive_proxy("build_bnk_soundbank_preview")
 build_dds_header_detail_text = _archive_proxy("build_dds_header_detail_text")
 build_hkx_editable_geometry_document = _archive_proxy("build_hkx_editable_geometry_document")
+build_hkx_preview_geometry_document = _archive_proxy("build_hkx_preview_geometry_document")
 build_hkx_model_preview_from_document = _archive_proxy("build_hkx_model_preview_from_document")
 build_hkx_physics_overlay_from_document = _archive_proxy("build_hkx_physics_overlay_from_document")
 build_hkx_preview = _archive_proxy("build_hkx_preview")
@@ -142,6 +143,31 @@ read_archive_entry_raw_data = _archive_proxy("read_archive_entry_raw_data")
 resolve_hkx_preview_context_model_entry = _archive_proxy("resolve_hkx_preview_context_model_entry")
 summarize_obj_text = _archive_proxy("summarize_obj_text")
 try_decode_text_like_archive_data = _archive_proxy("try_decode_text_like_archive_data")
+
+
+def _archive_image_preview_path(source_path: Path) -> Tuple[Optional[Path], str]:
+    """Return an image the preview pane can show, and a warning when there is none.
+
+    Qt's TGA reader only reads uncompressed files, and most game TGA files are run length
+    encoded, so those showed an empty pane. Pillow reads them; the PNG goes next to the
+    extracted file in the preview cache.
+    """
+
+    if source_path.suffix.lower() != ".tga":
+        return source_path, ""
+    converted = source_path.with_name(source_path.name + ".preview.png")
+    try:
+        if converted.is_file() and converted.stat().st_mtime >= source_path.stat().st_mtime:
+            return converted, ""
+        from PIL import Image
+
+        with Image.open(source_path) as image:
+            image.load()
+            mode = "RGBA" if image.mode in {"RGBA", "LA", "P", "PA"} or "transparency" in image.info else "RGB"
+            image.convert(mode).save(converted, format="PNG")
+        return converted, ""
+    except Exception as exc:
+        return None, f"This TGA image could not be decoded for preview: {exc}"
 
 def build_archive_preview_result(
     entry: Optional[ArchiveEntry],
@@ -391,6 +417,7 @@ def build_archive_preview_result(
                 archive_entries_by_normalized_path=texture_entries_by_normalized_path,
                 archive_entries_by_basename=texture_entries_by_basename,
             )
+            image_path, image_warning = _archive_image_preview_path(Path(source_path))
             return ArchivePreviewResult(
                 status="ok",
                 title=entry.basename,
@@ -401,7 +428,8 @@ def build_archive_preview_result(
                     if "SparseDDS" in parse_archive_note_flags(note)
                     else "",
                 ),
-                preview_image_path=str(source_path),
+                warning_text=image_warning,
+                preview_image_path=str(image_path or ""),
                 preferred_view="image",
                 model_texture_references=related_references,
                 loose_file_path=loose_file_path,
@@ -982,7 +1010,8 @@ def build_archive_preview_result(
             hkx_document: Optional[Mapping[str, object]] = None
             hkx_context_model_entry = resolve_hkx_preview_context_model_entry(entry, related_references)
             try:
-                hkx_document = build_hkx_editable_geometry_document(data, entry.path, descriptor_hints)
+                # The preview only draws shapes; the full editing document took minutes on large files.
+                hkx_document = build_hkx_preview_geometry_document(data, entry.path, descriptor_hints)
                 if hkx_context_model_entry is not None:
                     try:
                         context_cache_key = ""

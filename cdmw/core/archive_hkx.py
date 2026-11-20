@@ -386,7 +386,7 @@ from cdmw.core.archive_hkx_roles import (
     _hkx_simulation_role_description,
     _hkx_simulation_role_from_parts,
 )
-from cdmw.core.archive_hkx_editable_geometry import build_hkx_editable_geometry_document
+from cdmw.core.archive_hkx_editable_geometry import build_hkx_editable_geometry_document, build_hkx_preview_geometry_document
 from cdmw.core.archive_hkx_overlay import build_hkx_physics_overlay_from_document, merge_hkx_physics_overlays
 from cdmw.core.archive_hkx_overlay_support import (
     _hkx_overlay_anchor_match_key,

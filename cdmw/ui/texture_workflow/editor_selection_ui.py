@@ -207,6 +207,7 @@ class TextureEditorSelectionUiMixin:
         layer_state = texture_editor_selection_to_layer_state(self.document, self.layer_pixels, selection_state)
         self.document = layer_state.document
         self.layer_pixels = layer_state.layer_pixels
+        self._invalidate_composite_cache()
         self._push_history(layer_state.history_label)
         self._refresh_ui()
         for row in range(self.layers_list.count()):

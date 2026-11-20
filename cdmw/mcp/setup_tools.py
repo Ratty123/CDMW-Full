@@ -20,13 +20,45 @@ from cdmw.mcp.tools import ON_WORKER
 WAIT_S = 60.0
 
 
-def _wait(call, done, what: str, outcome) -> None:
+REPORT_WAIT_S = 5.0
+
+
+def _take_report(call, title: str):
+    """Read and close the message box a finished language task shows (UI thread)."""
+
+    from PySide6.QtWidgets import QApplication, QMessageBox
+
+    shell = getattr(window(call), "shell", None)
+    localizer = getattr(shell, "ui_localizer", None)
+    titles = {title, localizer.translate(title)} if localizer is not None else {title}
+    box = QApplication.activeModalWidget()
+    if isinstance(box, QMessageBox) and box.windowTitle() in titles:
+        row = {"text": box.text(), "warning": box.icon() in (QMessageBox.Icon.Warning, QMessageBox.Icon.Critical)}
+        box.accept()
+        return row
+    return None
+
+
+def _wait(call, done, what: str, outcome, report: str = "") -> dict | None:
+    """Wait for ``done``; a language task also reports in a message box, which the tool reads and
+    closes, so the interface is not left waiting on a box nobody answers."""
+
     deadline = time.monotonic() + WAIT_S
+    shown = None
     while not call.context.ui_call(done):
         call.check_cancelled()
+        if report and (shown := call.context.ui_call(lambda: _take_report(call, report))) and shown["warning"]:
+            raise ToolError(FAILED, shown["text"], outcome)
         if time.monotonic() > deadline:
             raise ToolError(FAILED, f"{what} did not finish in time. CDMW's status line says why.", outcome)
         time.sleep(0.05)
+    if report and shown is None:
+        until = time.monotonic() + REPORT_WAIT_S
+        while shown is None and time.monotonic() < until:
+            call.check_cancelled()
+            shown = call.context.ui_call(lambda: _take_report(call, report))
+            time.sleep(0.05)
+    return shown
 
 
 def _workspace(call):
@@ -69,8 +101,9 @@ def _export(call):
     before = target.stat().st_mtime_ns if target.exists() else None
     outcome = ui(call, lambda: press(page(call, "settings").export_language_button) or {},
                  {"save_file": str(target)})
-    _wait(call, lambda: target.exists() and target.stat().st_mtime_ns != before, "Export Language File", outcome)
-    return {**outcome, "saved": str(target)}
+    shown = _wait(call, lambda: target.exists() and target.stat().st_mtime_ns != before, "Export Language File",
+                  outcome, report="Export Language File")
+    return {**outcome, "saved": str(target), "report": (shown or {}).get("text", "")}
 
 
 def _import(call):
@@ -92,8 +125,8 @@ def _import(call):
         settled = controller is None or not controller.active
         return settled and str(shell.settings.value("appearance/language", "") or "") == code
 
-    _wait(call, done, "Import Language File", outcome)
-    return {**outcome, "language": code, "name": name}
+    shown = _wait(call, done, "Import Language File", outcome, report="Import Language File")
+    return {**outcome, "language": code, "name": name, "report": (shown or {}).get("text", "")}
 
 
 def setup_tools():
