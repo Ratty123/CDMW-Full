@@ -1120,7 +1120,7 @@ class MeshServiceEditingTests(unittest.TestCase):
             (
                 {
                     "code": "sidecar_material_name_changed",
-                    "message": "OBJ sidecar material changed for submesh 0.",
+                    "message": "Package sidecar material changed for submesh 0.",
                     "submesh_index": 0,
                     "blocks_rebuild": True,
                 },
