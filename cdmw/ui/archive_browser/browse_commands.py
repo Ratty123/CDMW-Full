@@ -125,5 +125,9 @@ def install_browse_commands(browser) -> CommandRegistry | None:
         return None
     commands = [_button_command(getattr(browser, attribute), name)
                 for attribute, name in BROWSE_BUTTONS.items() if getattr(browser, attribute, None) is not None]
+    # The right-click menu's actions that no button has (MCP gap plan item 6).
+    from cdmw.ui.archive_browser.context_commands import context_commands
+
+    commands.extend(context_commands(browser))
     registry.register_all(commands, replace=True)
     return registry

@@ -345,6 +345,106 @@
     "saved_work.combine": {
       "tool": "app.run_command",
       "class": "output"
+    },
+    "browse.add_bones": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.continue_earlier_work": {
+      "tool": "app.run_command",
+      "class": "read"
+    },
+    "browse.edit_action_chart": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.edit_game_table": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.edit_skinned_decal": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.edit_sound_bank": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.edit_structured_data": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.export_file_paths": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.export_folder": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.export_obj_neutral": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.export_wav": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.extract_filtered": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.extract_selected": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.find_action_chart": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.import_loose_mod_folder": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.import_wav_loose_mod": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.open_action_chart_mod": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.open_set_in_mesh_editor": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.prefab_edit_export_json": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.prefab_edit_import_json": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.prefab_inspector": {
+      "tool": "app.run_command",
+      "class": "edit"
+    },
+    "browse.preview_only_this_file": {
+      "tool": "app.run_command",
+      "class": "read"
+    },
+    "browse.replace_embedded_sound": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.skeleton_edit_export_json": {
+      "tool": "app.run_command",
+      "class": "output"
+    },
+    "browse.skeleton_edit_import_json": {
+      "tool": "app.run_command",
+      "class": "edit"
     }
   },
   "command_patterns": [
@@ -1757,23 +1857,17 @@
   "surfaces": [
     {
       "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Find Action Chart by Character...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.find_action_chart",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Open Action Chart Mod...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.open_action_chart_mod",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Add Bones...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.add_bones",
       "typed_by": 13
     },
     {
@@ -1794,9 +1888,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Continue Earlier Work...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.continue_earlier_work"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Copy Filename",
@@ -1804,16 +1896,12 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Action Chart...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.edit_action_chart",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Game Table Values...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.edit_game_table",
       "typed_by": 13
     },
     {
@@ -1822,29 +1910,21 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Skinned Decal...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.edit_skinned_decal",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Sound Bank as Loose Mod...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.edit_sound_bank",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Edit Structured Data Safely...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.edit_structured_data"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Character and Related Game Files...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.character_dependencies"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Decode JSON...",
@@ -1856,9 +1936,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export File Paths...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.export_file_paths"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export File...",
@@ -1866,22 +1944,16 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Folder...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.export_folder"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Prefab Edit JSON...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.prefab_edit_export_json",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export Skeleton Edit JSON...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.skeleton_edit_export_json",
       "typed_by": 13
     },
     {
@@ -1894,9 +1966,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as OBJ (Neutral Appearance)...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.export_obj_neutral"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export This Model as OBJ...",
@@ -1904,9 +1974,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Export WAV...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.export_wav",
       "typed_by": 14
     },
     {
@@ -1915,15 +1983,11 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Filtered",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.extract_filtered"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Extract Selected",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.extract_selected"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Filter to Family",
@@ -1931,36 +1995,26 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Find Action Chart by Character...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.find_action_chart",
       "typed_by": 14
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Loose Mod Folder...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.import_loose_mod_folder"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Prefab Edit JSON...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.prefab_edit_import_json",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import Skeleton Edit JSON...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.skeleton_edit_import_json",
       "typed_by": 13
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Import WAV as Loose Mod...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.import_wav_loose_mod",
       "typed_by": 14
     },
     {
@@ -1969,9 +2023,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open Prefab Inspector...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.prefab_inspector",
       "typed_by": 13
     },
     {
@@ -1984,9 +2036,7 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open set in Mesh Editor",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.open_set_in_mesh_editor"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Preview",
@@ -1994,15 +2044,11 @@
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Preview only this file",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action"
+      "command": "browse.preview_only_this_file"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Replace Embedded Sound as Loose Mod...",
-      "gap": "generic_only",
-      "item": 6,
-      "milestone": "P13 MCP gap plan item 6: a registry command for this right-click action",
+      "command": "browse.replace_embedded_sound",
       "typed_by": 14
     },
     {
