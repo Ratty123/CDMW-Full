@@ -124,6 +124,8 @@ class TextureJobReviewMixin:
             self.set_texture_job_busy(False)
             if results and not getattr(matcher, "_shutting_down", False):
                 complete(results[0])
+                if editor.status_label.property("_i18n_source_text") == "Preparing replacement review...":
+                    editor._set_status("Replacement review is ready.", False)
             else:
                 self.job.cancel("replacement_review")
         editor._task_finished_on_ui.connect(finished)

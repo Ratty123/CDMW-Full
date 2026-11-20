@@ -410,6 +410,17 @@ class TextureProcessingPlan:
 ArchiveEntryIdentity = NamedTuple("ArchiveEntryIdentity", [("normalized_path", str), ("source_pamt", str), ("paz_index", int), ("entry_offset", int)])
 
 
+def archive_package_folder(pamt_path) -> str:
+    """Package folder of a ``.pamt`` path, keeping ``dlc/<name>/`` for DLC packages."""
+
+    parts = [part for part in str(pamt_path).replace("\\", "/").split("/")[:-1] if part]
+    if not parts:
+        return "package"
+    if len(parts) >= 3 and parts[-3].casefold() == "dlc":
+        return "/".join(parts[-3:])
+    return parts[-1].strip() or "package"
+
+
 @dataclass(slots=True)
 class ArchiveEntry:
     path: str
@@ -488,8 +499,17 @@ class ArchiveEntry:
         }.get(self.encryption_type, str(self.encryption_type))
 
     @property
+    def package_folder(self) -> str:
+        """The package folder, with the DLC folders in front for a DLC package.
+
+        The base game and a DLC both have a package folder named ``0015``; only the
+        path from ``dlc`` tells them apart (``dlc/dlc_01/0015``).
+        """
+        return archive_package_folder(self.pamt_path)
+
+    @property
     def package_label(self) -> str:
-        return f"{self.pamt_path.parent.name}/{self.pamt_path.name}"
+        return f"{self.package_folder}/{self.pamt_path.name}"
 
 
 @dataclass(slots=True)

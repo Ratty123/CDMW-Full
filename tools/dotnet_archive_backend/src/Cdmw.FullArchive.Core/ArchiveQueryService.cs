@@ -697,15 +697,8 @@ public sealed partial class ArchiveQueryService(ArchiveSessionManager sessions)
     private static string StructurePath(ArchiveSession session, long entryId, string path) =>
         StructurePath(session.Index.ReadString(session.Index.GetPamtPathRange(entryId)), path);
 
-    private static string StructurePath(string sourcePamt, string path)
-    {
-        var packageDirectory = Path.GetFileName(Path.GetDirectoryName(sourcePamt));
-        if (string.IsNullOrWhiteSpace(packageDirectory))
-        {
-            packageDirectory = "package";
-        }
-        return $"{packageDirectory.Trim('/')}/{path.Trim('/')}";
-    }
+    private static string StructurePath(string sourcePamt, string path) =>
+        $"{ArchiveEntryClassifier.PackageFolder(sourcePamt).Trim('/')}/{path.Trim('/')}";
 
     private static void Publish(Func<ProgressUpdate, Task>? progress, ProgressUpdate update) =>
         progress?.Invoke(update).GetAwaiter().GetResult();

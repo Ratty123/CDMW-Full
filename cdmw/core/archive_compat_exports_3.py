@@ -90,6 +90,7 @@ ARCHIVE_EXPORTS_3: dict[str, tuple[str, str]] = {
     'build_dds_header_detail_text': ('cdmw.core.archive_media_preview', 'build_dds_header_detail_text'),
     'build_hkx_descriptor_hint_from_xml_text': ('cdmw.core.archive_hkx', 'build_hkx_descriptor_hint_from_xml_text'),
     'build_hkx_editable_geometry_document': ('cdmw.core.archive_hkx', 'build_hkx_editable_geometry_document'),
+    'build_hkx_preview_geometry_document': ('cdmw.core.archive_hkx', 'build_hkx_preview_geometry_document'),
     'build_hkx_model_preview_from_document': ('cdmw.core.archive_hkx', 'build_hkx_model_preview_from_document'),
     'build_hkx_physics_overlay_from_document': ('cdmw.core.archive_hkx', 'build_hkx_physics_overlay_from_document'),
     'build_hkx_preview': ('cdmw.core.archive_hkx', 'build_hkx_preview'),

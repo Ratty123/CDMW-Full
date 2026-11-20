@@ -55,6 +55,7 @@ class TextureEditorChannelUiMixin:
         before_document = dataclasses.replace(self.document)
         self.document = channel_state.document
         self.layer_pixels = channel_state.layer_pixels
+        self._invalidate_composite_cache()
         self._record_history_change(
             channel_state.history_label,
             before_document=before_document,

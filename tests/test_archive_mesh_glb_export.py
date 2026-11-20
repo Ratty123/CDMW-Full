@@ -192,3 +192,22 @@ def test_protected_texture_maps_resolve_to_the_package_copies_after_a_move(tmp_p
     for info in bindings:
         path = Path(info["path"])
         assert path.is_file() and path.is_relative_to(moved / "textures"), info
+
+
+def test_glb_position_bounds_match_the_stored_float32_values():
+    import numpy as np
+
+    from cdmw.modding.mesh_glb_interchange import _float_accessor
+
+    # World-space proxy LOD positions: float64 values that round when stored as float32.
+    rows = [(1234.5678901, -987.6543211, 0.1), (-4321.0000001, 55.55555555, 7.7777777)]
+    for path_rows in (rows, [list(row) for row in rows] + [[1.0, 2.0]]):
+        buffer, views, accessors = bytearray(), [], []
+        try:
+            index = _float_accessor(buffer, views, accessors, path_rows, "VEC3", 34962, include_min_max=True)
+        except ValueError:
+            continue  # the incomplete row is rejected, as before
+        accessor = accessors[index]
+        stored = np.frombuffer(bytes(buffer), dtype="<f4").reshape(-1, 3)
+        assert accessor["min"] == [float(value) for value in stored.min(axis=0)]
+        assert accessor["max"] == [float(value) for value in stored.max(axis=0)]

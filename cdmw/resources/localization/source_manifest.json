@@ -2086,12 +2086,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -2101,7 +2101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2111,7 +2111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2121,7 +2121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -2141,7 +2141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2181,7 +2181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2191,7 +2191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2201,7 +2201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2241,7 +2241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2256,7 +2256,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2276,7 +2276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2286,7 +2286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2296,7 +2296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2336,7 +2336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2361,7 +2361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2371,7 +2371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2676,7 +2676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2686,7 +2686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2706,7 +2706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2741,7 +2741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2751,7 +2751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2761,7 +2761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2791,7 +2791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2821,7 +2821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2841,7 +2841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -2861,7 +2861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -3981,7 +3981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4011,7 +4011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4141,7 +4141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4151,7 +4151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4321,7 +4321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -4381,7 +4381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4481,7 +4481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -5051,7 +5051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -5116,7 +5116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -6061,7 +6061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -6081,7 +6081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6686,7 +6686,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -7491,7 +7491,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -8351,7 +8351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -8666,7 +8666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -8796,7 +8796,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -9471,7 +9471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -9481,7 +9481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -9761,7 +9761,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -11061,7 +11061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -11256,7 +11256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -11276,7 +11276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -11536,7 +11536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -11971,7 +11971,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -11996,7 +11996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -12386,7 +12386,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -14921,7 +14921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -15141,12 +15141,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 510,
+          "line": 513,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 511,
+          "line": 514,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -15156,7 +15156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 494,
+          "line": 497,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -15176,12 +15176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 502,
+          "line": 505,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 504,
+          "line": 507,
           "sink": "append_archive_log"
         }
       ]
@@ -15201,7 +15201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 493,
+          "line": 496,
           "sink": "append_archive_log"
         }
       ]
@@ -15211,7 +15211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 487,
+          "line": 490,
           "sink": "append_archive_log"
         }
       ]
@@ -15271,12 +15271,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 543,
+          "line": 546,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 548,
+          "line": 551,
           "sink": "set_status_message"
         }
       ]
@@ -15286,7 +15286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 627,
+          "line": 630,
           "sink": "append_log"
         }
       ]
@@ -15296,7 +15296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 488,
+          "line": 491,
           "sink": "append_log"
         }
       ]
@@ -15796,7 +15796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16331,7 +16331,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -16361,7 +16361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16666,7 +16666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -16716,7 +16716,7 @@
       "origins": [
         {
           "path": "cdmw/models.py",
-          "line": 1753,
+          "line": 1773,
           "sink": "python-data:D3D11_NORMAL_Y_MODE_LABELS"
         }
       ]
@@ -17636,7 +17636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 178,
+          "line": 180,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -17646,7 +17646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 211,
+          "line": 213,
           "sink": "information"
         }
       ]
@@ -17666,7 +17666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 196,
+          "line": 198,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -17676,7 +17676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 208,
+          "line": 210,
           "sink": "set_status_message"
         }
       ]
@@ -18146,7 +18146,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -18156,7 +18156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -19211,7 +19211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 296,
+          "line": 298,
           "sink": "information"
         }
       ]
@@ -21121,7 +21121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -21416,7 +21416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -21986,7 +21986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -22091,7 +22091,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -22856,7 +22856,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -23221,7 +23221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24531,7 +24531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -24686,7 +24686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24876,7 +24876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24886,7 +24886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25016,7 +25016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25926,7 +25926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25936,7 +25936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25946,7 +25946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25976,7 +25976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -27231,7 +27231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -27256,7 +27256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -27766,7 +27766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -27966,7 +27966,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -28401,7 +28401,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -29346,7 +29346,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -29446,7 +29446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -29596,7 +29596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -30301,7 +30301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -30336,7 +30336,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -30401,7 +30401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -30601,7 +30601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -30616,7 +30616,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -30806,7 +30806,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -31656,7 +31656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -31666,7 +31666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -31791,7 +31791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -31996,7 +31996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -32061,7 +32061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -32101,7 +32101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -34026,7 +34026,7 @@
       "origins": [
         {
           "path": "cdmw/models.py",
-          "line": 1765,
+          "line": 1785,
           "sink": "python-data:D3D11_TEXTURE_ADDRESS_MODE_LABELS"
         }
       ]
@@ -34116,7 +34116,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -34531,7 +34531,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -34696,7 +34696,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -34776,7 +34776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -35226,7 +35226,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 559,
+          "line": 562,
           "sink": "on_log"
         }
       ]
@@ -35321,7 +35321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -35361,7 +35361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -35391,7 +35391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -36686,7 +36686,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -37511,7 +37511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -37606,7 +37606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -37616,7 +37616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -38636,7 +38636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39136,7 +39136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -39591,12 +39591,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -39861,7 +39861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -39876,7 +39876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -40371,7 +40371,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -41946,7 +41946,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -42041,7 +42041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -42751,7 +42751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -44486,7 +44486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -44696,7 +44696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -47706,7 +47706,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -48211,7 +48211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48221,7 +48221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48436,7 +48436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48676,7 +48676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -49866,7 +49866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -50526,7 +50526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -50596,7 +50596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -50956,7 +50956,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -51376,7 +51376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 149,
+          "line": 158,
           "sink": "information"
         },
         {
@@ -52391,7 +52391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -54631,7 +54631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -56096,7 +56096,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -56751,7 +56751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -57831,7 +57831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -57896,7 +57896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -58291,7 +58291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -59151,7 +59151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -59336,7 +59336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -59646,7 +59646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 617,
+          "line": 620,
           "sink": "set_status_message"
         }
       ]
@@ -59656,7 +59656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 613,
+          "line": 616,
           "sink": "set_status_message"
         }
       ]
@@ -59666,7 +59666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 609,
+          "line": 612,
           "sink": "set_status_message"
         }
       ]
@@ -59676,12 +59676,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 480,
+          "line": 624,
           "sink": "set_status_message"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Extracted {value_0} archive file(s) to {value_1}.{value_2}",
+      "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 621,
+          "line": 483,
           "sink": "set_status_message"
         }
       ]
@@ -59691,12 +59696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 720,
+          "line": 723,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 738,
+          "line": 741,
           "sink": "_run_archive_extract"
         }
       ]
@@ -59706,12 +59711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 671,
+          "line": 674,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 678,
+          "line": 681,
           "sink": "_run_archive_extract"
         }
       ]
@@ -59721,12 +59726,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 720,
+          "line": 723,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 738,
+          "line": 741,
           "sink": "_run_archive_extract"
         }
       ]
@@ -59736,12 +59741,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 651,
+          "line": 654,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 658,
+          "line": 661,
           "sink": "_run_archive_extract"
         }
       ]
@@ -59751,7 +59756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 562,
+          "line": 565,
           "sink": "on_log"
         }
       ]
@@ -59966,7 +59971,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60336,7 +60341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 503,
+          "line": 506,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -62466,7 +62471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -62701,7 +62706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -63781,7 +63786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -64191,7 +64196,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -64961,7 +64966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -65131,7 +65136,7 @@
       "origins": [
         {
           "path": "cdmw/models.py",
-          "line": 1754,
+          "line": 1774,
           "sink": "python-data:D3D11_NORMAL_Y_MODE_LABELS"
         }
       ]
@@ -65166,7 +65171,7 @@
       "origins": [
         {
           "path": "cdmw/models.py",
-          "line": 1755,
+          "line": 1775,
           "sink": "python-data:D3D11_NORMAL_Y_MODE_LABELS"
         }
       ]
@@ -65531,12 +65536,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -66721,7 +66726,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -67296,12 +67301,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -67871,7 +67876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -67891,7 +67896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -69471,7 +69476,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -69501,7 +69506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -70926,7 +70931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -71461,7 +71466,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -72951,7 +72956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -72991,7 +72996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73001,7 +73006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73011,7 +73016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73041,7 +73046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -73181,7 +73186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -73306,7 +73311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73996,7 +74001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74046,7 +74051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74076,7 +74081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -74791,7 +74796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -75261,7 +75266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -76091,7 +76096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -76231,7 +76236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -76261,7 +76266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -76301,7 +76306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76311,7 +76316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -76401,7 +76406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76441,7 +76446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76456,7 +76461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -82131,7 +82136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82366,7 +82371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -82426,7 +82431,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -82476,7 +82481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -82536,7 +82541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -82561,7 +82566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82616,7 +82621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -82666,7 +82671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -82731,7 +82736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83941,7 +83946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -84411,7 +84416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -84986,7 +84991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -85161,7 +85166,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85511,7 +85516,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -86581,7 +86586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -86771,7 +86776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -87726,7 +87731,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -87766,7 +87771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -88131,7 +88136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -88901,7 +88906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -90851,7 +90856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -91101,7 +91106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -91876,7 +91881,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -95161,7 +95166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -95386,7 +95391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -95621,7 +95626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -95736,7 +95741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -96116,7 +96121,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -96176,7 +96181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -96576,7 +96581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -98496,7 +98501,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -98606,7 +98611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -98616,7 +98621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -98661,7 +98666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -98706,7 +98711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -98751,7 +98756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -98866,7 +98871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -100346,7 +100351,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -101081,7 +101086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -102491,7 +102496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 531,
+          "line": 534,
           "sink": "set_status_message"
         }
       ]
@@ -102561,7 +102566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 232,
+          "line": 234,
           "sink": "set_status_message"
         }
       ]
@@ -102581,7 +102586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 695,
+          "line": 698,
           "sink": "set_status_message"
         }
       ]
@@ -103571,7 +103576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 669,
+          "line": 672,
           "sink": "set_status_message"
         }
       ]
@@ -104196,7 +104201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -104406,7 +104411,7 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 592,
+          "line": 603,
           "sink": "clear_media"
         }
       ]
@@ -106571,7 +106576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -106581,7 +106586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -106591,7 +106596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -107741,7 +107746,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -108106,7 +108111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -108816,7 +108821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -108886,7 +108891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -109406,7 +109411,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -109481,12 +109486,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -109621,7 +109626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -109746,7 +109751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -109821,7 +109826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -110836,7 +110841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -111186,7 +111191,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -111881,7 +111886,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -112781,7 +112786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -112966,7 +112971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -114076,7 +114081,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -114181,7 +114186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -114676,7 +114681,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -115751,7 +115756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -115821,7 +115826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -117956,7 +117961,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -118051,7 +118056,7 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 664,
+          "line": 685,
           "sink": "setText"
         },
         {
@@ -118341,7 +118346,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -118896,7 +118901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -118971,7 +118976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -119511,12 +119516,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -120416,7 +120421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -120466,7 +120471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -120496,27 +120501,27 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 479,
+          "line": 481,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 509,
+          "line": 512,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 664,
+          "line": 685,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 670,
+          "line": 691,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -120601,7 +120606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -120731,7 +120736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -120956,7 +120961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -120991,7 +120996,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -122881,7 +122886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/job_review.py",
-          "line": 130,
+          "line": 132,
           "sink": "_run_async_task"
         }
       ]
@@ -123396,7 +123401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -123561,7 +123566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -124246,7 +124251,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -124331,7 +124336,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127441,7 +127446,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127451,7 +127456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127776,7 +127781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -128566,7 +128571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -128791,7 +128796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 603,
+          "line": 614,
           "sink": "setText"
         }
       ]
@@ -129091,7 +129096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -129516,7 +129521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -130881,7 +130886,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 166,
+          "line": 146,
           "sink": "_run_utility_task"
         },
         {
@@ -130941,12 +130946,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 494,
+          "line": 497,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 511,
+          "line": 514,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -131356,12 +131361,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -131391,7 +131396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -132316,7 +132321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -132546,7 +132551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -133131,7 +133136,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -133351,7 +133356,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -133691,12 +133696,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -134666,7 +134671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -134961,7 +134966,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -135161,7 +135166,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -135261,7 +135266,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -135356,7 +135361,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -136536,7 +136541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -137557,6 +137562,16 @@
       ]
     },
     {
+      "key": "Replacement review is ready.",
+      "origins": [
+        {
+          "path": "cdmw/ui/texture_workflow/job_review.py",
+          "line": 128,
+          "sink": "_set_status"
+        }
+      ]
+    },
+    {
       "key": "Replacement size: {value_0} bytes",
       "origins": [],
       "manual": true
@@ -137786,7 +137801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -137911,7 +137926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -137926,7 +137941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -137966,7 +137981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -138356,7 +138371,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -138811,7 +138826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -140141,7 +140156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -140721,7 +140736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 267,
+          "line": 269,
           "sink": "question"
         }
       ]
@@ -140731,12 +140746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 249,
+          "line": 251,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 264,
+          "line": 266,
           "sink": "warning"
         }
       ]
@@ -140751,7 +140766,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -140911,7 +140926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 267,
+          "line": 269,
           "sink": "question"
         }
       ]
@@ -141511,7 +141526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 295,
+          "line": 297,
           "sink": "set_status_message"
         }
       ]
@@ -141521,7 +141536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 296,
+          "line": 298,
           "sink": "information"
         }
       ]
@@ -141541,7 +141556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 303,
+          "line": 305,
           "sink": "_run_utility_task"
         }
       ]
@@ -141551,7 +141566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 284,
+          "line": 286,
           "sink": "log"
         }
       ]
@@ -142476,7 +142491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -142531,7 +142546,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -142551,7 +142566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -143046,7 +143061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -143736,7 +143751,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -144941,7 +144956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -145466,7 +145481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -145896,7 +145911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -146156,7 +146171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148036,7 +148051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148046,7 +148061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148336,7 +148351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148521,7 +148536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148761,7 +148776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -148771,7 +148786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -149006,7 +149021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 238,
+          "line": 240,
           "sink": "getExistingDirectory"
         }
       ]
@@ -149016,7 +149031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 178,
+          "line": 180,
           "sink": "_collect_archive_mod_ready_export_target"
         }
       ]
@@ -150041,7 +150056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -150651,7 +150666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -150671,7 +150686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -151756,7 +151771,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 645,
+          "line": 648,
           "sink": "set_status_message"
         }
       ]
@@ -152631,7 +152646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -152796,7 +152811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -153451,7 +153466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -154751,7 +154766,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -154851,7 +154866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -155666,7 +155681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155676,7 +155691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155686,7 +155701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155696,7 +155711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155706,7 +155721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155716,7 +155731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155726,7 +155741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155831,7 +155846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -155851,12 +155866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -155881,7 +155896,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -156701,7 +156716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -156731,7 +156746,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -156746,7 +156761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -156756,7 +156771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -156791,7 +156806,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -160391,7 +160406,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -161601,7 +161616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 460,
+          "line": 462,
           "sink": "QLabel"
         }
       ]
@@ -163781,7 +163796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -164896,12 +164911,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 480,
+          "line": 482,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 510,
+          "line": 513,
           "sink": "QPushButton"
         },
         {
@@ -166326,7 +166341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -166356,7 +166371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -166521,7 +166536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -166986,7 +167001,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -167656,7 +167671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -168116,7 +168131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -168156,7 +168171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -168201,12 +168216,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -168426,7 +168441,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -168716,7 +168731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -168746,7 +168761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -168811,7 +168826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169306,7 +169321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169551,7 +169566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169666,7 +169681,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -169716,7 +169731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169726,7 +169741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169736,7 +169751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169831,7 +169846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169861,7 +169876,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169881,7 +169896,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -169901,7 +169916,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -170431,7 +170446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -170541,7 +170556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -170551,7 +170566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -170561,7 +170576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171481,7 +171496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171771,7 +171786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171856,12 +171871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 706,
+          "line": 709,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
-          "line": 733,
+          "line": 736,
           "sink": "set_status_message"
         }
       ]
@@ -173506,7 +173521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -177716,7 +177731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -177931,7 +177946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 149,
+          "line": 158,
           "sink": "information"
         }
       ]
@@ -178996,7 +179011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -180036,7 +180051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -180206,7 +180221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -180396,7 +180411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -180536,7 +180551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -181001,7 +181016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -181816,12 +181831,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -182116,7 +182131,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -182226,7 +182241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -182236,7 +182251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -182696,7 +182711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -182901,7 +182916,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -182961,7 +182976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -183466,12 +183481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -183621,7 +183636,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -186141,7 +186156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186331,12 +186346,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -186461,7 +186476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186516,7 +186531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186851,7 +186866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -186901,7 +186916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -187286,7 +187301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187741,7 +187756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -189626,7 +189641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191086,7 +191101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -191211,7 +191226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -191961,7 +191976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192001,7 +192016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192021,7 +192036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192096,7 +192111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192146,7 +192161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192236,7 +192251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192266,7 +192281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -192351,7 +192366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -192501,7 +192516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192541,7 +192556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192571,7 +192586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -192616,7 +192631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192691,7 +192706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192701,7 +192716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192966,7 +192981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192976,7 +192991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192986,7 +193001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192996,7 +193011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193006,7 +193021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193016,7 +193031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193026,7 +193041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193036,7 +193051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193046,7 +193061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193056,7 +193071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193216,7 +193231,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -193381,7 +193396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193391,7 +193406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193421,7 +193436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -193446,7 +193461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -194041,7 +194056,7 @@
       "origins": [
         {
           "path": "cdmw/models.py",
-          "line": 1764,
+          "line": 1784,
           "sink": "python-data:D3D11_TEXTURE_ADDRESS_MODE_LABELS"
         },
         {
@@ -194831,7 +194846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 220,
+          "line": 222,
           "sink": "_run_utility_task"
         }
       ]
@@ -195116,7 +195131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195401,7 +195416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 218,
+          "line": 220,
           "sink": "set_status_message"
         }
       ]
@@ -195411,7 +195426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 211,
+          "line": 213,
           "sink": "information"
         }
       ]
@@ -195961,7 +195976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196081,7 +196096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
@@ -196176,7 +196191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -197006,7 +197021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197016,7 +197031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197036,7 +197051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197046,7 +197061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197156,7 +197171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197281,7 +197296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197291,7 +197306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197311,7 +197326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197386,22 +197401,22 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197411,7 +197426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197446,7 +197461,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197476,7 +197491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197486,7 +197501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197506,7 +197521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197696,7 +197711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -197741,7 +197756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197816,7 +197831,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -197871,7 +197886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -197891,7 +197906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197911,7 +197926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -197931,7 +197946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -197961,7 +197976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -198821,7 +198836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198931,7 +198946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -198941,7 +198956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -199166,7 +199181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -199301,7 +199316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -199861,12 +199876,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -199916,7 +199931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199991,7 +200006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -200011,7 +200026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -200481,7 +200496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -200916,7 +200931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -200926,7 +200941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201046,7 +201061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201076,7 +201091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201096,7 +201111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -202441,7 +202456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -202451,7 +202466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -203781,7 +203796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -203791,7 +203806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204011,7 +204026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204051,7 +204066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204176,7 +204191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -204186,7 +204201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204241,7 +204256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204251,7 +204266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204261,7 +204276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -204311,7 +204326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204371,7 +204386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -205001,7 +205016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -205031,7 +205046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -205376,7 +205391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -205386,7 +205401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -205396,7 +205411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205406,7 +205421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205666,7 +205681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205801,7 +205816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205811,7 +205826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206041,7 +206056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206081,7 +206096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206091,7 +206106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206111,7 +206126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206141,7 +206156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206266,7 +206281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206601,7 +206616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206701,7 +206716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206711,7 +206726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -206821,7 +206836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207001,7 +207016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207821,7 +207836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -208571,7 +208586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -208631,7 +208646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208641,7 +208656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -208901,7 +208916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -208981,7 +208996,7 @@
         },
         {
           "path": "cdmw/ui/texture_workflow/editor_selection_ui.py",
-          "line": 217,
+          "line": 218,
           "sink": "_set_active_tool"
         },
         {
@@ -209026,7 +209041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -209136,7 +209151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -210156,7 +210171,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -210896,7 +210911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -210926,7 +210941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -211041,12 +211056,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -211056,7 +211071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -211656,7 +211671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -211901,7 +211916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -211951,7 +211966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -212646,7 +212661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212656,7 +212671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -212851,7 +212866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -213146,7 +213161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -213791,7 +213806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -213856,7 +213871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -213896,7 +213911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -214366,7 +214381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -214411,7 +214426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -214706,7 +214721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -214821,7 +214836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -214831,7 +214846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -215496,7 +215511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -215531,7 +215546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -215991,7 +216006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -216731,7 +216746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -217136,7 +217151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -217166,7 +217181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -217426,7 +217441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -217466,7 +217481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -217551,7 +217566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -217951,7 +217966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218056,7 +218071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218126,7 +218141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218136,7 +218151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218146,7 +218161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218226,7 +218241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218236,7 +218251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218256,7 +218271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -218541,7 +218556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -218551,7 +218566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -218561,7 +218576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -218736,7 +218751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -219196,7 +219211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 962,
+          "line": 963,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -220031,7 +220046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 870,
+          "line": 871,
           "sink": "python-return:_build_placement_texture_sections"
         }
       ]
@@ -220071,7 +220086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -220091,7 +220106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1191,
+          "line": 1192,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -220186,7 +220201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -220196,7 +220211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1089,
+          "line": 1090,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -222081,17 +222096,17 @@
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 648,
+          "line": 669,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 654,
+          "line": 675,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 659,
+          "line": 680,
           "sink": "setText"
         },
         {
@@ -223291,7 +223306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/patch_actions.py",
-          "line": 249,
+          "line": 251,
           "sink": "warning"
         }
       ]
@@ -224791,7 +224806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview_widgets.py",
-          "line": 549,
+          "line": 558,
           "sink": "addItem"
         }
       ]

@@ -706,3 +706,23 @@ def test_shared_build_preserves_remote_identity_and_ignores_unchecked_stale_orig
     assert {path.stem for path in (tmp_path / "package").rglob("*.dds")} == {"selected"}
     assert textures.job.assets[selected_key].replacement_item.matched_original.archive_entry_id == selected_id
     assert created_tool_widget(window.texture_editor_tab) is None
+
+
+def test_editor_controls_come_back_after_a_visit_to_replace(workspace, tmp_path):
+    from PIL import Image
+    window, textures, _matcher = workspace
+    source = tmp_path / "one.png"
+    Image.new("RGBA", (8, 8), (90, 40, 20, 255)).save(source)
+    textures.set_texture_mode("edit")
+    textures.open_texture_sources([source])
+    wait_for(lambda: created_tool_widget(window.texture_editor_tab) is not None)
+    editor = created_tool_widget(window.texture_editor_tab)
+    wait_for(lambda: len(textures.job.sessions) == 1 and not editor._busy())
+    assert editor.tool_buttons["paint"].isEnabled()
+    textures.set_texture_mode("replace")
+    wait_for(lambda: not textures.job.busy and not editor._busy())
+    textures.set_texture_mode("edit")
+    QApplication.processEvents()
+    assert editor.tool_buttons["paint"].isEnabled()
+    assert editor.canvas.isEnabled() and editor.save_png_button.isEnabled()
+    assert editor.status_label.property("_i18n_source_text") != "Preparing replacement review..."

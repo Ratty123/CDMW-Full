@@ -87,7 +87,7 @@ class ArchivePrefabJsonActionsMixin:
             data, _decompressed, _note = read_archive_entry_data(entry)
             log(f"Applying Prefab Edit JSON: {document_path}")
             try:
-                patched = apply_prefab_edit_json(data, document_path.read_text(encoding="utf-8"), virtual_path=entry.path)
+                patched = apply_prefab_edit_json(data, document_path.read_text(encoding="utf-8-sig"), virtual_path=entry.path)
             except PrefabEditJsonError as exc:
                 raise ValueError(str(exc)) from exc
             return data, patched
