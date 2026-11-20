@@ -7,7 +7,10 @@ values without sRGB conversion; signed formats map -1 to black and +1 to white.
 The existing zoom, Fit and 100% buttons work with the viewer; drag to pan. An
 unavailable helper or unsupported texture falls back to the existing PNG preview,
 with GPU-only channel/mip controls disabled. Loading and fallback run outside the
-Qt thread; hiding, closing or replacing the preview cancels its owned process.
+Qt thread. The helper is started once and draws one DDS after another, so the
+previous texture stays up until the next is drawn; an unsupported texture falls
+back without stopping it. It is stopped when the preview closes or shows a file
+that is not a DDS, and 15 seconds after the preview is hidden.
 
 Model previews expose **Shadows** and **Ambient occlusion**, initially on in
 Textured and Game Outdoor, plus **Studio (fixed lights)** beside the unchanged

@@ -39,6 +39,10 @@ def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
     # every deliberate click for a burst that latest-wins cancellation already
     # handles.
     extension = str(getattr(entry, "extension", "") or "").strip().lower()
+    if extension == ".dds":
+        # A texture is drawn by a helper that is already running, in a few
+        # milliseconds, so most of a 90 ms dwell was the whole wait for one.
+        return 45
     return 60 if extension in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS else 90
 
 

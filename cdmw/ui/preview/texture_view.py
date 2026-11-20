@@ -19,6 +19,13 @@ from cdmw.ui.preview_widgets import PreviewLabel, PreviewScrollArea
 from cdmw.workers.runnable_signals import application_owned, release
 
 
+# Starting the helper (process, GPU device, swap chain) is most of the wait for one
+# texture, so a helper that has reported ready is kept for the next texture and
+# only retired after the view has been hidden for this long.
+_HELPER_IDLE_MS = 15000
+_HELPER_LOAD_TIMEOUT_MS = 15000
+
+
 class _Signals(QObject):
     completed = Signal(int, object)
 
@@ -65,7 +72,7 @@ class _PrepareTexture(QRunnable):
 
 
 class GpuTexturePreview(QWidget):
-    """One owned helper; stale preparation and process events cannot replace a newer file."""
+    """One owned helper, reused from texture to texture; stale answers cannot replace a newer file."""
     view_state_changed = Signal(float, bool)
     loaded = Signal(object)
     failed = Signal(str)
@@ -82,6 +89,8 @@ class GpuTexturePreview(QWidget):
         self._buffer = bytearray()
         self._gpu = False
         self._closed = False
+        self._image_only = False
+        self._sent_generation = 0
         self._size = (1, 1)
         self._state = dict(channel=0, mip=0, reconstruct_z=False, fit=True, zoom=1.0, pan=[0.0, 0.0])
         layout = QVBoxLayout(self)
@@ -132,6 +141,9 @@ class GpuTexturePreview(QWidget):
         self._timeout = QTimer(self)
         self._timeout.setSingleShot(True)
         self._timeout.timeout.connect(self._fallback)
+        self._idle = QTimer(self)
+        self._idle.setSingleShot(True)
+        self._idle.timeout.connect(self._retire_idle_helper)
         QApplication.instance().aboutToQuit.connect(self.shutdown)
 
     def _set_gpu_controls(self, enabled):
@@ -155,16 +167,53 @@ class GpuTexturePreview(QWidget):
         self._set_gpu_controls(False)
 
     def load_path(self, path):
-        self._cancel()
+        self._supersede()
         self._closed = False
         self._path = str(Path(path).absolute())
         self._state = dict(channel=0, mip=0, reconstruct_z=False, fit=True, zoom=1.0, pan=[0.0, 0.0])
         self._gpu = False
+        self._image_only = False
         self._reset_channel_controls()
-        self.stack.setCurrentWidget(self.scroll)
-        self.image.clear_preview("Preparing preview...")
+        if not self._is_dds():
+            self._stop_process()  # Only DDS files are drawn by the helper.
+        if not (self._ready and self._process is not None):
+            # A ready helper keeps the previous texture up until the new one is drawn.
+            self.stack.setCurrentWidget(self.scroll)
+            self.image.clear_preview("Preparing preview...")
         if self.isVisible():
-            self._prepare()
+            self._begin()
+
+    def _is_dds(self):
+        return Path(self._path).suffix.lower() == ".dds"
+
+    def has_ready_helper(self):
+        """True while a started helper is waiting, so the next DDS replaces the shown one in place."""
+        return bool(self._ready and self._process is not None and not self._closed)
+
+    def _begin(self):
+        """Show the current path: through the helper when one is alive, else by preparing one."""
+        if not self._path or self._closed:
+            return
+        self._idle.stop()
+        if self._process is not None and not self._image_only and self._is_dds():
+            if self._ready:
+                self._send_load()
+            else:
+                # A helper that is still starting loads the current path once it is ready.
+                self._timeout.start(_HELPER_LOAD_TIMEOUT_MS)
+            return
+        if self._task is None:
+            self._prepare(fallback=self._image_only)
+
+    def _send_load(self):
+        # The helper ignores a load whose generation it has already seen.
+        if self._generation <= self._sent_generation:
+            self._generation = self._sent_generation + 1
+        self._sent_generation = self._generation
+        self.stack.setCurrentWidget(self.viewport)
+        self._resize_child()
+        self._timeout.start(_HELPER_LOAD_TIMEOUT_MS)
+        self._send(command="load", generation=self._generation, path=self._path)
 
     def _prepare(self, *, fallback=False):
         if not self._path or self._closed:
@@ -191,14 +240,14 @@ class GpuTexturePreview(QWidget):
             self.failed.emit(self.status.text())
 
     def _start_process(self, executable):
+        self._stop_process()
         process = QProcess(QApplication.instance())
         self._process = process
-        generation = self._generation
         owner = weakref.ref(self)
         def dispatch(method):
             current = owner()
             if current is not None and isValid(current):
-                getattr(current, method)(process, generation)
+                getattr(current, method)(process)
         process.setProgram(executable)
         process.setArguments(["--cdmw-texture-view", "--embedded-parent-hwnd", str(int(self.viewport.winId()))])
         process.readyReadStandardOutput.connect(lambda: dispatch("_stdout"))
@@ -209,16 +258,16 @@ class GpuTexturePreview(QWidget):
         self.destroyed.connect(lambda *_: stop_qprocess_async(process))
         register_owned_qprocess_for_exit(process)
         self._buffer.clear()
-        self._timeout.start(15000)
+        self._timeout.start(_HELPER_LOAD_TIMEOUT_MS)
         process.start()
 
     def _send(self, **payload):
         if self._process is not None and self._ready:
             self._process.write((json.dumps(payload, allow_nan=False) + "\n").encode("utf-8"))
 
-    def _stdout(self, process, generation):
+    def _stdout(self, process):
         data = bytes(process.readAllStandardOutput())
-        if process is not self._process or generation != self._generation:
+        if process is not self._process:
             return
         self._buffer.extend(data)
         if len(self._buffer) > 65536:
@@ -242,11 +291,15 @@ class GpuTexturePreview(QWidget):
                 self._fallback()
                 return
             self._ready = True
-            self.stack.setCurrentWidget(self.viewport)
-            self._resize_child()
-            self._send(command="load", generation=self._generation, path=self._path)
+            if self.isVisible() and self._path and self._is_dds() and not self._image_only and not self._closed:
+                self._send_load()
+            else:
+                self._timeout.stop()
+                self._idle.start(_HELPER_IDLE_MS)
         elif kind == "error" and event.get("generation") in (0, self._generation):
-            self._fallback()
+            # A texture the helper cannot draw is shown as an image; the helper
+            # itself is still fine and stays for the next texture.
+            self._fallback(keep_helper=bool(event.get("generation")) and self._ready)
         elif event.get("generation") != self._generation:
             return
         elif kind == "loaded":
@@ -272,27 +325,50 @@ class GpuTexturePreview(QWidget):
             self._state = {key: value for key, value in event["state"].items() if key != "pixel_ratio"}
             self.view_state_changed.emit(self.current_display_scale(), self._state["fit"])
 
-    def _process_failed(self, process, generation):
-        if process is self._process and generation == self._generation and not self._closed:
+    def _process_failed(self, process):
+        if process is not self._process:
+            return
+        self._process = None
+        self._ready = False
+        self._idle.stop()
+        # A helper that dies while nothing is on screen is started again for the next texture.
+        if self._path and not self._closed and not self._image_only and self.isVisible():
             self._fallback()
 
-    def _fallback(self):
-        self._cancel()
+    def _fallback(self, *, keep_helper=False):
+        if keep_helper and self._process is not None:
+            self._supersede()
+            self._idle.start(_HELPER_IDLE_MS)
+        else:
+            self._cancel()
         self._gpu = False
+        self._image_only = True
         self._reset_channel_controls()
         self.stack.setCurrentWidget(self.scroll)
         self._prepare(fallback=True)
 
-    def _cancel(self):
+    def _supersede(self):
+        """Make every pending answer stale without touching the helper."""
         self._generation += 1
         self._timeout.stop()
         if self._task is not None:
             self._task.stop.set()
             self._task = None
+
+    def _stop_process(self):
         process, self._process = self._process, None
         self._ready = False
+        self._idle.stop()
         if process is not None:
             stop_qprocess_async(process)
+
+    def _cancel(self):
+        self._supersede()
+        self._stop_process()
+
+    def _retire_idle_helper(self):
+        if not self.isVisible() or self._image_only or not self._path:
+            self._stop_process()
 
     def shutdown(self):
         self._closed = True
@@ -307,13 +383,18 @@ class GpuTexturePreview(QWidget):
         self._set_gpu_controls(False)
 
     def hideEvent(self, event):
-        self._cancel()
+        if self._ready and self._process is not None:
+            # Keep the started helper for the next texture; retire it if none comes.
+            self._supersede()
+            self._idle.start(_HELPER_IDLE_MS)
+        else:
+            self._cancel()
         super().hideEvent(event)
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._path and not self._closed and self._process is None and self._task is None:
-            self._prepare()
+        if self._path and not self._closed and self._task is None:
+            self._begin()
 
     def closeEvent(self, event):
         self.shutdown()
@@ -327,7 +408,7 @@ class GpuTexturePreview(QWidget):
         elif watched is self.viewport and event.type() == QEvent.WinIdChange and self._process is not None:
             self._cancel()
             if self.isVisible():
-                self._prepare()
+                self._begin()
         return super().eventFilter(watched, event)
 
     def _resize_child(self):

@@ -287,7 +287,8 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pac", ".pac")))
         self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pam", ".pam")))
         self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pamlod", ".pamlod")))
-        self.assertEqual(90, _archive_preview_debounce_ms(_entry("ui/texture/icon.dds", ".dds")))
+        self.assertEqual(45, _archive_preview_debounce_ms(_entry("ui/texture/icon.dds", ".dds")))
+        self.assertEqual(90, _archive_preview_debounce_ms(_entry("ui/texture/icon.png", ".png")))
         self.assertEqual(90, _archive_preview_debounce_ms(None))
 
     def test_quick_preview_resolves_dot_xml_material_sidecar(self) -> None:

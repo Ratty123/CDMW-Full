@@ -478,6 +478,39 @@ class ArchivePreviewLoadingSurfaceTests(unittest.TestCase):
         self.assertFalse(host.archive_preview_loading_reuses_surface)
         self.assertEqual(host.archive_preview_tabs.index, 0)
 
+    def test_a_texture_after_a_texture_keeps_the_texture_view_up(self) -> None:
+        """The helper already on screen draws the next DDS, so no text page flashes between them."""
+
+        shown: list[object] = []
+        texture_view = SimpleNamespace(ready=True)
+        texture_view.has_ready_helper = lambda: texture_view.ready
+
+        class Host(_LoadingHost):
+            archive_texture_preview = texture_view
+            current: object = texture_view
+
+            @property
+            def archive_preview_stack(self) -> SimpleNamespace:
+                return SimpleNamespace(setCurrentWidget=shown.append, currentWidget=lambda: self.current)
+
+        host = Host()
+        host._show_archive_preview_loading_state(_entry("ui/texture/a.dds"))
+        self.assertEqual(shown, [])
+        self.assertEqual(host.archive_preview_meta_label.text, "Loading preview...")
+
+        # Without a started helper the placeholder is shown, as before.
+        texture_view.ready = False
+        host._show_archive_preview_loading_state(_entry("ui/texture/b.dds"))
+        self.assertEqual(shown, [host.archive_preview_info_edit])
+
+        # Anything that is not a texture, or follows something else, also gets it.
+        texture_view.ready = True
+        host._show_archive_preview_loading_state(_entry("character/model/c.pac"))
+        self.assertEqual(len(shown), 2)
+        host.current = host.archive_preview_info_edit
+        host._show_archive_preview_loading_state(_entry("ui/texture/d.dds"))
+        self.assertEqual(len(shown), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
