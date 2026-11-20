@@ -7,6 +7,7 @@ import json
 import copy
 import hashlib
 import shlex
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +24,7 @@ logger = get_logger("core.mesh_importer")
 
 _OBJ_ROUNDTRIP_SIDECAR_FORMATS = {"obj_meta_v1", "mesh_roundtrip_manifest_v2"}
 _OBJ_ROUNDTRIP_SUPPORTED_SCHEMA_VERSION = 1
+_GLTF_DUPLICATE_MATERIAL_ALIAS = re.compile(r"(?P<base>.+)__material_\d+_*")
 
 
 def _resolve_obj_index(raw_index: str, item_count: int) -> int:
@@ -489,6 +491,17 @@ def _attach_obj_sidecar_warnings(
             separator and material_base in material_aliases and len(material_suffix) == 3
             and material_suffix.isdigit() and 0 < int(material_suffix) < shared_material_count
         )
+        # glTF import keeps materials that share a display name distinct as
+        # "<name>__material_<index>". CDMW's own GLB export writes one material
+        # per Part, so Parts that share a PAC material come back under that alias.
+        gltf_alias = _GLTF_DUPLICATE_MATERIAL_ALIAS.fullmatch(actual_material)
+        if (
+            not blender_material_alias
+            and gltf_alias is not None
+            and gltf_alias.group("base") in material_aliases
+            and shared_material_count > 1
+        ):
+            blender_material_alias = True
         if blender_material_alias:
             submesh.material = expected_material
         if expected_material and actual_material and actual_material != expected_material and not blender_material_alias:
@@ -496,7 +509,7 @@ def _attach_obj_sidecar_warnings(
                 {
                     "code": "sidecar_material_name_changed",
                     "message": (
-                        f"OBJ sidecar material changed for submesh {submesh_index}: "
+                        f"Package sidecar material changed for submesh {submesh_index}: "
                         f"expected {expected_material}, got {actual_material}."
                     ),
                     "submesh_index": submesh_index,

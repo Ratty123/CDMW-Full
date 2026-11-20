@@ -831,17 +831,31 @@ def _nearby_point_indices(
     radius_sq = radius * radius
     candidates: list[int] = []
 
-    for dx in range(-cell_radius, cell_radius + 1):
-        for dy in range(-cell_radius, cell_radius + 1):
-            for dz in range(-cell_radius, cell_radius + 1):
-                cell = (base[0] + dx, base[1] + dy, base[2] + dz)
-                for idx in grid.get(cell, ()):
-                    sx, sy, sz = source_points[idx]
-                    d2 = ((sx - point[0]) ** 2 +
-                          (sy - point[1]) ** 2 +
-                          (sz - point[2]) ** 2)
-                    if d2 <= radius_sq:
-                        candidates.append(idx)
+    if (2 * cell_radius + 1) ** 3 > len(grid):
+        # A few changed points give a tiny cell size, and the cube of cells
+        # around a large radius then runs into billions of empty lookups.
+        # Visit only the occupied cells in range, in the cube's own order.
+        cells = sorted(
+            cell for cell in grid
+            if abs(cell[0] - base[0]) <= cell_radius
+            and abs(cell[1] - base[1]) <= cell_radius
+            and abs(cell[2] - base[2]) <= cell_radius
+        )
+    else:
+        cells = [
+            (base[0] + dx, base[1] + dy, base[2] + dz)
+            for dx in range(-cell_radius, cell_radius + 1)
+            for dy in range(-cell_radius, cell_radius + 1)
+            for dz in range(-cell_radius, cell_radius + 1)
+        ]
+    for cell in cells:
+        for idx in grid.get(cell, ()):
+            sx, sy, sz = source_points[idx]
+            d2 = ((sx - point[0]) ** 2 +
+                  (sy - point[1]) ** 2 +
+                  (sz - point[2]) ** 2)
+            if d2 <= radius_sq:
+                candidates.append(idx)
 
     return candidates
 

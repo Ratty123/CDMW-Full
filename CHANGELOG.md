@@ -25,6 +25,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Mesh Editor:** on PAM and PAMLOD models, **Export** then **Open Package** then **Finish** works. It was always refused with "Changed geometry requires a source vertex map for every edited vertex", and on a PAMLOD also with "LOD identity metadata was not preserved". The same fix lets **Vertex Parameters** change positions and UV0 on these models, and a continued PAM or PAMLOD draft can be finished without making a new edit first.
+- **Mesh Editor:** a PAMLOD keeps its lower LODs when its LOD0 vertex count changes, for example when **Include** hides a Part. CDMW left the file's level table stale, so a PAMLOD with several Parts was refused with "Lower LOD geometry transfer is unsupported", and a PAMLOD with one Part was written with wrong lower LODs. Not yet checked in game.
+- **Mesh Editor:** **Import Replacement** on a PAMLOD, or on a PAM with a companion PAMLOD, no longer stalls when only a few vertices changed. Carrying the change onto the lower LODs could run for many minutes.
+- **Mesh Editor:** GLB **Export** then **Open Package** works on models whose Parts share a material, such as many pots and props. Since alpha.6 it was refused with "OBJ sidecar material changed for submesh N". That message now starts "Package sidecar", since GLB and FBX returns use it too.
 - **Import Replacement** accepts glTF/GLB models with a normal map that were exported without tangents, which is Blender's default. A model whose UVs are mirrored or split where the normal map's tangent direction changes, such as a body, stopped with "glTF UV bake source MikkTSpace requires unsupported topology splitting." CDMW now gives those vertices one copy per tangent direction, as Blender does when you export with **Tangents** ticked, and keeps their skin weights.
 - **Browse Archives** text and tag previews, such as an `.hkx` file's, fill the whole preview pane. The **Find** and **Wrap lines** row took half of the pane's height and left an empty band below the preview and the **Scene** panel. The separate preview window had the same gap on its **Preview** and **Details** tabs.
 
