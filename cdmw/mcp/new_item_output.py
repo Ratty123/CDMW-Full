@@ -115,7 +115,11 @@ def _build(call):
         problem = panel.export_problem.plain_text()
         if not panel.export_button.isEnabled():
             raise ToolError(UNAVAILABLE, problem or panel.plan_state.plain_text())
-        root = checked_output(context, panel._package_root())
+        # Adding writes into the existing mod folder the call named, so that folder may exist;
+        # a new package must not replace anything.
+        root = checked_output(context, panel._package_root(), existing=adding)
+        if adding and root != folder:
+            raise ToolError(UNAVAILABLE, f"The item would be added to {root}, not to {folder}.")
         if panel.create_zip.isChecked():
             checked_output(context, root.with_name(f"{root.name}.zip"))
         state, notify = _notify_export(call, panel, root)
