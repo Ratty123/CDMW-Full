@@ -5,9 +5,10 @@ Archives (``view_open`` selects one) and changes joint limits, stiffness and
 names through the dialog's own spin boxes, scale and name cells, so its ranges
 and its change list apply. ``files.hkx_state`` reads it. ``files.hkx_save``
 presses Save HKX File and answers its chooser with ``save_file``; the dialog's
-own minimum-above-maximum check refuses a bad save. The archives are never
-changed. Saving as a DMM mod and swapping collision stay on the generic
-controls (``app_ui_act``) for now: their dialogs ask for package details.
+own minimum-above-maximum check refuses a bad save. ``files.hkx_save_mod``
+presses Save as DMM Mod and fills the mod-ready export prompt (folder and package
+details). The archives are never changed. Swapping collision stays on the generic
+controls (``app_ui_act``) for now.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from cdmw.mcp import mod_ready_prompt
 from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, NOT_FOUND, REFUSED, UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.rail_actions import PATH, ROW, TEXT, choices, press, required, tool, ui, window
@@ -191,6 +193,38 @@ def _save(call):
     return {**outcome, "saved": str(target)}
 
 
+def _save_mod(call):
+    args = call.arguments
+    folder = Path(str(args["folder"]))
+    if not folder.is_dir():
+        raise ToolError(INVALID_ARGUMENTS, f"The output folder does not exist: {folder}")
+    before = mod_ready_prompt.children(folder)
+
+    def save():
+        archive = _archive(call)
+        dialog = _dialog(archive)
+        press(dialog.save_mod_button)
+        return {"path": dialog.session.path}
+
+    outcome = ui(call, save, mod_ready_prompt.answers(args), dialogs=mod_ready_prompt.dialogs(args))
+    warned = [ask for ask in outcome.get("asked", ()) if ask.get("kind") == "warning"]
+    if warned:
+        raise ToolError(REFUSED, str(warned[0].get("text") or "The HKX Physics Editor refused the save."),
+                        {"asked": outcome.get("asked")})
+    started = time.monotonic()
+    while True:
+        after = mod_ready_prompt.children(folder)
+        added = sorted(name for name, stamp in after.items() if before.get(name) != stamp)
+        if added:
+            return {**outcome, "saved": [str(folder / name) for name in added]}
+        call.check_cancelled()
+        waited = time.monotonic() - started
+        busy = call.context.ui_call(lambda: getattr(window(call).archive.shell, "worker_thread", None) is not None)
+        if (waited > 1.0 and not busy) or waited > SAVE_WAIT_S:
+            raise ToolError(FAILED, "Nothing was saved as a mod; the HKX Physics Editor says why.", outcome)
+        time.sleep(0.05)
+
+
 def hkx_tools():
     return [
         tool("files.hkx_state", READ,
@@ -211,6 +245,14 @@ def hkx_tools():
              "test the result in game.",
              "ui:HkxPhysicsEditorDialog.save_file_button", _save,
              {"save_file": PATH}, ("save_file",), output_paths=("save_file",), runs_on=ON_WORKER),
+        tool("files.hkx_save_mod", OUTPUT,
+             "Press Save as DMM Mod: write a mod folder that replaces this file in game, under folder (an existing "
+             "folder outside the game folder), with the package title, version, author and description given. "
+             "CDMW remembers the folder and details, as the prompt does. The game archives are not changed; test "
+             "the mod in game.",
+             "ui:HkxPhysicsEditorDialog.save_mod_button", _save_mod,
+             {"folder": PATH, **mod_ready_prompt.SCHEMA}, ("folder",), output_folders=("folder",),
+             runs_on=ON_WORKER),
     ]
 
 

@@ -6,10 +6,11 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QLineEdit, QWidget
 
 from cdmw.core.archive_hkx_joint_limits import HINGE_CLASS
 from cdmw.models import ArchiveEntry
@@ -21,6 +22,7 @@ from tests.mcp_rail_helpers import RailClient
 @pytest.fixture
 def hkx(tmp_path):
     from cdmw.ui.archive_browser.hkx_physics_editor_actions import ArchiveHkxPhysicsEditorMixin
+    from cdmw.ui.archive_browser.mod_ready_export import ArchiveModReadyExportMixin
 
     QApplication.instance() or QApplication([])
     data = build_physics_fixture()
@@ -30,17 +32,27 @@ def hkx(tmp_path):
     class Shell:
         def __init__(self):
             self.status = []
+            self.settings_file_path = tmp_path / "settings" / "cdmw.ini"
 
         def set_status_message(self, message, error=False):
             self.status.append((message, error))
 
+        def schedule_settings_save(self):
+            pass
+
         def _run_utility_task(self, *, task, on_complete=None, **_kw):
             on_complete(task(lambda _line: None, threading.Event()))
 
-    class Browser(ArchiveHkxPhysicsEditorMixin, QWidget):
+    class Browser(ArchiveHkxPhysicsEditorMixin, ArchiveModReadyExportMixin, QWidget):
         def __init__(self):
             super().__init__()
             self.shell = Shell()
+            fields = ("root", "package_title", "package_version", "package_author", "package_description")
+            self.textures = SimpleNamespace(collect_config=lambda: SimpleNamespace(mod_ready_export_root=""),
+                                            mod_ready_create_no_encrypt_checkbox=QCheckBox(),
+                                            mod_ready_profile_checkboxes={},
+                                            **{f"mod_ready_{field}_edit": QLineEdit() for field in fields})
+            self.textures.mod_ready_export_root_edit = self.textures.mod_ready_root_edit
             self.selected = entry
 
         def _current_archive_hkx_entry(self):
@@ -109,3 +121,24 @@ def test_renames_and_a_missing_selection(hkx) -> None:
     browser._hkx_physics_editor_dialog.close()
     browser.selected = None
     assert client.call("files.hkx_edit", action="open")["error"]["code"] == "unavailable"
+
+
+def test_save_as_a_dmm_mod_fills_the_package_prompt(hkx, tmp_path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args: None)
+    client, browser, _data = hkx
+    client.ok("files.hkx_edit", action="open")
+    session = browser._hkx_physics_editor_dialog.session
+    hinge = next(joint for joint in session.joints if joint.class_name == HINGE_CLASS)
+    client.ok("files.hkx_edit", action="set_joint", joint=hinge.index, field="bend_max", value=165.0)
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    saved = client.ok("files.hkx_save_mod", folder=str(mods), title="Floppy ragdoll", version="1.2",
+                      author="Tester", description="Looser knees")
+    assert len(saved["saved"]) == 1
+    package = Path(saved["saved"][0])
+    assert package.parent == mods and any(path.suffix == ".hkx" for path in package.rglob("*"))
+    assert "Floppy ragdoll" in "".join(p.read_text(errors="ignore") for p in package.rglob("*.json"))
+    assert client.call("files.hkx_save_mod", folder=str(tmp_path / "missing"))["error"]["code"] in (
+        "invalid_arguments", "refused")

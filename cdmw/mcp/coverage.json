@@ -1829,6 +1829,13 @@
       "tool": "files.hkx_save"
     },
     {
+      "id": "files.hkx_save_mod",
+      "area": "Browse Archives",
+      "what": "HKX Physics Editor: Save as DMM Mod (fills the mod-ready export prompt)",
+      "class": "output",
+      "tool": "files.hkx_save_mod"
+    },
+    {
       "id": "archive.export",
       "area": "Browse Archives",
       "what": "Export a file or family, copy the filename, or write a sidecar corpus report",
