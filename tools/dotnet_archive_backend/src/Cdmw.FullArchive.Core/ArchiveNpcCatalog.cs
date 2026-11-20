@@ -14,7 +14,7 @@ public sealed class ArchiveNpcCatalog
 {
     public const int MaximumPageSize = 200;
     private readonly Dictionary<string, NpcCatalogRecord> _records;
-    private readonly Dictionary<string, string> _search;
+    private readonly Dictionary<string, SearchFields> _search;
     private readonly Dictionary<string, List<(string Key, string AppearancePath, NpcPiece Piece)>> _wearers;
 
     public ArchiveNpcCatalog(NpcCatalogSnapshot snapshot)
@@ -22,7 +22,7 @@ public sealed class ArchiveNpcCatalog
         Snapshot = snapshot;
         _records = snapshot.Records.ToDictionary(static record => record.Row.Key, StringComparer.Ordinal);
         _search = snapshot.Records.ToDictionary(static record => record.Row.Key,
-            static record => SearchText(record), StringComparer.Ordinal);
+            static record => SearchFieldsOf(record), StringComparer.Ordinal);
         _wearers = new(StringComparer.Ordinal);
         foreach (var record in snapshot.Records)
         foreach (var outfit in record.Outfits)
@@ -59,8 +59,8 @@ public sealed class ArchiveNpcCatalog
             if (numeric && row.CharacterId.ToString(CultureInfo.InvariantCulture) == query) rank = 0;
             else
             {
-                var text = _search[row.Key];
-                if (!tokens.All(token => text.Contains(token, StringComparison.Ordinal))) continue;
+                var fields = _search[row.Key];
+                if (!tokens.All(fields.Matches)) continue;
                 rank = Rank(record, lowered);
             }
             rows.Add((rank, record));
@@ -127,13 +127,26 @@ public sealed class ArchiveNpcCatalog
         return 4;
     }
 
-    private static string SearchText(NpcCatalogRecord record)
+    // A query word matches the start of a word in the English name, the internal
+    // name, the ID or a file name. Names in other languages match only a whole
+    // word, so "ross" does not find the Italian "rosso"; a query word outside
+    // ASCII, such as Japanese, still matches anywhere in those names.
+    private sealed record SearchFields(string[] Words, string[] OtherWords, string OtherText)
+    {
+        public bool Matches(string token)
+        {
+            foreach (var word in Words)
+                if (word.StartsWith(token, StringComparison.Ordinal)) return true;
+            if (Array.IndexOf(OtherWords, token) >= 0) return true;
+            return !token.All(char.IsAscii) && OtherText.Contains(token, StringComparison.Ordinal);
+        }
+    }
+
+    private static SearchFields SearchFieldsOf(NpcCatalogRecord record)
     {
         var row = record.Row;
         var parts = new List<string> { row.DisplayName, row.InternalName, row.Key, row.AppearancePath };
         if (row.CharacterId != 0) parts.Add(row.CharacterId.ToString(CultureInfo.InvariantCulture));
-        parts.AddRange(record.SearchNames);
-        parts.AddRange(record.DisplayNames);
         foreach (var outfit in record.Outfits)
         {
             parts.Add(outfit.AppearancePath);
@@ -143,7 +156,11 @@ public sealed class ArchiveNpcCatalog
                 if (piece.ModelPath.Length > 0) parts.Add(Path.GetFileName(piece.ModelPath));
             }
         }
-        return string.Join(' ', parts.Where(static part => !string.IsNullOrEmpty(part))).Normalize().ToLowerInvariant();
+        var words = parts.SelectMany(Tokens).Distinct(StringComparer.Ordinal).ToArray();
+        var others = record.SearchNames.Concat(record.DisplayNames)
+            .Where(static name => !string.IsNullOrEmpty(name)).ToArray();
+        var otherWords = others.SelectMany(Tokens).Distinct(StringComparer.Ordinal).ToArray();
+        return new(words, otherWords, string.Join(' ', others).Normalize().ToLowerInvariant());
     }
 
     private static string[] Tokens(string query)
