@@ -2890,6 +2890,7 @@ ERROR_REFERENCE = [
     "code": "failed",
     "messages": [
       "Browse Archives did not save the decal copy in time.",
+      "Build Package did not finish in time.",
       "Combine into One Mod closed before producing an output.",
       "Combine into One Mod did not finish in time.",
       "Nothing was written: {what} did not finish. CDMW's message says why.",
@@ -2925,6 +2926,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/saved_work_tools.py",
       "cdmw/mcp/server.py",
       "cdmw/mcp/texture_files.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/turn_tools.py",
       "cdmw/mcp/ui_actions.py",
       "cdmw/mcp/view_tools.py",
@@ -3021,6 +3023,7 @@ ERROR_REFERENCE = [
       "The action is one of {', '.join(ACTIONS)}.",
       "The destination must end in {suffix}.",
       "The docked editor opens a mesh texture by texture ID or game path.",
+      "The folder does not exist: {folder}",
       "The local file path must be absolute.",
       "The mod needs a name.",
       "The output folder does not exist: {folder}",
@@ -3029,6 +3032,7 @@ ERROR_REFERENCE = [
       "The requested region extends outside the image.",
       "The value does not match the Settings control.",
       "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
+      "There is no file {original}.",
       "There is no such row in Model Library.",
       "These values change nothing.",
       "This action needs '{key}'.",
@@ -3038,6 +3042,7 @@ ERROR_REFERENCE = [
       "Unrecognized shortcut {key}.",
       "Use a Create New Item package filename ending in .cdmw.",
       "action must be one of {', '.join(_ACTIONS)}.",
+      "add_files takes existing .png or .dds files in paths.",
       "arguments must be an object",
       "keys is a key sequence such as 'Esc', 'Delete' or 'Ctrl+A' (up to four keys).",
       "menu names an entry by its text, or a path such as 'Export > Export File'.",
@@ -3100,6 +3105,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/ui_menus.py",
       "cdmw/mcp/ui_tree.py",
@@ -3602,6 +3608,7 @@ ERROR_REFERENCE = [
       "There is no joint {index}; files_hkx_state lists them.",
       "There is no name {item}; files_hkx_state lists them.",
       "There is no pending edit {index}.",
+      "There is no queue row {min(missing)}.",
       "There is no row {row}; files_prefab_read lists them.",
       "There is no supported Settings control for {raw}.",
       "There is no tab {row}.",
@@ -3648,6 +3655,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
       "cdmw/mcp/texture_pixels.py",
+      "cdmw/mcp/texture_replace_tools.py",
       "cdmw/mcp/texture_tools.py",
       "cdmw/mcp/tools.py",
       "cdmw/mcp/translation_tools.py",
@@ -103247,6 +103255,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Build Package did not finish in time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 151
+    }
+  },
+  {
+    "area": "textures",
     "message": "Build cancelled before start.",
     "recovery": "cancelled",
     "sources": {
@@ -105446,6 +105462,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Texture Replacer is busy; read textures_replace_state until it is not.",
+    "recovery": "locked",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 99
+    }
+  },
+  {
+    "area": "textures",
     "message": "Texture conflict at {path}: {'; '.join(owners)}; the composed output differs from the required bytes.",
     "recovery": "input",
     "sources": {
@@ -105966,6 +105990,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The folder does not exist: {folder}",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 88
+    }
+  },
+  {
+    "area": "textures",
     "message": "The game file was not found in the archives.",
     "recovery": "missing",
     "sources": {
@@ -106222,10 +106254,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "There is no file {original}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 93
+    }
+  },
+  {
+    "area": "textures",
     "message": "There is no file {wanted}.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_files.py": 130
+    }
+  },
+  {
+    "area": "textures",
+    "message": "There is no queue row {min(missing)}.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 73
     }
   },
   {
@@ -106675,6 +106723,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/texture_pipeline/preview.py": 261
+    }
+  },
+  {
+    "area": "textures",
+    "message": "add_files takes existing .png or .dds files in paths.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/texture_replace_tools.py": 84
     }
   },
   {
@@ -108961,6 +109017,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/textures/policy.py",
     "cdmw/mcp/texture_files.py",
     "cdmw/mcp/texture_pixels.py",
+    "cdmw/mcp/texture_replace_tools.py",
     "cdmw/services/mesh_live_texture_drafts.py",
     "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
@@ -110708,6 +110765,11 @@ SOURCE_COVERAGE = {
     "code": 9,
     "raise": 12,
     "report": 4
+  },
+  "cdmw/mcp/texture_replace_tools.py": {
+    "code": 5,
+    "raise": 8,
+    "report": 2
   },
   "cdmw/mcp/texture_tools.py": {
     "code": 7,
