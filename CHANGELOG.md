@@ -29,6 +29,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Browse Archives** keeps both copies when you export a file that is in the base game and in a DLC. A DLC package now exports under `dlc/dlc_01/0015` instead of `0015`, the **Package** column and the folder view tell base and DLC packages apart, and when two selected files still land on the same output path the report says one replaced the other instead of listing both as exported.
+- **Browse Archives** search stays fast with filters that have many wildcards, such as `*a*a*a*a*a*b`. One took 18 seconds.
+- **GLB export:** the position bounds match the stored values, so glTF validators no longer report an error for some world-space models.
+- **Import Prefab Edit JSON** accepts a file saved as "UTF-8 with BOM", as Notepad saves it.
+- **Collision (`.hkx`) JSON import** applies edits made under `collision_shapes`, the second copy of the shape list in the export. They were dropped with "no changes". Different edits in the two copies are refused with a message.
 - **Browse Archives** previews of large animation (`.paa`) and collision (`.hkx`) files open in seconds. The keyframe scan of a large cutscene clip took up to two and a half minutes, and an `.hkx` preview built the whole editing document, which the preview does not show.
 - **Browse Archives** previews run-length encoded `.tga` files, which are most of the game's, instead of showing an empty pane. A TGA that cannot be read says so.
 - **Browse Archives** sound previews keep the details and the play controls at the top of the pane. Video previews show one line of details above the picture, with the rest on hover, so the video gets the height.

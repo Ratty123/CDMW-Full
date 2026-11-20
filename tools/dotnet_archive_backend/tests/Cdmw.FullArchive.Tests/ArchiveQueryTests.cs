@@ -5,6 +5,24 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class ArchiveQueryTests
 {
+    public static Task DlcPackageFolderAsync()
+    {
+        // Base 0015 and dlc/dlc_01/0015 used to export into the same folder and show the
+        // same package label, so one copy overwrote the other.
+        Require(ArchiveEntryClassifier.PackageFolder(@"D:\Game\0015\0.pamt") == "0015", "base package folder changed");
+        Require(ArchiveEntryClassifier.PackageFolder(@"D:\Game\dlc\dlc_01\0015\0.pamt") == "dlc/dlc_01/0015",
+            "a DLC package lost its dlc folders");
+        Require(ArchiveEntryClassifier.PackageFolder("/g/DLC/dlc_02/0003/0.pamt") == "DLC/dlc_02/0003",
+            "the dlc folder match is not case-insensitive");
+        Require(ArchiveEntryClassifier.PackageFolder(@"D:\dlc\Games\Crimson Desert\0015\0.pamt") == "0015",
+            "a dlc folder above the game folder leaked into the package folder");
+        Require(ArchiveEntryClassifier.PackageFolder("0.pamt") == "package", "a bare PAMT name lost its fallback");
+        Require(ArchiveEntryClassifier.PackageLabel(@"D:\Game\0015\0.pamt") == "0015/0.pamt", "base package label changed");
+        Require(ArchiveEntryClassifier.PackageLabel(@"D:\Game\dlc\dlc_01\0015\0.pamt") == "dlc/dlc_01/0015/0.pamt",
+            "base and DLC package labels are the same");
+        return Task.CompletedTask;
+    }
+
     public static async Task ExtensionSearchAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateExtensionSearchAsync();
