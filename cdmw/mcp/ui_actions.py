@@ -376,7 +376,14 @@ def _restore_protected(settings, before: dict[str, object]) -> list[str]:
     """Put back any protected setting the action changed; the keys that were put back."""
 
     after = _protected_values(settings)
-    changed = sorted(key for key in {*before, *after} if str(before.get(key)) != str(after.get(key)))
+
+    def text(values, key) -> str:
+        # A settings save writes every key it knows, so an unset key can come back as "";
+        # both mean "not set", and only a real change is put back.
+        value = values.get(key)
+        return "" if value is None else str(value)
+
+    changed = sorted(key for key in {*before, *after} if text(before, key) != text(after, key))
     for key in changed:
         if key in before:
             settings.setValue(key, before[key])

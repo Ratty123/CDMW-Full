@@ -28,6 +28,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Browse Archives** text and tag previews, such as an `.hkx` file's, fill the whole preview pane. The **Find** and **Wrap lines** row took half of the pane's height and left an empty band below the preview and the **Scene** panel. The separate preview window had the same gap on its **Preview** and **Details** tabs.
 
 - **AI connections (experimental):** undoing an AI app's turn waits up to two seconds for the Texture Editor, Create New Item and Placement & Animations to show the step, so a step that lands a moment late is no longer reported as failed. The server's instructions name **app_job** for following long work, and **app_settings_get** points at **app_settings_set** for changing a setting.
+- **AI connections (experimental):** a tool whose action saved CDMW's settings while no game folder was set was refused with "Only you can change this setting", because the save wrote the unset game folder as empty. An unset and an empty game folder now count as the same.
 
 ## [0.12.0-alpha.6] - 2026-11-19
 
