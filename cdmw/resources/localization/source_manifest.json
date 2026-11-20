@@ -6611,7 +6611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 38,
+          "line": 39,
           "sink": "tr"
         }
       ]
@@ -6636,7 +6636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 34,
+          "line": 35,
           "sink": "tr"
         }
       ]
@@ -8006,7 +8006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 187,
+          "line": 189,
           "sink": "setText"
         },
         {
@@ -10456,7 +10456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 36,
+          "line": 37,
           "sink": "tr"
         }
       ]
@@ -11831,7 +11831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -11841,7 +11841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 53,
+          "line": 54,
           "sink": "tr"
         }
       ]
@@ -19246,7 +19246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 50,
+          "line": 51,
           "sink": "tr"
         }
       ]
@@ -20671,7 +20671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 34,
+          "line": 35,
           "sink": "tr"
         }
       ]
@@ -20966,7 +20966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "tr"
         }
       ]
@@ -24561,7 +24561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 287,
+          "line": 299,
           "sink": "ValueError"
         }
       ]
@@ -27376,7 +27376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 40,
+          "line": 41,
           "sink": "tr"
         }
       ]
@@ -27386,7 +27386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 40,
+          "line": 41,
           "sink": "tr"
         }
       ]
@@ -28391,7 +28391,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 30,
+          "line": 31,
           "sink": "tr"
         },
         {
@@ -29556,7 +29556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 58,
+          "line": 59,
           "sink": "tr"
         }
       ]
@@ -29641,7 +29641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 58,
+          "line": 59,
           "sink": "tr"
         }
       ]
@@ -30186,7 +30186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 44,
+          "line": 45,
           "sink": "tr"
         }
       ]
@@ -34126,7 +34126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 97,
+          "line": 98,
           "sink": "tr"
         }
       ]
@@ -38521,7 +38521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 100,
+          "line": 101,
           "sink": "tr"
         }
       ]
@@ -41806,7 +41806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 42,
+          "line": 43,
           "sink": "tr"
         },
         {
@@ -41841,7 +41841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 61,
+          "line": 62,
           "sink": "tr"
         }
       ]
@@ -43036,7 +43036,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 99,
+          "line": 100,
           "sink": "tr"
         }
       ]
@@ -43046,7 +43046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 57,
+          "line": 58,
           "sink": "tr"
         }
       ]
@@ -43056,7 +43056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 55,
+          "line": 56,
           "sink": "tr"
         }
       ]
@@ -44606,7 +44606,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 121,
+          "line": 125,
           "sink": "ValueError"
         }
       ]
@@ -45386,7 +45386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 41,
+          "line": 42,
           "sink": "tr"
         }
       ]
@@ -46441,7 +46441,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 33,
+          "line": 34,
           "sink": "tr"
         },
         {
@@ -46606,7 +46606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 55,
+          "line": 56,
           "sink": "tr"
         }
       ]
@@ -46951,7 +46951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 50,
+          "line": 51,
           "sink": "tr"
         }
       ]
@@ -47656,7 +47656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 51,
+          "line": 52,
           "sink": "tr"
         }
       ]
@@ -48231,7 +48231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 60,
+          "line": 61,
           "sink": "tr"
         }
       ]
@@ -48241,7 +48241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 52,
+          "line": 53,
           "sink": "tr"
         }
       ]
@@ -48251,7 +48251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 44,
+          "line": 45,
           "sink": "tr"
         }
       ]
@@ -48261,7 +48261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "tr"
         }
       ]
@@ -49776,7 +49776,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 98,
+          "line": 99,
           "sink": "tr"
         }
       ]
@@ -49806,7 +49806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 42,
+          "line": 43,
           "sink": "tr"
         }
       ]
@@ -53576,7 +53576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 51,
+          "line": 52,
           "sink": "tr"
         }
       ]
@@ -53621,7 +53621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 187,
+          "line": 189,
           "sink": "setText"
         }
       ]
@@ -54441,7 +54441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 46,
+          "line": 47,
           "sink": "tr"
         }
       ]
@@ -54506,7 +54506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 45,
+          "line": 46,
           "sink": "tr"
         }
       ]
@@ -54516,7 +54516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -54696,7 +54696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 54,
+          "line": 55,
           "sink": "tr"
         }
       ]
@@ -59801,7 +59801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 39,
+          "line": 40,
           "sink": "tr"
         }
       ]
@@ -59811,7 +59811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 39,
+          "line": 40,
           "sink": "tr"
         }
       ]
@@ -66821,7 +66821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 53,
+          "line": 54,
           "sink": "tr"
         }
       ]
@@ -67766,7 +67766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 30,
+          "line": 31,
           "sink": "tr"
         },
         {
@@ -67796,7 +67796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "tr"
         }
       ]
@@ -67806,7 +67806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 58,
+          "line": 59,
           "sink": "tr"
         }
       ]
@@ -72306,7 +72306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 57,
+          "line": 58,
           "sink": "tr"
         }
       ]
@@ -72776,7 +72776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 50,
+          "line": 51,
           "sink": "tr"
         }
       ]
@@ -73546,7 +73546,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 56,
+          "line": 57,
           "sink": "tr"
         },
         {
@@ -77266,7 +77266,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 217,
+          "line": 221,
           "sink": "ValueError"
         }
       ]
@@ -77276,7 +77276,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 234,
+          "line": 238,
           "sink": "ValueError"
         }
       ]
@@ -77291,7 +77291,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 225,
+          "line": 229,
           "sink": "ValueError"
         }
       ]
@@ -78156,7 +78156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 52,
+          "line": 53,
           "sink": "tr"
         }
       ]
@@ -78241,7 +78241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 41,
+          "line": 42,
           "sink": "tr"
         }
       ]
@@ -78641,7 +78641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 38,
+          "line": 39,
           "sink": "tr"
         }
       ]
@@ -78651,7 +78651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 37,
+          "line": 38,
           "sink": "tr"
         }
       ]
@@ -79156,7 +79156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 131,
+          "line": 132,
           "sink": "setText"
         }
       ]
@@ -79586,7 +79586,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 117,
+          "line": 121,
           "sink": "ValueError"
         }
       ]
@@ -80176,7 +80176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 99,
+          "line": 100,
           "sink": "tr"
         }
       ]
@@ -80746,7 +80746,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 30,
+          "line": 31,
           "sink": "tr"
         },
         {
@@ -81158,6 +81158,16 @@
           "path": "cdmw/ui/new_item/item_definition_editor.py",
           "line": 82,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Item group(s) {value_0} exist only in the DLC's item group table, and DMM does not take a mod's copy of a DLC table. The DMM export leaves the item out of them, so it may not appear in that category in game. The CDUMM layout keeps them. To leave them out on purpose, choose the item groups yourself.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_dlc_tables.py",
+          "line": 195,
+          "sink": "python-return:dlc_only_group_note"
         }
       ]
     },
@@ -84776,7 +84786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "tr"
         }
       ]
@@ -86421,7 +86431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 95,
+          "line": 96,
           "sink": "setText"
         }
       ]
@@ -87921,7 +87931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 115,
+          "line": 116,
           "sink": "tr"
         },
         {
@@ -87936,7 +87946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 34,
+          "line": 35,
           "sink": "tr"
         },
         {
@@ -87951,7 +87961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 33,
+          "line": 34,
           "sink": "tr"
         },
         {
@@ -88531,12 +88541,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 640,
+          "line": 652,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 642,
+          "line": 654,
           "sink": "ValueError"
         },
         {
@@ -95016,7 +95026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 97,
+          "line": 98,
           "sink": "tr"
         },
         {
@@ -95251,7 +95261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 56,
+          "line": 57,
           "sink": "tr"
         },
         {
@@ -96191,7 +96201,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 243,
+          "line": 247,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -96201,7 +96211,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 253,
+          "line": 257,
           "sink": "on_log"
         }
       ]
@@ -98971,7 +98981,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_dlc_tables.py",
-          "line": 170,
+          "line": 185,
           "sink": "on_log"
         }
       ]
@@ -99646,7 +99656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 48,
+          "line": 49,
           "sink": "tr"
         }
       ]
@@ -99761,7 +99771,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 57,
+          "line": 58,
           "sink": "tr"
         },
         {
@@ -101306,7 +101316,7 @@
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 283,
+          "line": 295,
           "sink": "ValueError"
         }
       ]
@@ -101496,37 +101506,37 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 560,
+          "line": 572,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 654,
+          "line": 666,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 660,
+          "line": 672,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 662,
+          "line": 674,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 671,
+          "line": 683,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 678,
+          "line": 690,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 740,
+          "line": 752,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -101545,33 +101555,38 @@
       "key": "New item plan cancelled.",
       "origins": [
         {
-          "path": "cdmw/services/new_item_mod_base.py",
-          "line": 101,
+          "path": "cdmw/services/dmm_mod_base.py",
+          "line": 106,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 115,
+          "line": 105,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 125,
+          "line": 119,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 145,
+          "line": 129,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 260,
+          "line": 149,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 270,
+          "line": 272,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_mod_base.py",
+          "line": 282,
           "sink": "raise_if_cancelled"
         },
         {
@@ -114756,7 +114771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 49,
+          "line": 50,
           "sink": "tr"
         }
       ]
@@ -115841,7 +115856,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 36,
+          "line": 37,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Page texture rotation",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_behavior_editor.py",
+          "line": 30,
           "sink": "tr"
         }
       ]
@@ -115901,7 +115926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 98,
+          "line": 99,
           "sink": "tr"
         }
       ]
@@ -116481,7 +116506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 44,
+          "line": 45,
           "sink": "tr"
         }
       ]
@@ -120451,7 +120476,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1106,
+          "line": 1117,
           "sink": "log"
         }
       ]
@@ -120711,7 +120736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 54,
+          "line": 55,
           "sink": "tr"
         }
       ]
@@ -120726,7 +120751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 48,
+          "line": 49,
           "sink": "tr"
         }
       ]
@@ -121371,7 +121396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 61,
+          "line": 62,
           "sink": "tr"
         }
       ]
@@ -121471,7 +121496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 59,
+          "line": 60,
           "sink": "tr"
         }
       ]
@@ -123276,7 +123301,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1125,
+          "line": 1136,
           "sink": "add"
         }
       ]
@@ -127201,7 +127226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 55,
+          "line": 56,
           "sink": "tr"
         }
       ]
@@ -129673,6 +129698,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 138,
           "sink": "show_error"
+        }
+      ]
+    },
+    {
+      "key": "Read the mod's DMM part, shop and item group operations back into {value_0} table file(s).",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_mod_base.py",
+          "line": 268,
+          "sink": "on_log"
         }
       ]
     },
@@ -133341,7 +133376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 37,
+          "line": 38,
           "sink": "tr"
         }
       ]
@@ -142871,7 +142906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 32,
+          "line": 33,
           "sink": "tr"
         }
       ]
@@ -142891,7 +142926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 32,
+          "line": 33,
           "sink": "tr"
         }
       ]
@@ -154706,7 +154741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 46,
+          "line": 47,
           "sink": "tr"
         }
       ]
@@ -160796,7 +160831,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 31,
+          "line": 32,
           "sink": "tr"
         }
       ]
@@ -161156,7 +161191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 42,
+          "line": 43,
           "sink": "tr"
         }
       ]
@@ -162146,7 +162181,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 77,
+          "line": 81,
           "sink": "FileNotFoundError"
         },
         {
@@ -162686,7 +162721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 45,
+          "line": 46,
           "sink": "tr"
         }
       ]
@@ -162721,7 +162756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 30,
+          "line": 31,
           "sink": "tr"
         }
       ]
@@ -162746,7 +162781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 31,
+          "line": 32,
           "sink": "tr"
         }
       ]
@@ -165636,7 +165671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 43,
+          "line": 44,
           "sink": "tr"
         }
       ]
@@ -165781,7 +165816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 52,
+          "line": 53,
           "sink": "tr"
         }
       ]
@@ -166426,7 +166461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 48,
+          "line": 49,
           "sink": "tr"
         }
       ]
@@ -167101,7 +167136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 54,
+          "line": 55,
           "sink": "tr"
         }
       ]
@@ -167261,7 +167296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 35,
+          "line": 36,
           "sink": "tr"
         }
       ]
@@ -167381,7 +167416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 40,
+          "line": 41,
           "sink": "tr"
         }
       ]
@@ -167391,7 +167426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 31,
+          "line": 32,
           "sink": "tr"
         }
       ]
@@ -177326,7 +177361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 103,
+          "line": 104,
           "sink": "setToolTip"
         }
       ]
@@ -178791,7 +178826,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 250,
+          "line": 254,
           "sink": "ValueError"
         }
       ]
@@ -178891,7 +178926,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 256,
+          "line": 260,
           "sink": "on_log"
         }
       ]
@@ -179336,7 +179371,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_mod_base.py",
-          "line": 108,
+          "line": 112,
           "sink": "ValueError"
         }
       ]
@@ -182071,7 +182106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 60,
+          "line": 61,
           "sink": "tr"
         }
       ]
@@ -182926,7 +182961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 56,
+          "line": 57,
           "sink": "tr"
         }
       ]
@@ -183946,7 +183981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 56,
+          "line": 57,
           "sink": "tr"
         }
       ]
@@ -187006,7 +187041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 49,
+          "line": 50,
           "sink": "tr"
         }
       ]
@@ -187181,7 +187216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 61,
+          "line": 62,
           "sink": "tr"
         }
       ]
@@ -187481,7 +187516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 43,
+          "line": 44,
           "sink": "tr"
         }
       ]
@@ -187521,7 +187556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 47,
+          "line": 48,
           "sink": "tr"
         }
       ]
@@ -188436,7 +188471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 43,
+          "line": 44,
           "sink": "tr"
         }
       ]
@@ -188786,7 +188821,7 @@
         },
         {
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
-          "line": 43,
+          "line": 44,
           "sink": "tr"
         },
         {
@@ -205511,7 +205546,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 977,
+          "line": 988,
           "sink": "add"
         }
       ]
@@ -215811,7 +215846,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 938,
+          "line": 949,
           "sink": "add"
         }
       ]
@@ -217606,7 +217641,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 926,
+          "line": 937,
           "sink": "add"
         }
       ]
@@ -228086,7 +228121,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 910,
+          "line": 921,
           "sink": "add"
         },
         {
