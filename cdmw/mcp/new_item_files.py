@@ -19,7 +19,7 @@ _ACTIONS = ("save", "load", "list", "continue", "save_package", "update_package"
 
 def _save(call):
     from cdmw.core.protected_roots import check_writable
-    from cdmw.ui.new_item.draft_file import encode_draft
+    from cdmw.ui.new_item.draft_file import DraftFileError, encode_draft
 
     required(call.arguments, "path")
     context = call.context
@@ -34,7 +34,10 @@ def _save(call):
         return deepcopy(page.controller.draft)
 
     draft = context.ui_call(capture)
-    data = encode_draft(draft)
+    try:
+        data = encode_draft(draft)
+    except DraftFileError as exc:
+        raise ToolError(FAILED, f"The draft cannot be saved: {exc}") from exc
     call.check_cancelled()
     check_writable(path)
     # Stage beside the destination, and publish without replacing an intervening save.

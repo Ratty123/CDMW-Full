@@ -22,6 +22,9 @@ DRAFT_FORMAT = "cdmw_new_item_draft_v1"
 MAX_DRAFT_BYTES = 128 * 1024 * 1024
 _MAX_DEPTH = 32
 _ALLOWED_MODULES = ("cdmw.domain.", "cdmw.ui.new_item.state")
+#: Settings types outside those modules that a draft may still hold, by exact name.
+#: A Game table edit (Additional fields) is a plain frozen dataclass of numbers and text.
+_ALLOWED_CLASSES = frozenset({"cdmw.core.static_table_records:TableFieldEdit"})
 #: Fields that describe this computer's session rather than the item.
 _SESSION_FIELDS = frozenset({"authoring_errors"})
 
@@ -52,7 +55,7 @@ def _encode(value: object, depth: int = 0) -> object:
             raise DraftFileError(f"The draft holds an unsupported setting: {type(value).__name__}.")
         return {"$enum": _class_name(type(value)), "name": value.name}
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        if not _allowed_module(type(value).__module__):
+        if not _allowed_module(type(value).__module__) and _class_name(type(value)) not in _ALLOWED_CLASSES:
             raise DraftFileError(f"The draft holds an unsupported setting: {type(value).__name__}.")
         return {"$data": _class_name(type(value)),
                 "fields": {field.name: _encode(getattr(value, field.name), depth + 1)
@@ -74,7 +77,7 @@ def _resolve_class(name: object) -> type:
     if type(name) is not str or ":" not in name:
         raise DraftFileError("The draft names an unknown setting type.")
     module_name, _, qualname = name.partition(":")
-    if not _allowed_module(module_name):
+    if not _allowed_module(module_name) and name not in _ALLOWED_CLASSES:
         raise DraftFileError(f"The draft names a setting type outside CDMW: {module_name}.")
     try:
         target: object = import_module(module_name)

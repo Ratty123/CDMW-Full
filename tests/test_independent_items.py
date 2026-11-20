@@ -16,7 +16,7 @@ from tests.test_new_item_provenance import spec
 from tests.test_archive_overlay_manager import Backups, snapshot_of, shop_spec
 
 
-def imported_game(path, *, auxiliaries=False):
+def imported_game(path, *, auxiliaries=False, dangling_texture=None):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.core.pathc_format import PathcTable, encode_pathc, register_dds
     from cdmw.services.new_item_service import NewItemService
@@ -31,7 +31,11 @@ def imported_game(path, *, auxiliaries=False):
     files[pappt_path] = encode_pappt(replace(pappt, records=tuple(replace(record, sockets_path=socket_path) for record in pappt.records)))
     files[socket_path] = b'<Sockets/>'
     texture_path = f'character/texture/1_pc/{STEM}_d.dds'
-    files[PAC_XML] = (HEAD + wrapper(STEM, STANDARD_SHADER, texture('_baseColorTexture', '0', texture_path, 0)) + TAIL).encode()
+    params = texture('_baseColorTexture', '0', texture_path, 0)
+    if dangling_texture is not None:
+        # The game's own material files can name a texture it does not ship.
+        params += texture('_normalTexture', '1', dangling_texture, 1)
+    files[PAC_XML] = (HEAD + wrapper(STEM, STANDARD_SHADER, params) + TAIL).encode()
     if auxiliaries:
         from cdmw.core.effect_binary import decode_effect_binary
         from cdmw.core.effect_edit import preset_path

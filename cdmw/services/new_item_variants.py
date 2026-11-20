@@ -380,7 +380,9 @@ def plan_variant_files(planner):
                 material = plan_variant_dye(planner,old,new,material,choice,imported)
                 if planner.independent:
                     from cdmw.services.new_item_resource_copies import copy_material_textures
-                    material, copied = copy_material_textures(planner, material, {})
+                    material, copied = copy_material_textures(
+                        planner, material, {},
+                        stock=snapshot.payload(source_xml) if snapshot.has_entry(source_xml) else None)
                     written.extend(copied)
                 planner.add(snapshot.entry(source_xml) if snapshot.has_entry(source_xml) else snapshot.entry(old),new_xml,material,f"Variant material: {new_xml}")
                 written.append(new_xml)
