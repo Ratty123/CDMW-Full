@@ -573,6 +573,9 @@ class ArchiveBrowserActionMixin:
                     "Change the chart's clips, blend spaces, sockets, effects and timing, then export a DMM mod."
                 )
                 edit_chart_action.triggered.connect(lambda _checked=False: self._open_current_archive_action_chart_editor())
+                speed_action = menu.addAction(menu_icons["data"], "Speed Tuning (Experimental)...")
+                speed_action.setToolTip("Change how fast this chart's moves play by factor and export a DMM mod.")
+                speed_action.triggered.connect(lambda _checked=False: self._open_current_archive_speed_tuning())
             find_chart_action = menu.addAction(menu_icons["data"], "Find Action Chart by Character...")
             find_chart_action.setToolTip("Pick a character and weapon slot to open the chart it uses.")
             find_chart_action.triggered.connect(lambda _checked=False: self._open_action_chart_finder())

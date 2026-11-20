@@ -929,3 +929,56 @@ def test_opening_reads_off_the_ui_thread_and_shows_archive_progress(
     assert reads == [entry.path]
     calls[0]["on_complete"](result)
     assert shown == [(entry, _build(), {})]
+
+
+# -- speed values (Speed Tuning, experimental) -----------------------------------------
+
+
+def _speed_dialog(**kwargs) -> PrefabInspectorDialog:
+    from tests.prefab_speed_builder import build_speed_prefab
+
+    data = build_speed_prefab([
+        ("WindComponent", [("_windSpeedAccelerationScale", "float", 2.0), ("_gust", "float", 3.0)]),
+        ("VelocityComponent", [("_angularVelocity", "float3", (0.0, 90.0, 0.0))]),
+    ])
+    return PrefabInspectorDialog(data, **kwargs)
+
+
+def _shown_value_rows(dialog: PrefabInspectorDialog) -> list[str]:
+    from cdmw.ui.archive_browser.prefab_inspector_editing import VALUE_ROLE
+
+    rows = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if not child.isHidden() and child.data(0, VALUE_ROLE):
+                rows.append(child.data(0, VALUE_ROLE)[3])
+    return rows
+
+
+def test_speed_filter_shows_only_speed_rows(qt_app: QApplication) -> None:
+    dialog = _speed_dialog()
+    assert "_gust" in _shown_value_rows(dialog)
+    dialog.speed_only_box.setChecked(True)
+    assert sorted(_shown_value_rows(dialog)) == ["_angularVelocity", "_windSpeedAccelerationScale"]
+    opened = _speed_dialog(speed_filter=True)
+    assert opened.speed_only_box.isChecked() and "_gust" not in _shown_value_rows(opened)
+
+
+def test_scale_by_two_yields_the_doubled_pending_value_and_revert_restores_it(qt_app: QApplication) -> None:
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.services.prefab_speed_service import speed_values
+
+    dialog = _speed_dialog(speed_filter=True)
+    dialog.tree.clearSelection()
+    rows = dialog.scalable_rows()  # nothing selected: every speed row shown
+    assert len(rows) == 2
+    assert dialog.scale_rows(rows, 2.0) == 2
+    assert dialog.apply_button.isEnabled()
+    pending = {stored_new for _old, stored_new in dialog._value_edits.values()}
+    assert struct.pack("<f", 4.0) in pending and struct.pack("<3f", 0.0, 180.0, 0.0) in pending
+    dialog._revert_changes()
+    assert not dialog._value_edits
+    values = speed_values(decode_prefab_binary(dialog._original))
+    assert values[0].value == 2.0

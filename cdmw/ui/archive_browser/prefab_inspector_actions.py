@@ -91,6 +91,8 @@ class ArchivePrefabInspectorActionsMixin:
         entry: ArchiveEntry,
         data: bytes,
         known_paths: dict[str, tuple[str, ...]],
+        *,
+        speed_filter: bool = False,
     ) -> None:
         def _find_users(path: str) -> tuple[str, ...]:
             """Which other prefabs reference ``path``.
@@ -122,6 +124,7 @@ class ArchivePrefabInspectorActionsMixin:
                 parent=self,
                 known_paths=known_paths,
                 find_users=_find_users if self.archive_entries_by_extension.get(".prefab") else None,
+                speed_filter=speed_filter,
             )
         finally:
             QApplication.restoreOverrideCursor()

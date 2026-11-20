@@ -445,6 +445,10 @@
     "browse.skeleton_edit_import_json": {
       "tool": "app.run_command",
       "class": "edit"
+    },
+    "browse.speed_tuning": {
+      "tool": "app.run_command",
+      "class": "read"
     }
   },
   "command_patterns": [
@@ -1880,6 +1884,76 @@
       "what": "Export selected item packages for DMM to enable and mount later",
       "class": "output",
       "tool": "mods.export"
+    },
+    {
+      "id": "speed.sets",
+      "area": "Speed Tuning",
+      "what": "Characters and their animation speed sets (experimental)",
+      "class": "read",
+      "tool": "speed.sets"
+    },
+    {
+      "id": "speed.set",
+      "area": "Speed Tuning",
+      "what": "One set as moves with kinds, factors from a mod, linked charts and a mounted mod serving it (experimental)",
+      "class": "read",
+      "tool": "speed.set"
+    },
+    {
+      "id": "speed.preview",
+      "area": "Speed Tuning",
+      "what": "Preview what speed factors change, per chart and kind (experimental)",
+      "class": "read",
+      "tool": "speed.preview"
+    },
+    {
+      "id": "speed.export",
+      "area": "Speed Tuning",
+      "what": "Export or update an animation speed DMM mod; a set at 1x leaves it (experimental)",
+      "class": "output",
+      "tool": "speed.export"
+    },
+    {
+      "id": "speed.prefab_search",
+      "area": "Speed Tuning",
+      "what": "Search prefabs that declare speed values, by category (experimental)",
+      "class": "read",
+      "tool": "speed.prefab_search"
+    },
+    {
+      "id": "speed.prefab_values",
+      "area": "Speed Tuning",
+      "what": "Read one prefab's speed values (experimental)",
+      "class": "read",
+      "tool": "speed.prefab_values"
+    },
+    {
+      "id": "speed.prefab_export",
+      "area": "Speed Tuning",
+      "what": "Scale or set prefab speed values and save an item package (experimental)",
+      "class": "output",
+      "tool": "speed.prefab_export"
+    },
+    {
+      "id": "speed.table_rows",
+      "area": "Speed Tuning",
+      "what": "Read game table speed rows: AI movement and pushed object speed (experimental)",
+      "class": "read",
+      "tool": "speed.table_rows"
+    },
+    {
+      "id": "speed.live_apply",
+      "area": "Speed Tuning",
+      "what": "Write speeds into the running game (stays in Crimson Live Edit; CDMW has no such action)",
+      "class": "output",
+      "gap": "writes_into_game"
+    },
+    {
+      "id": "speed.table_export",
+      "area": "Speed Tuning",
+      "what": "Write game table speed edits as a DMM mod (experimental)",
+      "class": "output",
+      "tool": "speed.table_export"
     }
   ],
   "surfaces": [
@@ -3912,6 +3986,22 @@
     {
       "key": "rail_page:translation_studio",
       "tool": "translation.review"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/speed_tuning_dialog.py|SpeedTuningDialog",
+      "tool": "speed.export"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Speed Tuning (Experimental)...",
+      "command": "browse.speed_tuning"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Speed Tuning (Experimental)...",
+      "command": "browse.speed_tuning"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/prefab_inspector_dialog.py|<scale>",
+      "tool": "speed.prefab_export"
     }
   ]
 }

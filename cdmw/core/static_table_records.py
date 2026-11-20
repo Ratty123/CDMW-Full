@@ -82,6 +82,10 @@ EDITABLE_FIELDS: Mapping[str, Mapping[str, FieldRule]] = MappingProxyType({
     "gameplayvariableinfo": MappingProxyType({
         "_initialVariable": FieldRule("bool", 1, 0, 1, "Initial state of the global gameplay switch."),
     }),
+    # Speed Tuning (experimental). 4 bytes on all 14,218 shipped rows (checked 2026-11-20).
+    "gimmickinfo": MappingProxyType({
+        "_pushObjectSpeedRate": FieldRule("float32", 4, 0.01, 100.0, "Speed rate of a pushed object (shipped 0.6-1)."),
+    }),
 })
 
 
@@ -98,6 +102,14 @@ EDITABLE_MEMBERS: Mapping[str, Mapping[tuple[str, str], FieldRule]] = MappingPro
         ("CharacterEquipmentData", "_deadDropPercent"): _uint(8, 0, 1_000_000, _PERCENT.format("0-1,000,000, mostly 30,000")),
         ("CharacterEquipmentData", "_throwDropPercent"): _uint(8, 0, 1_000_000, _PERCENT.format("0-1,000,000, mostly 30,000")),
         ("CharacterLevelData", "_experience"): _uint(8, 0, 1_000_000_000, "Raw experience value of this level (shipped 0-500)."),
+    }),
+    # Speed Tuning (experimental). 4 bytes in all 1,077 list entries of the 351 shipped rows
+    # (checked 2026-11-20). Units are not known; -1 on some _maxRotationSpeed entries looks
+    # like a sentinel, so it stays outside the range.
+    "aimovespeedinfo": MappingProxyType({
+        ("AIMoveSpeedData", "_targetMoveSpeed"): FieldRule("float32", 4, 0.01, 500.0, "AI move speed (shipped 0.15-50)."),
+        ("AIMoveSpeedData", "_minMoveSpeed"): FieldRule("float32", 4, 0.01, 500.0, "AI minimum move speed (shipped 0.1-40)."),
+        ("AIMoveSpeedData", "_maxRotationSpeed"): FieldRule("float32", 4, 0.0, 3600.0, "AI turn speed (shipped 90-360; -1 on a few entries)."),
     }),
 })
 

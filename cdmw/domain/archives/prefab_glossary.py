@@ -190,6 +190,15 @@ _FIELDS: dict[str, FieldMeaning] = {
     "_socketList": FieldMeaning("Sockets", "Attachment points this object provides."),
     "_autoUpdateCustomKey": FieldMeaning("Auto-update key", "Refresh the custom key automatically."),
     "_customkey": FieldMeaning("Custom key", "Free-form value read by gameplay code."),
+    # Speed values Speed Tuning offers (cdmw/domain/archives/prefab_speed.py). Only
+    # members the prefab walk reaches in shipped files are listed there.
+    "_speed": FieldMeaning("Speed", "How fast this moves. On a scene camera: how fast it follows or turns to its target."),
+    "_angularVelocity": FieldMeaning("Spin speed", "How fast this object turns around each axis (x, y, z)."),
+    "_linearVelocity": FieldMeaning("Travel speed", "How fast this object moves along each axis (x, y, z)."),
+    "_windSpeedAccelerationScale": FieldMeaning("Wind speed-up", "How strongly wind speeds this object up."),
+    "_detailNoiseFlowSpeed": FieldMeaning("Cloud detail drift", "How fast the small cloud detail drifts."),
+    "_macroNoiseFlowSpeed": FieldMeaning("Cloud drift", "How fast the large cloud shapes drift."),
+    "_vortexAngularSpeed": FieldMeaning("Cloud swirl speed", "How fast the cloud swirl turns."),
 }
 
 # What an asset is, by file extension.

@@ -48,7 +48,7 @@ class GameTableEditDialog(QDialog):
         self.setWindowTitle("Edit Game Table Values")
         self.resize(1100, 720)
         layout = QVBoxLayout(self)
-        self.editor = GameTablesEditor()
+        self.editor = GameTablesEditor(include_speed=True)
         layout.addWidget(self.editor, 1)
         row = QHBoxLayout()
         row.addWidget(QLabel("Mod name:"))

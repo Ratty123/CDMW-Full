@@ -21,8 +21,12 @@ ROW_LIMIT = 500
 _KEY_ROLE = Qt.UserRole
 
 
-def table_names() -> dict[str, str]:
-    return {
+#: Speed Tuning's tables (experimental); offered in Edit Game Table Values, not in Create New Item.
+SPEED_TABLES = ("aimovespeedinfo", "gimmickinfo")
+
+
+def table_names(*, include_speed: bool = True) -> dict[str, str]:
+    names = {
         "characterinfo": translate_active_ui_text("Characters and NPCs"),
         "dropsetinfo": translate_active_ui_text("Drop sets (loot)"),
         "gameplayvariableinfo": translate_active_ui_text("Gameplay switches"),
@@ -30,7 +34,13 @@ def table_names() -> dict[str, str]:
         "mercenaryinfo": translate_active_ui_text("Mercenaries and pets"),
         "skill": translate_active_ui_text("Skills"),
         "wantedinfo": translate_active_ui_text("Bounties"),
+        "aimovespeedinfo": translate_active_ui_text("AI movement speeds (experimental)"),
+        "gimmickinfo": translate_active_ui_text("Gimmicks (experimental)"),
     }
+    if not include_speed:
+        for kind in SPEED_TABLES:
+            names.pop(kind, None)
+    return names
 
 
 def _field_names() -> dict[str, str]:
@@ -53,6 +63,10 @@ def _field_names() -> dict[str, str]:
         "_deadDropPercent": translate_active_ui_text("drop chance on death"),
         "_throwDropPercent": translate_active_ui_text("drop chance when thrown"),
         "_experience": translate_active_ui_text("experience"),
+        "_pushObjectSpeedRate": translate_active_ui_text("Pushed object speed rate"),
+        "_targetMoveSpeed": translate_active_ui_text("move speed"),
+        "_minMoveSpeed": translate_active_ui_text("minimum move speed"),
+        "_maxRotationSpeed": translate_active_ui_text("turn speed"),
     }
 
 
@@ -61,6 +75,7 @@ def _group_names() -> dict[str, str]:
         "DropInfoData": translate_active_ui_text("Drop"),
         "CharacterEquipmentData": translate_active_ui_text("Equipment"),
         "CharacterLevelData": translate_active_ui_text("Level"),
+        "AIMoveSpeedData": translate_active_ui_text("Speed entry"),
     }
 
 
@@ -103,8 +118,9 @@ class GameTablesEditor(QWidget):
     load_requested = Signal(str)
     edits_changed = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, include_speed: bool = False):
         super().__init__(parent)
+        self._include_speed = include_speed
         self._index = None
         self._shown_key = None
         self._edits: dict[tuple, TableFieldEdit] = {}
@@ -118,7 +134,7 @@ class GameTablesEditor(QWidget):
         top = QHBoxLayout()
         top.addWidget(QLabel("Table:"))
         self.table = QComboBox()
-        for kind, label in sorted(table_names().items(), key=lambda item: item[1].casefold()):
+        for kind, label in sorted(table_names(include_speed=include_speed).items(), key=lambda item: item[1].casefold()):
             self.table.addItem(label, kind)
         top.addWidget(self.table, 1)
         self.load = QPushButton("Load table")

@@ -144,6 +144,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         on_save: Callable[[bytes, str], None] | None = None,
         known_paths: Mapping[str, Sequence[str]] | None = None,
         find_users: Callable[[str], Sequence[str]] | None = None,
+        speed_filter: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -174,6 +175,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             self._determined = walk_is_determined(self._original)
         except Exception as exc:  # noqa: BLE001 - surfaced in the banner
             self._error = str(exc)
+        self._speed_filter_requested = bool(speed_filter)
         self._build_ui()
 
     # -- construction ----------------------------------------------------
@@ -246,6 +248,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
 
         # Last, so the selection can drive button state that now exists.
         self._select_first_editable_row()
+        if self._speed_filter_requested:
+            self.speed_only_box.setChecked(True)
 
     def _banner_text(self) -> str:
         if self._document is None:
@@ -380,6 +384,19 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         )
         self.changeable_only_box.toggled.connect(lambda _on: self._apply_object_filter())
         controls.addWidget(self.changeable_only_box)
+        self.speed_only_box = QCheckBox("Speed values (experimental)")
+        self.speed_only_box.setObjectName("prefabSpeedOnlyBox")
+        self.speed_only_box.setToolTip(
+            "Show only the speed values Speed Tuning knows: camera speeds, spin and wind speed-up, cloud drift. "
+            "Prefab speed edits have not been tested in game."
+        )
+        self.speed_only_box.toggled.connect(lambda _on: self._apply_object_filter())
+        controls.addWidget(self.speed_only_box)
+        self.scale_button = QPushButton("Scale by factor...")
+        self.scale_button.setObjectName("prefabScaleButton")
+        self.scale_button.setToolTip("Multiply the selected numeric values by one factor (experimental).")
+        self.scale_button.clicked.connect(self._ask_scale_selected)
+        controls.addWidget(self.scale_button)
         box.addLayout(controls)
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
@@ -388,6 +405,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        # Several value rows can be selected for Scale by factor; one row still drives the buttons.
+        self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
         self.tree.itemChanged.connect(self._note_pending_edit)
         self.tree.itemSelectionChanged.connect(self._refresh_browse_state)
         self.tree.itemDoubleClicked.connect(self._edit_value_row)
@@ -501,6 +520,10 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             change = QAction("Change this value...", menu)
             change.triggered.connect(lambda: self._edit_number(item, 2))
             menu.addAction(change)
+        if self.scalable_rows():
+            scale = QAction("Scale by factor...", menu)
+            scale.triggered.connect(self._ask_scale_selected)
+            menu.addAction(scale)
         original = item.data(2, _EDIT_ROLE)
         if self._find_users is not None and isinstance(original, str) and is_asset_path(original):
             users = QAction("Where else is this used?", menu)
