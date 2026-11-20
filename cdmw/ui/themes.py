@@ -557,19 +557,20 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
         background: {theme["accent_soft"]};
         border-color: {theme["accent"]};
     }}
-    QPushButton#EditorPrimaryButton {{
+    QPushButton#EditorPrimaryButton, QPushButton[primaryAction="true"] {{
         color: {theme["accent_text"]};
         background: {theme["accent"]};
         border-color: {theme["accent"]};
         font-weight: 600;
     }}
-    QPushButton#EditorPrimaryButton:hover:enabled {{
+    QPushButton#EditorPrimaryButton:hover:enabled, QPushButton[primaryAction="true"]:hover:enabled {{
         color: {theme["text_strong"]};
         background: {theme["accent_soft"]};
         border-color: {theme["accent"]};
     }}
     QPushButton:disabled,
-    QPushButton#EditorPrimaryButton:disabled {{
+    QPushButton#EditorPrimaryButton:disabled,
+    QPushButton[primaryAction="true"]:disabled {{
         color: {theme["button_disabled_text"]};
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};

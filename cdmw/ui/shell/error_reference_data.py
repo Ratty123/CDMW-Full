@@ -10999,7 +10999,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not open Speed Tuning: {result}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 74
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 102
     }
   },
   {
@@ -11071,7 +11071,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the clip: {outcome.message}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1010
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1038
     }
   },
   {
@@ -11087,8 +11087,8 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 225,
-      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 391
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 272,
+      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 523
     }
   },
   {
@@ -12931,7 +12931,7 @@ MESSAGE_REFERENCE = [
     "message": "No character action charts were found in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 60
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 61
     }
   },
   {
@@ -15352,10 +15352,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Speed Tuning could not read the action charts.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 224
+    }
+  },
+  {
+    "area": "archive",
     "message": "Speed Tuning export failed: {result}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_actions.py": 169
+      "cdmw/ui/archive_browser/speed_tuning_actions.py": 216
     }
   },
   {
@@ -16316,7 +16324,7 @@ MESSAGE_REFERENCE = [
     "message": "The edit was refused: {outcome.message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1246
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1274
     }
   },
   {
@@ -16396,7 +16404,7 @@ MESSAGE_REFERENCE = [
     "message": "The export failed, and your edits are kept: {outcome.message}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1298
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1326
     }
   },
   {
@@ -16942,7 +16950,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 541
+      "cdmw/ui/archive_browser/speed_tuning_dialog.py": 681
     }
   },
   {
@@ -16950,7 +16958,7 @@ MESSAGE_REFERENCE = [
     "message": "These names are not in the game's archives or in this chart: {detail} A clip or file that does not exist cannot play, and a socket or part the character does not have does nothing. Apply anyway?",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1194
+      "cdmw/ui/archive_browser/action_chart_editor_dialog.py": 1222
     }
   },
   {
@@ -79303,7 +79311,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not write the list: {error}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/npc_finder/dialog.py": 684
+      "cdmw/ui/npc_finder/dialog.py": 762
     }
   },
   {
@@ -83128,7 +83136,7 @@ MESSAGE_REFERENCE = [
     "message": "NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/npc_finder/dialog.py": 44
+      "cdmw/ui/npc_finder/dialog.py": 45
     }
   },
   {
@@ -85101,7 +85109,7 @@ MESSAGE_REFERENCE = [
     "message": "Scan the archives before opening NPC Finder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/npc_finder/dialog.py": 68
+      "cdmw/ui/npc_finder/dialog.py": 69
     }
   },
   {
@@ -103533,7 +103541,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#ArchiveCacheStatusChip { color: {theme['text']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 6px; } QLabel#HintLabel[healthState=\"healthy\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 700; } QLabel#HintLabel[healthState=\"building\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 600; } QLabel#HintLabel[healthState=\"missing\"], QLabel#HintLabel[healthState=\"stale\"] { color: {theme['warning_text']}; border-color: {theme['warning_border']}; font-weight: 600; } QLabel#HintLabel[healthState=\"unhealthy\"] { color: {theme['error']}; border-color: {theme['error']}; font-weight: 700; } QCheckBox, QRadioButton { spacing: 8px; } QCheckBox::indicator, QGroupBox::indicator, QRadioButton::indicator { width: 16px; height: 16px; border-radius: 4px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QRadioButton::indicator { border-radius: 10px; } QCheckBox::indicator:checked, QGroupBox::indicator:checked, QRadioButton::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; } QCheckBox::indicator:hover, QGroupBox::indicator:hover, QRadioButton::indicator:hover, QCheckBox::indicator:focus, QGroupBox::indicator:focus, QRadioButton::indicator:focus { border-color: {theme['text_strong']}; } QCheckBox::indicator:disabled, QGroupBox::indicator:disabled, QRadioButton::indicator:disabled { background: {theme['button_disabled']}; border-color: {theme['button_disabled_text']}; } QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled, QRadioButton::indicator:checked:disabled { background: {theme['button_disabled_text']}; } QTreeWidget#ScenePanelTree::indicator { width: 12px; height: 12px; margin: 2px 4px 2px 0px; border-radius: 3px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QTreeWidget#ScenePanelTree::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; } QTreeWidget#ScenePanelTree::indicator:indeterminate { background: {theme['accent_soft']}; border: 2px solid {theme['accent']}; } QTreeWidget#ScenePanelTree::indicator:hover { border-color: {theme['text_strong']}; } QProgressBar { border: 1px solid {theme['border_strong']}; border-radius: 4px; background: {theme['field']}; font-weight: 600; text-align: center; min-height: {metrics['progress_min_h']}px; } QProgressBar::chunk { border-radius: 3px; background: {theme['accent']}; } QLabel#HintLabel { color: {theme['text_muted']}; background: transparent; } {detail} QLabel#ArchivePreviewHealthLabel { color: {theme['text_muted']}; background: transparent; } QLabel#ArchivePreviewHealthLabel[working=\"true\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#ArchivePreviewHealthLabel[attention=\"true\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#WarningBadge { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#ActiveBadge { color: {theme['accent_text']}; background: {theme['accent']}; border: 1px solid {theme['accent']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#WarningText { color: {theme['warning_text']}; background: transparent; } QLabel#WarningLabel { color: {theme['warning_text']}; background: transparent; } QLabel#CompactPathValue { color: {theme['text_strong']}; background: transparent; }",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/themes.py": 633
+      "cdmw/ui/themes.py": 634
     }
   },
   {
@@ -103541,7 +103549,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#MetricChip { color: {theme['text_strong']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 8px; font-weight: 600; } QLabel#MetricChip[chipRole=\"format\"], QLabel#MetricChip[chipRole=\"info\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"ready\"] { color: {theme['accent_text']}; background: {theme['accent']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"warn\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#MetricChip[chipRole=\"block\"] { color: {theme['error']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#ItemFinderIconPreview, QLabel#DDSDetailThumbnail { color: {theme['text_muted']}; background: {theme['preview_bg']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QPlainTextEdit#HkxLineNumbers { color: {theme['text_muted']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; } QFrame#AssignmentSummary { background: {theme['surface_alt']}; border: 1px solid {theme['border']}; border-radius: 6px; } QLabel#AssignmentTitle { color: {theme['accent']}; background: transparent; font-weight: 600; } QLabel#AssignmentWarning { color: {theme['warning_text']}; background: transparent; font-weight: 600; } QFrame#ArchiveSwapBanner { background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; } QLabel#ArchiveSwapBannerLabel { color: {theme['warning_text']}; background: transparent; } QLabel#StatusLabel { color: {theme['text_muted']}; background: transparent; } QLabel#StatusLabel[error=\"true\"] { color: {theme['error']}; } QLabel#PreviewLabel { border: 1px solid {theme['border_strong']}; border-radius: 5px; background: {theme['preview_bg']}; color: {theme['text_muted']}; padding: 8px; } QFrame#MeshEditorDraftChoiceCard { background: {theme['surface']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QFrame#MeshEditorDraftChoiceCard QLabel { background: transparent; border: none; }",
     "recovery": "gpu",
     "sources": {
-      "cdmw/ui/themes.py": 779
+      "cdmw/ui/themes.py": 780
     }
   },
   {
@@ -113955,10 +113963,11 @@ SOURCE_COVERAGE = {
   "cdmw/ui/archive_browser/speed_tuning_actions.py": {
     "dialog": 1,
     "display": 3,
+    "failure": 1,
     "raise": 1
   },
   "cdmw/ui/archive_browser/speed_tuning_dialog.py": {
-    "display": 2
+    "display": 3
   },
   "cdmw/ui/archive_browser/static_preview_thumbnail.py": {},
   "cdmw/ui/archive_browser/static_replacement_accept_state.py": {

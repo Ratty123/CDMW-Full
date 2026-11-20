@@ -15,8 +15,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame, QGroupBox, QHBoxLayout,
+    QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton, QSplitter, QTableWidget,
     QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -26,6 +26,7 @@ from cdmw.domain.archives.npc_catalogue import (
     NpcOutfitRequest, NpcOutfitResult, NpcWearersRequest, NpcWearersResult,
 )
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
+from cdmw.ui.wrapping_layout import WrappingLayout
 
 
 PAGE_SIZE = 100
@@ -99,7 +100,7 @@ class NpcFinderDialog(QDialog):
         self._kind.currentIndexChanged.connect(self._query_changed)
         self._armor_only.toggled.connect(self._query_changed)
         self._results.currentCellChanged.connect(lambda *_args: self._selection_changed())
-        self._variant.currentIndexChanged.connect(lambda *_args: self._show_pieces())
+        self._variant.currentIndexChanged.connect(lambda *_args: (self._variant.setToolTip(self._variant.currentData() or ""), self._show_pieces()))
         self._pieces.currentCellChanged.connect(lambda *_args: self._buttons())
         self._pieces.cellDoubleClicked.connect(lambda *_args: self._show_piece())
         self._service.result_ready.connect(self._result)
@@ -113,12 +114,18 @@ class NpcFinderDialog(QDialog):
     # UI ---------------------------------------------------------------
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setSpacing(8)
         top = QHBoxLayout()
+        top.setSpacing(8)
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("NpcFinderSearch")
-        self._search_edit.setPlaceholderText("Search NPC name, internal name, ID, appearance file or piece")
+        self._search_edit.setPlaceholderText("Search by name, ID, file or piece")
+        self._search_edit.setToolTip("Matches display names in every language, internal names, character IDs, "
+                                     "appearance files and the pieces an NPC wears.")
         self._search_edit.setClearButtonEnabled(True)
         self._kind = QComboBox()
+        self._kind.setToolTip("Only show this type of character.")
         for value, label in KIND_LABELS:
             self._kind.addItem(label, value)
         self._armor_only = QCheckBox("Has armour")
@@ -128,44 +135,75 @@ class NpcFinderDialog(QDialog):
         top.addWidget(self._armor_only)
         layout.addLayout(top)
         self._banner = QPushButton()
-        self._banner.setFlat(True)
+        self._banner.setObjectName("NpcFinderWearersBanner")
+        self._banner.setToolTip("Show every NPC again.")
         self._banner.setVisible(False)
         self._banner.clicked.connect(self._clear_wearers)
-        layout.addWidget(self._banner)
+        layout.addWidget(self._banner, 0, Qt.AlignmentFlag.AlignLeft)
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setChildrenCollapsible(False)
+        self._splitter.setHandleWidth(10)
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        self._results = QTableWidget(0, 5)
+        left_layout.setSpacing(6)
+        self._results = QTableWidget(0, 4)
         self._results.setObjectName("NpcFinderResults")
-        self._results.setHorizontalHeaderLabels(["Name", "ID", "Internal name", "Type", "Pieces"])
+        self._results.setHorizontalHeaderLabels(["Name", "ID", "Type", "Pieces"])
         self._configure_table(self._results)
+        header = self._results.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in (1, 2, 3):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        self._results.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         left_layout.addWidget(self._results, 1)
         pager = QHBoxLayout()
+        pager.setSpacing(6)
         self._previous = QPushButton("Previous")
         self._previous.clicked.connect(lambda: self._page(-1))
         self._next_button = QPushButton("Next")
         self._next_button.clicked.connect(lambda: self._page(1))
         self._count = QLabel()
+        self._count.setObjectName("HintLabel")
+        self._count.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pager.addWidget(self._previous)
-        pager.addWidget(self._next_button)
         pager.addWidget(self._count, 1)
+        pager.addWidget(self._next_button)
         left_layout.addLayout(pager)
+        left.setMinimumWidth(300)
         self._splitter.addWidget(left)
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(6)
+        heading_box = QWidget()
+        heading = QVBoxLayout(heading_box)
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(2)
         self._title = QLabel("Select an NPC.")
-        self._title.setTextFormat(Qt.TextFormat.RichText)
+        self._title.setObjectName("NpcFinderTitle")
+        self._title.setStyleSheet("font-size: 13pt; font-weight: 600;")
         self._title.setWordWrap(True)
-        right_layout.addWidget(self._title)
+        self._title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        heading.addWidget(self._title)
+        self._subtitle = QLabel()
+        self._subtitle.setObjectName("HintLabel")
+        self._subtitle.setWordWrap(True)
+        self._subtitle.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        heading.addWidget(self._subtitle)
+        right_layout.addWidget(heading_box)
         variant_row = QHBoxLayout()
-        variant_row.addWidget(QLabel("Appearance:"))
+        variant_row.setSpacing(6)
+        appearance_label = QLabel("Appearance:")
+        appearance_label.setToolTip("The appearance file that dresses this character. Some characters have several.")
+        variant_row.addWidget(appearance_label)
         self._variant = QComboBox()
         self._variant.setObjectName("NpcFinderVariant")
         self._variant.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self._variant.setMinimumContentsLength(20)
         variant_row.addWidget(self._variant, 1)
         self._copy_appearance = QPushButton("Copy")
         self._copy_appearance.setToolTip("Copy the appearance file's path.")
@@ -176,55 +214,86 @@ class NpcFinderDialog(QDialog):
         variant_row.addWidget(self._copy_appearance)
         variant_row.addWidget(self._show_appearance)
         right_layout.addLayout(variant_row)
-        heading = QLabel("<b>Pieces in this appearance</b>")
-        heading.setToolTip("A prefab lists every model it can show. A listed piece is not always visible in game.")
-        right_layout.addWidget(heading)
+
+        pieces_box = QGroupBox("Pieces in this appearance")
+        pieces_box.setObjectName("NpcFinderPiecesGroup")
+        pieces_box.setToolTip("A prefab lists every model it can show. A listed piece is not always visible in game.")
+        pieces_layout = QVBoxLayout(pieces_box)
+        pieces_layout.setSpacing(6)
         self._pieces = QTableWidget(0, 4)
         self._pieces.setObjectName("NpcFinderPieces")
         self._pieces.setHorizontalHeaderLabels(["Slot", "Piece", "Prefab", "Path"])
         self._configure_table(self._pieces)
-        right_layout.addWidget(self._pieces, 3)
-        actions = QHBoxLayout()
-        self._show_outfit_button = QPushButton("Show outfit in Browse Archives")
-        self._show_outfit_button.setToolTip("Scope Browse Archives to every piece of this appearance, as a worn set.")
-        self._show_outfit_button.clicked.connect(self._show_outfit)
+        self._pieces.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self._pieces.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._pieces.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self._pieces.horizontalHeader().setMinimumSectionSize(60)
+        pieces_layout.addWidget(self._pieces, 1)
+        piece_actions_box = QWidget()
+        piece_actions = WrappingLayout(piece_actions_box)
+        piece_actions.setSpacing(6)
+        self._mesh_button = QPushButton("Open in Mesh Editor")
+        self._mesh_button.setProperty("primaryAction", True)
+        self._mesh_button.setToolTip("Open the selected piece in Mesh Editor.")
+        self._mesh_button.clicked.connect(self._open_mesh)
         self._show_piece_button = QPushButton("Show in Browse Archives")
         self._show_piece_button.setToolTip("Scope Browse Archives to the selected piece.")
         self._show_piece_button.clicked.connect(self._show_piece)
-        self._mesh_button = QPushButton("Open in Mesh Editor")
-        self._mesh_button.clicked.connect(self._open_mesh)
         self._item_button = QPushButton("Use in Create New Item")
         self._item_button.clicked.connect(self._create_item)
-        for button in (self._show_outfit_button, self._show_piece_button, self._mesh_button, self._item_button):
-            actions.addWidget(button)
-        actions.addStretch(1)
-        right_layout.addLayout(actions)
-        more = QHBoxLayout()
         self._wearers_button = QPushButton("Worn by")
         self._wearers_button.setToolTip("List every NPC whose appearance lists the selected piece.")
         self._wearers_button.clicked.connect(self._find_wearers)
-        self._body_face_button = QPushButton("Open in Body & Face Finder".replace("&", "&&"))
-        self._body_face_button.clicked.connect(self._open_body_face)
         self._copy_piece_button = QPushButton("Copy path")
+        self._copy_piece_button.setToolTip("Copy the selected piece's path.")
         self._copy_piece_button.clicked.connect(self._copy_piece_path)
+        for button in (self._mesh_button, self._show_piece_button, self._item_button, self._wearers_button,
+                       self._copy_piece_button):
+            piece_actions.addWidget(button)
+        pieces_layout.addWidget(piece_actions_box)
+        right_layout.addWidget(pieces_box, 1)
+
+        outfit_actions_box = QWidget()
+        outfit_actions = WrappingLayout(outfit_actions_box)
+        outfit_actions.setSpacing(6)
+        self._show_outfit_button = QPushButton("Show outfit in Browse Archives")
+        self._show_outfit_button.setToolTip("Scope Browse Archives to every piece of this appearance, as a worn set.")
+        self._show_outfit_button.clicked.connect(self._show_outfit)
+        self._body_face_button = QPushButton("Open in Body & Face Finder".replace("&", "&&"))
+        self._body_face_button.setToolTip("Look up this appearance's body, head and hair in Body & Face Finder.")
+        self._body_face_button.clicked.connect(self._open_body_face)
         self._export_button = QPushButton("Export list…")
         self._export_button.setToolTip("Write this appearance's pieces to a CSV or text file.")
         self._export_button.clicked.connect(self._export)
-        for button in (self._wearers_button, self._body_face_button, self._copy_piece_button, self._export_button):
-            more.addWidget(button)
-        more.addStretch(1)
-        right_layout.addLayout(more)
+        for button in (self._show_outfit_button, self._body_face_button, self._export_button):
+            outfit_actions.addWidget(button)
+        right_layout.addWidget(outfit_actions_box)
         self._details = QTextBrowser()
         self._details.setObjectName("NpcFinderDetails")
-        right_layout.addWidget(self._details, 1)
+        self._details.setFrameShape(QFrame.Shape.NoFrame)
+        self._details.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._details.setMaximumHeight(64)
+        self._details.setVisible(False)
+        right_layout.addWidget(self._details)
         self._splitter.addWidget(right)
         self._splitter.setStretchFactor(0, 2)
         self._splitter.setStretchFactor(1, 3)
+        self._splitter.setSizes([380, 780])
         layout.addWidget(self._splitter, 1)
+        status_row = QHBoxLayout()
+        status_row.setSpacing(8)
+        self._busy = QProgressBar()
+        self._busy.setObjectName("NpcFinderBusy")
+        self._busy.setRange(0, 0)
+        self._busy.setTextVisible(False)
+        self._busy.setFixedWidth(120)
+        self._busy.setMaximumHeight(8)
+        status_row.addWidget(self._busy)
         self._status = QLabel("Reading NPC appearances…")
         self._status.setObjectName("NpcFinderStatus")
         self._status.setWordWrap(True)
-        layout.addWidget(self._status)
+        status_row.addWidget(self._status, 1)
+        layout.addLayout(status_row)
         self._buttons()
 
     @staticmethod
@@ -356,14 +425,13 @@ class NpcFinderDialog(QDialog):
         for index, row in enumerate(self._rows):
             name = row.display_name or row.internal_name or row.key
             grey = row.resolution == "unresolved"
-            tooltip = row.appearance_path or "No installed appearance file links to this character."
+            tooltip = "\n".join(value for value in (
+                row.internal_name, row.appearance_path or "No installed appearance file links to this character.") if value)
             self._results.setItem(index, 0, _cell(name, tooltip=tooltip, data=row.key, grey=grey))
             self._results.setItem(index, 1, _cell(row.character_id or "", grey=grey))
-            self._results.setItem(index, 2, _cell(row.internal_name, grey=grey))
-            self._results.setItem(index, 3, _cell(KIND_NAMES.get(row.kind, row.kind), grey=grey))
-            self._results.setItem(index, 4, _cell(row.piece_count, grey=grey))
+            self._results.setItem(index, 2, _cell(KIND_NAMES.get(row.kind, row.kind), grey=grey))
+            self._results.setItem(index, 3, _cell(row.piece_count, grey=grey))
         self._results.blockSignals(False)
-        self._results.resizeColumnsToContents()
         shown = f"{self._page_start + 1:,} to {self._page_start + len(self._rows):,} of {total:,}" if self._rows else "No matches"
         self._count.setText(shown)
         statistics = self._summary.statistics if self._summary else None
@@ -398,36 +466,42 @@ class NpcFinderDialog(QDialog):
             return
         self._outfit = None
         self._title.setText("Reading pieces…")
+        self._subtitle.setText("")
         self._request_outfit(key)
 
     def _clear_outfit(self) -> None:
         self._outfit = None
         self._title.setText("Select an NPC.")
+        self._subtitle.setText("")
         self._variant.blockSignals(True)
         self._variant.clear()
         self._variant.blockSignals(False)
         self._pieces.setRowCount(0)
         self._details.clear()
+        self._details.setVisible(False)
         self._buttons()
 
     def _show_outfit_result(self, result: NpcOutfitResult) -> None:
         self._outfit = result
         row = result.row
-        parts = [f"<b>{escape(row.display_name or row.internal_name)}</b>"]
+        parts = []
         if row.character_id:
             parts.append(f"ID {row.character_id}")
         if row.internal_name and row.internal_name != row.display_name:
-            parts.append(escape(row.internal_name))
-        parts.append(escape(KIND_NAMES.get(row.kind, row.kind)))
-        self._title.setText(" · ".join(parts))
+            parts.append(row.internal_name)
+        parts.append(KIND_NAMES.get(row.kind, row.kind))
+        self._title.setText(row.display_name or row.internal_name)
+        self._subtitle.setText(" · ".join(parts))
         self._variant.blockSignals(True)
         self._variant.clear()
         for outfit in result.outfits:
-            label = outfit.appearance_path or "No installed appearance file"
+            label = outfit.appearance_path.rsplit("/", 1)[-1] if outfit.appearance_path else "No installed appearance file"
             if outfit.variant >= 0:
                 label = f"Variant {outfit.variant}: {label}"
             self._variant.addItem(label, outfit.appearance_path)
+            self._variant.setItemData(self._variant.count() - 1, outfit.appearance_path, Qt.ItemDataRole.ToolTipRole)
         self._variant.blockSignals(False)
+        self._variant.setToolTip(self._variant.currentData() or "")
         self._show_pieces()
         if not result.item_links_available and not self._names_requested and "names" not in self._requests:
             # Item Finder's name index links pieces to items for Create New Item.
@@ -454,16 +528,18 @@ class NpcFinderDialog(QDialog):
             self._pieces.setItem(index, 1, _cell(piece.file_name or note or "(none)", tooltip=note, grey=grey))
             self._pieces.setItem(index, 2, _cell(piece.prefab_name, tooltip=piece.prefab_path, grey=grey))
             self._pieces.setItem(index, 3, _cell(piece.model_path, tooltip=piece.model_path, grey=grey))
-        self._pieces.resizeColumnsToContents()
+        for column, cap in ((0, 110), (1, 230), (2, 230)):
+            self._pieces.resizeColumnToContents(column)
+            self._pieces.setColumnWidth(column, min(self._pieces.columnWidth(column), cap))
         if pieces:
             self._pieces.setCurrentCell(0, 0)
         lines = []
-        if outfit is not None:
-            lines.append(f"<p><b>{escape(outfit.appearance_path or 'No installed appearance file')}</b></p>")
-            lines += [f"<p>{escape(line)}</p>" for line in outfit.evidence]
         if self._outfit is not None and self._outfit.other_display_names:
             lines.append("<p>Also known as: " + escape(", ".join(self._outfit.other_display_names)) + "</p>")
+        if outfit is not None:
+            lines += [f"<p>{escape(line)}</p>" for line in outfit.evidence]
         self._details.setHtml("".join(lines))
+        self._details.setVisible(bool(lines))
         self._buttons()
 
     def _current_piece(self):
@@ -476,6 +552,8 @@ class NpcFinderDialog(QDialog):
     def _buttons(self) -> None:
         busy = bool(self._requests.get("build") or self._requests.get("search"))
         usable = not self._invalid and not self._closing
+        if hasattr(self, "_busy"):
+            self._busy.setVisible(usable and any(kind != "names" for kind in self._requests))
         outfit = self._current_outfit()
         piece = self._current_piece()
         models = [p for p in outfit.pieces if p.has_model] if outfit is not None else []
