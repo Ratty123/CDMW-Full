@@ -199,7 +199,7 @@ def test_every_surface_row_names_a_tool_a_command_or_a_gap_with_its_reason() -> 
 def test_the_only_capabilities_still_to_build_wait_on_the_mesh_editor_helper() -> None:
     """MCP gap plan item 17: every other capability has a tool or an accepted gap."""
     open_rows = {row["id"] for row in load_coverage()["capabilities"] if row.get("gap") == "not_built"}
-    assert open_rows <= {"mesh.camera", "new_item.advanced_tables", "new_item.effect_emitters"}, open_rows
+    assert open_rows == {"mesh.camera"}, open_rows
 
 
 def test_a_new_menu_entry_without_a_row_fails_the_scan(tmp_path, monkeypatch) -> None:
