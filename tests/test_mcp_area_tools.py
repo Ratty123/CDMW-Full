@@ -387,7 +387,12 @@ def test_open_a_worn_set_or_the_ticked_parts_as_browse_does(mesh, monkeypatch) -
     def scope(ids, *, label, worn_set):
         scoped.append((list(ids), label, worn_set))
         members.update(paths)
+        # The set scope selects its first file itself once its rows are listed.
+        QTimer.singleShot(20, lambda: current.__setitem__(0, SimpleNamespace(path=paths[0])))
         return True
+
+    def reveal(path):
+        raise AssertionError("a one-file reveal would replace the set scope")
 
     monkeypatch.setattr(remote_entry_lookup, "start_live_catalogue_lookup", lookup)
     monkeypatch.setattr(remote_entry_lookup, "lookup_requests", lambda *args: args)
@@ -402,8 +407,7 @@ def test_open_a_worn_set_or_the_ticked_parts_as_browse_does(mesh, monkeypatch) -
                                               item_set_contains=lambda entry: entry is not None
                                               and entry.path in members),
         archive_item_set_components=SimpleNamespace(edit_set_button=button),
-        _reveal_archive_path_in_live_catalogue=lambda path: (
-            QTimer.singleShot(20, lambda: current.__setitem__(0, SimpleNamespace(path=path))), True)[1],
+        _reveal_archive_path_in_live_catalogue=reveal,
         _current_archive_mesh_entry=lambda: current[0], _current_archive_entry=lambda: current[0])
     # Ticked parts need a set in the Scene panel first.
     assert mcp.error("mesh_open", {"ticked_parts": True})["code"] == "unavailable"

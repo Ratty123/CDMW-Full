@@ -426,6 +426,30 @@ def _scope_set(call, archive, paths: list[str], label: str) -> None:
         raise box["error"]
 
 
+def _select_listed_path(archive, path: str) -> bool:
+    """Make the listed row of ``path`` the current one, as a click on it does. False when it is not listed."""
+
+    from PySide6.QtCore import QItemSelectionModel
+
+    tree = getattr(archive, "archive_tree", None)
+    selection = tree.selectionModel() if tree is not None else None
+    model = selection.model() if selection is not None else None
+    entry_for_index = getattr(model, "entry_for_index", None)
+    if not callable(entry_for_index):
+        return False
+    wanted = path.replace("\\", "/").strip("/").casefold()
+    for row in range(model.rowCount()):
+        index = model.index(row, 0)
+        entry = entry_for_index(index)
+        if str(getattr(entry, "path", "") or "").replace("\\", "/").strip("/").casefold() != wanted:
+            continue
+        flags = QItemSelectionModel.SelectionFlag
+        tree.setCurrentIndex(index)
+        selection.select(index, flags.ClearAndSelect | flags.Rows)
+        return True
+    return False
+
+
 def _open_set(call, archive, window, paths: list[str]) -> dict[str, object]:
     from cdmw.ui.mesh_editor.item_set_preparation import prepare_item_set_for_editor
 
@@ -437,12 +461,16 @@ def _open_set(call, archive, window, paths: list[str]) -> dict[str, object]:
         return str(getattr(entry, "path", "") or "").replace("\\", "/").strip("/")
 
     first = paths[0]
-    if not context.ui_call(lambda: bool(archive._reveal_archive_path_in_live_catalogue(first))):
-        raise ToolError(NOT_FOUND, f"Browse Archives did not show {first}.")
+
+    # The set scope selects its first file itself once its rows are listed. Revealing that file
+    # here would replace the set with a one-file scope, and the set could never be opened.
     def ready() -> bool:
         contains = getattr(archive.archive_remote_bridge, "item_set_contains", None)
-        return (current().casefold() == first.casefold() and callable(contains)
-                and bool(contains(archive._current_archive_entry())))
+        if not callable(contains):
+            return False
+        if current().casefold() != first.casefold():
+            _select_listed_path(archive, first)
+        return current().casefold() == first.casefold() and bool(contains(archive._current_archive_entry()))
 
     deadline = time.monotonic() + OPEN_TIMEOUT_S
     while not context.ui_call(ready):
