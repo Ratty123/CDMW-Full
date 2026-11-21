@@ -24,13 +24,37 @@ records.
                -- an unselected list member is the byte 01 (or, in a nested
                -- prefab instance, a full collection: u8 0, u32 count, ...)
     header  := u16 maskWidth, mask (maskWidth bytes, little-endian),
-               u8 componentTypeIndex, u16 0      -- width 0: a memberless type
+               u16 componentTypeIndex, u8 override
+               -- width 0: a memberless type; width is the stated type's
+               -- member count in bytes, up to 13 (ScenePostProcessing, 103);
+               -- the index passes 255 in files declaring more types
     pointer := [u8 1 for kind 5] header, u64 owner, u32 selfOffset,
                pointee(N), u32 N
-    pointee := u32 0, the stated type's members by the header's mask
-               (a path type: [u32 len, string])
+    pointee := u16 z (0|1), u16 0, the stated type's members by the
+               header's mask (a path type: [u32 len, string])
     array   := u8 0, u32 count, values | u8 1    -- numeric, attr 0x1000
-    name    := pointer -> (u16 0, u16 count, [u16 0, u32 len, name])
+    name    := pointer -> (u16 z (0|1), u16 count, [u16 0, u32 len, name])
+    objects := u8 0, u32 count, preamble, element*count | u8 1
+               -- kind 7 by pointer and kind 6 by value read alike; an
+               -- element is a group; revisions 13 and 14 write no kind
+               -- byte or empty byte, only the count
+    preamble:= u8 withIds (not in revision 13), u32, u32, u32 n
+               (-1 for none), n*u64 keys, [n*u32 if withIds]
+               -- usually n is 0 (13 bytes); withIds puts a u32 index
+               -- after each element's owner field
+
+``override`` and ``z`` are the fields :mod:`cdmw.core.effect_binary` names the
+same way. Over the shipped prefabs they are set only inside a nested prefab
+instance's overrides: a ``CustomAttributeSplineComponent`` header says
+``override`` 1, and its ``SplineObject3D`` pointee, ``SplineDecalPointData``
+and ``SplineDecalVolumeData`` elements and ``CustomAttributeLayoutContainer``
+pointees carry ``z`` 1 (791 records in 46 files, 2026-11-21). Read as a fixed
+0 they stopped all 46 walks. An overridden pointee's header ends with
+``override`` 1 too (a ``DecalComponent._decalInfo`` with only ``_tintColor``
+set), which stopped 58 more.
+
+Measured over the installed game's 51,178 prefabs (2026-11-21), these rules
+read 51,178 to the end, against 50,910 before them.
 
 The type table is flat -- nested types are appended after the referencing
 type's complete member list, not inlined -- and the string pool is
@@ -97,7 +121,7 @@ STRING_POOL_MIN_REVISION = 14
 #      3   1,313  2/12/1/16    uint16, float3, uint8                 yes, inline
 #      4   2,628  8            ReflectObject                         yes, pointer-ish
 #      5   1,998  8            ReflectObjectPtr                      yes, pointer
-#      6      94  0            ReflectObject      <- by-value collection, NOT handled
+#      6      94  0            ReflectObject      <- by-value collection, prefabs only
 #      7   6,193  0            ReflectObjectPtr                      yes, collection
 #      8       4  32           OnTriggerBreak                        no
 #     10       6  1            staticstringA                         no
@@ -106,14 +130,17 @@ STRING_POOL_MIN_REVISION = 14
 # convex-hull files. Treating it exactly like kind 7 clears the "unsupported member
 # kind" error but then leaves the walk short by 255-10,848 bytes, so its elements are
 # laid out differently from a pointer collection's -- which is the next thing to work
-# out, and is a smaller question than it was before the survey.
+# out, and is a smaller question than it was before the survey. In a ``.prefab`` the
+# group-list reading does read it as kind 7 (``SplineDecalComponent._pointDatas``):
+# there every element is a group closing on its own length field, which checks it.
 KIND_INLINE = 0x0000
 KIND_STRING = 0x0001
 KIND_ENUM = 0x0002
 KIND_INLINE_12 = 0x0003
 KIND_OBJECT = 0x0004
 KIND_POINTER = 0x0005
-#: By-value object collection. Recognised so it can be named, not yet read.
+#: By-value object collection. Read as a pointer collection by the group-list
+#: reading of a prefab; the other readings refuse it.
 KIND_OBJECT_COLLECTION = 0x0006
 KIND_COLLECTION = 0x0007
 KIND_STRING_COLLECTION = 0x000A
@@ -135,6 +162,15 @@ _FOOTER_SEARCH = 17
 #: shipped revision-15 prefabs, 2026-10-31.
 _INDEXED_OBJECT_LIST = 0x100
 _MAX_NAMES = 8
+#: The u16 opening a pointee or name record: 0, or 1 on an object a nested
+#: prefab instance overrides (see the module docstring).
+_RECORD_Z = (0, 1)
+#: Element header widths read without further proof. Wider ones are read only
+#: when the stated type needs exactly that many mask bytes: 6 for a 43-member
+#: SplineDecalComponent, 13 for the 103 members of ScenePostProcessing.
+_HEADER_WIDTHS = (1, 2, 3, 4)
+_MAX_MASK_BYTES = 32
+_MAX_PREAMBLE_KEYS = 100_000
 _MAX_DEPTH = 32
 _MAX_GROUPS = 100_000
 _MARKER_SEARCH = 512
@@ -684,11 +720,31 @@ class _Collected:
     numbers: list[PrefabNumber] = field(default_factory=list)
 
 
+def _header_tail(blob: bytes, owner_at: int) -> bool:
+    """Is the byte before ``owner_at`` a header's ``override`` (0 or 1)?
+
+    ``override`` is 1 on an object a nested prefab instance overrides (a
+    ``DecalComponent``'s ``_decalInfo`` with only ``_tintColor`` set, say), 0
+    everywhere else. The u16 type index before it is checked by its caller.
+    """
+    return blob[owner_at - 1] in (0, 1)
+
+
+def _type_at(blob: bytes, at: int) -> int:
+    """The u16 type index of a header whose mask ends at ``at``.
+
+    Read as one byte it was right only while a file declared at most 256
+    types; ``cd_spot_desert_tradevillage_01_04.prefab`` declares more, and
+    its elements of type 258 and up read as type 2, 3, ... with a stray byte.
+    """
+    return struct.unpack_from("<H", blob, at)[0]
+
+
 def _pointee_header(cursor: _BlobCursor, flags: int) -> tuple[int, int] | None:
     """Read a pointer member's stated header, when the cursor is on one.
 
     The pointee opens with the element header a group carries -- ``u16 width,
-    mask, u8 typeIndex, u16 0`` -- then the owner field. A ``ReflectObjectPtr``
+    mask, u16 typeIndex, u8 override`` -- then the owner field. A ``ReflectObjectPtr``
     (kind 5) puts a presence byte of 1 before it; a by-value ``ReflectObject``
     (kind 4) does not. Over the completed walks every resource pointee is
     ``01 00 01 03 00 00`` or its empty form ``01 00 00 02 00 00``, a one-member
@@ -705,15 +761,19 @@ def _pointee_header(cursor: _BlobCursor, flags: int) -> tuple[int, int] | None:
     if at + 2 > len(blob):
         return None
     width = struct.unpack_from("<H", blob, at)[0]
-    if width not in (1, 2, 3, 4) and not (width == 0 and _memberless(cursor, at)):
+    if (
+        width not in _HEADER_WIDTHS
+        and not (width == 0 and _memberless(cursor, at))
+        and not _wide_header(cursor, at, width)
+    ):
         return None
     owner_at = at + 2 + width + 3
-    if owner_at + 12 > len(blob) or blob[owner_at - 2 : owner_at] != b"\x00\x00":
+    if owner_at + 12 > len(blob) or not _header_tail(blob, owner_at):
         return None
     if struct.unpack_from("<I", blob, owner_at + 8)[0] != cursor.base + owner_at + 12:
         return None
     mask = int.from_bytes(blob[at + 2 : at + 2 + width], "little")
-    type_index = blob[at + 2 + width]
+    type_index = _type_at(blob, at + 2 + width)
     cursor.pos = owner_at
     return mask, type_index
 
@@ -790,7 +850,7 @@ def _read_pointer(
     if target != cursor.base + cursor.pos:
         raise PrefabBinaryError(f"pointer at 0x{cursor.pos:x} is not self-relative")
     start = cursor.pos
-    if cursor.u32() != 0:
+    if cursor.u16() not in _RECORD_Z or cursor.u16() != 0:
         raise PrefabBinaryError(f"unexpected pointee header at 0x{start:x}")
     if pointee_type is not None:
         mask = stated[0]
@@ -916,6 +976,13 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
         count = _motion_array_count(cursor)
         if count > _MAX_COUNT:
             raise PrefabBinaryError(f"motion collection count {count} exceeds {_MAX_COUNT}")
+        return count
+    if cursor.group_lists and cursor.revision < 15:
+        # Revision 13 and 14 write no kind byte, only the count (as the
+        # revision-14 .pcg files do).
+        count = cursor.u32()
+        if count > _MAX_COUNT:
+            raise PrefabBinaryError(f"expected a collection here but found count {count}")
         return count
     kind = cursor.take(1)[0]
     if cursor.pos + 4 > len(cursor.blob):
@@ -1061,7 +1128,14 @@ def _read_member(
     if flags in POINTER_KINDS:
         _read_pointer(cursor, into, member.name, group_reader, flags)
         return
-    if flags == KIND_COLLECTION:
+    if flags == KIND_COLLECTION or (flags == KIND_OBJECT_COLLECTION and cursor.group_lists):
+        # A by-value object list (kind 6, a SplineDecalComponent's _pointDatas
+        # and _volumeDatas) is laid out as a pointer list is under the
+        # group-list rules: kind byte, count, the 13-byte preamble, then each
+        # element as a group with its own header, record and closing length
+        # field. Measured over the shipped prefabs, 2026-11-21. The earlier
+        # readings still refuse it: they are the fallback, and a .pcg's kind 6
+        # members do not read this way.
         # The closing length fields of the group just read (a socket list's last
         # element and its SocketComponent, say). A header's kind byte is 0.
         while not cursor.plain_counts and cursor.blob[cursor.pos:cursor.pos + 1] != b"\x00" and cursor.at_length_field():
@@ -1075,7 +1149,12 @@ def _read_member(
             if reference[0] != 0:
                 raise PrefabBinaryError(f"invalid motion object-list reference on {member.name}")
         indexed = bool(member.extra & _INDEXED_OBJECT_LIST) and not cursor.plain_counts
-        if indexed and count:
+        if cursor.group_lists and not cursor.plain_counts:
+            # Even an empty list has one when it was written with the kind
+            # byte 00: a nested instance's _childSceneObjects holding no
+            # children can still list 78 keys.
+            indexed = _read_list_preamble(cursor, member)
+        elif indexed and count:
             reference = cursor.take(13)
             if reference[0] != 1 or any(reference[5:]):
                 raise PrefabBinaryError(f"invalid indexed object-list reference on {member.name}")
@@ -1123,6 +1202,34 @@ def _read_member(
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
 
+def _read_list_preamble(cursor: _BlobCursor, member: PrefabMember) -> bool:
+    """Read the preamble between an object list's count and its first element.
+
+    It is the one :mod:`cdmw.core.effect_binary` reads: ``u8 withIds, u32 a,
+    u32 b, u32 n``, then ``n`` u64 keys and, when ``withIds`` is 1, ``n`` u32
+    indexes. Almost every prefab list has ``n`` 0, the 13 bytes the header
+    search used to step over, but a nested prefab instance's
+    ``_childSceneObjects`` can list 69 keys (552 bytes, past the search) and a
+    ``_socketList`` can carry keys and indexes. Returns whether the elements
+    carry a u32 index after their owner field, which ``withIds`` says.
+    """
+    at = cursor.pos
+    # Revision 13 has no withIds byte: its preamble is the three u32s alone.
+    with_ids = cursor.take(1)[0] if cursor.revision >= 14 else 0
+    if with_ids not in (0, 1):
+        raise PrefabBinaryError(f"invalid object-list preamble on {member.name} at 0x{at:x}")
+    cursor.take(8)  # a, b
+    keys = cursor.u32()
+    if keys == 0xFFFFFFFF:
+        # Written by some overridden MeshGroupComponent and spline lists in
+        # place of 0; nothing follows it.
+        keys = 0
+    if keys > _MAX_PREAMBLE_KEYS:
+        raise PrefabBinaryError(f"object-list preamble on {member.name} lists {keys} keys")
+    cursor.take(keys * (12 if with_ids else 8))
+    return with_ids == 1
+
+
 #: Members serialised even when their mask bit is clear: a list kind with the
 #: list attribute and without attribute bit 0x2. Unselected, each is the single
 #: byte 01, the empty form a motion file's arrays use.
@@ -1150,6 +1257,14 @@ def _skip_unselected(cursor: _BlobCursor, member: PrefabMember, owner_type: str 
         return False
     if member.flags not in _LIST_KINDS or member.attr_flags & 0x2:
         return False
+    if in_group and cursor.revision < 15:
+        # No empty byte before revision 15: a list is always its count.
+        if member.flags in COLLECTION_KINDS:
+            return True
+        if cursor.u32() != 0:
+            where = f" of {owner_type}" if owner_type else ""
+            raise PrefabBinaryError(f"unselected {member.name}{where} is not empty at 0x{cursor.pos - 4:x}")
+        return False
     stops = (b"\x01", b"\x00") if in_group else (b"\x01",)
     while cursor.blob[cursor.pos:cursor.pos + 1] not in stops and cursor.at_length_field():
         cursor.take(4)
@@ -1172,15 +1287,36 @@ def _memberless(cursor: _BlobCursor, probe: int) -> bool:
     """
     if probe + 5 > len(cursor.blob):
         return False
-    type_index = cursor.blob[probe + 2]
+    type_index = _type_at(cursor.blob, probe + 2)
     table = cursor.type_table
     return 0 <= type_index < len(table) and not table[type_index].members
+
+
+def _wide_header(cursor: _BlobCursor, probe: int, width: int) -> bool:
+    """Is ``probe`` a header with 5 or more mask bytes, whose stated type needs exactly that width?
+
+    A ``SplineDecalComponent`` declares 43 members, so its mask takes six bytes
+    (``06 00 02 ff 92 00 40 00 21 00 00``). Only widths 1 to 4 used to be
+    searched for, so the header search stepped over it and resumed inside the
+    component's own data. A wider width is believed only when the type it
+    states has between ``8 * (width - 1) + 1`` and ``8 * width`` members, which
+    a stray small u16 followed by an arbitrary type index rarely satisfies.
+    ``ScenePostProcessing`` (103 members) takes 13 bytes, in every weather and
+    post-process preset.
+    """
+    if not 5 <= width <= _MAX_MASK_BYTES or probe + 2 + width + 3 > len(cursor.blob):
+        return False
+    type_index = _type_at(cursor.blob, probe + 2 + width)
+    table = cursor.type_table
+    if not 0 <= type_index < len(table):
+        return False
+    return (len(table[type_index].members) + 7) // 8 == width
 
 
 def _header_fits(cursor: _BlobCursor, probe: int, width: int) -> bool:
     """Does the header at ``probe`` state a declared type wide enough for its mask?"""
     mask = int.from_bytes(cursor.blob[probe + 2 : probe + 2 + width], "little")
-    type_index = cursor.blob[probe + 2 + width]
+    type_index = _type_at(cursor.blob, probe + 2 + width)
     table = cursor.type_table
     return 0 <= type_index < len(table) and mask.bit_length() <= len(table[type_index].members)
 
@@ -1204,7 +1340,7 @@ def _narrower_header(cursor: _BlobCursor, probe: int, width: int, owner_at: int)
             break
         if struct.unpack_from("<H", cursor.blob, candidate)[0] != narrower:
             continue
-        if cursor.blob[owner_at - 2 : owner_at] != b"\x00\x00":
+        if not _header_tail(cursor.blob, owner_at):
             continue
         if _header_fits(cursor, candidate, narrower):
             return candidate, narrower
@@ -1214,8 +1350,8 @@ def _narrower_header(cursor: _BlobCursor, probe: int, width: int, owner_at: int)
 def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[int, int]:
     """Locate the element header and return ``(mask, componentTypeIndex)``.
 
-    The header is ``u16 width, mask (width bytes, little-endian), u8 typeIndex,
-    u16 0`` followed by the name record's pointer. The leading u16 is the mask's
+    The header is ``u16 width, mask (width bytes, little-endian), u16 typeIndex,
+    u8 override`` followed by the name record's pointer. The leading u16 is the mask's
     own byte width: one byte for a component with up to eight members, two for
     up to sixteen, three for up to twenty-four. It was long read as a "marker"
     with a fixed u16 mask and an opaque tail, which is the same bytes for widths
@@ -1234,12 +1370,14 @@ def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[in
         if probe + 24 > len(cursor.blob):
             break
         width = struct.unpack_from("<H", cursor.blob, probe)[0]
-        # Widths 1, 2 and 3 occur; 4 would be a component with more than 24
-        # members. Wider values add no coverage and only widen the chance of a
-        # false match. Width 0 is a type with no members at all, and is only
-        # believed when the type it states has none.
-        if width not in (1, 2, 3, 4) and not (
-            width == 0 and cursor.stated_layouts and _memberless(cursor, probe)
+        # Widths 1 to 4 are searched for as they are. A wider one is a type
+        # with more than 32 members (SplineDecalComponent has 43) and is only
+        # believed when the type it states needs exactly that width; width 0
+        # is a type with no members at all, and is only believed when the type
+        # it states has none.
+        if width not in _HEADER_WIDTHS and not (
+            cursor.stated_layouts
+            and ((width == 0 and _memberless(cursor, probe)) or _wide_header(cursor, probe, width))
         ):
             continue
         owner_at = probe + 2 + width + 3
@@ -1263,8 +1401,8 @@ def _find_element_header(cursor: _BlobCursor, indexed: bool = False) -> tuple[in
         cursor.pos = probe
         cursor.u16()
         mask = int.from_bytes(cursor.take(width), "little")
-        type_index = cursor.take(1)[0]
-        cursor.take(2)
+        type_index = cursor.u16()
+        cursor.take(1)  # override
         return mask, type_index
     raise PrefabBinaryError(f"no element header near 0x{base:x}")
 
@@ -1286,7 +1424,7 @@ def _read_name_record(cursor: _BlobCursor, *, indexed: bool = False) -> str:
     if target != cursor.base + cursor.pos:
         raise PrefabBinaryError("name pointer is not self-relative")
     cursor.name_start = cursor.pos
-    if cursor.u16() != 0:
+    if cursor.u16() not in _RECORD_Z:
         raise PrefabBinaryError("unexpected name record header")
     count = cursor.u16()
     if count == 0:
@@ -1601,7 +1739,9 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
     reading did (5 at a different field, where the previous one had taken a
     string's length prefix for it), every string, never fewer objects and
     never more collections over-declared. ``reading`` on the result says which
-    one was used.
+    one was used. With the override, wide-mask, preamble, u16 type index and
+    revision 13/14 rules (see the module docstring), the group-list reading
+    completes all 51,178 prefabs of the installed game (2026-11-21).
     """
     document = _read_prefab(data, group_lists=True)[0]
     if document.walk_complete:
