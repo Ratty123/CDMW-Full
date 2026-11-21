@@ -36,6 +36,10 @@ RGBA8_RAW_CONTAINER = "rgba8_raw"
 _RAW_MAGIC = b"CDMWRGBA"
 _RAW_HEADER = struct.Struct("<8sIIIIQ")
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# Helper builds seen to ignore the raw container. They are left to the PNG route, which
+# keeps its decoded file for the next open; asking them again would decode a PNG that
+# nothing keeps.
+_helpers_without_raw: set[str] = set()
 
 
 def _full_size_request(source_path: Path, output_path: Path) -> backend.NativeTextureDecodeRequest:
@@ -124,6 +128,9 @@ def decode_dds_rgba8_with_directxtex(
         return None
     if _cached_full_size_png_exists(source_path, binary):
         return None  # already decoded for another view: that file opens faster than a new decode
+    helper_identity = backend._binary_identity(binary)
+    if helper_identity in _helpers_without_raw:
+        return None
     try:
         with ExitStack() as stack:
             if staging_parent is None:
@@ -174,6 +181,7 @@ def decode_dds_rgba8_with_directxtex(
             if not is_png:
                 return None
             # An older helper: it wrote the PNG it knows. The pixels are the same.
+            _helpers_without_raw.add(helper_identity)
             with Image.open(staged) as image:
                 return np.asarray(image.convert("RGBA"), dtype=np.uint8).copy()
     except RunCancelled:

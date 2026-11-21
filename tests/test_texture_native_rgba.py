@@ -68,6 +68,7 @@ def helper_binary(tmp_path, monkeypatch):
     binary = tmp_path / "cd-texture-dx.exe"
     binary.write_bytes(b"not a real helper")
     monkeypatch.setattr(texture_native, "find_directxtex_texture_binary", lambda: binary)
+    monkeypatch.setattr(texture_native_rgba, "_helpers_without_raw", set())
     monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
     return binary
 
@@ -102,6 +103,9 @@ def test_an_older_helper_that_writes_a_png_is_decoded_once(tmp_path, monkeypatch
     pixels, _staging_parent = _decode(tmp_path, monkeypatch, helper)
 
     assert np.array_equal(pixels, _pixels())
+    assert len(helper.commands) == 1
+    # The next open goes to the PNG route, which keeps what it decodes.
+    assert _decode(tmp_path, monkeypatch, helper)[0] is None
     assert len(helper.commands) == 1
 
 
@@ -198,6 +202,7 @@ def test_the_real_helper_gives_the_same_pixels_both_ways(tmp_path, monkeypatch) 
     if texture_native.find_directxtex_texture_binary() is None:
         pytest.skip("cd-texture-dx is not built here")
     monkeypatch.setenv("CDMW_TEMP_CACHE_ROOT", str(tmp_path / "cache"))
+    monkeypatch.setattr(texture_native_rgba, "_helpers_without_raw", set())
     source = _write_dds(tmp_path / "source.dds", _pixels(64, 32))
 
     raw = texture_native_rgba.decode_dds_rgba8_with_directxtex(source)
