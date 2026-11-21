@@ -81,6 +81,7 @@ use cdmw_render_wgpu::{
 use cdmw_session::{
     CdmwBridge, CdmwMaterialUpdate, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage,
     PendingRequest, PendingSessionInput, PreviewCoreMaterialGraph, SessionMaterialPresentation,
+    protocol_failure_reason,
 };
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
@@ -4272,8 +4273,11 @@ impl LabApplication {
             }
             HostEvent::Fatal(message) => {
                 self.status = format!("CDMW protocol failure: {message}");
+                // The editor closes now, so its status line is never seen: CDMW
+                // shows the reason from the cancel, and stderr keeps it too.
+                eprintln!("CDMW protocol failure: {message}");
                 if let Some(bridge) = &mut self.cdmw_bridge {
-                    let _ = bridge.cancel("protocol failure");
+                    let _ = bridge.cancel(&protocol_failure_reason(&message));
                 }
                 self.cdmw_exit_requested = true;
             }

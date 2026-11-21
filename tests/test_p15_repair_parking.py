@@ -167,6 +167,7 @@ def test_a_second_crash_names_the_file_and_asks_one_document_at_a_time(tmp_path,
         tab, *_ = _ready_tab(tmp_path / name, monkeypatch)
         monkeypatch.setattr(tab, "_current_target_entry", lambda name=name: _NS(basename=name))
         tab._rust_last_crash_at = time.monotonic()  # the first crash a moment ago
+        tab._rust_last_crash_session = tab.standalone_rust_authoring_session  # of this same edit
         tabs.append(tab)
     asked, open_now, nested = [], [], []
 
@@ -229,6 +230,70 @@ def test_showing_a_parked_document_before_its_helper_exits_is_no_crash(tmp_path,
         assert _wait(lambda: launched == [session]), "the view did not open again after the exit"
         assert not getattr(tab, "_rust_last_crash_at", 0.0), "the parked exit counted as a crash"
         assert failures == [], failures
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)
+
+
+def test_the_editors_own_cancel_then_exit_is_a_close_with_its_reason(tmp_path, monkeypatch) -> None:
+    """The editor refused a result, sent cancel and exited before CDMW ran the cancel.
+
+    Before: the exit counted as a crash ("The 3D view stopped..."), and the
+    editor's own error was lost.
+    """
+
+    tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch)
+    shown: list[str] = []
+    monkeypatch.setattr(tab.standalone_native_host_frame, "show_error", shown.append, raising=False)
+    monkeypatch.setattr(tab.standalone_native_host_frame, "show_loading", shown.append, raising=False)
+    monkeypatch.setattr(tab, "_start_next_rust_protocol_worker", lambda: None)  # the cancel is still queued
+    try:
+        channel = tab.standalone_rust_process
+        tab._handle_rust_protocol_event({  # noqa: SLF001
+            "event": "cancel", "protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": "draft-a",
+            "request_id": 41, "process_generation": tab.standalone_rust_process_generation,
+            "reason": "protocol failure: Preview Core material resource conservation does not match"})
+        tab._handle_rust_process_finished(channel, 0, QProcess.ExitStatus.NormalExit)  # noqa: SLF001
+        _wait(lambda: False, timeout=0.2)
+        assert launched == [], "the editor was restarted as if it had crashed"
+        assert not any("stopped" in text and "3D view" in text for text in shown), shown
+        assert any("Preview Core material resource conservation does not match" in text for text in shown), shown
+        assert tab.standalone_rust_closing
+        assert not getattr(tab, "_rust_last_crash_at", 0.0), "the close counted as a crash"
+        assert tab.standalone_rust_protocol_queue[-1]["event"] == "cancel"  # the cancel still closes the session
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)
+
+
+def test_a_window_close_cancel_shows_no_error(tmp_path, monkeypatch) -> None:
+    tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch)
+    shown: list[str] = []
+    monkeypatch.setattr(tab.standalone_native_host_frame, "show_error", shown.append, raising=False)
+    monkeypatch.setattr(tab, "_start_next_rust_protocol_worker", lambda: None)
+    try:
+        tab._handle_rust_protocol_event({  # noqa: SLF001
+            "event": "cancel", "protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": "draft-a",
+            "request_id": 41, "process_generation": tab.standalone_rust_process_generation,
+            "reason": "Mesh Editor window closed"})
+        assert shown == []
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)
+
+
+def test_a_stop_soon_after_another_sessions_stop_is_not_called_again(tmp_path, monkeypatch) -> None:
+    """Start Fresh within a minute of a stop: the new session's first stop restarts its view."""
+
+    tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch)
+    shown: list[str] = []
+    monkeypatch.setattr(tab.standalone_native_host_frame, "show_error", shown.append, raising=False)
+    tab._rust_last_crash_at = time.monotonic()  # the previous session stopped a moment ago
+    tab._rust_last_crash_session = SimpleNamespace(closed=True)
+    try:
+        assert tab._recover_rust_editor_after_crash()  # noqa: SLF001
+        assert _wait(lambda: launched == [session]), "the first stop of this session did not restart its view"
+        assert not any("again" in text for text in shown), shown
     finally:
         tab.standalone_rust_authoring_session = None
         _dispose(tab)

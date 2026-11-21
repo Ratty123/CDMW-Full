@@ -40,7 +40,7 @@ HOST_NAMES = (
 STATE_NAMES = (
     "_archive_refit_picker_active", "_bound_viewport_wait_since", "_hair_entry_generation",
     "_pending_hair_start",
-    "_rust_last_crash_at",
+    "_rust_last_crash_at", "_rust_last_crash_session",
     "_rust_follows_keymap", "_rust_keymap_echo", "_shared_preview_settings_connected",
     "_live_texture_document_id", "_live_texture_updates", "_live_texture_keeping", "_shared_texture_checking",
     "_engine_window_refused_session",
@@ -64,6 +64,9 @@ STATE_NAMES = (
     "standalone_rust_unpark_requested",
     "standalone_rust_prepare_service", "standalone_rust_prepare_session_id", "standalone_rust_prepare_thread",
     "standalone_rust_prepare_worker", "standalone_rust_process", "standalone_rust_process_error_reported",
+    "standalone_rust_helper_cancelled",
+    "standalone_rust_camera", "standalone_rust_camera_supported", "standalone_rust_view_state",
+    "standalone_rust_view_state_supported", "standalone_rust_host_output_commands_supported",
     "standalone_rust_process_generation", "standalone_rust_protocol_events", "standalone_rust_protocol_queue",
     "standalone_rust_protocol_request_id", "standalone_rust_protocol_status", "standalone_rust_protocol_thread",
     "standalone_rust_protocol_worker", "standalone_rust_ready", "standalone_rust_ready_timer",

@@ -2434,6 +2434,50 @@ def _populate_preview_scene_overlays(
     return effect_texture_references
 
 
+_PREVIEW_CORE_LAYER_RESOURCE_ROLES = ("diffuse", "normal", "material", "height", "mask", "detail_mask")
+
+
+def conserve_preview_core_material_graph(payload: dict[str, object]) -> None:
+    """Recount a material payload's native layer graph after its rows or textures changed.
+
+    The Mesh Editor checks that the graph's resource totals match the DDS files
+    the payload lists (its textures and the graph's own layers), and refuses a
+    graph with no rows. Replacement and material edits drop rows for the parts
+    they take over and add their own textures, so recount here, and drop the
+    graph once no part draws from it.
+    """
+
+    graph = payload.get("preview_core_material_graph")
+    if not isinstance(graph, dict):
+        return
+    materials = graph.get("materials") or []
+    if not materials:
+        payload["preview_core_material_graph"] = None
+        return
+    shas: dict[str, int] = {}
+
+    def count(reference: object) -> None:
+        if isinstance(reference, Mapping):
+            sha = str(reference.get("sha256", "") or "").strip().upper()
+            if sha:
+                shas.setdefault(sha, int(reference.get("byte_length", 0) or 0))
+
+    for texture in payload.get("textures") or ():
+        if isinstance(texture, Mapping):
+            count(texture.get("file"))
+    edges = 0
+    for material in materials:
+        for layer in material.get("layers", ()):
+            for role in _PREVIEW_CORE_LAYER_RESOURCE_ROLES:
+                if layer.get(f"{role}_declared"):
+                    edges += 1
+                count(layer.get(role))
+    graph["source_edge_count"] = edges
+    graph["unique_resource_count"] = len(shas)
+    graph["unique_resource_bytes"] = sum(shas.values())
+    graph["copied_resource_count"] = min(int(graph.get("copied_resource_count", 0) or 0), len(shas))
+
+
 def _composite_preview_core_material_graph(package_dir, scene, textures, presentations, quality, root_identity, cancelled):
     """Copy native layers with scene-local draw indices, including reference roles."""
     from cdmw.services.mesh_rust_authoring import _mesh_lods

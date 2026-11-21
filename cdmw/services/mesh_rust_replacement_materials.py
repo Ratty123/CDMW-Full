@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name
+from cdmw.services.mesh_rust_preview_package import conserve_preview_core_material_graph
 
 
 def replacement_material_key(mesh, state):
@@ -306,6 +307,8 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
             from cdmw.services.mesh_shader_controls_preview import stage_shader_preview
             stage_shader_preview(authoring, mesh, state, payload, presentations, stop_event)
         payload.update(key=key, material_presentations=list(presentations.values()))
+        # The bake and the shader preview replaced graph rows and textures.
+        conserve_preview_core_material_graph(payload)
         authoring.archive_refit_material_cache[key] = payload
     if key not in authoring.archive_refit_material_cache:
         indices = bound_part_indices(mesh, state)
@@ -345,6 +348,9 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         }
         if graph := authoring.archive_refit_material_cache[key]["preview_core_material_graph"]:
             graph["materials"] = [row for row in graph["materials"] if row["lod_index"] != 0 or row["material_index"] not in selected]
+        # The imported parts left the graph and brought their own textures: the
+        # editor refuses a graph whose totals no longer match (or that is empty).
+        conserve_preview_core_material_graph(authoring.archive_refit_material_cache[key])
     for cache_key in ("base", key):
         if cache_key in authoring.archive_refit_material_references:
             continue

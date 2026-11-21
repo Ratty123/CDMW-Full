@@ -30,6 +30,8 @@ pub const RENDERER: &str = "wgpu_d3d12_rust";
 pub const EDIT_BACKEND: &str = "cdmw_rust_mesh_0.1";
 const MAX_PAYLOAD_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 16 * 1024 * 1024;
+/// A cancel's reason stays far below the host's control-line limit.
+const MAX_CANCEL_REASON_CHARS: usize = 1_000;
 const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 64;
@@ -1035,6 +1037,13 @@ fn decode_set_camera(value: &Value) -> Result<HostEvent, SessionError> {
 /// [`host_cdmw_output_command`]: the vertex inspector's edit, Hair setup, and the buttons
 /// that write or read files, with the paths CDMW checked first.
 pub const HOST_OUTPUT_COMMANDS_CAPABILITY: &str = "host_output_commands_v1";
+
+/// The reason a cancel gives when the editor closes because of a protocol
+/// failure; CDMW shows the text after the prefix.
+#[must_use]
+pub fn protocol_failure_reason(message: &str) -> String {
+    format!("protocol failure: {}", message.split_whitespace().collect::<Vec<_>>().join(" "))
+}
 
 /// The commands the editor's own buttons send after their file dialog, or the vertex
 /// inspector's Apply and Hair's setup, with the label those buttons give them. CDMW sends
@@ -2099,6 +2108,7 @@ impl CdmwBridge {
     }
 
     pub fn cancel(&mut self, reason: &str) -> Result<(), SessionError> {
+        let reason: String = reason.chars().take(MAX_CANCEL_REASON_CHARS).collect();
         let request_id = self.take_request_id();
         self.send_message(json!({
             "event": "cancel",
@@ -7044,6 +7054,28 @@ pub(crate) mod tests {
             bridge.decode_host_event(value),
             HostEvent::Fatal(_)
         ));
+    }
+
+    #[test]
+    fn a_protocol_failure_cancel_names_its_error_on_one_bounded_line() {
+        let root = tempdir().expect("session root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 7);
+        let messages = bridge.capture_messages_for_test();
+        let error = "Preview Core material resource conservation\ndoes not match";
+        bridge.cancel(&protocol_failure_reason(error)).expect("cancel");
+        let message = messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("cancel message");
+        assert_eq!(message["event"], "cancel");
+        assert_eq!(
+            message["reason"],
+            "protocol failure: Preview Core material resource conservation does not match"
+        );
+        bridge.cancel(&"x".repeat(5_000)).expect("long cancel");
+        let message = messages
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("long cancel message");
+        assert_eq!(message["reason"].as_str().map(str::len), Some(MAX_CANCEL_REASON_CHARS));
     }
 
     #[test]
