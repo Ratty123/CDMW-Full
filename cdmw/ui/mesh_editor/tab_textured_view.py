@@ -17,7 +17,6 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from cdmw.services.active_ui_translation import translate_active_ui_text
-from cdmw.services.mesh_dotnet_material_state import count_dotnet_own_material_bindings
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.services.mesh_material_publication import MaterialRole
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
@@ -25,7 +24,6 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,
 )
-from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS, normalize_mesh_selection_shape
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -50,10 +48,11 @@ PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
     @staticmethod
     def _archive_material_preview_model_ready(preview_model: object) -> bool:
-        return bool(
-            preview_model is not None
-            and count_dotnet_own_material_bindings(preview_model) > 0
-        )
+        if preview_model is None:
+            return False
+        from cdmw.services.mesh_dotnet_material_state import count_dotnet_own_material_bindings
+
+        return count_dotnet_own_material_bindings(preview_model) > 0
 
     def _imported_working_model_owns_materials(self) -> bool:
         """Whether the editable working model carries textures of its own.
@@ -71,6 +70,8 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
         if controller is None:
             return False
         try:
+            from cdmw.services.mesh_dotnet_material_state import count_dotnet_own_material_bindings
+
             return count_dotnet_own_material_bindings(controller.working_mesh(clone=False)) > 0
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
             return False

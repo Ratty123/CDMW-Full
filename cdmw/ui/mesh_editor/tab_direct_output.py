@@ -4,16 +4,31 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 
 from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QProgressDialog
 
-from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.workspace_layout import workspace_paths
-from cdmw.models import ModPackageInfo
-from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+
+if TYPE_CHECKING:
+    from cdmw.models import ModPackageInfo
+
+
+def __getattr__(name: str):
+    # MeshModExportDialog loads on first use, not with the Mesh Editor.
+    if name == "MeshModExportDialog":
+        from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+
+        globals()["MeshModExportDialog"] = MeshModExportDialog
+        return MeshModExportDialog
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _mod_export_dialog_class():
+    return globals().get("MeshModExportDialog") or __getattr__("MeshModExportDialog")
 
 
 def _restored_refit_source(asset):
@@ -150,6 +165,8 @@ class MeshEditorDirectOutputMixin:
                     )
                     return
                 self.settings.setValue("mesh_editor/last_mod_output_dir", parent)
+                from cdmw.services.archive_extraction_service import find_available_output_path
+
                 output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
                 self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
             return
@@ -161,6 +178,10 @@ class MeshEditorDirectOutputMixin:
         if self._edited_textures_blocked(texture_plan):
             return
         stem = Path(str(named.basename or "mesh")).stem or "mesh"
+        from cdmw.services.archive_extraction_service import find_available_output_path
+        # Read through the module so a replaced MeshModExportDialog (AI tools and
+        # automation answer the dialog that way) is the one shown.
+        MeshModExportDialog = _mod_export_dialog_class()
         dialog = MeshModExportDialog(
             self,
             title=f"{stem} Mesh Mod",

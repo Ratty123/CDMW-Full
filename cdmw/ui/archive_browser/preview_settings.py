@@ -457,7 +457,11 @@ class ArchivePreviewSettingsMixin:
 
     def _sync_model_preview_settings_controls(self) -> None:
         settings = self._current_model_preview_render_settings()
-        settings_tab = getattr(self.shell, "settings_tab", None)
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        # Settings loads on first visit and then reads these values itself; asking
+        # the placeholder would build it here, on the first preview.
+        settings_tab = created_tool_widget(getattr(self.shell, "settings_tab", None))
         if settings_tab is not None and hasattr(settings_tab, "_apply_model_preview_controls"):
             try:
                 settings_tab._apply_model_preview_controls(settings)
@@ -494,7 +498,9 @@ class ArchivePreviewSettingsMixin:
                         modal_handlers.pop(modal_dialog, None)
 
     def _sync_archive_performance_settings_controls(self) -> None:
-        settings_tab = getattr(self.shell, "settings_tab", None)
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        settings_tab = created_tool_widget(getattr(self.shell, "settings_tab", None))
         if settings_tab is not None and hasattr(settings_tab, "sync_archive_performance_controls"):
             settings_tab.sync_archive_performance_controls(self.shell._current_archive_performance_settings())
         dialog = getattr(self, "model_preview_settings_dialog", None)

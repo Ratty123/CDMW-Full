@@ -691,7 +691,7 @@ class _PreviewCorePackageRequest:
                 cache_key,
                 staging_entry,
                 self.cache_metadata(quality),
-                validate_package=_validate_rust_cache_package,
+                validate_package=validate_resident_rust_preview_package,
                 max_bytes=self.max_bytes,
                 target_bytes=self.target_bytes,
             )
@@ -954,7 +954,7 @@ class _ModelPreviewPackageRequest:
                 cache_key,
                 staging_entry,
                 self.cache_metadata(quality),
-                validate_package=_validate_rust_cache_package,
+                validate_package=validate_resident_rust_preview_package,
                 max_bytes=self.max_bytes,
                 target_bytes=self.target_bytes,
             )

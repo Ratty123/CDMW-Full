@@ -568,11 +568,20 @@ static std::string extract_shader_family_hint(const std::string& text) {
 }
 
 static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names) {
+    const std::string lowered = lower_copy(text);
     for (const char* raw_name : names) {
-        const std::string name(raw_name);
-        const std::regex pattern("(?:^|\\s)" + name + "=\"([^\"]*)\"", std::regex_constants::icase);
-        std::smatch match;
-        if (std::regex_search(text, match, pattern)) return match[1].str();
+        const std::string needle = lower_copy(raw_name) + "=\"";
+        size_t pos = 0;
+        while ((pos = lowered.find(needle, pos)) != std::string::npos) {
+            if (pos == 0 || std::isspace(static_cast<unsigned char>(lowered[pos - 1]))) {
+                const size_t val_start = pos + needle.size();
+                const size_t val_end = text.find('"', val_start);
+                if (val_end != std::string::npos) {
+                    return text.substr(val_start, val_end - val_start);
+                }
+            }
+            pos += 1;
+        }
     }
     return "";
 }

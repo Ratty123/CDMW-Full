@@ -336,6 +336,17 @@ pub fn decode_dds_rgba8(bytes: &[u8], role: TextureRole) -> Result<DecodedRgba8,
     decode_planned_mip(bytes, &plan.metadata, level)
 }
 
+/// Decode the first DDS mip into RGBA8 for bytes whose SHA-256 was already verified.
+pub fn decode_dds_rgba8_with_verified_sha256(
+    bytes: &[u8],
+    role: TextureRole,
+    sha256: &str,
+) -> Result<DecodedRgba8, TextureError> {
+    let plan = plan_2d_upload_with_verified_sha256(bytes, role, sha256)?;
+    let level = plan.levels.first().ok_or(TextureError::TruncatedPayload)?;
+    decode_planned_mip(bytes, &plan.metadata, level)
+}
+
 /// Alpha-weighted linear luminance, decoding only the first mip at most 64px.
 /// Sources without a small authored mip require the CPU composition route.
 pub fn dds_mean_luminance(bytes: &[u8]) -> Result<f32, TextureError> {

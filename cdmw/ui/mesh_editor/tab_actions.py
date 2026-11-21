@@ -5,8 +5,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 
-from cdmw.ui.mesh_editor.actions import MeshEditorAction
-
 
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
@@ -178,6 +176,8 @@ class MeshEditorActionsMixin:
                 True,
             )
             return False
+        from cdmw.ui.mesh_editor.actions import MeshEditorAction
+
         action = MeshEditorAction(
             key="object_transform_commit",
             text="Object Transform",

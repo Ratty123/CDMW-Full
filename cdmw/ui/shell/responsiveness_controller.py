@@ -250,8 +250,9 @@ class ResponsivenessControllerMixin:
         mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
         if mesh_editor_tab is not None:
             mesh_editor_tab.sync_ui_font(ui_font, data_font)
-        if hasattr(self, "settings_tab"):
-            self.settings_tab.sync_appearance_controls(self.current_theme_key)
+        settings_tab = created_tool_widget(getattr(self, "settings_tab", None))
+        if settings_tab is not None:
+            settings_tab.sync_appearance_controls(self.current_theme_key)
 
     def _normalize_archive_splitter_sizes(self, sizes: Sequence[int], total_width: int) -> List[int]:
         controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()

@@ -15,9 +15,7 @@ from typing import Mapping
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
-from cdmw.services.mesh_service import GEOMETRY_LAYER_WORKER_ACTION
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -252,6 +250,8 @@ class MeshEditorDotNetNamedCommandMixin(MeshEditorDotNetLifecycleMixin):
             return None
         # On the worker, like Delete: each waits for the session's lock, which a
         # draft autosave holds while it opens the native session (up to a minute).
+        from cdmw.services.mesh_service import GEOMETRY_LAYER_WORKER_ACTION
+
         return self._start_dotnet_action_worker(
             controller,
             _tab.MeshEditCommand(

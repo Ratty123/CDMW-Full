@@ -421,6 +421,7 @@ impl WeaponReference {
             normals: vec![[0.; 3]; count],
             uvs: vec![[0.; 2]; count],
             shader_masks: vec![[0.; 3]; count],
+            tangents: Vec::new(),
             triangle_materials: vec![u32::MAX; self.indices.len() / 3],
             indices: self.indices,
             selected_vertices: Vec::new(),

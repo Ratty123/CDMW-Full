@@ -232,6 +232,7 @@ pub(super) fn verify(
             normals: vec![[0.0, 0.0, -1.0]; 4],
             uvs: vec![uv; 4],
             shader_masks: vec![vertex_mask; 4],
+            tangents: Vec::new(),
             indices: vec![0, 1, 2, 0, 2, 3],
             triangle_materials: vec![0; 2],
             selected_vertices: Vec::new(),

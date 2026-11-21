@@ -118,7 +118,9 @@ class TextureEditorSessionUiMixin:
         self.document_tab_bar.blockSignals(True)
         self.document_tab_bar.addTab(label)
         self.document_tab_bar.blockSignals(False)
-        self.document_tab_bar.setVisible(not self.workspace_embedded)
+        self.document_tab_bar.setVisible(
+            not self.workspace_embedded and not getattr(self, "_embedded_tools_only", False)
+        )
         self.workspace = dataclasses.replace(
             self.workspace,
             open_document_ids=texture_editor_open_document_ids(self._sessions),
@@ -155,7 +157,9 @@ class TextureEditorSessionUiMixin:
             return
         self._active_session_index = close_state.adjusted_active_index
         self._load_session_index(close_state.next_index)
-        self.document_tab_bar.setVisible(not self.workspace_embedded)
+        self.document_tab_bar.setVisible(
+            not self.workspace_embedded and not getattr(self, "_embedded_tools_only", False)
+        )
 
     def _close_document_tabs(self, indices) -> None:
         """Close a batch with one final document load, preserving the shared list."""
@@ -179,7 +183,19 @@ class TextureEditorSessionUiMixin:
             active_document_id="",
         )
         self._load_session_index(next_index)
-        self.document_tab_bar.setVisible(bool(survivors) and not self.workspace_embedded)
+        self.document_tab_bar.setVisible(
+            bool(survivors) and not self.workspace_embedded and not getattr(self, "_embedded_tools_only", False)
+        )
+
+    @staticmethod
+    def _read_configured_root_text(getter: object) -> str:
+        """Read a configured root folder string on the UI thread without touching the filesystem."""
+        if not callable(getter):
+            return ""
+        try:
+            return str(getter() or "").strip()
+        except Exception:
+            return ""
 
     def _build_binding_for_source(
         self,
@@ -187,11 +203,23 @@ class TextureEditorSessionUiMixin:
         *,
         launch_origin: str,
         binding: Optional[TextureEditorSourceBinding] = None,
+        png_root_raw: Optional[str] = None,
+        original_root_raw: Optional[str] = None,
     ) -> TextureEditorSourceBinding:
+        png_root = (
+            configured_texture_editor_root_path(lambda: png_root_raw)
+            if png_root_raw is not None
+            else configured_texture_editor_root_path(self.get_png_root)
+        )
+        original_root = (
+            configured_texture_editor_root_path(lambda: original_root_raw)
+            if original_root_raw is not None
+            else configured_texture_editor_root_path(self.get_original_dds_root)
+        )
         return build_texture_editor_source_binding(
             source_path,
             launch_origin=launch_origin,
             binding=binding,
-            png_root=configured_texture_editor_root_path(self.get_png_root),
-            original_root=configured_texture_editor_root_path(self.get_original_dds_root),
+            png_root=png_root,
+            original_root=original_root,
         )

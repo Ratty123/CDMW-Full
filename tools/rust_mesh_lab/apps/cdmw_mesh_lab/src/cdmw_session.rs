@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -91,7 +91,7 @@ pub struct CdmwTextureResource {
     pub label: String,
     pub role: TextureRole,
     pub metadata: DdsMetadata,
-    pub bytes: Vec<u8>,
+    pub bytes: Arc<[u8]>,
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
@@ -569,6 +569,7 @@ pub struct LoadedReferencePiece {
     pub snapshot: cdmw_mesh::DrawSnapshot,
     pub part_count: u32,
     pub textures: Vec<CdmwTextureResource>,
+    pub layers: Vec<cdmw_render_wgpu::MaterialLayerSet>,
     pub material_presentations: Vec<SessionMaterialPresentation>,
 }
 
@@ -740,6 +741,10 @@ pub const HOST_CAMERA_CAPABILITY: &str = "host_camera_v1";
 /// answers it with a `view_state` event.
 pub const HOST_VIEW_STATE_CAPABILITY: &str = "host_view_state_v1";
 
+/// Hello capability: `set_view_state` also takes the lighting preset and the Studio
+/// look (Wetness, Exposure, Light rotation), and `view_state` reports them.
+pub const HOST_VIEW_LOOK_CAPABILITY: &str = "host_view_look_v1";
+
 /// The overlay colours `set_view_state` takes under `colours`, by the names the
 /// `view_state` event reports them with.
 pub const VIEW_STATE_COLOURS: [&str; 5] = ["wire", "vertex", "selection", "live_selection", "grid"];
@@ -748,7 +753,8 @@ pub const VIEW_STATE_COLOURS: [&str; 5] = ["wire", "vertex", "selection", "live_
 /// `reset` runs before the rest, as the Reset button would before the user changes more.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ViewStateChange {
-    /// `overlay` (the four overlay colours) or `colours` (background and screen grid).
+    /// `overlay` (the four overlay colours), `colours` (background and screen grid) or
+    /// `look` (Wetness, Exposure and Light rotation back to their defaults).
     pub reset: Option<&'static str>,
     /// `click`, `brush`, `rectangle` or `lasso`.
     pub selection_shape: Option<&'static str>,
@@ -771,6 +777,13 @@ pub struct ViewStateChange {
     /// Parts to show and to hide in the 3D view, by number.
     pub show_parts: Vec<u32>,
     pub hide_parts: Vec<u32>,
+    /// A lighting preset id from the View panel's menu (`LightingPreset::MENU`).
+    pub lighting_preset: Option<&'static str>,
+    /// The Studio look: Wetness 0 to 1, Exposure 0.5 to 2, Light rotation in degrees,
+    /// -180 to 180. The view uses them under the Studio (fixed lights) preset.
+    pub wetness: Option<f32>,
+    pub exposure: Option<f32>,
+    pub light_rotation: Option<f32>,
 }
 
 /// Hello capability: the helper takes `highlight_part` (`HostEvent::HighlightPart`).
@@ -899,6 +912,14 @@ pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str
     }
 }
 
+/// The lighting presets `set_view_state` takes: the View panel's menu.
+const VIEW_STATE_LIGHTING_PRESETS: [&str; 4] = [
+    cdmw_render_wgpu::LightingPreset::MENU[0].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[1].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[2].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[3].id(),
+];
+
 /// `set_view_state`: each key is optional; a name outside its list, a number outside its
 /// range or a colour that is not `#RRGGBB` refuses the whole message.
 fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError> {
@@ -968,7 +989,7 @@ fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError>
         ),
     };
     let change = ViewStateChange {
-        reset: name("reset", &["overlay", "colours"])?,
+        reset: name("reset", &["overlay", "colours", "look"])?,
         selection_shape: name("selection_shape", &["click", "brush", "rectangle", "lasso"])?,
         selection_operation: name(
             "selection_operation",
@@ -983,6 +1004,10 @@ fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError>
         vertex_size: number("vertex_size", 0.5, 10.0)?,
         show_parts: parts("show_parts")?,
         hide_parts: parts("hide_parts")?,
+        lighting_preset: name("lighting_preset", &VIEW_STATE_LIGHTING_PRESETS)?,
+        wetness: number("wetness", 0.0, 1.0)?,
+        exposure: number("exposure", 0.5, 2.0)?,
+        light_rotation: number("light_rotation", -180.0, 180.0)?,
     };
     if change.show_parts.iter().any(|part| change.hide_parts.contains(part)) {
         return Err(bad("a part to be in show_parts or hide_parts, not both".to_owned()));
@@ -1101,12 +1126,20 @@ pub struct LoadedCdmwSessionPackage {
 
 impl LoadedCdmwSessionPackage {
     pub fn load(manifest_path: &Path) -> Result<Self, SessionError> {
+        Self::load_with_resident_textures(manifest_path, &HashMap::new())
+    }
+
+    pub fn load_with_resident_textures(
+        manifest_path: &Path,
+        resident_textures: &HashMap<String, Arc<[u8]>>,
+    ) -> Result<Self, SessionError> {
         Self::load_for(
             manifest_path,
             PACKAGE_SCHEMA,
             PROTOCOL,
             EDIT_BACKEND,
             &|| false,
+            resident_textures,
         )
     }
 
@@ -1124,6 +1157,7 @@ impl LoadedCdmwSessionPackage {
             PREVIEW_PROTOCOL,
             PREVIEW_BACKEND,
             cancelled,
+            &HashMap::new(),
         )
     }
 
@@ -1133,6 +1167,7 @@ impl LoadedCdmwSessionPackage {
         expected_protocol: &str,
         expected_backend: &str,
         cancelled: &dyn Fn() -> bool,
+        resident_textures: &HashMap<String, Arc<[u8]>>,
     ) -> Result<Self, SessionError> {
         let manifest_path = fs::canonicalize(manifest_path)?;
         if manifest_path.file_name().and_then(|name| name.to_str()) != Some("manifest.json") {
@@ -1182,72 +1217,81 @@ impl LoadedCdmwSessionPackage {
         check_preview_cancelled(cancelled)?;
         // One immutable snapshot per exact file reference for this package load.
         // Different lengths, digests or types never reuse the same verification.
-        let mut texture_sources = BTreeMap::<Vec<u8>, Vec<u8>>::new();
-        let mut source_bytes = 0_u64;
-        let mut read_texture = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+        let mut texture_sources =
+            prefetch_texture_sources(&root, &manifest, cancelled, resident_textures, true)?;
+        let mut source_bytes: u64 = texture_sources
+            .values()
+            .fold(0_u64, |acc, bytes| acc.saturating_add(bytes.len() as u64));
+        let mut read_texture = |reference: &FileReference| -> Result<Arc<[u8]>, SessionError> {
             let key = serde_json::to_vec(reference)?;
             if let Some(bytes) = texture_sources.get(&key) {
-                return Ok(bytes.clone());
+                return Ok(Arc::clone(bytes));
             }
-            let bytes = read_binary_reference(&root, reference)?;
+            let bytes = read_binary_reference_with_resident(&root, reference, resident_textures)?;
             source_bytes = source_bytes.saturating_add(bytes.len() as u64);
             if source_bytes > MAX_TEXTURE_TOTAL_BYTES {
                 return Err(SessionError::InvalidPayload(
                     "verified texture sources exceed the 512 MiB limit".into(),
                 ));
             }
-            texture_sources.insert(key, bytes.clone());
+            texture_sources.insert(key, Arc::clone(&bytes));
             Ok(bytes)
         };
         let mut textures = read_texture_resources_with(&manifest, &document, &mut read_texture)?;
-        let mut reference_pieces = Vec::new();
-        for piece in &manifest.reference_pieces {
-            check_preview_cancelled(cancelled)?;
-            let bytes = read_mesh_document_binary_reference(&root, &piece.document, true)?;
-            let reference_document = mesh_document_binary::decode(&bytes, piece.document.count)?;
-            validate_document(&reference_document)?;
-            let mesh = WorkingMesh::from_document_lod(&reference_document, 0)
-                .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+        let mut reference_pieces = Vec::with_capacity(manifest.reference_pieces.len());
+        if !manifest.reference_pieces.is_empty() {
             let mut piece_manifest = manifest.clone();
-            piece_manifest.textures = piece.textures.clone();
-            piece_manifest.material_presentations = piece.material_presentations.clone();
-            piece_manifest.preview_core_material_graph = piece.preview_core_material_graph.clone();
+            piece_manifest.reference_pieces.clear();
             piece_manifest.preview_core_geometry = None;
-            validate_material_presentations(&piece_manifest, &reference_document)?;
-            validate_document_material_graph(&piece_manifest, &reference_document)?;
-            let mut textures = read_texture_resources_with(
-                &piece_manifest,
-                &reference_document,
-                &mut read_texture,
-            )?;
-            if let Some(graph) = piece.preview_core_material_graph.as_ref() {
-                // Reference pieces have no GPU layer slots; the CPU form of the
-                // same RGB-layer rule gives them the same pixels.
-                crate::preview_gpu_layers::prepare(
-                    graph,
-                    &piece.material_presentations,
+            for piece in &manifest.reference_pieces {
+                check_preview_cancelled(cancelled)?;
+                let bytes = read_mesh_document_binary_reference(&root, &piece.document, true)?;
+                let reference_document =
+                    mesh_document_binary::decode(&bytes, piece.document.count)?;
+                let mesh = WorkingMesh::from_document_lod(&reference_document, 0)
+                    .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+                piece_manifest.textures = piece.textures.clone();
+                piece_manifest.material_presentations = piece.material_presentations.clone();
+                piece_manifest.preview_core_material_graph =
+                    piece.preview_core_material_graph.clone();
+                validate_material_presentations(&piece_manifest, &reference_document)?;
+                validate_document_material_graph(&piece_manifest, &reference_document)?;
+                let mut textures = read_texture_resources_with(
+                    &piece_manifest,
                     &reference_document,
-                    &mut textures,
-                    false,
-                    std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
                     &mut read_texture,
-                    cancelled,
                 )?;
+                let layers = if let Some(graph) = piece.preview_core_material_graph.as_ref() {
+                    let (_, layers) = crate::preview_gpu_layers::prepare_arc(
+                        graph,
+                        &piece.material_presentations,
+                        &reference_document,
+                        &mut textures,
+                        graph.quality == "full" && crate::preview_gpu_layers::supported(),
+                        std::env::var("CDMW_PREVIEW_DRAW_GRIME").is_ok_and(|value| value == "1"),
+                        &mut read_texture,
+                        cancelled,
+                    )?;
+                    layers
+                } else {
+                    Vec::new()
+                };
+                reference_pieces.push(LoadedReferencePiece {
+                    index: piece.index,
+                    name: piece.name.clone(),
+                    visible: true,
+                    snapshot: mesh.draw_snapshot(),
+                    part_count: reference_document.lods[0].submeshes.len() as u32,
+                    textures,
+                    layers,
+                    material_presentations: piece.material_presentations.clone(),
+                });
             }
-            reference_pieces.push(LoadedReferencePiece {
-                index: piece.index,
-                name: piece.name.clone(),
-                visible: true,
-                snapshot: mesh.draw_snapshot(),
-                part_count: reference_document.lods[0].submeshes.len() as u32,
-                textures,
-                material_presentations: piece.material_presentations.clone(),
-            });
         }
         let effect_textures = read_effect_texture_resources(&root, &manifest)?;
         let (material_composition_metrics, layers) =
             if let Some(graph) = manifest.preview_core_material_graph.as_ref() {
-                crate::preview_gpu_layers::prepare(
+                crate::preview_gpu_layers::prepare_arc(
                     graph,
                     &manifest.material_presentations,
                     &document,
@@ -1391,24 +1435,33 @@ impl CdmwBridge {
     pub fn open(manifest_path: &Path) -> Result<(Self, MeshDocument), SessionError> {
         let (incoming_tx, incoming_rx) = bounded(CONTROL_QUEUE_BOUND);
         spawn_input_reader(incoming_tx.clone(), None);
-        Self::open_with_input(manifest_path, incoming_tx, incoming_rx)
+        Self::open_with_input(manifest_path, incoming_tx, incoming_rx, &HashMap::new())
     }
 
-    /// Open the session a pending helper was asked for, keeping the stdin reader it
-    /// already runs, so no line the host sent after `open_session` is lost.
-    pub fn open_pending(
+    /// Open a pending session while reusing already-verified resident DDS bytes
+    /// (for example from Browse's `keep_view` preview) after validating each
+    /// session file's ownership, length, and DDS header on disk.
+    pub fn open_pending_with_resident_textures(
         manifest_path: &Path,
         input: PendingSessionInput,
+        resident_textures: &HashMap<String, Arc<[u8]>>,
     ) -> Result<(Self, MeshDocument), SessionError> {
-        Self::open_with_input(manifest_path, input.sender, input.receiver)
+        Self::open_with_input(
+            manifest_path,
+            input.sender,
+            input.receiver,
+            resident_textures,
+        )
     }
 
     fn open_with_input(
         manifest_path: &Path,
         incoming_tx: Sender<Incoming>,
         incoming_rx: Receiver<Incoming>,
+        resident_textures: &HashMap<String, Arc<[u8]>>,
     ) -> Result<(Self, MeshDocument), SessionError> {
-        let package = LoadedCdmwSessionPackage::load(manifest_path)?;
+        let package =
+            LoadedCdmwSessionPackage::load_with_resident_textures(manifest_path, resident_textures)?;
         let LoadedCdmwSessionPackage {
             root,
             manifest,
@@ -1665,6 +1718,7 @@ impl CdmwBridge {
                 HOST_OUTPUT_COMMANDS_CAPABILITY,
                 HOST_CAMERA_CAPABILITY,
                 HOST_VIEW_STATE_CAPABILITY,
+                HOST_VIEW_LOOK_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -2825,26 +2879,29 @@ fn read_updated_materials(
 > {
     validate_manifest_for(manifest, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)?;
     validate_document_material_graph(manifest, document)?;
-    let mut sources = BTreeMap::new();
-    let mut total = 0_u64;
-    let mut read = |reference: &FileReference| -> Result<Vec<u8>, SessionError> {
+    let no_resident = HashMap::new();
+    let mut sources = prefetch_texture_sources(root, manifest, &|| false, &no_resident, false)?;
+    let mut total: u64 = sources
+        .values()
+        .fold(0_u64, |acc, bytes| acc.saturating_add(bytes.len() as u64));
+    let mut read = |reference: &FileReference| -> Result<Arc<[u8]>, SessionError> {
         let key = serde_json::to_vec(reference)?;
         if let Some(bytes) = sources.get(&key) {
-            return Ok(Vec::clone(bytes));
+            return Ok(Arc::clone(bytes));
         }
-        let bytes = read_binary_reference(root, reference)?;
+        let bytes: Arc<[u8]> = Arc::from(read_binary_reference(root, reference)?);
         total = total.saturating_add(bytes.len() as u64);
         if total > MAX_TEXTURE_TOTAL_BYTES {
             return Err(SessionError::InvalidPayload(
                 "verified texture sources exceed the 512 MiB limit".into(),
             ));
         }
-        sources.insert(key, bytes.clone());
+        sources.insert(key, Arc::clone(&bytes));
         Ok(bytes)
     };
     let mut textures = read_texture_resources_with(manifest, document, &mut read)?;
     let layers = if let Some(graph) = &manifest.preview_core_material_graph {
-        crate::preview_gpu_layers::prepare(
+        crate::preview_gpu_layers::prepare_arc(
             graph,
             &manifest.material_presentations,
             document,
@@ -3549,7 +3606,6 @@ fn decode_preview_core_document(
     let mut owned_paths = BTreeSet::new();
     let mut batch_indices = BTreeSet::new();
     let mut fingerprint = Sha256::new();
-    let mut submeshes = Vec::with_capacity(geometry.batches.len());
     for batch in &geometry.batches {
         let vertex_count = usize::try_from(batch.vertex_count).map_err(|_| {
             SessionError::InvalidPayload(
@@ -3569,6 +3625,24 @@ fn decode_preview_core_document(
                 "Preview Core batch geometry is invalid or duplicated".to_owned(),
             ));
         }
+        if let Some(reference) = &batch.identity
+            && !owned_paths.insert(reference.path.as_str())
+        {
+            return Err(SessionError::InvalidPayload(
+                "Preview Core identity payload is duplicated".to_owned(),
+            ));
+        }
+        fingerprint.update(batch.vertices.sha256.trim().to_ascii_uppercase().as_bytes());
+        if let Some(reference) = &batch.identity {
+            fingerprint.update(reference.sha256.trim().to_ascii_uppercase().as_bytes());
+        }
+    }
+    let decode_batch = |batch: &PreviewCoreGeometryBatch| -> Result<Submesh, SessionError> {
+        let vertex_count = usize::try_from(batch.vertex_count).map_err(|_| {
+            SessionError::InvalidPayload(
+                "Preview Core vertex count exceeds this platform".to_owned(),
+            )
+        })?;
         let vertices = read_preview_core_reference(
             root,
             &batch.vertices,
@@ -3578,11 +3652,6 @@ fn decode_preview_core_document(
             PREVIEW_CORE_VERTEX_BYTES,
         )?;
         let identities = if let Some(reference) = &batch.identity {
-            if !owned_paths.insert(reference.path.as_str()) {
-                return Err(SessionError::InvalidPayload(
-                    "Preview Core identity payload is duplicated".to_owned(),
-                ));
-            }
             Some(read_preview_core_reference(
                 root,
                 reference,
@@ -3594,14 +3663,11 @@ fn decode_preview_core_document(
         } else {
             None
         };
-        fingerprint.update(batch.vertices.sha256.trim().to_ascii_uppercase().as_bytes());
-        if let Some(reference) = &batch.identity {
-            fingerprint.update(reference.sha256.trim().to_ascii_uppercase().as_bytes());
-        }
-
         let mut positions = Vec::with_capacity(vertex_count);
         let mut normals = Vec::with_capacity(vertex_count);
         let mut uvs = Vec::with_capacity(vertex_count);
+        let mut tangents = Vec::with_capacity(vertex_count);
+        let mut has_authored_tangents = false;
         let mut indices = Vec::with_capacity(vertex_count);
         let mut source_vertex_indices = Vec::with_capacity(vertex_count);
         for (index, record) in vertices.chunks_exact(PREVIEW_CORE_VERTEX_BYTES).enumerate() {
@@ -3613,12 +3679,39 @@ fn decode_preview_core_document(
                 preview_core_f32(record, 8) / geometry.normalization_scale
                     + geometry.normalization_center[2],
             ]);
-            normals.push([
+            let normal_arr = [
                 preview_core_f32(record, 12),
                 preview_core_f32(record, 16),
                 preview_core_f32(record, 20),
-            ]);
+            ];
+            normals.push(normal_arr);
             uvs.push([preview_core_f32(record, 36), preview_core_f32(record, 40)]);
+            let tangent_vec = glam::Vec3::new(
+                preview_core_f32(record, 44),
+                preview_core_f32(record, 48),
+                preview_core_f32(record, 52),
+            );
+            let bitangent_vec = glam::Vec3::new(
+                preview_core_f32(record, 56),
+                preview_core_f32(record, 60),
+                preview_core_f32(record, 64),
+            );
+            let normal_vec = glam::Vec3::from_array(normal_arr).normalize_or(glam::Vec3::Y);
+            if tangent_vec.is_finite()
+                && bitangent_vec.is_finite()
+                && tangent_vec.length_squared() > 1.0e-8
+                && bitangent_vec.length_squared() > 1.0e-8
+            {
+                let handedness = if normal_vec.cross(tangent_vec).dot(bitangent_vec) < 0.0 {
+                    -1.0
+                } else {
+                    1.0
+                };
+                has_authored_tangents = true;
+                tangents.push([tangent_vec.x, tangent_vec.y, tangent_vec.z, handedness]);
+            } else {
+                tangents.push([0.0; 4]);
+            }
             indices.push(u32::try_from(index).map_err(|_| {
                 SessionError::InvalidPayload(
                     "Preview Core local vertex index exceeds u32".to_owned(),
@@ -3639,7 +3732,10 @@ fn decode_preview_core_document(
             };
             source_vertex_indices.push(source_index);
         }
-        submeshes.push(Submesh {
+        if !has_authored_tangents {
+            tangents.clear();
+        }
+        Ok(Submesh {
             name: batch.name.clone(),
             material: batch.material.clone(),
             positions,
@@ -3647,6 +3743,7 @@ fn decode_preview_core_document(
             uvs,
             indices,
             shader_masks: Vec::new(),
+            tangents,
             source_vertex_indices,
             source_range: SourceRange {
                 offset: 0,
@@ -3656,8 +3753,49 @@ fn decode_preview_core_document(
                 SessionError::InvalidPayload("Preview Core vertex stride exceeds u32".to_owned())
             })?,
             layout: "preview_core_f32x23_le".to_owned(),
+        })
+    };
+    let submeshes: Vec<Submesh> = if geometry.batches.len() <= 1 {
+        geometry
+            .batches
+            .iter()
+            .map(decode_batch)
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        let worker_count = geometry.batches.len().min(4);
+        let next_index = std::sync::atomic::AtomicUsize::new(0);
+        let results: Vec<Mutex<Option<Result<Submesh, SessionError>>>> = (0..geometry.batches.len())
+            .map(|_| Mutex::new(None))
+            .collect();
+        thread::scope(|scope| {
+            for _ in 0..worker_count {
+                scope.spawn(|| loop {
+                    let idx = next_index.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if idx >= geometry.batches.len() {
+                        break;
+                    }
+                    let decoded = decode_batch(&geometry.batches[idx]);
+                    if let Ok(mut slot) = results[idx].lock() {
+                        *slot = Some(decoded);
+                    }
+                });
+            }
         });
-    }
+        let mut out = Vec::with_capacity(geometry.batches.len());
+        for slot in results {
+            let item = slot
+                .into_inner()
+                .ok()
+                .and_then(|value| value)
+                .ok_or_else(|| {
+                    SessionError::InvalidPayload(
+                        "Preview Core batch decode worker failed".to_owned(),
+                    )
+                })??;
+            out.push(item);
+        }
+        out
+    };
     let structural_fingerprint = format!("{:X}", fingerprint.finalize());
     Ok(MeshDocument {
         format,
@@ -3813,7 +3951,10 @@ fn read_json_reference_counting(
     Ok(bytes)
 }
 
-fn read_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+fn validate_owned_dds_reference(
+    root: &Path,
+    reference: &FileReference,
+) -> Result<(PathBuf, fs::Metadata), SessionError> {
     if reference.content_type != "image/vnd-ms.dds"
         || reference.data_type != "dds_texture"
         || reference.count != 1
@@ -3845,6 +3986,48 @@ fn read_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u
             "texture reference size does not match".to_owned(),
         ));
     }
+    Ok((candidate, metadata))
+}
+
+fn try_reuse_resident_binary_reference(
+    root: &Path,
+    reference: &FileReference,
+    resident_textures: &HashMap<String, Arc<[u8]>>,
+) -> Result<Option<Arc<[u8]>>, SessionError> {
+    if resident_textures.is_empty() {
+        return Ok(None);
+    }
+    let expected = reference.sha256.trim().to_ascii_uppercase();
+    let Some(resident) = resident_textures.get(&expected) else {
+        return Ok(None);
+    };
+    if resident.len() as u64 != reference.byte_length {
+        return Ok(None);
+    }
+    let (candidate, _metadata) = validate_owned_dds_reference(root, reference)?;
+    let header_len = resident.len().min(128);
+    let mut header = [0_u8; 128];
+    let mut file = fs::File::open(&candidate)?;
+    file.read_exact(&mut header[..header_len])?;
+    if header[..header_len] == resident[..header_len] {
+        return Ok(Some(Arc::clone(resident)));
+    }
+    Ok(None)
+}
+
+fn read_binary_reference_with_resident(
+    root: &Path,
+    reference: &FileReference,
+    resident_textures: &HashMap<String, Arc<[u8]>>,
+) -> Result<Arc<[u8]>, SessionError> {
+    if let Some(resident) = try_reuse_resident_binary_reference(root, reference, resident_textures)? {
+        return Ok(resident);
+    }
+    read_binary_reference(root, reference).map(Arc::from)
+}
+
+fn read_binary_reference(root: &Path, reference: &FileReference) -> Result<Vec<u8>, SessionError> {
+    let (candidate, metadata) = validate_owned_dds_reference(root, reference)?;
     let bytes = read_limited(&candidate, MAX_PAYLOAD_BYTES)?;
     if !sha256_matches_once(&candidate, &metadata, &bytes, &reference.sha256) {
         return Err(SessionError::InvalidPayload(
@@ -3869,6 +4052,115 @@ fn is_owned_texture_filename(value: &str) -> bool {
         && parts.next().is_none()
 }
 
+/// `include_reference_pieces`: also read the reference pieces' textures, which only a
+/// package load draws; a material reload rebuilds the main document's alone.
+fn prefetch_texture_sources<'a>(
+    root: &Path,
+    manifest: &'a SessionManifest,
+    cancelled: &dyn Fn() -> bool,
+    resident_textures: &HashMap<String, Arc<[u8]>>,
+    include_reference_pieces: bool,
+) -> Result<BTreeMap<Vec<u8>, Arc<[u8]>>, SessionError> {
+    let mut loaded = BTreeMap::<Vec<u8>, Arc<[u8]>>::new();
+    let mut unique = Vec::<(Vec<u8>, &'a FileReference)>::new();
+    let mut seen = BTreeSet::<Vec<u8>>::new();
+    let mut planned_bytes = 0_u64;
+    let mut collect = |reference: &'a FileReference| {
+        if let Ok(key) = serde_json::to_vec(reference)
+            && seen.insert(key.clone())
+        {
+            let next_total = planned_bytes.saturating_add(reference.byte_length);
+            if next_total <= MAX_TEXTURE_TOTAL_BYTES {
+                planned_bytes = next_total;
+                if let Ok(Some(resident)) =
+                    try_reuse_resident_binary_reference(root, reference, resident_textures)
+                {
+                    loaded.insert(key, resident);
+                } else {
+                    unique.push((key, reference));
+                }
+            }
+        }
+    };
+    for texture in &manifest.textures {
+        collect(&texture.file);
+    }
+    if let Some(graph) = &manifest.preview_core_material_graph
+        && graph.quality == "full"
+    {
+        for layer in graph.materials.iter().flat_map(|material| &material.layers) {
+            for reference in [
+                &layer.diffuse,
+                &layer.normal,
+                &layer.material,
+                &layer.height,
+                &layer.mask,
+                &layer.detail_mask,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                collect(reference);
+            }
+        }
+    }
+    let pieces: &[_] = if include_reference_pieces {
+        &manifest.reference_pieces
+    } else {
+        &[]
+    };
+    for piece in pieces {
+        for texture in &piece.textures {
+            collect(&texture.file);
+        }
+        if let Some(graph) = &piece.preview_core_material_graph
+            && graph.quality == "full"
+        {
+            for layer in graph.materials.iter().flat_map(|material| &material.layers) {
+                for reference in [
+                    &layer.diffuse,
+                    &layer.normal,
+                    &layer.material,
+                    &layer.height,
+                    &layer.mask,
+                    &layer.detail_mask,
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    collect(reference);
+                }
+            }
+        }
+    }
+    if unique.len() < 2 {
+        return Ok(loaded);
+    }
+    for chunk in unique.chunks(4) {
+        check_preview_cancelled(cancelled)?;
+        let batch_results: Vec<Option<(Vec<u8>, Arc<[u8]>)>> = thread::scope(|scope| {
+            let handles: Vec<_> = chunk
+                .iter()
+                .map(|(key, reference)| {
+                    scope.spawn(move || {
+                        read_binary_reference(root, reference)
+                            .ok()
+                            .map(|bytes| (key.clone(), Arc::<[u8]>::from(bytes)))
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().ok().flatten())
+                .collect()
+        });
+        for item in batch_results.into_iter().flatten() {
+            loaded.insert(item.0, item.1);
+        }
+    }
+    Ok(loaded)
+}
+
 #[cfg(test)]
 fn read_texture_resources(
     root: &Path,
@@ -3876,14 +4168,14 @@ fn read_texture_resources(
     document: &MeshDocument,
 ) -> Result<Vec<CdmwTextureResource>, SessionError> {
     read_texture_resources_with(manifest, document, &mut |reference| {
-        read_binary_reference(root, reference)
+        read_binary_reference(root, reference).map(Arc::from)
     })
 }
 
 fn read_texture_resources_with(
     manifest: &SessionManifest,
     document: &MeshDocument,
-    read: &mut dyn FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
+    read: &mut dyn FnMut(&FileReference) -> Result<Arc<[u8]>, SessionError>,
 ) -> Result<Vec<CdmwTextureResource>, SessionError> {
     if manifest.textures.len() > MAX_TEXTURE_RESOURCES {
         return Err(SessionError::InvalidManifest(
@@ -5274,6 +5566,7 @@ pub(crate) mod tests {
                     uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
                     indices: vec![0, 1, 2],
                     shader_masks: Vec::new(),
+                    tangents: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     source_range: SourceRange {
                         offset: 0,
@@ -6345,6 +6638,46 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_material_reload_does_not_read_reference_piece_textures() {
+        let root = tempdir().unwrap();
+        let path = write_composite_material_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&path).expect("package");
+        let mut with_piece = package.manifest.clone();
+        // The piece's texture: a copy of the main one under its own name.
+        let mut piece_texture = with_piece.textures[0].clone();
+        // An owned texture name: texture-<index>-<12 hex>.dds, in the package folder.
+        let piece_path = "texture-0099-0123456789ab.dds".to_owned();
+        fs::copy(
+            package.root.join(&piece_texture.file.path),
+            package.root.join(&piece_path),
+        )
+        .unwrap();
+        piece_texture.file.path = piece_path;
+        let piece_key = serde_json::to_vec(&piece_texture.file).unwrap();
+        with_piece.reference_pieces.push(ReferencePieceManifest {
+            index: 1,
+            name: "piece".to_owned(),
+            role: "reference".to_owned(),
+            document: piece_texture.file.clone(),
+            textures: vec![piece_texture],
+            material_presentations: Vec::new(),
+            preview_core_material_graph: None,
+        });
+        let none = HashMap::new();
+        let loaded = prefetch_texture_sources(&package.root, &with_piece, &|| false, &none, true).unwrap();
+        assert!(loaded.contains_key(&piece_key), "a package load reads the piece's textures");
+        let reload = prefetch_texture_sources(&package.root, &with_piece, &|| false, &none, false).unwrap();
+        assert!(!reload.contains_key(&piece_key), "a material reload leaves them alone");
+        read_updated_materials(&package.root, &with_piece, package.document())
+            .expect("the reload still builds the main document's materials");
+    }
+
+    #[test]
     fn authoring_still_refuses_preview_core_geometry() {
         let root = tempdir().unwrap();
         let path = write_preview_core_package_fixture(root.path());
@@ -7119,6 +7452,10 @@ pub(crate) mod tests {
         value["colours"] = json!({"wire": "#102030"});
         value["hide_parts"] = json!([2, 0]);
         value["reset"] = json!("overlay");
+        value["lighting_preset"] = json!("studio_fixed");
+        value["wetness"] = json!(0.25);
+        value["exposure"] = json!(1.5);
+        value["light_rotation"] = json!(-90.0);
         let HostEvent::SetViewState(change) = bridge.decode_host_event(value) else {
             panic!("set_view_state was not taken");
         };
@@ -7128,6 +7465,10 @@ pub(crate) mod tests {
         assert_eq!(change.colours, vec![("wire", [0x10, 0x20, 0x30])]);
         assert_eq!(change.hide_parts, vec![2, 0]);
         assert_eq!(change.reset, Some("overlay"));
+        assert_eq!(change.lighting_preset, Some("studio_fixed"));
+        assert_eq!(change.wetness, Some(0.25));
+        assert_eq!(change.exposure, Some(1.5));
+        assert_eq!(change.light_rotation, Some(-90.0));
         assert!(matches!(
             bridge.decode_host_event(base.clone()),
             HostEvent::SetViewState(change) if change == ViewStateChange::default()
@@ -7136,7 +7477,9 @@ pub(crate) mod tests {
                            ("brush_strength", json!(1.5)), ("wire_width", json!("thick")),
                            ("colours", json!({"wire": "blue"})), ("colours", json!({"floor": "#000000"})),
                            ("hide_parts", json!([-1])), ("selection_xray", json!("yes")),
-                           ("reset", json!("everything"))] {
+                           ("reset", json!("everything")), ("lighting_preset", json!("icon_studio")),
+                           ("wetness", json!(1.5)), ("exposure", json!(0.1)),
+                           ("light_rotation", json!(270.0))] {
             let mut value = base.clone();
             value[key] = bad;
             assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)), "{key}");
@@ -7458,6 +7801,44 @@ pub(crate) mod tests {
         assert!(wire["hair"].get("scalp").is_none());
         assert!(wire["hair"].get("bindings").is_none());
         assert!(wire["hair"].get("guides").is_none());
+    }
+    #[test]
+    fn resident_textures_reuse_verified_bytes_and_reject_tampered_files() {
+        let dir = tempdir().expect("tempdir");
+        let manifest_path = write_loaded_package_fixture(dir.path());
+        let first = LoadedCdmwSessionPackage::load(&manifest_path).expect("cold load");
+        assert_eq!(first.textures.len(), 1);
+        let sha_upper = sha256_upper(&first.textures[0].bytes);
+        let resident_arc = Arc::clone(&first.textures[0].bytes);
+        let resident = HashMap::from([(sha_upper, Arc::clone(&resident_arc))]);
+
+        let reused = LoadedCdmwSessionPackage::load_with_resident_textures(
+            &manifest_path,
+            &resident,
+        )
+        .expect("resident reuse load");
+        assert_eq!(reused.textures.len(), 1);
+        assert!(
+            Arc::ptr_eq(&resident_arc, &reused.textures[0].bytes),
+            "expected resident Arc<[u8]> to be reused without copying"
+        );
+
+        // Tampering with the DDS header on disk must fail integrity verification even when
+        // the manifest SHA-256 is present in the resident map.
+        let manifest_json: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest")).expect("json");
+        let tex_rel = manifest_json["textures"][0]["file"]["path"]
+            .as_str()
+            .expect("texture path");
+        let tex_path = dir.path().join(tex_rel);
+        let mut tampered = fs::read(&tex_path).expect("read dds");
+        tampered[4] ^= 0xFF;
+        fs::write(&tex_path, &tampered).expect("write tampered dds");
+        assert!(
+            LoadedCdmwSessionPackage::load_with_resident_textures(&manifest_path, &resident)
+                .is_err(),
+            "tampered DDS header must be rejected even with resident map entry"
+        );
     }
 }
 

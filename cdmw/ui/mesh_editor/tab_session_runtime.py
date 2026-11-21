@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-from cdmw.domain.archives.item_sets import MAX_SET_FILES
-
 import copy
 import json
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 from PySide6.QtCore import QThread, QTimer, Qt
 
-from cdmw.services.mesh_saved_work_service import MeshDraftRequest
-from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 from cdmw.ui.mesh_editor.draft_choice import MeshEditorDraftChoiceMixin
-from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
-from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 from cdmw.ui.mesh_editor.tab_archive_material_context import (
@@ -21,6 +15,10 @@ from cdmw.ui.mesh_editor.tab_archive_material_context import (
     ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS,
     ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS,
 )
+
+if TYPE_CHECKING:
+    from cdmw.services.mesh_saved_work_service import MeshDraftRequest
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
 
 
@@ -69,6 +67,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
         item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
         edit_item_set: bool = False,
+        item_set_material_package_path: Path | str | None = None,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> None:
@@ -105,6 +104,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "archive_dependencies": archive_dependencies,
             "item_set_contexts": item_set_contexts,
             "edit_item_set": bool(edit_item_set),
+            "item_set_material_package_path": item_set_material_package_path,
             "prepared_result": prepared_result,
             "draft_request": draft_request,
         }
@@ -156,6 +156,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
         item_set_contexts: tuple[ArchiveWorkflowDependencyContext, ...] = (),
         edit_item_set: bool = False,
+        item_set_material_package_path: Path | str | None = None,
         prepared_result: object | None = None,
         draft_request: MeshDraftRequest | None = None,
     ) -> int | None:
@@ -163,11 +164,15 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
         item_set_contexts = tuple(item_set_contexts)
-        if item_set_contexts and (
+        if item_set_contexts:
+            from cdmw.domain.archives.item_sets import MAX_SET_FILES
+
+            if (
                 len(item_set_contexts) > MAX_SET_FILES
                 or item_set_contexts[0].selected_entry.identity != entry.identity
-                or len({context.selected_entry.identity for context in item_set_contexts}) != len(item_set_contexts)):
-            raise ValueError("Item set dependencies do not match the selected mesh")
+                or len({context.selected_entry.identity for context in item_set_contexts}) != len(item_set_contexts)
+            ):
+                raise ValueError("Item set dependencies do not match the selected mesh")
         if prepared_result is not None and (not isinstance(prepared_result, _tab.MeshArchiveSessionLoadResult)
                 or str(prepared_result.mesh.path).casefold() != entry.path.casefold()):
             raise ValueError("Prepared editor geometry belongs to another archive target")
@@ -199,6 +204,12 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             material_package_lease is not None
             and material_package_lease is current_package_lease
         )
+        if (
+            carries_current_package_lease
+            and edit_item_set
+            and not str(item_set_material_package_path or "").strip()
+        ):
+            item_set_material_package_path = getattr(self, "item_set_material_package_path", "")
         if carries_current_package_lease:
             self.archive_material_context_package_lease = None
         closed = self.close_standalone_session()
@@ -217,6 +228,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 archive_dependencies=archive_dependencies,
                 item_set_contexts=item_set_contexts,
                 edit_item_set=edit_item_set,
+                item_set_material_package_path=item_set_material_package_path,
                 prepared_result=prepared_result,
                 draft_request=draft_request,
             )
@@ -254,6 +266,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             draft_request is None and resume_path is None and prepared_result is None
         )
         if draft_request is None:
+            from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
+
             draft_request = default_session_draft_request(entry, archive_dependencies)
         self.archive_session_draft_request = draft_request
         self.archive_session_retry_request = {
@@ -262,6 +276,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             "archive_dependencies": archive_dependencies,
             "item_set_contexts": item_set_contexts,
             "edit_item_set": bool(edit_item_set),
+            "item_set_material_package_path": item_set_material_package_path,
             "material_companion_entry": copy.deepcopy(material_companion_entry),
             "material_package_path": material_package_path,
             "draft_request": draft_request,
@@ -270,6 +285,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.archive_session_dependencies = archive_dependencies
         self.item_set_contexts = item_set_contexts
         self.edit_item_set = bool(edit_item_set)
+        self.item_set_material_package_path = str(item_set_material_package_path or "").strip()
         self.archive_session_load_material_model = (
             material_preview_model
             if material_preview_model is not None
@@ -390,6 +406,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             archive_entries_by_basename=archive_basename_index,
             draft_request=self.archive_session_draft_request,
             offer_drafts=bool(getattr(self, "archive_session_offers_drafts", False)),
+            run_roundtrip=False,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -435,16 +452,27 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             result.view.session_id,
             result.skeleton_resolution_reason if result.source_skeleton is None else "",
         )
+        item_set_package_path = str(getattr(self, "item_set_material_package_path", "") or "").strip()
+        if bool(getattr(self, "edit_item_set", False)) and item_set_package_path:
+            from cdmw.services.mesh_item_set_editing import register_item_set_browse_material_package
+
+            register_item_set_browse_material_package(
+                result.service,
+                result.view.session_id,
+                item_set_package_path,
+            )
         self._apply_pending_view_hidden_parts(result, entry)
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
         self._restore_cached_mesh_character_context(entry)
-        if not self._archive_material_preview_model_ready(
+        if not bool(getattr(self, "edit_item_set", False)) and not self._archive_material_preview_model_ready(
             self.standalone_archive_material_preview_model
         ):
             self._start_archive_material_context_resolution(entry)
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
         self.mesh_editor_draft_lineage = dict(result.draft_lineage or {})
+        from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
+
         refresh_draft_name_controls(self)
         # The last session's texture edits are not this one's (Start Fresh begins without
         # them); a draft being continued shows what it kept on the model again (item 3).
@@ -705,6 +733,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             source_path,
             session_id=str(session_id or f"mesh-editor-file:{source_path.name}"),
             mode=str(mode or "object"),
+            run_roundtrip=False,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -824,6 +853,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             preparation.cancel()
         self.item_set_contexts = ()
         self.edit_item_set = False
+        self.item_set_material_package_path = ""
         pending_open = getattr(self, "archive_session_open_pending", None)
         pending_lease = (
             pending_open.get("material_package_lease")
@@ -845,6 +875,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self._leave_draft_choice()
         self.mesh_editor_draft_manifest_path = None
         self.mesh_editor_draft_lineage = {}
+        from cdmw.ui.mesh_editor.saved_work_naming import refresh_draft_name_controls
+
         refresh_draft_name_controls(self)
         self._stash_reusable_archive_material_context()
         self.standalone_archive_material_preview_model = None
@@ -867,6 +899,13 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if machine is not None:
             machine.reset_to_idle(reason="standalone_session_closed")
         controller = self.standalone_controller
+        if controller is not None:
+            mesh_service = getattr(controller, "mesh_service", None)
+            active_session_id = str(getattr(controller, "active_session_id", "") or "")
+            if mesh_service is not None and active_session_id:
+                from cdmw.services.mesh_item_set_editing import register_item_set_browse_material_package
+
+                register_item_set_browse_material_package(mesh_service, active_session_id, None)
         cancel_rust_material_wait = getattr(
             self,
             "_cancel_rust_material_context_wait",

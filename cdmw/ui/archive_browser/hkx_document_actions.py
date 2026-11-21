@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import threading
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -21,29 +22,47 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.services.archive_preview_service import ensure_archive_preview_source
-from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.services.atomic_file_service import atomic_write_text
-from cdmw.services.cancellable_file_service import (
-    read_file_bytes_cancellable,
-    read_text_file_cancellable,
-)
-from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
-from cdmw.services.archive_mutation_service import ArchivePatchRequest
-from cdmw.services.hkx_edit_service import (
-    HkxGeometryPatchResult,
-    build_hkx_descriptor_hint_from_xml_text,
-    build_hkx_editable_geometry_json,
-    build_hkx_editable_geometry_xml,
-    build_hkx_havok_xml_view_xml,
-)
-from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
-from cdmw.ui.archive_browser.workflow_dependencies import (
-    ArchiveWorkflowDependenciesUnavailable,
-    ArchiveWorkflowDependencyContext,
-    archive_workflow_dependency_context,
-)
+
+if TYPE_CHECKING:
+    from cdmw.services.hkx_edit_service import HkxGeometryPatchResult
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    "ensure_archive_preview_source": ("cdmw.services.archive_preview_service", "ensure_archive_preview_source"),
+    "raise_if_cancelled": ("cdmw.domain.cancellation", "raise_if_cancelled"),
+    "atomic_write_text": ("cdmw.services.atomic_file_service", "atomic_write_text"),
+    "read_file_bytes_cancellable": ("cdmw.services.cancellable_file_service", "read_file_bytes_cancellable"),
+    "read_text_file_cancellable": ("cdmw.services.cancellable_file_service", "read_text_file_cancellable"),
+    "ArchiveLooseExportResult": ("cdmw.domain.archives.mesh_contracts", "ArchiveLooseExportResult"),
+    "ArchivePatchRequest": ("cdmw.services.archive_mutation_service", "ArchivePatchRequest"),
+    "HkxGeometryPatchResult": ("cdmw.services.hkx_edit_service", "HkxGeometryPatchResult"),
+    "build_hkx_descriptor_hint_from_xml_text": ("cdmw.services.hkx_edit_service", "build_hkx_descriptor_hint_from_xml_text"),
+    "build_hkx_editable_geometry_json": ("cdmw.services.hkx_edit_service", "build_hkx_editable_geometry_json"),
+    "build_hkx_editable_geometry_xml": ("cdmw.services.hkx_edit_service", "build_hkx_editable_geometry_xml"),
+    "build_hkx_havok_xml_view_xml": ("cdmw.services.hkx_edit_service", "build_hkx_havok_xml_view_xml"),
+    "export_archive_payloads_to_mod_ready_loose": ("cdmw.services.archive_workflow_service", "export_archive_payloads_to_mod_ready_loose"),
+    "ArchiveWorkflowDependenciesUnavailable": ("cdmw.ui.archive_browser.workflow_dependencies", "ArchiveWorkflowDependenciesUnavailable"),
+    "ArchiveWorkflowDependencyContext": ("cdmw.ui.archive_browser.workflow_dependencies", "ArchiveWorkflowDependencyContext"),
+    "archive_workflow_dependency_context": ("cdmw.ui.archive_browser.workflow_dependencies", "archive_workflow_dependency_context"),
+}
+
+
+def __getattr__(name: str) -> object:
+    target = _LAZY_IMPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = target
+    value = getattr(importlib.import_module(module_name), attr_name)
+    globals()[name] = value
+    return value
+
+
+def _sym(name: str) -> object:
+    existing = globals().get(name)
+    if existing is not None:
+        return existing
+    return __getattr__(name)
 
 
 class ArchiveHkxDocumentActionsMixin:
@@ -54,9 +73,10 @@ class ArchiveHkxDocumentActionsMixin:
         *,
         operation_label: str,
         ) -> Optional[ArchiveWorkflowDependencyContext]:
+        deps_unavailable_cls = _sym("ArchiveWorkflowDependenciesUnavailable")
         try:
-            return archive_workflow_dependency_context(self, entry)
-        except ArchiveWorkflowDependenciesUnavailable as exc:
+            return _sym("archive_workflow_dependency_context")(self, entry)
+        except deps_unavailable_cls as exc:
             self.shell.set_status_message(f"{operation_label} is unavailable: {exc}", error=True)
             return None
 
@@ -113,16 +133,19 @@ class ArchiveHkxDocumentActionsMixin:
         stop_event: Optional[threading.Event] = None,
         ) -> List[Dict[str, object]]:
         hints: List[Dict[str, object]] = []
+        ensure_preview_source = _sym("ensure_archive_preview_source")
+        read_text = _sym("read_text_file_cancellable")
+        build_hint = _sym("build_hkx_descriptor_hint_from_xml_text")
         for descriptor_entry in descriptor_entries:
             try:
-                descriptor_path, _note = ensure_archive_preview_source(descriptor_entry)
-                descriptor_text = read_text_file_cancellable(
+                descriptor_path, _note = ensure_preview_source(descriptor_entry)
+                descriptor_text = read_text(
                     descriptor_path,
                     stop_event=stop_event,
                     encoding="utf-8",
                     errors="replace",
                 )
-                hint = build_hkx_descriptor_hint_from_xml_text(descriptor_text, descriptor_entry.path)
+                hint = build_hint(descriptor_text, descriptor_entry.path)
             except Exception as exc:
                 if log is not None:
                     log(f"Skipped HKX companion descriptor {descriptor_entry.path}: {exc}")
@@ -297,19 +320,20 @@ class ArchiveHkxDocumentActionsMixin:
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> Path:
             export_kind = "editable HKX geometry" if editable_document else "read-only HKX browser"
             log(f"Exporting {export_kind} {document_label} for {entry.path}...")
-            source_path, _note = ensure_archive_preview_source(entry)
+            source_path, _note = _sym("ensure_archive_preview_source")(entry)
             descriptor_hints = self._build_archive_hkx_companion_descriptor_hints(
                 descriptor_entries,
                 log=log,
                 stop_event=stop_event,
             )
             document_text = build_document(
-                read_file_bytes_cancellable(source_path, stop_event=stop_event),
+                _sym("read_file_bytes_cancellable")(source_path, stop_event=stop_event),
                 entry.path,
                 descriptor_hints,
             )
+            raise_if_cancelled = _sym("raise_if_cancelled")
             raise_if_cancelled(stop_event, "HKX document export cancelled.")
-            atomic_write_text(output_path, document_text)
+            _sym("atomic_write_text")(output_path, document_text)
             return output_path
 
         def _handle_complete(result: object) -> None:
@@ -348,7 +372,7 @@ class ArchiveHkxDocumentActionsMixin:
             default_target=self._default_archive_hkx_json_path(entry),
             file_filter="HKX Geometry JSON (*.geometry.json *.json);;JSON (*.json)",
             default_suffix=".geometry.json",
-            build_document=build_hkx_editable_geometry_json,
+            build_document=_sym("build_hkx_editable_geometry_json"),
         )
 
     def _export_current_archive_hkx_xml(self) -> None:
@@ -363,7 +387,7 @@ class ArchiveHkxDocumentActionsMixin:
             default_target=self._default_archive_hkx_xml_path(entry),
             file_filter="HKX Geometry XML (*.geometry.xml *.xml);;XML (*.xml)",
             default_suffix=".geometry.xml",
-            build_document=build_hkx_editable_geometry_xml,
+            build_document=_sym("build_hkx_editable_geometry_xml"),
         )
 
     def _export_current_archive_hkx_havok_xml_view(self) -> None:
@@ -378,7 +402,7 @@ class ArchiveHkxDocumentActionsMixin:
             default_target=self._default_archive_hkx_havok_xml_view_path(entry),
             file_filter="HKX Havok XML View (*.havok-view.xml *.xml);;XML (*.xml)",
             default_suffix=".havok-view.xml",
-            build_document=build_hkx_havok_xml_view_xml,
+            build_document=_sym("build_hkx_havok_xml_view_xml"),
             editable_document=False,
         )
 
@@ -409,10 +433,11 @@ class ArchiveHkxDocumentActionsMixin:
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> Dict[str, object]:
             log(f"Reading current HKX payload for {entry.path}...")
-            source_path, _note = ensure_archive_preview_source(entry)
-            source_data = read_file_bytes_cancellable(source_path, stop_event=stop_event)
+            source_path, _note = _sym("ensure_archive_preview_source")(entry)
+            source_data = _sym("read_file_bytes_cancellable")(source_path, stop_event=stop_event)
             log(f"Applying HKX {document_label} patch document from {document_source_label}...")
             patch_result = apply_document(source_data, document_text)
+            raise_if_cancelled = _sym("raise_if_cancelled")
             raise_if_cancelled(stop_event, "HKX document import cancelled.")
             for warning in patch_result.warnings:
                 log(f"Warning: {warning}")
@@ -423,8 +448,8 @@ class ArchiveHkxDocumentActionsMixin:
                 f"Writing {len(patch_result.changed_fields):,} changed HKX field(s) "
                 "into a mod-ready loose package..."
             )
-            loose_export = export_archive_payloads_to_mod_ready_loose(
-                [ArchivePatchRequest(entry=entry, payload_data=patch_result.data)],
+            loose_export = _sym("export_archive_payloads_to_mod_ready_loose")(
+                [_sym("ArchivePatchRequest")(entry=entry, payload_data=patch_result.data)],
                 parent_root=parent_root,
                 package_info=package_info,
                 export_options=export_options,
@@ -437,20 +462,22 @@ class ArchiveHkxDocumentActionsMixin:
             if not isinstance(result, dict):
                 self.shell.set_status_message(f"HKX {document_label} import finished with an unexpected result payload.", error=True)
                 return
+            hkx_patch_result_cls = _sym("HkxGeometryPatchResult")
+            loose_export_result_cls = _sym("ArchiveLooseExportResult")
             geometry_patch = result.get("geometry_patch")
             loose_export = result.get("loose_export")
             changed_fields = (
                 list(geometry_patch.changed_fields)
-                if isinstance(geometry_patch, HkxGeometryPatchResult)
+                if isinstance(geometry_patch, hkx_patch_result_cls)
                 else []
             )
             warnings = (
                 list(geometry_patch.warnings)
-                if isinstance(geometry_patch, HkxGeometryPatchResult)
+                if isinstance(geometry_patch, hkx_patch_result_cls)
                 else []
             )
             warning_text = "\n".join(f"- {warning}" for warning in warnings[:10])
-            if isinstance(loose_export, ArchiveLooseExportResult):
+            if isinstance(loose_export, loose_export_result_cls):
                 summary = "\n".join(f"- {field}" for field in changed_fields[:12])
                 if len(changed_fields) > 12:
                     summary += f"\n- ... {len(changed_fields) - 12:,} more field(s)"
@@ -494,7 +521,7 @@ class ArchiveHkxDocumentActionsMixin:
         self._hkx_document_import_request_id = request_id
         self.shell._run_utility_task(
             status_message=f"Reading HKX {document_label} import document...",
-            task=lambda _log, stop_event: read_text_file_cancellable(
+            task=lambda _log, stop_event: _sym("read_text_file_cancellable")(
                 document_path,
                 stop_event=stop_event,
                 max_bytes=512 * 1024 * 1024,
@@ -551,14 +578,14 @@ class ArchiveHkxDocumentActionsMixin:
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> str:
             log(f"Building editable HKX XML for {entry.path}...")
-            source_path, _note = ensure_archive_preview_source(entry)
+            source_path, _note = _sym("ensure_archive_preview_source")(entry)
             descriptor_hints = self._build_archive_hkx_companion_descriptor_hints(
                 descriptor_entries,
                 log=log,
                 stop_event=stop_event,
             )
-            return build_hkx_editable_geometry_xml(
-                read_file_bytes_cancellable(source_path, stop_event=stop_event),
+            return _sym("build_hkx_editable_geometry_xml")(
+                _sym("read_file_bytes_cancellable")(source_path, stop_event=stop_event),
                 entry.path,
                 descriptor_hints,
             )

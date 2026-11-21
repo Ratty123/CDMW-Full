@@ -20,6 +20,7 @@ from cdmw.models import (
     ModelPreviewData,
 )
 from cdmw.services.preview_rendering_service import PreparedModelPreviewData
+from cdmw.rendering.native_preview_core import render_settings_to_native_preview_core_cache_dict
 from cdmw.services.preview_rendering_service import (
     NativePreviewCoreServiceClient,
     find_native_preview_core_binary,
@@ -372,7 +373,9 @@ class ArchivePreviewCacheMixin:
             "material_variant_rule": {None: "first_prefab", True: "item", False: "alone"}[
                 getattr(self, "_archive_preview_item_context", lambda: None)()
             ],
-            "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
+            "render_settings": render_settings_to_native_preview_core_cache_dict(
+                self._current_model_preview_render_settings()
+            ),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
             "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),
             "native_binary": {

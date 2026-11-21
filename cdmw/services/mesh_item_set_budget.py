@@ -3,9 +3,30 @@ from __future__ import annotations
 
 import copy
 from contextlib import ExitStack
+import os
 from pathlib import Path
 import tempfile
+import threading
 from typing import NamedTuple
+
+
+_BUDGET_NEUTRAL_MESHES = threading.local()
+
+
+def pop_budget_neutral_meshes(sources_id: int) -> dict[int, object]:
+    stored = getattr(_BUDGET_NEUTRAL_MESHES, "by_sources_id", None)
+    if isinstance(stored, dict):
+        return stored.pop(sources_id, {})
+    return {}
+
+
+def _remember_budget_neutral_meshes(sources_id: int, meshes: dict[int, object]) -> None:
+    stored = getattr(_BUDGET_NEUTRAL_MESHES, "by_sources_id", None)
+    if not isinstance(stored, dict):
+        stored = {}
+        _BUDGET_NEUTRAL_MESHES.by_sources_id = stored
+    stored.clear()
+    stored[sources_id] = meshes
 
 
 class ItemSetBudget(NamedTuple):
@@ -83,10 +104,171 @@ def _reference_mesh(mesh):
     return result
 
 
+def _conservative_mesh_upper_bounds(mesh) -> tuple[int, int]:
+    """Conservative upper bounds for binary document.bin and compact channels.json."""
+    verts = 0
+    faces = 0
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    for part in submeshes:
+        verts += len(tuple(getattr(part, "vertices", ()) or ()))
+        faces += len(tuple(getattr(part, "faces", ()) or ()))
+    # document.bin: positions (24B) + normals (24B) + uvs (16B) + shader_masks (32B)
+    # + source_vertex_indices (4B) = 100B/vert, indices = 12B/tri, plus headers.
+    geom_upper = verts * 128 + faces * 16 + len(submeshes) * 2048 + 8192
+    # channels.json: tangents/uv1/weights/maps in compact JSON.
+    chan_upper = verts * 384 + faces * 64 + len(submeshes) * 4096 + 16384
+    return geom_upper, chan_upper
+
+
+def _collect_native_piece_textures(mesh, offset: int, files: dict, bindings: dict, unique_dds: dict) -> bool:
+    """Collect direct DDS bindings + stat unique DDS sizes (base + native layers)."""
+    from cdmw.services import mesh_rust_authoring as a
+    from cdmw.services.mesh_preview_material_source import unedited_preview_core_material_source
+    from cdmw.services.mesh_rust_preview_package import (
+        _collect_preview_core_layer_sources,
+        _preview_core_layer_parameter_index,
+    )
+    from cdmw.services.shader_controls_preview import authored_veil_layer_textures
+
+    def record_dds(path: Path) -> bool:
+        try:
+            st = path.stat()
+        except OSError:
+            return False
+        if st.st_size <= 0 or st.st_size > a._TEXTURE_MAX_FILE_BYTES:
+            return False
+        ino = int(getattr(st, "st_ino", 0) or 0)
+        key = (int(st.st_dev), ino) if ino else str(path).casefold()
+        unique_dds.setdefault(key, (path, int(st.st_size)))
+        return True
+
+    param_indices: dict[int, dict] = {}
+    for submesh_index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        resolved_roles: set[str] = set()
+        veil_height, veil_detail = authored_veil_layer_textures(submesh)
+        veil_paths = {
+            role: path
+            for role, item in (("height", veil_height), ("shader_mask", veil_detail))
+            if item is not None and (path := a._material_input_dds_path(item)) is not None
+        }
+        if "shader_mask" in veil_paths and not any(
+            a._material_input_texture_role(item) == "shader_mask"
+            for item in getattr(submesh, "preview_material_texture_inputs", ()) or ()
+        ):
+            path = veil_paths["shader_mask"]
+            if not record_dds(path):
+                return False
+            path_text = str(path)
+            files[path_text] = path
+            bindings.setdefault((path_text, "shader_mask"), [set()])[0].add(submesh_index + offset)
+            resolved_roles.add("shader_mask")
+        for role, attributes in a._TEXTURE_RESOURCE_SPECS:
+            path = veil_paths["height"] if (role == "height" and "shader_mask" in veil_paths and "height" in veil_paths) else None
+            if path is None:
+                path = a._first_texture_resource_dds_path(submesh, role, attributes)
+            if path is None:
+                continue
+            if not record_dds(path):
+                return False
+            path_text = str(path)
+            files[path_text] = path
+            bindings.setdefault((path_text, role), [set()])[0].add(submesh_index + offset)
+            resolved_roles.add(role)
+        for item in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+            role = a._material_input_texture_role(item)
+            if not role or role in resolved_roles:
+                continue
+            if not a._material_input_is_renderer_role_eligible(submesh, item, role):
+                continue
+            path = a._material_input_dds_path(item)
+            if path is None:
+                continue
+            if not record_dds(path):
+                return False
+            path_text = str(path)
+            files[path_text] = path
+            bindings.setdefault((path_text, role), [set()])[0].add(submesh_index + offset)
+            resolved_roles.add(role)
+        source = unedited_preview_core_material_source(submesh)
+        if source is not None:
+            conservation = source["conservation"]
+            cid = id(conservation)
+            pindex = param_indices.get(cid)
+            if pindex is None:
+                pindex = _preview_core_layer_parameter_index(conservation.get("parameters", ()))
+                param_indices[cid] = pindex
+            for layer_path in _collect_preview_core_layer_sources(
+                [source["batch"]], Path(source["package"]), pindex,
+            ):
+                if not record_dds(layer_path):
+                    return False
+    return True
+
+
+def _try_fast_native_budget(sources, neutral_meshes, root, root_identity, payload_limit, session_limit, stop_event):
+    """Avoid throwaway encode/channels/staging/material-graph when all pieces provably fit."""
+    from cdmw.services import mesh_rust_authoring as a, mesh_rust_preview_package as preview
+
+    graph_fn = getattr(preview, "_composite_preview_core_material_graph", None)
+    if getattr(graph_fn, "__module__", "") != "cdmw.services.mesh_rust_preview_package":
+        return None
+    if any(a._mesh_has_material_synthesis_inputs(mesh) for mesh in neutral_meshes):
+        return None
+    upper_geom = 0
+    upper_chan = 0
+    bindings: dict[tuple[str, str], list[set[int]]] = {}
+    files: dict[str, Path] = {}
+    unique_dds: dict[object, tuple[Path, int]] = {}
+    offset = 0
+    for mesh in neutral_meshes:
+        a._raise_if_texture_copy_cancelled(stop_event)
+        g, c = _conservative_mesh_upper_bounds(mesh)
+        upper_geom += g
+        upper_chan += c
+        if not _collect_native_piece_textures(mesh, offset, files, bindings, unique_dds):
+            return None
+        offset += len(mesh.submeshes)
+    total_dds = sum(size for _path, size in unique_dds.values())
+    if upper_geom > payload_limit or total_dds > payload_limit or (upper_geom + upper_chan + total_dds) > session_limit:
+        return None
+    # Deduplicate files that share an inode across paths (e.g. different string forms).
+    canonical_by_ino: dict[tuple[int, int], str] = {}
+    dedup_files: dict[str, Path] = {}
+    dedup_bindings: dict[tuple[str, str], list[set[int]]] = {}
+    for (path_text, role), ownership in bindings.items():
+        path = files[path_text]
+        try:
+            st = path.stat()
+            ino = int(getattr(st, "st_ino", 0) or 0)
+            key = (int(st.st_dev), ino) if ino else None
+        except OSError:
+            key = None
+        if key is not None:
+            canonical = canonical_by_ino.setdefault(key, path_text)
+        else:
+            canonical = path_text
+        dedup_files[canonical] = files[canonical]
+        dedup_bindings.setdefault((canonical, role), [set()])[0].update(ownership[0])
+    textures = a._publish_rust_texture_resources(root, dedup_bindings, dedup_files, stop_event, root_identity)
+    presentations = []
+    offset = 0
+    for mesh in neutral_meshes:
+        for presentation in a._mesh_material_presentations(mesh):
+            presentation = copy.deepcopy(presentation)
+            presentation["material_index"] += offset
+            presentations.append(presentation)
+        offset += len(mesh.submeshes)
+    synthesis = a._RustMaterialSynthesisState()
+    return ItemSetBudget(frozenset(range(len(sources))), {}, (textures, presentations, synthesis), "")
+
+
 def prepare_item_set_budget(sources, root, root_identity, stop_event):
     """Stage once, count actual payloads, publish only admitted material files."""
     from cdmw.services import mesh_rust_authoring as a
     from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+    from cdmw.services.mesh_preview_material_source import (
+        restore_preview_core_sources, set_aside_preview_core_sources,
+    )
 
     root = Path(root).resolve()
     payload_limit = a.RUST_MESH_MAX_PAYLOAD_BYTES
@@ -94,13 +276,34 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
     # counted, and each compact channel document is measured before admission.
     existing_bytes = a._validate_owned_session_tree(root, root_identity)[1]
     session_limit = a._SESSION_MAX_TOTAL_BYTES - existing_bytes - a._RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES
+    neutral_meshes = []
+    for _entry, snapshot, appearance, _lease, *_dependencies in sources:
+        a._raise_if_texture_copy_cancelled(stop_event)
+        mesh = _lod0(snapshot.mesh)
+        if appearance is not None:
+            set_aside = set_aside_preview_core_sources(mesh)
+            try:
+                neutral = appearance.to_neutral(mesh)
+            finally:
+                originals = list(mesh.submeshes)
+                copies = list(neutral.submeshes) if "neutral" in locals() else []
+                onto = ({id(original): copy_ for original, copy_ in zip(originals, copies)}
+                        if len(originals) == len(copies) else None)
+                restore_preview_core_sources(set_aside, onto=onto)
+            mesh = neutral
+        neutral_meshes.append(mesh)
+    _remember_budget_neutral_meshes(id(sources), dict(enumerate(neutral_meshes)))
+
+    fast = _try_fast_native_budget(
+        sources, neutral_meshes, root, root_identity, payload_limit, session_limit, stop_event,
+    )
+    if fast is not None:
+        return fast
+
     rows = []
     with ExitStack() as stack:
-        for entry, snapshot, appearance, _lease, *_dependencies in sources:
+        for (entry, _snapshot, _appearance, _lease, *_dependencies), mesh in zip(sources, neutral_meshes):
             a._raise_if_texture_copy_cancelled(stop_event)
-            mesh = _lod0(snapshot.mesh)
-            if appearance is not None:
-                mesh = appearance.to_neutral(mesh)
             staging = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="item-set-materials-", dir=root.parent))).resolve()
             if staging.parent != root.parent:
                 raise ValueError("Item set material staging escaped its owning directory")
@@ -157,6 +360,7 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
             else:
                 reason = "size"
         bindings, files, presentations = {}, {}, []
+        sha_to_path: dict[str, str] = {}
         synthesis = a._RustMaterialSynthesisState()
         offset = 0
         for index, row in enumerate(rows):
@@ -164,9 +368,14 @@ def prepare_item_set_budget(sources, root, root_identity, stop_event):
                 continue
             for texture in row["textures"]:
                 path = row["staging"] / texture["file"]["path"]
-                key = (str(path), texture["role"])
-                files[str(path)] = path
-                bindings[key] = [{part + offset for part in texture["material_indices_by_lod"][0]}]
+                sha = str(texture["file"].get("sha256", "") or "").upper()
+                if sha:
+                    canonical = sha_to_path.setdefault(sha, str(path))
+                else:
+                    canonical = str(path)
+                files.setdefault(canonical, path)
+                key = (canonical, texture["role"])
+                bindings.setdefault(key, [set()])[0].update(part + offset for part in texture["material_indices_by_lod"][0])
             state = row["state"]
             for presentation in a._mesh_material_presentations(row["mesh"], generated_overrides=state.presentation_overrides):
                 presentation = copy.deepcopy(presentation)

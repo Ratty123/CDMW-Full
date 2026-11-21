@@ -6,10 +6,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer
 
+from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.domain.archives.character_catalogue import (
     BuildCharacterCatalogResult, CharacterCatalogSearchRequest, CharacterCatalogSearchResult,
 )
-from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
 
 
@@ -21,6 +21,7 @@ class CharacterFinderWarmupController(QObject):
         self._session = None
         self._generation = 0
         self._request = None
+        self._request_kind = None
         self._preview = None
         self._summary = None
         self._searches = {}
@@ -34,15 +35,48 @@ class CharacterFinderWarmupController(QObject):
         self._timer.timeout.connect(self._continue)
         self._service.result_ready.connect(self._result)
         self._service.request_failed.connect(self._failed)
-        self._service.request_cancelled.connect(self._failed)
+        self._service.request_cancelled.connect(self._cancelled)
         self._service.worker_crashed.connect(self.invalidate)
+        if hasattr(self._service, "session_published"):
+            self._service.session_published.connect(self._handle_session_published)
         register_transient_worker_controller(archive.shell, self)
 
+    def _handle_session_published(self, session):
+        if self._closed or not isinstance(session, ArchiveSessionHandle):
+            return
+        bridge = getattr(self._archive, "archive_remote_bridge", None)
+        controller = getattr(bridge, "controller", None)
+        ui_generation = int(getattr(controller, "generation", self._generation) or self._generation)
+        self.start(session, ui_generation=ui_generation)
+
     def start(self, session, *, ui_generation):
-        if self._closed or not self._service.character_catalog_available or self._session == session:
+        if self._closed or not self._service.character_catalog_available:
+            return
+        if self._session == session:
+            self._generation = max(self._generation, int(ui_generation))
+            if self._summary is not None or self._request is not None or self._pages:
+                if not self._paused and self._request is None and self._pages and not self._timer.isActive():
+                    self._timer.start(0)
+                return
+        elif (
+            self._session is not None
+            and getattr(self._session, "fingerprint", None) == getattr(session, "fingerprint", None)
+            and self._summary is not None
+        ):
+            # Recovered session with identical fingerprint: keep cached summary and rebind session id.
+            self._session = session
+            self._generation = max(self._generation, int(ui_generation))
+            self._summary = replace(self._summary, session_id=session.session_id)
+            self._searches = {
+                replace(req, session_id=session.session_id): replace(res, session_id=session.session_id)
+                for req, res in self._searches.items()
+            }
+            self._pages = deque(replace(req, session_id=session.session_id) for req in self._pages)
+            if not self._paused and self._request is None and self._pages and not self._timer.isActive():
+                self._timer.start(0)
             return
         self.invalidate()
-        self._session, self._generation = session, ui_generation
+        self._session, self._generation = session, int(ui_generation)
         settings = self._archive.shell.settings
         def saved(field, default=""):
             return str(settings.value("ui/character_finder/" + field, default) or "")
@@ -57,7 +91,7 @@ class CharacterFinderWarmupController(QObject):
         if tab == "faces" and first.role == "head":
             first = replace(first, role=None)
         self._pages.extend((first, replace(first, tab="bodies" if tab == "faces" else "faces", role=None)))
-        self._timer.start(500)
+        self._timer.start(0)
 
     def cached_summary(self, session_id):
         return self._summary if self._session and self._session.session_id == session_id else None
@@ -76,7 +110,13 @@ class CharacterFinderWarmupController(QObject):
         self._clients.add(client)
         self._paused = True
         self._timer.stop()
-        self._cancel_request()
+        # Keep an in-flight out-of-process build_character_catalog alive across
+        # brief UI activity and Finder dialog opens: it runs in the separate
+        # archive worker behind a shared build gate without holding Python's
+        # GIL, so cancelling it would discard progress and force a cold rebuild
+        # when the dialog opens. Only invalidate()/shutdown() cancels builds.
+        if cancel_active and self._request_kind != "build":
+            self._cancel_request()
         if self._preview is not None:
             self._preview.pause_scheduling(cancel_active=cancel_active)
 
@@ -84,10 +124,10 @@ class CharacterFinderWarmupController(QObject):
         self._clients.discard(client)
         if not self._closed and not self._clients:
             self._paused = False
-            self._timer.start(500)
+            self._timer.start(0)
 
     def _cancel_request(self):
-        request, self._request = self._request, None
+        request, self._request, self._request_kind = self._request, None, None
         if request is not None:
             self._service.cancel(request)
 
@@ -104,6 +144,12 @@ class CharacterFinderWarmupController(QObject):
             # Keep the controller (and every native thread) until real teardown.
             self._preview.shutdown()
 
+    def _warmup_allowed(self):
+        gate = getattr(self._archive, "_archive_finder_warmup_allowed", None)
+        if callable(gate):
+            return bool(gate())
+        return bool(self._archive._archive_browser_background_work_allowed())
+
     def _continue(self):
         if self._closed or self._paused or self._session is None or self._request is not None:
             return
@@ -113,10 +159,10 @@ class CharacterFinderWarmupController(QObject):
                 return
             self._preview.deleteLater()
             self._preview = None
-        if not self._archive._archive_browser_background_work_allowed():
+        if not self._warmup_allowed():
             if self._preview is not None:
                 self._preview.pause_scheduling(cancel_active=True)
-            self._timer.start(500)
+            self._timer.start(250)
             return
         if self._preview is not None:
             self._preview.resume_scheduling()
@@ -134,13 +180,17 @@ class CharacterFinderWarmupController(QObject):
             if self._summary is None:
                 self._request = self._service.build_character_catalog(
                     self._session.session_id, ui_generation=self._generation)
+                self._request_kind = "build"
                 return
             page = self._searches.get(self._pages[0])
             if page is None:
                 self._request = self._service.search_character_catalog(
                     self._pages[0], ui_generation=self._generation)
+                self._request_kind = "search"
                 return
             if self._preview is None:
+                from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
+
                 self._preview = CharacterFinderPreviewController(self._service,
                     fingerprint=self._session.fingerprint,
                     cache_root=Path(self._archive._native_preview_package_cache_root()),
@@ -164,6 +214,7 @@ class CharacterFinderWarmupController(QObject):
                 or getattr(result, "session_id", None) != self._session.session_id):
             return
         self._request = None
+        self._request_kind = None
         if isinstance(result, BuildCharacterCatalogResult):
             self._summary = result
         elif isinstance(result, CharacterCatalogSearchResult) and self._pages:
@@ -178,9 +229,17 @@ class CharacterFinderWarmupController(QObject):
             self._pages.clear()
         self._schedule()
 
+    def _cancelled(self, request, *_args):
+        if request == self._request:
+            self._request = None
+            self._request_kind = None
+            if not self._closed and not self._paused and self._pages:
+                self._timer.start(250)
+
     def _failed(self, request, *_args):
         if request == self._request:
             self._request = None
+            self._request_kind = None
             self._pages.clear()
 
     def iter_shutdown_workers(self):

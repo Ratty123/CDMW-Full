@@ -30,7 +30,12 @@ pub(crate) fn upload_materials(
                 .into_iter()
                 .map(|index| index + offset)
                 .collect::<Vec<_>>();
-            renderer.add_dds_texture(&texture.bytes, texture.role, &vec![ownership; lod_count])?;
+            renderer.add_verified_dds_texture(
+                &texture.bytes,
+                texture.role,
+                &vec![ownership; lod_count],
+                &texture.metadata.source_sha256,
+            )?;
         }
         for presentation in piece
             .material_presentations
@@ -41,6 +46,14 @@ pub(crate) fn upload_materials(
                 crate::cdmw_material_preview_factors(presentation),
                 &vec![vec![presentation.material_index + offset]; lod_count],
             )?;
+        }
+        for layer in piece.layers.iter().filter(|layer| layer.lod_index == 0) {
+            for lod_index in 0..lod_count {
+                let mut shifted = layer.clone();
+                shifted.lod_index = lod_index;
+                shifted.material_index += offset;
+                renderer.add_material_layers(&shifted)?;
+            }
         }
         offset += piece.part_count;
     }
@@ -58,6 +71,18 @@ pub(crate) fn append_to_snapshot(
         if piece.visible {
             let base = snapshot.positions.len() as u32;
             let reference = &piece.snapshot;
+            // One tangent per position, or none: a side without authored tangents is
+            // padded with zeros, which the renderer derives from the UVs.
+            if !snapshot.tangents.is_empty() || !reference.tangents.is_empty() {
+                snapshot.tangents.resize(base as usize, [0.0; 4]);
+                if reference.tangents.len() == reference.positions.len() {
+                    snapshot.tangents.extend_from_slice(&reference.tangents);
+                } else {
+                    snapshot
+                        .tangents
+                        .resize(base as usize + reference.positions.len(), [0.0; 4]);
+                }
+            }
             snapshot.positions.extend_from_slice(&reference.positions);
             snapshot.normals.extend_from_slice(&reference.normals);
             snapshot.uvs.extend_from_slice(&reference.uvs);
@@ -202,5 +227,57 @@ impl LabApplication {
         }
         ui.separator();
         pieces.openness > 0.0
+    }
+}
+
+#[cfg(test)]
+mod tangent_tests {
+    use super::*;
+    use crate::cdmw_session::LoadedReferencePiece;
+
+    fn triangle(tangents: Vec<[f32; 4]>) -> DrawSnapshot {
+        let document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .expect("triangle");
+        let mut snapshot = cdmw_mesh::WorkingMesh::from_document(&document)
+            .expect("mesh")
+            .draw_snapshot();
+        assert_eq!(snapshot.positions.len(), 3);
+        snapshot.tangents = tangents;
+        snapshot
+    }
+
+    fn piece(snapshot: DrawSnapshot) -> LoadedReferencePiece {
+        LoadedReferencePiece {
+            index: 1,
+            name: "piece".into(),
+            visible: true,
+            snapshot,
+            part_count: 1,
+            textures: Vec::new(),
+            layers: Vec::new(),
+            material_presentations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn reference_pieces_keep_one_tangent_per_position() {
+        // Editable document with authored tangents, piece without: the piece is padded.
+        let mut snapshot = triangle(vec![[1.0, 0.0, 0.0, 1.0]; 3]);
+        append_to_snapshot(&mut snapshot, &[piece(triangle(Vec::new()))], 1);
+        assert_eq!(snapshot.tangents.len(), snapshot.positions.len());
+        assert_eq!(snapshot.tangents[3], [0.0; 4]);
+        // The other way round: the document is padded, the piece keeps its own.
+        let mut snapshot = triangle(Vec::new());
+        append_to_snapshot(&mut snapshot, &[piece(triangle(vec![[0.0, 1.0, 0.0, -1.0]; 3]))], 1);
+        assert_eq!(snapshot.tangents.len(), 6);
+        assert_eq!(snapshot.tangents[0], [0.0; 4]);
+        assert_eq!(snapshot.tangents[5], [0.0, 1.0, 0.0, -1.0]);
+        // Neither has any: none are made up.
+        let mut snapshot = triangle(Vec::new());
+        append_to_snapshot(&mut snapshot, &[piece(triangle(Vec::new()))], 1);
+        assert!(snapshot.tangents.is_empty());
     }
 }

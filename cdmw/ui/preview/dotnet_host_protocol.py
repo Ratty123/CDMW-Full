@@ -8,8 +8,15 @@ from pathlib import Path
 
 from PySide6.QtGui import QImage
 
+from cdmw.services.json_file_facts import json_file_fact
 from cdmw.ui.preview.child_window_mover import child_window_mover
 from cdmw.ui.preview.dotnet_host_values import _indices, _triple
+
+
+def _extract_preview_scene_fact(payload: object) -> dict[str, object]:
+    state = payload.get("state") if isinstance(payload, Mapping) else None
+    scene = state.get("preview_scene") if isinstance(state, Mapping) else None
+    return dict(scene) if isinstance(scene, Mapping) else {}
 
 #: Helper states that say nothing about content a caller is still building, so a held
 #: preparation message (`show_preparation_status(hold=True)`) is shown in their place.
@@ -206,14 +213,12 @@ class DotNetPreviewHostProtocolMixin:
     def _load_scene_state(self, package_dir: Path) -> None:
         scene_path = Path(package_dir) / "manifest.json"
         try:
-            payload = json.loads(scene_path.read_text(encoding="utf-8-sig"))
+            scene = json_file_fact(scene_path, _extract_preview_scene_fact, encoding="utf-8-sig")
         except (OSError, ValueError):
             self._scene_state = {}
             self._scene_generation = 0
             return
-        state = payload.get("state") if isinstance(payload, Mapping) else None
-        scene = state.get("preview_scene") if isinstance(state, Mapping) else None
-        self._scene_state = dict(scene) if isinstance(scene, Mapping) else {}
+        self._scene_state = dict(scene)
         self._scene_generation = int(self._scene_state.get("scene_generation", 0) or 0)
 
     def _handle_controller_state(self, state: str, message: str) -> None:

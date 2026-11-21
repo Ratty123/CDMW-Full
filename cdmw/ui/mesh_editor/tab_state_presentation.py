@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from cdmw.domain.mesh import MeshEditorUiState
-from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
-from cdmw.ui.mesh_editor.actions import MESH_EDITOR_VISIBLE_ACTIONS, mesh_editor_actions_by_key
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cdmw.domain.mesh.ui_state import MeshEditorUiState
 
 
 class MeshEditorStatePresentationMixin:
@@ -16,6 +17,8 @@ class MeshEditorStatePresentationMixin:
         has_target: bool,
         workflow_mode: str,
     ) -> tuple[str, str, dict[str, str], set[str]]:
+        from cdmw.ui.mesh_editor.actions import MESH_EDITOR_VISIBLE_ACTIONS, mesh_editor_actions_by_key
+
         session_text = ""
         authoring_tooltip = ""
         authoring_blockers: dict[str, str] = {}
@@ -146,6 +149,8 @@ class MeshEditorStatePresentationMixin:
         has_archive_target: bool,
         output_task_active: bool,
     ) -> None:
+        from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
+
         exact_session = bool(
             has_standalone
             and ui_state.output_policy in {MeshOutputPolicy.EXACT_GAME_ASSET.value, MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value}

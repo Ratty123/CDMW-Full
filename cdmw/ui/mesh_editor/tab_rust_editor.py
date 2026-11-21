@@ -263,6 +263,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_camera_supported = False
         self.standalone_rust_camera = None
         self.standalone_rust_view_state_supported = False
+        self.standalone_rust_view_look_supported = False
         self.standalone_rust_view_state = None
         self.standalone_rust_highlight_part_supported = False
         self.standalone_rust_highlighted_part = None  # a new helper lights nothing yet
@@ -548,7 +549,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self._start_selected_mesh_editor(controller)
 
     def _defer_rust_editor_for_material_context(self, controller: object) -> bool:
-        if bool(
+        if bool(getattr(self, "edit_item_set", False)) or bool(
             getattr(self, "archive_material_context_verified_for_rust", False)
         ):
             self.standalone_rust_texture_unavailable_reason = ""
@@ -999,6 +1000,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_camera_supported = False
         self.standalone_rust_camera = None
         self.standalone_rust_view_state_supported = False
+        self.standalone_rust_view_look_supported = False
         self.standalone_rust_view_state = None
         self.standalone_rust_highlight_part_supported = False
         self.standalone_rust_highlighted_part = None  # a new helper lights nothing yet

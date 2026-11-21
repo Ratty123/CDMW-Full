@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QPushButton, QTabWidget, QWidget
 
-from cdmw.domain.mesh import MeshPanelSnapshot
 from cdmw.services.mesh_edit_session_state import MeshEditSessionMachine
 from cdmw.services.mesh_material_publication import MaterialPublicationCoordinator
-from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
-from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
-from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
+
+if TYPE_CHECKING:
+    from cdmw.domain.mesh.panel_state import MeshPanelSnapshot
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+    from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 
 
 class MeshEditorTabShellRuntimeMixin:
@@ -274,6 +275,9 @@ class MeshEditorTabShellRuntimeMixin:
         }
 
     def _initialize_runtime_objects(self) -> None:
+        from cdmw.domain.mesh.panel_state import MeshPanelSnapshot
+        from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
+
         self._initialize_dotnet_material_parameter_state()
         self.standalone_dotnet_update_queue = DotNetRevisionUpdateQueue(self._send_dotnet_protocol_message)
         self.standalone_dotnet_update_ack_timer = QTimer(self)

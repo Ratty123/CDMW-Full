@@ -10793,3 +10793,42 @@ fn host_view_state_sets_the_panels_values_and_reports_them() -> TestResult {
     assert_eq!(application.view_state_report()["colours"]["wire"], before["colours"]["wire"]);
     Ok(())
 }
+
+#[test]
+fn host_view_state_sets_the_lighting_preset_and_studio_look() -> TestResult {
+    let mut application = two_part_application()?;
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        lighting_preset: Some("showcase"),
+        wetness: Some(0.5),
+        ..Default::default()
+    });
+    let state = application.view_state_report();
+    assert_eq!(state["lighting_preset"], "showcase");
+    assert_eq!(state["look_applies"], false, "only Studio (fixed lights) uses the look");
+    assert_eq!(state["wetness"], 0.5);
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        lighting_preset: Some("studio_fixed"),
+        exposure: Some(1.5),
+        light_rotation: Some(-45.0),
+        ..Default::default()
+    });
+    let state = application.view_state_report();
+    assert_eq!(state["look_applies"], true);
+    assert_eq!(state["exposure"], 1.5);
+    assert_eq!(state["light_rotation"], -45.0);
+    assert_eq!(
+        application.studio_look,
+        cdmw_render_wgpu::StudioLookSettings {
+            wetness: 0.5,
+            exposure: 1.5,
+            env_rotation_degrees: -45.0,
+        }
+    );
+    application.apply_host_view_state(crate::cdmw_session::ViewStateChange {
+        reset: Some("look"),
+        ..Default::default()
+    });
+    assert_eq!(application.studio_look, cdmw_render_wgpu::StudioLookSettings::default());
+    assert_eq!(application.view_state_report()["lighting_preset"], "studio_fixed");
+    Ok(())
+}

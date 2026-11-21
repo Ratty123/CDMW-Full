@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod environment_ibl;
+pub use environment_ibl::StudioLookSettings;
 mod glow_proof;
 mod gpu_lifecycle;
 mod shader_controls_proof;
@@ -490,6 +492,16 @@ fn veil_net_coverage(uv: vec2<f32>, uv_dx: vec2<f32>, uv_dy: vec2<f32>, pitch: f
 }
 
 fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, emission_only: bool) -> vec4<f32> {
+    return shade_surface_ex(input, front_facing, transmission_only, emission_only, false);
+}
+
+fn shade_surface_ex(
+    input: VertexOut,
+    front_facing: bool,
+    transmission_only: bool,
+    emission_only: bool,
+    a2c_cutout: bool,
+) -> vec4<f32> {
     if transmission_only && camera.view_mode != 0u && camera.view_mode != 2u && camera.view_mode != 9u {
         // Material diagnostics show their values without transmitted background.
         return vec4<f32>(0.0);
@@ -596,6 +608,52 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         return present(neutral_surface(input.normal, front_facing), 1.0);
     }
 
+    let pre_geo_normal = facing_normal(input.normal, front_facing);
+    let pre_tangent = safe_normalize(
+        input.tangent.xyz - pre_geo_normal * dot(pre_geo_normal, input.tangent.xyz),
+        vec3<f32>(1.0, 0.0, 0.0),
+    );
+    let pre_bitangent = safe_normalize(cross(pre_geo_normal, pre_tangent), vec3<f32>(0.0, 1.0, 0.0)) * input.tangent.w;
+    let pre_view = studio_view_direction(input.world_position);
+    let view_ts = vec3<f32>(
+        dot(pre_view, pre_tangent),
+        dot(pre_view, pre_bitangent),
+        dot(pre_view, pre_geo_normal),
+    );
+    let pom_dx = dpdx(sample_uv);
+    let pom_dy = dpdy(sample_uv);
+    // Subtle physically-grounded Steep Parallax Occlusion Mapping for opaque height-mapped
+    // surfaces (embossed armor, carved stone, stitched leather) in lit views only.
+    if (material.flags & MATERIAL_HEIGHT) != 0u
+        && shader_kind == 0.0
+        && (camera.view_mode == 0u || camera.view_mode == 9u)
+        && (material.flags & (MATERIAL_ALPHA_CUTOUT | MATERIAL_ALPHA_BLEND)) == 0u
+        && material.relief_factors.x > 0.01
+    {
+        let relief = clamp(material.relief_factors.x, 0.0, 1.0);
+        let grazing_fade = clamp(abs(view_ts.z) * 2.2, 0.0, 1.0);
+        let pom_depth = 0.010 * relief * grazing_fade;
+        let max_shift = (view_ts.xy / max(abs(view_ts.z), 0.25)) * pom_depth;
+        let step_uv = max_shift / 6.0;
+        var cur_uv = sample_uv;
+        var cur_layer = 1.0;
+        var cur_h = textureSampleGrad(height_texture, material_sampler, cur_uv, pom_dx, pom_dy).r;
+        var prev_uv = cur_uv;
+        var prev_delta = cur_h - cur_layer;
+        for (var s = 0u; s < 6u; s++) {
+            if cur_h >= cur_layer { break; }
+            prev_uv = cur_uv;
+            prev_delta = cur_h - cur_layer;
+            cur_uv -= step_uv;
+            cur_layer -= 1.0 / 6.0;
+            cur_h = textureSampleGrad(height_texture, material_sampler, cur_uv, pom_dx, pom_dy).r;
+        }
+        let after_delta = cur_h - cur_layer;
+        let denom = after_delta - prev_delta;
+        let weight = select(0.0, clamp(after_delta / denom, 0.0, 1.0), abs(denom) > 1e-5);
+        sample_uv = mix(cur_uv, prev_uv, weight);
+    }
+
     var texel = textureSampleBias(base_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
     if material.flags == 0u && fixed_studio { texel = vec4(0.56,0.58,0.62,1.0); }
     if shader_kind == 1.0 && shader_value(20u) > 0.5 && (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u
@@ -608,7 +666,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     // layers) replaces the base colour and nothing else.
     let layer_colour_only = material_layers_colour_only();
     let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u && !layer_colour_only;
-    let layer_surface = evaluate_material_layers(sample_uv, texel);
+    let layer_surface = evaluate_material_layers(sample_uv, texel, view_ts);
     if gpu_layered || layer_colour_only { texel = vec4<f32>(layer_surface.color, texel.a); }
     if (material.flags & MATERIAL_TEXTURE_TINT) != 0u && !gpu_layered {
         let texture_tint = max(
@@ -781,8 +839,17 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
         material_alpha = 1.0 - dot(transmission, vec3<f32>(1.0 / 3.0));
     }
     if transmission_only { return vec4<f32>(transmission, 1.0); }
+    var cutout_coverage = 1.0;
+    let is_plain_cutout = (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u
+        && material.translucency_factors.z < 0.5 && !eye_cover && !layered;
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 && !eye_cover && !layered {
-        if material_alpha < material.surface_factors.w {
+        if a2c_cutout {
+            let aa_alpha = clamp((material_alpha - material.surface_factors.w) / max(fwidth(material_alpha), 0.0001) + 0.5, 0.0, 1.0);
+            cutout_coverage = aa_alpha;
+            if aa_alpha <= 0.002 {
+                discard;
+            }
+        } else if material_alpha < material.surface_factors.w {
             discard;
         }
     }
@@ -1534,40 +1601,86 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
     if camera.lighting_preset >= 3u {
         let dx = dpdx(surface_normal);
         let dy = dpdy(surface_normal);
-        let variance = max(dot(dx,dx),dot(dy,dy));
-        let studio_roughness = sqrt(clamp(roughness*roughness+min(variance,0.15),0.0,1.0));
-        let studio_spec = select(1.0,material.surface_factors.z,(material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
+        let variance = max(dot(dx, dx), dot(dy, dy));
+        let studio_roughness = sqrt(clamp(roughness * roughness + min(variance, 0.08), 0.0, 1.0));
+        let studio_spec = select(1.0, material.surface_factors.z, (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
         let studio_view = studio_view_direction(input.world_position);
-        let studio_tangent = safe_normalize(tangent-surface_normal*dot(tangent,surface_normal),tangent);
-        let studio_occlusion = select(raw_occlusion,layer_surface.orm.r,gpu_layered);
+        var studio_tangent = safe_normalize(tangent - surface_normal * dot(tangent, surface_normal), tangent);
+        if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
+            let flow = textureSampleBias(flow_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
+            let flow_len_sq = dot(flow, flow);
+            let flow_dir = select(vec2<f32>(0.0, 1.0), flow * inverseSqrt(max(flow_len_sq, 1e-6)), flow_len_sq > 0.0004);
+            let flow_tan = safe_normalize(tangent * flow_dir.x + bitangent * flow_dir.y, studio_tangent);
+            studio_tangent = safe_normalize(flow_tan - surface_normal * dot(flow_tan, surface_normal), studio_tangent);
+        }
+        let studio_bitangent = safe_normalize(cross(surface_normal, studio_tangent), bitangent);
+        // Combine authored AO with subtle physical micro-cavity from normal/height relief
+        // so engraved metal, stitched leather, cloth weave, and skin pores read with crisp depth.
+        var studio_occlusion = select(raw_occlusion, layer_surface.orm.r, gpu_layered);
+        let normal_cavity = mix(0.88, 1.0, clamp(dot(surface_normal, geometry_normal), 0.0, 1.0));
+        studio_occlusion *= normal_cavity;
+        if (material.flags & MATERIAL_HEIGHT) != 0u {
+            let height_cavity = 1.0 - (1.0 - clamp(height_value, 0.0, 1.0)) * 0.18 * clamp(material.relief_factors.x, 0.0, 1.0);
+            studio_occlusion *= height_cavity;
+        }
+        let studio_key_dir = studio_rotate_world_light(normalize(vec3<f32>(-0.45, 0.8, -0.55)));
+        let studio_shadow = shadow_visibility_screen(input.world_position, surface_normal, input.position.xy, studio_key_dir);
         var terms: StudioTerms;
         if camera.lighting_preset == 4u {
-            terms = icon_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
-                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,
-                is_eye || eye_cover || is_glass || shader_kind == 10.0,key_shadow);
+            terms = icon_studio_lighting(texel.rgb, surface_normal, studio_view, studio_tangent,
+                studio_roughness, metalness, studio_spec, studio_occlusion, is_skin, is_hair,
+                is_eye || eye_cover || is_glass || shader_kind == 10.0, key_shadow);
         } else {
-            terms = fixed_studio_lighting(texel.rgb,surface_normal,studio_view,studio_tangent,
-                studio_roughness,metalness,studio_spec,studio_occlusion,is_skin,is_hair,key_shadow);
+            let surface = StudioSurface(
+                texel.rgb,
+                surface_normal,
+                geometry_normal,
+                studio_view,
+                studio_tangent,
+                studio_bitangent,
+                studio_roughness,
+                metalness,
+                studio_spec,
+                studio_occlusion,
+                skin_subsurface_multiplier,
+                is_skin,
+                is_hair,
+                is_cloth,
+                is_leather,
+                is_eye,
+                shader_kind == 4.0,
+                game_outdoor,
+                studio_shadow,
+            );
+            terms = fixed_studio_lighting(surface);
         }
         let ao = studio_ambient_visibility(input.position.xy);
-        // AO acts on linear radiance before the shoulder curve. Keep the existing
-        // translucent coverage contracts, including reflections independent of alpha.
-        let reflection = studio_tone(terms.specular*ao);
-        let lit = studio_tone((terms.diffuse+terms.specular)*ao);
+        // Physically-based multi-bounce AO (Jimenez 2016) preserves accurate colour
+        // saturation in skin/cloth/gold crevices; indirect specular uses Lagarde occlusion.
+        let studio_nv = clamp(dot(surface_normal, studio_view), 0.0, 1.0);
+        let diffuse_ao = studio_multi_bounce_ao(ao, texel.rgb);
+        let spec_ao = studio_specular_occlusion(studio_nv, ao, studio_roughness);
+        let total_diffuse = terms.direct_diffuse + terms.indirect_diffuse * diffuse_ao;
+        let total_specular = terms.direct_specular + terms.indirect_specular * spec_ao;
+        let reflection = studio_tone(total_specular);
+        let lit = studio_tone(total_diffuse + total_specular);
         if eye_cover {
-            return present(max(lit-reflection,vec3(0.0))*material_alpha+reflection*eye_surface_alpha,material_alpha);
+            return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection * eye_surface_alpha, material_alpha);
         }
         if layered {
             if shader_kind == 10.0 {
-                return present(max(lit-reflection,vec3(0.0))*material_alpha+reflection,material_alpha);
+                return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection, material_alpha);
             }
-            return present(lit*layered_colour_coverage,material_alpha);
+            let veil_rim = pow(1.0 - studio_nv, 2.0);
+            let veil_light = texel.rgb * veil_rim * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+            let veil_lit = studio_tone(total_diffuse + total_specular + veil_light);
+            return present(veil_lit * layered_colour_coverage, material_alpha);
         }
         if material.translucency_factors.z > 0.5 {
-            return present(studio_tone((terms.diffuse*(vec3(1.0)-transmission)+terms.specular)*ao),material_alpha);
+            return present(studio_tone(total_diffuse * (vec3<f32>(1.0) - transmission) + total_specular), material_alpha);
         }
-        return present(studio_tone((terms.diffuse+terms.specular+emissive)*ao),
-            select(1.0,material_alpha,(material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+        let studio_alpha = select(select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u), cutout_coverage, a2c_cutout && is_plain_cutout);
+        return present(studio_tone(total_diffuse + total_specular + emissive), studio_alpha);
     }
     // Keep enough fill to read the base texture under glow in the dark preview.
     let light_scale = select(1.0, 0.15, camera.lighting_preset == 2u);
@@ -1629,12 +1742,18 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool, 
             + glass_edge) * light_scale
             + emissive,
         exposure);
-    return present(shaded, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+    let final_alpha = select(select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u), cutout_coverage, a2c_cutout && is_plain_cutout);
+    return present(shaded, final_alpha);
 }
 
 @fragment
 fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
     return shade_surface(input, front_facing, false, false);
+}
+
+@fragment
+fn fs_cutout(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    return shade_surface_ex(input, front_facing, false, false, true);
 }
 
 @fragment
@@ -3215,6 +3334,30 @@ pub struct KeptScene {
 /// of the same process (P4 V5): wgpu's adapter, device and queue are shared
 /// handles, so a capture reuses the device instead of creating its own.
 #[derive(Clone, Debug)]
+struct SharedSurfacePipelines {
+    texture_layout: wgpu::BindGroupLayout,
+    camera_layout: wgpu::BindGroupLayout,
+    layer_layout: Option<wgpu::BindGroupLayout>,
+    pipeline_layout: wgpu::PipelineLayout,
+    shader: wgpu::ShaderModule,
+    solid: wgpu::RenderPipeline,
+    cutout: Option<wgpu::RenderPipeline>,
+    blended: wgpu::RenderPipeline,
+    glass: GlassPipelines,
+    wire: wgpu::RenderPipeline,
+    xray_wire: wgpu::RenderPipeline,
+    point: wgpu::RenderPipeline,
+    xray: wgpu::RenderPipeline,
+    normal: wgpu::RenderPipeline,
+    bounds: wgpu::RenderPipeline,
+    bone: wgpu::RenderPipeline,
+    guide: wgpu::RenderPipeline,
+    effect: wgpu::RenderPipeline,
+}
+
+type DevicePipelines = Arc<std::sync::Mutex<std::collections::HashMap<(wgpu::TextureFormat, u32), SharedSurfacePipelines>>>;
+
+#[derive(Clone, Debug)]
 pub struct SharedGpu {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -3223,6 +3366,7 @@ pub struct SharedGpu {
     faults: GpuFaults,
     textures: DeviceTextures,
     retained: texture_cache::DeviceRetainedTextures<wgpu::Texture>,
+    pipelines: DevicePipelines,
 }
 
 /// Every texture uploaded on one device, by the SHA-256 of its DDS bytes, held
@@ -3237,6 +3381,8 @@ pub struct WindowRenderer {
     texture_cache: BTreeMap<String, Weak<wgpu::Texture>>,
     /// The device's textures, shared with every renderer on it (P4 V5).
     device_textures: DeviceTextures,
+    device_pipelines: DevicePipelines,
+    material_layers_layout: Option<wgpu::BindGroupLayout>,
     texture_uploads: u64,
     staged_texture: Option<texture_upload::PendingDdsUpload>,
     retained_upload_textures: BTreeMap<String, Arc<wgpu::Texture>>,
@@ -3248,6 +3394,7 @@ pub struct WindowRenderer {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     solid_pipeline: wgpu::RenderPipeline,
+    cutout_pipeline: Option<wgpu::RenderPipeline>,
     blended_pipeline: wgpu::RenderPipeline,
     ground: ground::Ground,
     ground_visible: bool,
@@ -3266,6 +3413,7 @@ pub struct WindowRenderer {
     shadow_resources: lighting_depth::ShadowResources,
     ambient_occlusion: lighting_depth::AmbientOcclusion,
     lighting_depth_settings: LightingDepthSettings,
+    studio_look_settings: StudioLookSettings,
     face_selection: selection_overlay::FaceSelectionRenderer,
     refit_warning: selection_overlay::FaceSelectionRenderer,
     part_hover: selection_overlay::FaceSelectionRenderer,
@@ -3325,11 +3473,16 @@ impl WindowRenderer {
             faults: self.gpu_faults.clone(),
             textures: Arc::clone(&self.device_textures),
             retained: Arc::clone(&self.retained_textures),
+            pipelines: Arc::clone(&self.device_pipelines),
         }
     }
 
     pub fn set_lighting_depth_settings(&mut self, settings: LightingDepthSettings) {
         self.lighting_depth_settings = settings;
+    }
+
+    pub fn set_studio_look_settings(&mut self, settings: StudioLookSettings) {
+        self.studio_look_settings = settings;
     }
 
     pub fn supports_material_layers(&self) -> bool {
@@ -3352,12 +3505,14 @@ impl WindowRenderer {
                 )?);
             }
         }
-        if let Some(binding) = material_layers::binding(
-            &self.device,
-            &self.default_material_textures,
-            &layers.uniform,
-            &uploaded,
-        ) {
+        if let Some(layout) = &self.material_layers_layout {
+            let binding = material_layers::binding_with_layout(
+                &self.device,
+                layout,
+                &self.default_material_textures,
+                &layers.uniform,
+                &uploaded,
+            );
             self.material_layers
                 .insert((layers.lod_index, layers.material_index), binding);
         }
@@ -3707,6 +3862,7 @@ impl WindowRenderer {
             gpu_faults,
             DeviceTextures::default(),
             Arc::default(),
+            DevicePipelines::default(),
             window.inner_size(),
         )
     }
@@ -3738,6 +3894,7 @@ impl WindowRenderer {
             gpu.faults.clone(),
             Arc::clone(&gpu.textures),
             Arc::clone(&gpu.retained),
+            Arc::clone(&gpu.pipelines),
             window.inner_size(),
         )
     }
@@ -3752,8 +3909,10 @@ impl WindowRenderer {
         gpu_faults: GpuFaults,
         device_textures: DeviceTextures,
         retained_textures: texture_cache::DeviceRetainedTextures<wgpu::Texture>,
+        device_pipelines: DevicePipelines,
         size: winit::dpi::PhysicalSize<u32>,
     ) -> Result<Self, RenderError> {
+        material_layers::record_device_support(&device);
         let capabilities = surface.get_capabilities(&adapter);
         let format =
             preferred_surface_format(&capabilities.formats).ok_or(RenderError::SurfaceFormat)?;
@@ -3779,7 +3938,13 @@ impl WindowRenderer {
         let sample_count = preferred_sample_count(&adapter, format);
         let anisotropy_clamp =
             preferred_anisotropy_clamp(adapter.get_downlevel_capabilities().flags);
-        let texture_bind_group_layout = create_texture_bind_group_layout(&device);
+        let shared_surface = get_or_create_shared_surface_pipelines(
+            &device_pipelines,
+            &device,
+            format,
+            sample_count,
+        );
+        let texture_bind_group_layout = shared_surface.texture_layout.clone();
         let default_material_textures = create_default_material_textures(&device, &queue);
         let material_sampler = create_material_sampler(&device, anisotropy_clamp);
         let default_material_binding = create_material_bind_group(
@@ -3791,7 +3956,7 @@ impl WindowRenderer {
             MaterialTextureIndices::default(),
             MaterialPreviewFactors::default(),
         );
-        let camera_bind_group_layout = create_camera_bind_group_layout(&device);
+        let camera_bind_group_layout = shared_surface.camera_layout.clone();
         let camera_uniform = CameraUniform::new(format.is_srgb());
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab camera uniform"),
@@ -3806,13 +3971,8 @@ impl WindowRenderer {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
-        let pipelines = create_pipelines_with_sample_count(
-            &device,
-            format,
-            &texture_bind_group_layout,
-            &camera_bind_group_layout,
-            sample_count,
-        );
+        let material_layers_layout = shared_surface.layer_layout.clone();
+        let pipelines = pipelines_from_shared(&device, &queue, format, sample_count, &shared_surface);
         let effect_texture_bind_group_layout = create_effect_texture_bind_group_layout(&device);
         let effect_sampler = create_effect_sampler(&device);
         let effect_textures = vec![create_procedural_effect_texture(
@@ -3918,6 +4078,8 @@ impl WindowRenderer {
             gpu_faults,
             texture_cache: BTreeMap::new(),
             device_textures,
+            device_pipelines,
+            material_layers_layout,
             texture_uploads: 0,
             staged_texture: None,
             retained_upload_textures: BTreeMap::new(),
@@ -3929,6 +4091,7 @@ impl WindowRenderer {
             queue,
             config,
             solid_pipeline: pipelines.solid,
+            cutout_pipeline: pipelines.cutout,
             blended_pipeline: pipelines.blended,
             ground: pipelines.ground,
             ground_visible: true,
@@ -3947,6 +4110,7 @@ impl WindowRenderer {
             shadow_resources: pipelines.shadow_resources,
             ambient_occlusion: pipelines.ambient_occlusion,
             lighting_depth_settings: LightingDepthSettings::default(),
+            studio_look_settings: StudioLookSettings::default(),
             face_selection,
             refit_warning,
             part_hover,
@@ -4870,6 +5034,7 @@ impl WindowRenderer {
                 &self.camera_uniform,
                 self.view_mode,
                 self.lighting_depth_settings,
+                self.studio_look_settings,
                 [output_width, output_height],
                 viewport,
             )
@@ -4987,6 +5152,7 @@ impl WindowRenderer {
                     &self.active_material_bindings,
                     &self.camera_bind_group,
                     &self.solid_pipeline,
+                    self.cutout_pipeline.as_ref(),
                     &self.blended_pipeline,
                     Some(&self.glass_pipelines),
                     transparency.as_ref(),
@@ -5843,6 +6009,7 @@ async fn material_capture_device() -> Result<SharedGpu, RenderError> {
         faults: GpuFaults::default(),
         textures: DeviceTextures::default(),
         retained: Arc::default(),
+        pipelines: DevicePipelines::default(),
     })
 }
 
@@ -6044,6 +6211,7 @@ async fn material_capture_batch(
     });
     let mut pipelines = create_pipelines_with_sample_count(
         &device,
+        &queue,
         format,
         &texture_layout,
         &camera_layout,
@@ -6804,6 +6972,7 @@ async fn run_headless_render_smoke_internal(
     });
     let pipelines = create_pipelines_with_sample_count(
         &device,
+        &queue,
         format,
         &texture_layout,
         &camera_layout,
@@ -8201,10 +8370,12 @@ fn isolate_material_snapshot(
                 .to_owned(),
         ));
     }
+    let has_tangents = snapshot.tangents.len() == snapshot.positions.len();
     let mut remapped_vertices = BTreeMap::<u32, u32>::new();
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut uvs = Vec::new();
+    let mut tangents = Vec::new();
     let mut indices = Vec::new();
     let mut triangle_materials = Vec::new();
     for (triangle, owner) in snapshot
@@ -8230,6 +8401,9 @@ fn isolate_material_snapshot(
                 positions.push(position);
                 normals.push(snapshot.normals[source]);
                 uvs.push(snapshot.uvs[source]);
+                if has_tangents {
+                    tangents.push(snapshot.tangents[source]);
+                }
                 remapped_vertices.insert(source_index, destination);
                 destination
             };
@@ -8249,6 +8423,7 @@ fn isolate_material_snapshot(
         .collect();
     Ok(DrawSnapshot {
         shader_masks: Vec::new(),
+        tangents,
         mesh_identity: snapshot.mesh_identity,
         draw_revision: snapshot.draw_revision,
         topology_generation: snapshot.topology_generation,
@@ -8303,6 +8478,7 @@ fn material_proof_sphere_snapshot() -> DrawSnapshot {
     let triangle_count = indices.len() / 3;
     DrawSnapshot {
         shader_masks: Vec::new(),
+        tangents: Vec::new(),
         mesh_identity: u64::MAX - 17,
         draw_revision: 1,
         topology_generation: 1,
@@ -8345,6 +8521,7 @@ fn record_headless_pass(
         camera_uniform,
         mode,
         pipelines.lighting_depth_settings,
+        pipelines.studio_look_settings,
         size,
         None,
     );
@@ -8396,6 +8573,7 @@ fn record_headless_pass(
         active_material_bindings,
         camera_bind_group,
         &pipelines.solid,
+        pipelines.cutout.as_ref(),
         &pipelines.blended,
         Some(&pipelines.glass),
         transparency.as_ref(),
@@ -8891,8 +9069,10 @@ struct Pipelines {
     shadow_resources: lighting_depth::ShadowResources,
     ambient_occlusion: lighting_depth::AmbientOcclusion,
     lighting_depth_settings: LightingDepthSettings,
+    studio_look_settings: StudioLookSettings,
     emission_bloom: emission_bloom::EmissionBloom,
     solid: wgpu::RenderPipeline,
+    cutout: Option<wgpu::RenderPipeline>,
     blended: wgpu::RenderPipeline,
     glass: GlassPipelines,
     wire: wgpu::RenderPipeline,
@@ -9121,8 +9301,247 @@ fn create_effect_particle_pipeline(
     })
 }
 
+fn get_or_create_shared_surface_pipelines(
+    cache: &DevicePipelines,
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    sample_count: u32,
+) -> SharedSurfacePipelines {
+    if let Ok(guard) = cache.lock()
+        && let Some(existing) = guard.get(&(format, sample_count))
+    {
+        return existing.clone();
+    }
+    let texture_layout = create_texture_bind_group_layout(device);
+    let camera_layout = create_camera_bind_group_layout(device);
+    let built = build_shared_surface_pipelines(
+        device,
+        format,
+        texture_layout,
+        camera_layout,
+        sample_count,
+    );
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert((format, sample_count), built.clone());
+    }
+    built
+}
+
+fn pipelines_from_shared(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    format: wgpu::TextureFormat,
+    sample_count: u32,
+    shared: &SharedSurfacePipelines,
+) -> Pipelines {
+    let ground = ground::Ground::new(
+        device,
+        format,
+        &shared.pipeline_layout,
+        &shared.shader,
+        sample_count,
+    );
+    Pipelines {
+        sample_count,
+        ground,
+        shadow_resources: lighting_depth::ShadowResources::new(
+            device,
+            queue,
+            &shared.texture_layout,
+            &shared.camera_layout,
+            &shared.shader,
+        ),
+        ambient_occlusion: lighting_depth::AmbientOcclusion::new(device, format, sample_count),
+        lighting_depth_settings: LightingDepthSettings::default(),
+        studio_look_settings: StudioLookSettings::default(),
+        emission_bloom: emission_bloom::EmissionBloom::new(
+            device,
+            format,
+            &shared.pipeline_layout,
+            &shared.shader,
+        ),
+        glass: shared.glass.clone(),
+        solid: shared.solid.clone(),
+        cutout: shared.cutout.clone(),
+        blended: shared.blended.clone(),
+        wire: shared.wire.clone(),
+        xray_wire: shared.xray_wire.clone(),
+        point: shared.point.clone(),
+        xray: shared.xray.clone(),
+        normal: shared.normal.clone(),
+        bounds: shared.bounds.clone(),
+        bone: shared.bone.clone(),
+        guide: shared.guide.clone(),
+        effect: shared.effect.clone(),
+    }
+}
+
+fn build_shared_surface_pipelines(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    texture_layout: wgpu::BindGroupLayout,
+    camera_layout: wgpu::BindGroupLayout,
+    sample_count: u32,
+) -> SharedSurfacePipelines {
+    let dual_source = device
+        .features()
+        .contains(wgpu::Features::DUAL_SOURCE_BLENDING);
+    let surface_source = material_layers::shader(device, true);
+    let source = if dual_source {
+        format!(
+            "enable dual_source_blending;\n{surface_source}\n{}",
+            r#"
+struct GlassOutput {
+    @location(0) @blend_src(0) surface: vec4<f32>,
+    @location(0) @blend_src(1) transmission: vec4<f32>,
+};
+@fragment
+fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> GlassOutput {
+    var out: GlassOutput;
+    let surface = shade_surface(input, front_facing, false, false);
+    let coverage = select(surface.a, 1.0, material.translucency_factors.z > 0.5
+        || shader_value(0u) == 7.0 || shader_value(0u) == 10.0 || shader_value(0u) == 11.0);
+    out.surface = vec4<f32>(surface.rgb * coverage, surface.a);
+    out.transmission = shade_surface(input, front_facing, true, false);
+    return out;
+}
+"#
+        )
+    } else {
+        surface_source
+    };
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("CDMW Rust Mesh Lab shader"),
+        source: wgpu::ShaderSource::Wgsl(
+            format!(
+                "{source}
+{}",
+                ground::WGSL
+            )
+            .into(),
+        ),
+    });
+    let surface_entry = if dual_source {
+        "fs_surface"
+    } else {
+        "fs_blended"
+    };
+    let layer_layout = material_layers::layout(device);
+    let shadow_layout = lighting_depth::shadow_layout(device);
+    let layouts = vec![
+        Some(&texture_layout),
+        Some(&camera_layout),
+        layer_layout.as_ref(),
+        Some(&shadow_layout),
+    ];
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("CDMW Rust Mesh Lab pipeline layout"),
+        bind_group_layouts: &layouts,
+        immediate_size: 0,
+    });
+    let glass = if dual_source {
+        GlassPipelines::new(
+            device,
+            format,
+            &pipeline_layout,
+            &shader,
+            surface_entry,
+            wgpu::BlendState {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::Src1,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent::OVER,
+            },
+            true,
+            sample_count,
+        )
+    } else {
+        GlassPipelines::new(
+            device,
+            format,
+            &pipeline_layout,
+            &shader,
+            surface_entry,
+            wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
+            false,
+            sample_count,
+        )
+    };
+    SharedSurfacePipelines {
+        texture_layout,
+        camera_layout,
+        layer_layout,
+        solid: create_pipeline(
+            device, format, &pipeline_layout, &shader, "solid",
+            wgpu::PrimitiveTopology::TriangleList, surface_entry, solid_cull_mode(),
+            PipelineDepth::Write, Some(wgpu::BlendState::REPLACE), sample_count,
+        ),
+        cutout: (sample_count > 1).then(|| create_pipeline_with_multisample(
+            device, format, &pipeline_layout, &shader, "cutout alpha-to-coverage",
+            wgpu::PrimitiveTopology::TriangleList, "fs_cutout", solid_cull_mode(),
+            PipelineDepth::Write, Some(wgpu::BlendState::REPLACE), sample_count, true,
+        )),
+        blended: create_pipeline(
+            device, format, &pipeline_layout, &shader, "blended material",
+            wgpu::PrimitiveTopology::TriangleList, surface_entry, solid_cull_mode(),
+            PipelineDepth::Test, Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), sample_count,
+        ),
+        wire: create_pipeline(
+            device, format, &pipeline_layout, &shader, "wire",
+            wgpu::PrimitiveTopology::LineList, "fs_wire", None,
+            PipelineDepth::Test, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        xray_wire: create_pipeline(
+            device, format, &pipeline_layout, &shader, "xray wire",
+            wgpu::PrimitiveTopology::LineList, "fs_wire", None,
+            PipelineDepth::Ignore, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        point: create_pipeline(
+            device, format, &pipeline_layout, &shader, "point",
+            wgpu::PrimitiveTopology::PointList, "fs_point", None,
+            PipelineDepth::Test, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        xray: create_pipeline(
+            device, format, &pipeline_layout, &shader, "xray",
+            wgpu::PrimitiveTopology::TriangleList, "fs_xray", None,
+            PipelineDepth::Ignore, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        normal: create_pipeline(
+            device, format, &pipeline_layout, &shader, "normal",
+            wgpu::PrimitiveTopology::LineList, "fs_normal", None,
+            PipelineDepth::Test, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        bounds: create_pipeline(
+            device, format, &pipeline_layout, &shader, "bounds",
+            wgpu::PrimitiveTopology::LineList, "fs_bounds", None,
+            PipelineDepth::Test, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        bone: create_pipeline(
+            device, format, &pipeline_layout, &shader, "bone",
+            wgpu::PrimitiveTopology::LineList, "fs_bone", None,
+            PipelineDepth::Ignore, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        guide: create_pipeline(
+            device, format, &pipeline_layout, &shader, "scene guide overlay",
+            wgpu::PrimitiveTopology::LineList, "fs_effect", None,
+            scene_guide_pipeline_depth(), Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        effect: create_pipeline(
+            device, format, &pipeline_layout, &shader, "effect overlay",
+            wgpu::PrimitiveTopology::LineList, "fs_effect", None,
+            PipelineDepth::Ignore, Some(wgpu::BlendState::ALPHA_BLENDING), sample_count,
+        ),
+        glass,
+        pipeline_layout,
+        shader,
+    }
+}
+
 fn create_pipelines_with_sample_count(
     device: &wgpu::Device,
+    queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     texture_layout: &wgpu::BindGroupLayout,
     camera_layout: &wgpu::BindGroupLayout,
@@ -9223,12 +9642,14 @@ fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> Gl
         ground,
         shadow_resources: lighting_depth::ShadowResources::new(
             device,
+            queue,
             texture_layout,
             camera_layout,
             &shader,
         ),
         ambient_occlusion: lighting_depth::AmbientOcclusion::new(device, format, sample_count),
         lighting_depth_settings: LightingDepthSettings::default(),
+        studio_look_settings: StudioLookSettings::default(),
         emission_bloom: emission_bloom::EmissionBloom::new(device, format, &layout, &shader),
         glass,
         solid: create_pipeline(
@@ -9244,6 +9665,20 @@ fn fs_surface(input: VertexOut, @builtin(front_facing) front_facing: bool) -> Gl
             Some(wgpu::BlendState::REPLACE),
             sample_count,
         ),
+        cutout: (sample_count > 1).then(|| create_pipeline_with_multisample(
+            device,
+            format,
+            &layout,
+            &shader,
+            "cutout alpha-to-coverage",
+            wgpu::PrimitiveTopology::TriangleList,
+            "fs_cutout",
+            solid_cull_mode(),
+            PipelineDepth::Write,
+            Some(wgpu::BlendState::REPLACE),
+            sample_count,
+            true,
+        )),
         blended: create_pipeline(
             device,
             format,
@@ -9391,6 +9826,7 @@ enum PipelineDepth {
 /// Only the nearest translucent surface per pixel absorbs: glass behind glass, and the
 /// back of a closed glass part, are not seen through it. A depth pre-pass reproduces
 /// that; both passes share one shader module so their depths compare exactly.
+#[derive(Clone, Debug)]
 struct GlassPipelines {
     depth: wgpu::RenderPipeline,
     color: wgpu::RenderPipeline,
@@ -9499,6 +9935,37 @@ fn create_pipeline(
     blend: Option<wgpu::BlendState>,
     sample_count: u32,
 ) -> wgpu::RenderPipeline {
+    create_pipeline_with_multisample(
+        device,
+        format,
+        layout,
+        shader,
+        label,
+        topology,
+        fragment_entry,
+        cull_mode,
+        depth,
+        blend,
+        sample_count,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_pipeline_with_multisample(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    label: &str,
+    topology: wgpu::PrimitiveTopology,
+    fragment_entry: &str,
+    cull_mode: Option<wgpu::Face>,
+    depth: PipelineDepth,
+    blend: Option<wgpu::BlendState>,
+    sample_count: u32,
+    alpha_to_coverage_enabled: bool,
+) -> wgpu::RenderPipeline {
     let (depth_write_enabled, depth_compare, bias) = pipeline_depth_state(depth);
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(format!("CDMW Rust Mesh Lab {label} pipeline").as_str()),
@@ -9524,7 +9991,8 @@ fn create_pipeline(
         }),
         multisample: wgpu::MultisampleState {
             count: sample_count,
-            ..Default::default()
+            mask: !0,
+            alpha_to_coverage_enabled,
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
@@ -9632,12 +10100,14 @@ fn draw_solid<'a>(
     pass.draw_indexed(0..mesh.triangle_index_count, 0, 0..1);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_textured_solid<'a>(
     pass: &mut wgpu::RenderPass<'a>,
     mesh: &'a GpuMeshBuffers,
     default_material_bind_group: &'a GpuMaterialBinding,
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     pipeline: &'a wgpu::RenderPipeline,
+    cutout_pipeline: Option<&'a wgpu::RenderPipeline>,
     blended_pipeline: &'a wgpu::RenderPipeline,
     glass: Option<&'a GlassPipelines>,
     transparency: Option<&'a material_transparency::PreparedTransparency>,
@@ -9645,6 +10115,7 @@ fn draw_textured_solid<'a>(
     if mesh.triangle_index_count == 0 {
         return;
     }
+    let mut using_cutout = false;
     pass.set_pipeline(pipeline);
     pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
     for range in &mesh.material_ranges {
@@ -9658,6 +10129,18 @@ fn draw_textured_solid<'a>(
         let bind_group = active_material_bindings
             .get(&range.material)
             .unwrap_or(default_material_bind_group);
+        let wants_cutout = cutout_pipeline.is_some()
+            && (bind_group.flags & MATERIAL_ALPHA_CUTOUT) != 0
+            && !bind_group.alpha_blend
+            && !bind_group.translucent;
+        if wants_cutout != using_cutout {
+            pass.set_pipeline(if wants_cutout {
+                cutout_pipeline.expect("checked Some above")
+            } else {
+                pipeline
+            });
+            using_cutout = wants_cutout;
+        }
         material_layers::bind(pass, bind_group);
         pass.draw_indexed(
             range.first_index..range.first_index.saturating_add(range.index_count),
@@ -9740,6 +10223,7 @@ fn draw_mesh<'a>(
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &'a wgpu::BindGroup,
     solid_pipeline: &'a wgpu::RenderPipeline,
+    cutout_pipeline: Option<&'a wgpu::RenderPipeline>,
     blended_pipeline: &'a wgpu::RenderPipeline,
     glass: Option<&'a GlassPipelines>,
     transparency: Option<&'a material_transparency::PreparedTransparency>,
@@ -9775,16 +10259,25 @@ fn draw_mesh<'a>(
             | ViewMode::BaseAlpha
             | ViewMode::PartId
             | ViewMode::MaterialResponse
-            | ViewMode::LayerMask => draw_textured_solid(
-                pass,
-                mesh,
-                default_material_bind_group,
-                active_material_bindings,
-                solid_pipeline,
-                blended_pipeline,
-                glass,
-                transparency,
-            ),
+            | ViewMode::LayerMask => {
+                let active_cutout = matches!(
+                    view_mode,
+                    ViewMode::TexturedSolid | ViewMode::GameOutdoor
+                )
+                .then_some(cutout_pipeline)
+                .flatten();
+                draw_textured_solid(
+                    pass,
+                    mesh,
+                    default_material_bind_group,
+                    active_material_bindings,
+                    solid_pipeline,
+                    active_cutout,
+                    blended_pipeline,
+                    glass,
+                    transparency,
+                );
+            }
             ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
             ViewMode::SolidWire => {
                 draw_solid(pass, mesh, solid_pipeline);
@@ -10409,6 +10902,31 @@ fn resolve_material_factors<'a>(
     Ok(active)
 }
 
+fn orthogonal_tangent_fallback(normal: Vec3) -> Vec3 {
+    let fallback_axis = if normal.x.abs() < 0.9 {
+        Vec3::X
+    } else {
+        Vec3::Y
+    };
+    (fallback_axis - normal * normal.dot(fallback_axis))
+        .try_normalize()
+        .unwrap_or(Vec3::Z)
+}
+
+fn try_reproject_authored_tangent(normal: [f32; 3], tangent: [f32; 4]) -> Option<[f32; 4]> {
+    if tangent.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    let normal = Vec3::from_array(normal).try_normalize().unwrap_or(Vec3::Y);
+    let tangent_vector = Vec3::new(tangent[0], tangent[1], tangent[2]);
+    if tangent_vector.length_squared() <= 1.0e-8 {
+        return None;
+    }
+    let projected = (tangent_vector - normal * normal.dot(tangent_vector)).try_normalize()?;
+    let handedness = if tangent[3] < 0.0 { -1.0 } else { 1.0 };
+    Some([projected.x, projected.y, projected.z, handedness])
+}
+
 fn reproject_vertex_tangents(
     normals: &[[f32; 3]],
     tangents: &[[f32; 4]],
@@ -10424,24 +10942,17 @@ fn reproject_vertex_tangents(
         .iter()
         .zip(tangents)
         .map(|(normal, tangent)| {
-            let normal = Vec3::from_array(*normal).try_normalize().unwrap_or(Vec3::Y);
-            let tangent_vector = Vec3::from_array([tangent[0], tangent[1], tangent[2]]);
-            let projected = tangent_vector - normal * normal.dot(tangent_vector);
-            let fallback_axis = if normal.x.abs() < 0.9 {
-                Vec3::X
-            } else {
-                Vec3::Y
-            };
-            let fallback = (fallback_axis - normal * normal.dot(fallback_axis))
-                .try_normalize()
-                .unwrap_or(Vec3::Z);
-            let projected = projected.try_normalize().unwrap_or(fallback);
+            if let Some(reprojected) = try_reproject_authored_tangent(*normal, *tangent) {
+                return Ok(reprojected);
+            }
+            let normal_vec = Vec3::from_array(*normal).try_normalize().unwrap_or(Vec3::Y);
+            let fallback = orthogonal_tangent_fallback(normal_vec);
             let handedness = if tangent[3].is_finite() && tangent[3] < 0.0 {
                 -1.0
             } else {
                 1.0
             };
-            Ok([projected.x, projected.y, projected.z, handedness])
+            Ok([fallback.x, fallback.y, fallback.z, handedness])
         })
         .collect()
 }
@@ -10457,10 +10968,26 @@ fn vertex_tangents(snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError
             snapshot.uvs.len()
         )));
     }
+    if !snapshot.tangents.is_empty() && snapshot.tangents.len() != snapshot.positions.len() {
+        return Err(RenderError::InvalidSnapshot(format!(
+            "{} positions have {} authored tangents",
+            snapshot.positions.len(),
+            snapshot.tangents.len()
+        )));
+    }
     if !snapshot.indices.len().is_multiple_of(3) {
         return Err(RenderError::InvalidSnapshot(
             "triangle index count is not divisible by three".to_owned(),
         ));
+    }
+    if !snapshot.tangents.is_empty()
+        && snapshot
+            .normals
+            .iter()
+            .zip(&snapshot.tangents)
+            .all(|(normal, tangent)| try_reproject_authored_tangent(*normal, *tangent).is_some())
+    {
+        return reproject_vertex_tangents(&snapshot.normals, &snapshot.tangents);
     }
     let mut accumulated_tangent = vec![Vec3::ZERO; snapshot.positions.len()];
     let mut accumulated_bitangent = vec![Vec3::ZERO; snapshot.positions.len()];
@@ -10509,17 +11036,17 @@ fn vertex_tangents(snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError
         .iter()
         .enumerate()
         .map(|(index, normal)| {
+            if let Some(authored) = snapshot
+                .tangents
+                .get(index)
+                .and_then(|tangent| try_reproject_authored_tangent(*normal, *tangent))
+            {
+                return authored;
+            }
             let normal = Vec3::from_array(*normal).try_normalize().unwrap_or(Vec3::Y);
             let projected =
                 accumulated_tangent[index] - normal * normal.dot(accumulated_tangent[index]);
-            let fallback_axis = if normal.x.abs() < 0.9 {
-                Vec3::X
-            } else {
-                Vec3::Y
-            };
-            let fallback = (fallback_axis - normal * normal.dot(fallback_axis))
-                .try_normalize()
-                .unwrap_or(Vec3::Z);
+            let fallback = orthogonal_tangent_fallback(normal);
             let tangent = projected.try_normalize().unwrap_or(fallback);
             let handedness = if normal.cross(tangent).dot(accumulated_bitangent[index]) < 0.0 {
                 -1.0
@@ -11797,6 +12324,7 @@ mod emission_bloom {
                     default_binding,
                     materials,
                     &self.opaque,
+                    None,
                     &self.blended,
                     None,
                     transparency.as_ref(),
@@ -12007,6 +12535,7 @@ mod material_transparency {
         let saved_camera = *camera;
         let mut snapshot = cdmw_mesh::DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: u64::MAX - 19,
             draw_revision: 1,
             topology_generation: 1,
@@ -12476,9 +13005,9 @@ mod tests {
     fn the_surface_shader_parses_and_validates() {
         // Runs without a GPU, so a WGSL mistake fails here instead of at first launch.
         // The template is checked as the renderer assembles it, with and without the
-        // GPU layer functions and the depth passes.
-        for (layers, depth) in [(true, true), (false, false)] {
-            let source = material_layers::assembled_shader(layers, depth);
+        // GPU layer functions, depth passes, and HDRI environment IBL.
+        for (layers, depth, ibl) in [(true, true, true), (true, true, false), (false, false, false)] {
+            let source = material_layers::assembled_shader_with_ibl(layers, depth, ibl);
             let module = wgpu::naga::front::wgsl::parse_str(&source).expect("WGSL parses");
             wgpu::naga::valid::Validator::new(wgpu::naga::valid::ValidationFlags::all(), wgpu::naga::valid::Capabilities::all())
                 .validate(&module).expect("WGSL validates");
@@ -13271,6 +13800,7 @@ mod tests {
     fn jiggle_region_colours_use_the_gpu_overlay_without_changing_geometry() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -13327,6 +13857,7 @@ mod tests {
     fn deformation_heatmap_uses_green_yellow_red_magnitude_scale() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -13488,6 +14019,7 @@ mod tests {
     fn material_batches_group_noncontiguous_triangles_without_losing_indices() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -13524,6 +14056,7 @@ mod tests {
     fn material_isolation_compacts_owned_triangles_and_preserves_the_owner() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 17,
             draw_revision: 4,
             topology_generation: 2,
@@ -14071,6 +14604,7 @@ mod tests {
     fn tangent_basis_is_derived_from_positions_and_texture_coordinates() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -14084,6 +14618,50 @@ mod tests {
         };
         let tangents = vertex_tangents(&snapshot).expect("tangent basis");
         assert_eq!(tangents, vec![[1.0, 0.0, 0.0, 1.0]; 3]);
+    }
+
+    #[test]
+    fn authored_snapshot_tangents_preserve_handedness_and_fall_back_for_zero_vertices() {
+        let mut authored = DrawSnapshot {
+            shader_masks: Vec::new(),
+            tangents: vec![
+                [0.0, 1.0, 0.2, -1.0],
+                [0.0, -1.0, 0.0, 1.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            mesh_identity: 1,
+            draw_revision: 1,
+            topology_generation: 1,
+            positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, 1.0]; 3],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            indices: vec![0, 1, 2],
+            triangle_materials: vec![0],
+            selected_vertices: Vec::new(),
+            fingerprint: String::new(),
+        };
+        let tangents = vertex_tangents(&authored).expect("hybrid authored + fallback");
+        // Vertex 0 preserves authored +Y reprojected onto Z-normal with -1.0 handedness.
+        assert_eq!(tangents[0], [0.0, 1.0, 0.0, -1.0]);
+        // Vertex 1 preserves authored -Y with +1.0 handedness.
+        assert_eq!(tangents[1], [0.0, -1.0, 0.0, 1.0]);
+        // Vertex 2 ([0,0,0,1]) falls back cleanly to UV-derived +X tangent.
+        assert_eq!(tangents[2], [1.0, 0.0, 0.0, 1.0]);
+
+        // Full authored fast path preserves all entries via reproject_vertex_tangents.
+        authored.tangents[2] = [0.0, 1.0, 0.0, -1.0];
+        let full_authored = vertex_tangents(&authored).expect("full authored");
+        assert_eq!(
+            full_authored,
+            vec![
+                [0.0, 1.0, 0.0, -1.0],
+                [0.0, -1.0, 0.0, 1.0],
+                [0.0, 1.0, 0.0, -1.0],
+            ]
+        );
+
+        authored.tangents.pop();
+        assert!(vertex_tangents(&authored).is_err());
     }
 
     #[test]
@@ -14101,6 +14679,7 @@ mod tests {
     fn normal_and_bounds_overlays_build_persistent_line_vertices() {
         let snapshot = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -14136,6 +14715,7 @@ mod tests {
             .collect::<Vec<_>>();
         let dense = DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 2,
             draw_revision: 1,
             topology_generation: 1,
@@ -14242,5 +14822,116 @@ mod tests {
         assert_eq!(coverage[1].pixel_count, 1);
         assert_eq!(coverage[1].frame_percent, 25.0);
         assert!(coverage[1].base_color_mean_luma_255 > coverage[1].textured_mean_luma_255);
+    }
+
+    #[test]
+    fn studio_look_settings_sanitizes_bounds_and_rotates_light() {
+        let clamped = StudioLookSettings {
+            wetness: 5.0,
+            exposure: 0.01,
+            env_rotation_degrees: 540.0,
+        }
+        .look_uniform();
+        assert_eq!(clamped[0], 1.0);
+        assert_eq!(clamped[1], 0.4);
+        assert!(clamped[2].abs() < 1e-5);
+        assert!((clamped[3] + 1.0).abs() < 1e-5);
+
+        let non_finite = StudioLookSettings {
+            wetness: f32::NAN,
+            exposure: f32::INFINITY,
+            env_rotation_degrees: f32::NEG_INFINITY,
+        }
+        .look_uniform();
+        assert_eq!(non_finite, StudioLookSettings::default().look_uniform());
+
+        let look_90 = StudioLookSettings {
+            env_rotation_degrees: 90.0,
+            ..Default::default()
+        };
+        let uniform = look_90.look_uniform();
+        assert!(uniform[0].abs() < 1e-6);
+        assert_eq!(uniform[1], 1.0);
+        assert!((uniform[2] - 1.0).abs() < 1e-5);
+        assert!(uniform[3].abs() < 1e-5);
+    }
+
+    #[test]
+    fn studio_agx_tone_preserves_midgray_calibration_and_smooth_rolloff() {
+        fn eval_agx_linear(rgb: [f32; 3], exposure: f32) -> [f32; 3] {
+            let srgb_to_linear = |c: f32| -> f32 {
+                let c = c.clamp(0.0, 1.0);
+                if c <= 0.04045 {
+                    c / 12.92
+                } else {
+                    ((c + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            let inset = [
+                [0.842479062253094, 0.0784335999999992, 0.0792237451477643],
+                [0.0423282422610123, 0.878468636469772, 0.0791661274605434],
+                [0.0423756549057051, 0.0784336, 0.879142973793104],
+            ];
+            let outset = [
+                [1.19687900512017, -0.0980208811401368, -0.0990297440797205],
+                [-0.0528968517574562, 1.15190312990417, -0.0989611768448433],
+                [-0.0529716355144438, -0.0980434501171241, 1.15107367264116],
+            ];
+            let exposed = [
+                rgb[0].max(0.0) * 0.85 * exposure,
+                rgb[1].max(0.0) * 0.85 * exposure,
+                rgb[2].max(0.0) * 0.85 * exposure,
+            ];
+            let mut val = [0.0_f32; 3];
+            for row in 0..3 {
+                let mut dot = 0.0;
+                for col in 0..3 {
+                    dot += inset[row][col] * exposed[col];
+                }
+                let x = ((dot.max(1e-10).log2() - (-12.47393)) / (4.026069 - (-12.47393)))
+                    .clamp(0.0, 1.0);
+                let x2 = x * x;
+                let x4 = x2 * x2;
+                val[row] = 15.5 * x4 * x2
+                    - 40.14 * x4 * x
+                    + 31.96 * x4
+                    - 6.868 * x2 * x
+                    + 0.4298 * x2
+                    + 0.1191 * x
+                    - 0.00232;
+            }
+            let mut out = [0.0_f32; 3];
+            for row in 0..3 {
+                let mut dot = 0.0;
+                for col in 0..3 {
+                    dot += outset[row][col] * val[col];
+                }
+                out[row] = srgb_to_linear(dot);
+            }
+            out
+        }
+
+        let dark = eval_agx_linear([0.01; 3], 1.0)[0];
+        let mid = eval_agx_linear([0.18; 3], 1.0)[0];
+        let bright = eval_agx_linear([4.0; 3], 1.0)[0];
+        let peak = eval_agx_linear([16.0; 3], 1.0)[0];
+        assert!(dark < 0.01 && dark > 0.004, "crisp shadow toe: {dark}");
+        assert!((mid - 0.18).abs() < 0.02, "midgray calibration: {mid}");
+        assert!(bright > 0.70 && bright < 0.92, "smooth highlight rolloff: {bright}");
+        assert!(peak > bright && peak < 1.0, "monotonic highlight saturation: {peak}");
+
+        // Bright saturated warm copper stays warm (R > G > B) without hue flip.
+        let copper = eval_agx_linear([6.0, 2.4, 0.8], 1.0);
+        assert!(copper[0] > copper[1] && copper[1] > copper[2], "copper hue order: {copper:?}");
+
+        let wgsl = include_str!("studio_lighting.wgsl");
+        assert!(wgsl.contains("fn fixed_studio_tone("));
+        assert!(wgsl.contains("0.85 * studio_exposure()"));
+        assert!(!wgsl.contains("la = 0.28"));
+
+        let source = material_layers::assembled_shader_with_ibl(true, true, true);
+        assert!(source.contains("fn studio_env_radiance("));
+        assert!(source.contains("fn studio_env_irradiance("));
+        assert!(SHADER.contains("fn fs_cutout("));
     }
 }

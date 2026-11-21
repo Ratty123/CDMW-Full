@@ -2,29 +2,56 @@
 
 from __future__ import annotations
 
-from cdmw.domain.mesh import (
-    MeshEditorRecoveryStatus,
-    MeshEditorSelectionSummary,
-    MeshEditorUiEvent,
-    MeshEditorUiEventKind,
-    MeshEditorUiState,
-    reduce_mesh_editor_ui_state,
-)
-from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
-from cdmw.ui.mesh_editor.actions import (
-    MESH_EDITOR_SESSION_ACTIONS,
-    NATIVE_EDITOR_SESSION_COMMANDS,
-    mesh_editor_action_authoring_blocker,
-    visible_actions_for_session,
-)
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
+    from cdmw.domain.mesh.ui_state import (
+        MeshEditorRecoveryStatus,
+        MeshEditorSelectionSummary,
+        MeshEditorUiEvent,
+        MeshEditorUiEventKind,
+        MeshEditorUiState,
+    )
+    from cdmw.domain.mesh.ui_state_reducer import reduce_mesh_editor_ui_state
 
 _UI_STATE_EVENT_LIMIT = 256
-_MUTATION_COMMANDS = NATIVE_EDITOR_SESSION_COMMANDS | {"undo", "redo"}
+_UI_STATE_DOMAIN_LOADED = False
+
+
+def _ensure_ui_state_domain() -> None:
+    global _UI_STATE_DOMAIN_LOADED
+    if _UI_STATE_DOMAIN_LOADED:
+        return
+    from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy as _MeshOutputPolicy
+    from cdmw.domain.mesh.ui_state import (
+        MeshEditorRecoveryStatus as _MeshEditorRecoveryStatus,
+        MeshEditorSelectionSummary as _MeshEditorSelectionSummary,
+        MeshEditorUiEvent as _MeshEditorUiEvent,
+        MeshEditorUiEventKind as _MeshEditorUiEventKind,
+        MeshEditorUiState as _MeshEditorUiState,
+    )
+    from cdmw.domain.mesh.ui_state_reducer import (
+        reduce_mesh_editor_ui_state as _reduce_mesh_editor_ui_state,
+    )
+
+    globals().update(
+        {
+            "MeshOutputPolicy": _MeshOutputPolicy,
+            "MeshEditorRecoveryStatus": _MeshEditorRecoveryStatus,
+            "MeshEditorSelectionSummary": _MeshEditorSelectionSummary,
+            "MeshEditorUiEvent": _MeshEditorUiEvent,
+            "MeshEditorUiEventKind": _MeshEditorUiEventKind,
+            "MeshEditorUiState": _MeshEditorUiState,
+            "reduce_mesh_editor_ui_state": _reduce_mesh_editor_ui_state,
+        }
+    )
+    _UI_STATE_DOMAIN_LOADED = True
 
 
 class MeshEditorUiStateMixin:
     def _initialize_mesh_editor_ui_state(self) -> None:
+        _ensure_ui_state_domain()
         self.mesh_editor_ui_state = MeshEditorUiState()
         self.mesh_editor_ui_state_events: list[MeshEditorUiEvent] = []
 
@@ -32,6 +59,7 @@ class MeshEditorUiStateMixin:
         self,
         event: MeshEditorUiEvent,
     ) -> MeshEditorUiState:
+        _ensure_ui_state_domain()
         previous = self.mesh_editor_ui_state
         current = reduce_mesh_editor_ui_state(previous, event, strict=False)
         if current is previous:
@@ -43,6 +71,7 @@ class MeshEditorUiStateMixin:
         return current
 
     def _close_mesh_editor_ui_state(self) -> MeshEditorUiState:
+        _ensure_ui_state_domain()
         return self._transition_mesh_editor_ui_state(MeshEditorUiEvent.session_closed())
 
     def _observe_mesh_editor_process_generation(
@@ -51,6 +80,7 @@ class MeshEditorUiStateMixin:
         *,
         renderer_capabilities: object = (),
     ) -> MeshEditorUiState:
+        _ensure_ui_state_domain()
         return self._transition_mesh_editor_ui_state(
             MeshEditorUiEvent(
                 MeshEditorUiEventKind.PROCESS_GENERATION_CHANGED,
@@ -68,6 +98,7 @@ class MeshEditorUiStateMixin:
         ok: bool = False,
         process_generation: int | None = None,
     ) -> MeshEditorUiState:
+        _ensure_ui_state_domain()
         generation = (
             int(process_generation)
             if process_generation is not None
@@ -85,6 +116,7 @@ class MeshEditorUiStateMixin:
         )
 
     def _refresh_mesh_editor_ui_state(self) -> MeshEditorUiState:
+        _ensure_ui_state_domain()
         generation = max(
             0,
             int(getattr(self, "standalone_dotnet_process_generation", 0) or 0),
@@ -137,6 +169,7 @@ class MeshEditorUiStateMixin:
         *,
         session_id: str,
     ) -> None:
+        _ensure_ui_state_domain()
         mesh_format = str(
             getattr(view, "mesh_format", "")
             or getattr(self, "_standalone_mesh_format")()
@@ -152,6 +185,14 @@ class MeshEditorUiStateMixin:
             )
         destination = str(getattr(view, "output_destination", "") or "")
         destination_ready = bool(getattr(view, "output_destination_ready", False))
+        from cdmw.ui.mesh_editor.actions import (
+            MESH_EDITOR_SESSION_ACTIONS,
+            NATIVE_EDITOR_SESSION_COMMANDS,
+            mesh_editor_action_authoring_blocker,
+            visible_actions_for_session,
+        )
+
+        mutation_commands = NATIVE_EDITOR_SESSION_COMMANDS | {"undo", "redo"}
         visible = visible_actions_for_session(
             mesh_format,
             lod_index,
@@ -164,7 +205,7 @@ class MeshEditorUiStateMixin:
         eligible: set[str] = set()
         mutation: set[str] = set()
         for action in MESH_EDITOR_SESSION_ACTIONS:
-            if action.command in _MUTATION_COMMANDS:
+            if action.command in mutation_commands:
                 mutation.add(action.key)
             blocker = mesh_editor_action_authoring_blocker(
                 action.key,
@@ -231,6 +272,7 @@ class MeshEditorUiStateMixin:
         session_id: str,
         generation: int,
     ) -> None:
+        _ensure_ui_state_domain()
         renderer_session_id = str(
             getattr(self, "standalone_dotnet_lifecycle_session_id", "") or ""
         )
@@ -300,6 +342,7 @@ class MeshEditorUiStateMixin:
 
 
 def _selection_summary(selection: object) -> MeshEditorSelectionSummary:
+    _ensure_ui_state_domain()
     return MeshEditorSelectionSummary(
         vertex_count=_nested_count(getattr(selection, "vertices_by_submesh", ())),
         edge_count=_nested_count(getattr(selection, "edges_by_submesh", ())),

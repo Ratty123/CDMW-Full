@@ -6,8 +6,6 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import QFileDialog, QProgressDialog
 
-from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
-from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
@@ -51,9 +49,13 @@ class MeshEditorOutputPolicyMixin:
             return False
         parent_path = Path(parent).resolve()
         self.settings.setValue("mesh_editor/last_free_edit_output_parent", str(parent_path))
+        from cdmw.services.archive_extraction_service import find_available_output_path
+
         label = Path(str(getattr(self, "standalone_mesh_label", "") or "mesh")).stem or "mesh"
         destination = find_available_output_path(parent_path / f"{label}-free-edit")
         try:
+            from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
+
             view = controller.configure_output_policy(
                 MeshOutputPolicy.FREE_EDIT,
                 output_destination=destination,
@@ -106,6 +108,8 @@ class MeshEditorOutputPolicyMixin:
                 message="Wait for the current Mesh Editor task to finish.",
             )
             return False
+        from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
+
         view = controller.session_view()
         if (
             view.output_policy != MeshOutputPolicy.FREE_EDIT.value

@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from functools import wraps
 from pathlib import Path, PurePosixPath
@@ -214,6 +215,7 @@ def validate_preview_files(
 
     verified = {}
     real_dirs: set[Path] = set()
+    pending_hashes: list[tuple[Path, str]] = []
 
     def visit(value):
         if isinstance(value, list):
@@ -246,13 +248,7 @@ def validate_preview_files(
                     if known != digest:
                         raise ValueError("preview resource SHA-256 does not match")
                 elif hash_unverified:
-                    verified_at_ns = time.time_ns()
-                    with candidate.open("rb") as stream:
-                        before = os.fstat(stream.fileno())
-                        actual = hashlib.file_digest(stream, "sha256").hexdigest().upper()
-                    if actual != digest:
-                        raise ValueError("preview resource SHA-256 does not match")
-                    remember_verified_preview_file(before, actual, verified_at_ns, path=candidate)
+                    pending_hashes.append((candidate, digest))
                 verified[candidate] = identity
                 if value.get("content_type") == "application/json" and hash_unverified:
                     # Geometry/channels JSON may contain additional references.
@@ -268,6 +264,24 @@ def validate_preview_files(
                     visit(item)
 
     visit(payload)
+    if pending_hashes:
+        def _verify_one(item: tuple[Path, str]) -> None:
+            candidate, digest = item
+            verified_at_ns = time.time_ns()
+            with candidate.open("rb") as stream:
+                before = os.fstat(stream.fileno())
+                actual = hashlib.file_digest(stream, "sha256").hexdigest().upper()
+            if actual != digest:
+                raise ValueError("preview resource SHA-256 does not match")
+            remember_verified_preview_file(before, actual, verified_at_ns, path=candidate)
+
+        if len(pending_hashes) == 1:
+            _verify_one(pending_hashes[0])
+        else:
+            with ThreadPoolExecutor(max_workers=min(4, len(pending_hashes)), thread_name_prefix="cdmw-verify") as pool:
+                futures = [pool.submit(_verify_one, item) for item in pending_hashes]
+                for future in futures:
+                    future.result()
     if checked_dirs is not None:
         checked_dirs.add(root)
         checked_dirs.update(real_dirs)

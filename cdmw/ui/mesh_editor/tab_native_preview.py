@@ -4,13 +4,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QProcess
 
-from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
-
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
 class MeshEditorNativePreviewMixin:
     def write_standalone_native_preview_package(self, output_root: Path | None = None) -> Path:
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+
         controller = self.standalone_controller
         if controller is None:
             raise RuntimeError("Mesh Editor has no standalone edit session.")

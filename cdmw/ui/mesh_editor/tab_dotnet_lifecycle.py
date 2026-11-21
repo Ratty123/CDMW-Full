@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
-
 import json
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
@@ -12,11 +10,13 @@ from cdmw.services.mesh_edit_session_state import MeshEditSessionState
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
-from cdmw.ui.mesh_editor.controller import controller_session_revision
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
     MeshEditorDotNetSessionEventMixin,
 )
+
+if TYPE_CHECKING:
+    from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
 
 
 def _host_widget_hwnd(host_widget: object | None) -> int:
@@ -437,6 +437,8 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
         revision = None
         if controller is not None:
             try:
+                from cdmw.ui.mesh_editor.controller import controller_session_revision
+
                 revision = controller_session_revision(controller)
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 revision = None

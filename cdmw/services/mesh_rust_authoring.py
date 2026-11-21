@@ -2425,19 +2425,46 @@ def _mesh_document_payload(mesh: ParsedMesh, *, allow_preview_formats: bool = Fa
     return document
 
 
-def _mesh_channel_payload(mesh: ParsedMesh, *, geometry_path: str = "document.json") -> dict[str, object]:
-    """Encode channels that are not already authoritative in the geometry document.
+def _channel_retained_summary(values: object) -> dict[str, object]:
+    try:
+        count = len(values) if values is not None else 0  # type: ignore[arg-type]
+    except TypeError:
+        count = 0
+    return {"retained_in_host": True, "count": int(count)}
 
-    Positions, normals, UV0, and triangle indices used to be emitted a second
-    time here even though the Rust renderer loads them from the geometry document.
-    Keep the PAC-only authoring/provenance channels and point explicitly at the
-    matching document row instead, which materially shortens every launch.
+
+def _topology_provenance_summary(provenance: object) -> dict[str, object] | None:
+    if provenance is None:
+        return None
+    version = str(
+        getattr(provenance, "version", "")
+        or (provenance.get("version", "") if isinstance(provenance, Mapping) else "")
+        or ""
+    )
+    return {"retained_in_host": True, "version": version}
+
+
+def _mesh_channel_payload(mesh: ParsedMesh, *, geometry_path: str = "document.json") -> dict[str, object]:
+    """Encode compact per-submesh channel provenance without duplicating per-vertex arrays.
+
+    The Rust renderer loads positions, normals, UV0, and triangle indices from
+    ``document.bin`` and validates ``channels.json`` as a lightweight manifest
+    envelope while CDMW's authoritative/shadow ``MeshService`` retains all
+    exact per-vertex channels (tangents, UV1, skinning, source maps, and
+    topology provenance) in memory. Summarizing those host-retained channels by
+    count avoids serializing and re-parsing tens of megabytes of unused JSON on
+    every session open.
     """
 
     lods: list[dict[str, object]] = []
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
         items: list[dict[str, object]] = []
         for submesh_index, submesh in enumerate(submeshes):
+            uv1 = getattr(submesh, "uv1", None)
+            if uv1 is None:
+                uv1 = getattr(submesh, "uvs1", None)
+            if uv1 is None:
+                uv1 = getattr(submesh, "secondary_uvs", None)
             items.append(
                 {
                     "submesh_index": submesh_index,
@@ -2448,28 +2475,25 @@ def _mesh_channel_payload(mesh: ParsedMesh, *, geometry_path: str = "document.js
                         "lod_index": lod_index,
                         "submesh_index": submesh_index,
                     },
-                    "tangents": tuple(getattr(submesh, "tangents", ()) or ()),
-                    "uv1": tuple(
-                        getattr(submesh, "uv1", ())
-                        or getattr(submesh, "uvs1", ())
-                        or getattr(submesh, "secondary_uvs", ())
-                        or ()
-                    ),
-                    "bone_indices": tuple(getattr(submesh, "bone_indices", ()) or ()),
-                    "bone_weights": tuple(getattr(submesh, "bone_weights", ()) or ()),
-                    "source_vertex_map": tuple(getattr(submesh, "source_vertex_map", ()) or ()),
-                    "source_vertex_offsets": tuple(getattr(submesh, "source_vertex_offsets", ()) or ()),
+                    "tangents": _channel_retained_summary(getattr(submesh, "tangents", None)),
+                    "uv1": _channel_retained_summary(uv1),
+                    "bone_indices": _channel_retained_summary(getattr(submesh, "bone_indices", None)),
+                    "bone_weights": _channel_retained_summary(getattr(submesh, "bone_weights", None)),
+                    "source_vertex_map": _channel_retained_summary(getattr(submesh, "source_vertex_map", None)),
+                    "source_vertex_offsets": _channel_retained_summary(getattr(submesh, "source_vertex_offsets", None)),
                     "source_index_offset": int(
                         -1
                         if getattr(submesh, "source_index_offset", None) is None
                         else getattr(submesh, "source_index_offset")
                     ),
                     "source_index_count": int(getattr(submesh, "source_index_count", 0) or 0),
-                    "source_face_map": tuple(getattr(submesh, "source_face_map", ()) or ()),
+                    "source_face_map": _channel_retained_summary(getattr(submesh, "source_face_map", None)),
                     "source_vertex_map_authority": str(
                         getattr(submesh, "source_vertex_map_authority", "") or ""
                     ),
-                    "topology_provenance": getattr(submesh, "topology_provenance", None),
+                    "topology_provenance": _topology_provenance_summary(
+                        getattr(submesh, "topology_provenance", None)
+                    ),
                 }
             )
         lods.append({"lod_index": lod_index, "submeshes": items})
@@ -7692,6 +7716,15 @@ def _capture_shadow_session_seed(authoritative_service: MeshService, authoritati
         )
         shadow_mesh._cdmw_edit_operations = tuple(copy.deepcopy(authoritative_session.edit_operations))
         shadow_mesh._cdmw_requires_edit_operations = bool(authoritative_session.requires_edit_operations)
+        if isinstance(authoritative_session.no_op_roundtrip_report, Mapping):
+            setattr(
+                shadow_mesh,
+                "_cdmw_no_op_roundtrip_report",
+                dict(authoritative_session.no_op_roundtrip_report),
+            )
+            setattr(shadow_mesh, "_cdmw_no_op_roundtrip_deferred", False)
+        elif getattr(authoritative_session.base_mesh, "_cdmw_no_op_roundtrip_deferred", False):
+            setattr(shadow_mesh, "_cdmw_no_op_roundtrip_deferred", True)
         geometry_layer_seed = _geometry_layer_seed(authoritative_session)
         geometry_layer_seed["archive_refit_context"] = authoritative_session.archive_refit_context
         rigging_seed = _rigging_seed(authoritative_session)
@@ -8075,13 +8108,40 @@ class RustMeshAuthoringSession:
             )
 
             set_aside = set_aside_preview_core_sources(shadow_mesh)
+            authoritative_base = authoritative_session.base_mesh
+            shadow_parts = tuple(shadow_mesh.submeshes or ())
+            base_parts = tuple(authoritative_base.submeshes or ())
+            can_share_base = (
+                materials_after_open
+                and not set_aside
+                and authoritative_session.revision == 0
+                and not authoritative_session.edit_operations
+                and not authoritative_session.undo_stack
+                and not authoritative_session.mesh_layer_loaded_generation
+                and authoritative_base is not shadow_mesh
+                and len(base_parts) == len(shadow_parts)
+                and int(getattr(authoritative_base, "active_lod_index", 0) or 0)
+                == int(getattr(shadow_mesh, "active_lod_index", 0) or 0)
+                and bool(getattr(authoritative_base, "lod_levels", None))
+                == bool(getattr(shadow_mesh, "lod_levels", None))
+                and all(
+                    len(tuple(base_part.vertices or ())) == len(tuple(shadow_part.vertices or ()))
+                    and len(tuple(base_part.faces or ())) == len(tuple(shadow_part.faces or ()))
+                    for base_part, shadow_part in zip(base_parts, shadow_parts)
+                )
+            )
             try:
+                open_kwargs: dict[str, object] = {
+                    "session_id": f"{session_id}:shadow",
+                    "mode": authoritative_view.mode,
+                    "load_layer_project": False,
+                    "adopt_owned_mesh": True,
+                }
+                if can_share_base:
+                    open_kwargs["shared_base_mesh"] = authoritative_base
                 shadow_view = shadow_service.open_edit_session(
                     shadow_mesh,
-                    session_id=f"{session_id}:shadow",
-                    mode=authoritative_view.mode,
-                    load_layer_project=False,
-                    adopt_owned_mesh=True,
+                    **open_kwargs,
                 )
             finally:
                 restore_preview_core_sources(set_aside)

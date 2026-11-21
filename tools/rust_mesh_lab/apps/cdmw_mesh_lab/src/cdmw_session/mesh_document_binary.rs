@@ -290,6 +290,7 @@ pub(super) fn decode(bytes: &[u8], expected_count: u64) -> Result<MeshDocument, 
                 indices: part.indices.indices(payload)?,
                 source_vertex_indices: part.source_vertex_indices.sources(payload)?,
                 shader_masks: part.shader_masks.floats(payload)?,
+                tangents: Vec::new(),
                 source_range: SourceRange {
                     offset: part.source_range.offset,
                     length: part.source_range.length,
@@ -355,6 +356,7 @@ pub(super) fn encode_test_document(document: &MeshDocument) -> Vec<u8> {
                 part[name] = json!({"dtype": dtype, "components": components, "count": count,
                     "offset": offset, "byte_length": payload.len() - offset});
             }
+            part.as_object_mut().unwrap().remove("tangents");
         }
     }
     let parsed: Metadata = serde_json::from_value(metadata.clone()).unwrap();

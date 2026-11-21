@@ -2,14 +2,42 @@
 
 from __future__ import annotations
 
-from cdmw.domain.mesh.panel_state import (
-    MeshPanelKind,
-    MeshPanelSnapshot,
-    MeshPanelStatus,
-    MeshPanelUnavailableError,
-)
+from typing import TYPE_CHECKING
+
 from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+
+if TYPE_CHECKING:
+    from cdmw.domain.mesh.panel_state import (
+        MeshPanelKind,
+        MeshPanelSnapshot,
+        MeshPanelStatus,
+        MeshPanelUnavailableError,
+    )
+
+_PANEL_STATE_DOMAIN_LOADED = False
+
+
+def _ensure_panel_state_domain() -> None:
+    global _PANEL_STATE_DOMAIN_LOADED
+    if _PANEL_STATE_DOMAIN_LOADED:
+        return
+    from cdmw.domain.mesh.panel_state import (
+        MeshPanelKind as _MeshPanelKind,
+        MeshPanelSnapshot as _MeshPanelSnapshot,
+        MeshPanelStatus as _MeshPanelStatus,
+        MeshPanelUnavailableError as _MeshPanelUnavailableError,
+    )
+
+    globals().update(
+        {
+            "MeshPanelKind": _MeshPanelKind,
+            "MeshPanelSnapshot": _MeshPanelSnapshot,
+            "MeshPanelStatus": _MeshPanelStatus,
+            "MeshPanelUnavailableError": _MeshPanelUnavailableError,
+        }
+    )
+    _PANEL_STATE_DOMAIN_LOADED = True
 
 
 def _expected_panel_unavailability_message(error: MeshPanelUnavailableError) -> str:
@@ -36,6 +64,7 @@ def _expected_panel_unavailability_message(error: MeshPanelUnavailableError) -> 
 
 class MeshEditorPanelStateMixin:
     def _reset_standalone_panel_snapshots(self) -> None:
+        _ensure_panel_state_domain()
         panel_resets = (
             ("standalone_workspace_panel_state", "update_workspace_panel_state"),
             ("standalone_uv_panel_state", "update_uv_panel_state"),
@@ -154,6 +183,7 @@ class MeshEditorPanelStateMixin:
         )
 
     def _refresh_standalone_workspace_summary(self, view: _tab.MeshEditSessionView | None) -> None:
+        _ensure_panel_state_domain()
         self._refresh_standalone_summary_panel(
             view,
             panel_name=MeshPanelKind.WORKSPACE,
@@ -164,6 +194,7 @@ class MeshEditorPanelStateMixin:
         )
 
     def _refresh_standalone_uv_summary(self, view: _tab.MeshEditSessionView | None) -> None:
+        _ensure_panel_state_domain()
         self._refresh_standalone_summary_panel(
             view,
             panel_name=MeshPanelKind.UV,
@@ -174,6 +205,7 @@ class MeshEditorPanelStateMixin:
         )
 
     def _refresh_standalone_skeleton_summary(self, view: _tab.MeshEditSessionView | None) -> None:
+        _ensure_panel_state_domain()
         self._refresh_standalone_summary_panel(
             view,
             panel_name=MeshPanelKind.SKELETON,
@@ -184,6 +216,7 @@ class MeshEditorPanelStateMixin:
         )
 
     def _refresh_standalone_compare_summary(self, view: _tab.MeshEditSessionView | None) -> None:
+        _ensure_panel_state_domain()
         self._refresh_standalone_summary_panel(
             view,
             panel_name=MeshPanelKind.COMPARE,
@@ -194,6 +227,7 @@ class MeshEditorPanelStateMixin:
         )
 
     def _standalone_panel_state(self, state_name: str) -> MeshPanelSnapshot[object]:
+        _ensure_panel_state_domain()
         state = getattr(self, state_name, None)
         return state if isinstance(state, MeshPanelSnapshot) else MeshPanelSnapshot.unavailable()
 
@@ -354,6 +388,7 @@ class MeshEditorPanelStateMixin:
         include_derived: bool = True,
         session_view: _tab.MeshEditSessionView | None = None,
     ) -> None:
+        _ensure_panel_state_domain()
         workspace = self.embedded_workspace
         if workspace is None:
             return
@@ -477,6 +512,7 @@ class MeshEditorPanelStateMixin:
         state_updater_name: str,
         legacy_updater_name: str,
     ) -> None:
+        _ensure_panel_state_domain()
         state = getattr(workspace, state_name, MeshPanelSnapshot.unavailable())
         if not isinstance(state, MeshPanelSnapshot):
             state = MeshPanelSnapshot.unavailable()

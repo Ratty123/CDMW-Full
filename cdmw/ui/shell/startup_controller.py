@@ -196,9 +196,16 @@ class StartupPromptMixin:
             except Exception:
                 pass
 
-    def _startup_archive_first_paint_needed(self) -> bool:
+    def _archive_catalogue_loaded_for_first_paint(self) -> bool:
         return bool(
             getattr(self.archive, "archive_entries", None)
+            or getattr(self.archive, "archive_browser_preload_state", "") == "ready"
+            or getattr(getattr(self.archive, "archive_remote_bridge", None), "current_session", None) is not None
+        )
+
+    def _startup_archive_first_paint_needed(self) -> bool:
+        return bool(
+            self._archive_catalogue_loaded_for_first_paint()
             and self._is_tool_visible_or_current(self.archive_browser_tab)
             and not self.archive.archive_browser_first_visible_paint_done
         )
@@ -234,6 +241,7 @@ class StartupPromptMixin:
         self._finish_startup_splash_now()
 
     def _finish_startup_splash_and_show_main_window(self) -> None:
+        was_visible = self.isVisible()
         self._update_startup_splash("Opening workspace...", 1, 1)
         self._show_main_window_after_startup_splash()
         self._startup_splash_holds_main_window = False
@@ -241,8 +249,9 @@ class StartupPromptMixin:
             time.monotonic() + _ARCHIVE_FIRST_PAINT_FALLBACK_SECONDS
         )
         if (
-            getattr(self.archive, "archive_entries", None)
+            self._archive_catalogue_loaded_for_first_paint()
             and self._is_tool_visible_or_current(self.archive_browser_tab)
+            and (not was_visible or not self.archive.archive_browser_first_visible_paint_done)
         ):
             self.archive.archive_browser_first_visible_paint_done = False
             self.archive.archive_browser_first_visible_started_at = time.perf_counter()

@@ -14,6 +14,41 @@ static Vec3 decode_pac_normal(const std::vector<char>& data, size_t rec_off, int
     return Vec3{nx, ny, nz};
 }
 
+struct PacTangentFrame {
+    Vec3 tangent{};
+    Vec3 bitangent{};
+};
+
+static PacTangentFrame decode_pac_tangent_frame(
+    const std::vector<char>& data,
+    size_t rec_off,
+    int normal_offset,
+    const Vec3& normal
+) {
+    if (normal_offset < 0 || rec_off + 8 > data.size() || rec_off + static_cast<size_t>(normal_offset) + 4 > data.size()) {
+        return PacTangentFrame{};
+    }
+    const std::int16_t lane = static_cast<std::int16_t>(read_u16(data, rec_off + 6));
+    const std::uint32_t packed = read_u32(data, rec_off + static_cast<size_t>(normal_offset));
+    const float lane_abs = std::abs(static_cast<float>(lane) / 32767.0f);
+    const float bx = std::min(1.0f, std::max(-1.0f, lane_abs * 2.0f - 1.0f));
+    const float by = static_cast<float>(packed & 0x3FFu) / 511.5f - 1.0f;
+    float bz = std::sqrt(std::max(0.0f, 1.0f - bx * bx - by * by));
+    if (lane < 0) bz = -bz;
+    const Vec3 n = vec_normalize(normal, Vec3{0.0f, 1.0f, 0.0f});
+    const Vec3 raw_b{bx, by, bz};
+    const Vec3 b = vec_normalize(vec_sub(raw_b, vec_mul(n, vec_dot(raw_b, n))), Vec3{});
+    if (vec_dot(b, b) <= 1.0e-8f) {
+        return PacTangentFrame{};
+    }
+    const float sign = (packed & 0x80000000u) ? -1.0f : 1.0f;
+    const Vec3 t = vec_normalize(vec_mul(vec_cross(b, n), sign), Vec3{});
+    if (vec_dot(t, t) <= 1.0e-8f) {
+        return PacTangentFrame{};
+    }
+    return PacTangentFrame{t, b};
+}
+
 struct PacVertexLayout {
     std::string name;
     int stride = 40;
@@ -285,9 +320,14 @@ static NativeSubmesh decode_pac_submesh_vertices(
     mesh.vertex_stride = layout.stride;
     mesh.uv_offset = layout.uv_offset;
     mesh.normal_offset = layout.normal_offset;
+    const bool has_pac40_tangents = (layout.stride == 40 && layout.uv_offset == 8 && layout.normal_offset == 16);
     mesh.positions.reserve(vertex_count);
     mesh.uvs.reserve(vertex_count);
     mesh.normals.reserve(vertex_count);
+    if (has_pac40_tangents) {
+        mesh.tangents.reserve(vertex_count);
+        mesh.bitangents.reserve(vertex_count);
+    }
     for (std::uint32_t vi = 0; vi < vertex_count; ++vi) {
         const size_t rec_off = static_cast<size_t>(geom_sec.offset) + static_cast<size_t>(vertex_start) + static_cast<size_t>(vi) * static_cast<size_t>(layout.stride);
         if (rec_off + static_cast<size_t>(layout.stride) > data.size()) break;
@@ -300,7 +340,7 @@ static NativeSubmesh decode_pac_submesh_vertices(
             decode_pac_position(zu, desc.bbox_min.z, desc.bbox_extent.z),
         });
         mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(vi));
-        if (layout.stride == 40 && layout.uv_offset == 8 && layout.normal_offset == 16) {
+        if (has_pac40_tangents) {
             mesh.pac_cloth_blends.push_back(static_cast<unsigned char>(data[rec_off + 39]) & 63u);
         }
         float u = 0.0f;
@@ -310,7 +350,13 @@ static NativeSubmesh decode_pac_submesh_vertices(
             v = half_to_float(read_u16(data, rec_off + static_cast<size_t>(layout.uv_offset + 2)));
         }
         mesh.uvs.push_back(Vec2{std::isfinite(u) ? u : 0.0f, std::isfinite(v) ? v : 0.0f});
-        mesh.normals.push_back(decode_pac_normal(data, rec_off, layout.normal_offset));
+        const Vec3 normal = decode_pac_normal(data, rec_off, layout.normal_offset);
+        mesh.normals.push_back(normal);
+        if (has_pac40_tangents) {
+            const PacTangentFrame frame = decode_pac_tangent_frame(data, rec_off, layout.normal_offset, normal);
+            mesh.tangents.push_back(frame.tangent);
+            mesh.bitangents.push_back(frame.bitangent);
+        }
     }
     for (size_t i = 0; i + 2 < indices.size(); i += 3) {
         const std::uint32_t a = indices[i];
