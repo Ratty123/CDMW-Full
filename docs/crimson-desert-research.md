@@ -853,6 +853,17 @@ Surviving skin/cloth and tangent/handedness bits, source bounds and the input ZI
 were preserved. This is source/native, headless and supplied-asset export evidence;
 packaged visible UI, animation and in-game behavior remain unverified.
 
+Viewport tangents (reviewed 2026-11-21): Browse previews and the Mesh Editor now
+light 40-byte PAC vertices with the stored tangent frame instead of a UV-derived
+one. The decode reads the signed 16-bit lane at record offset 6 and bits 0-9 of the
+packed normal at offset 16 as the bitangent, and bit 31 as handedness, giving
+`T = sign * (B x N)`. This matches the stored-vector model in
+`tools/pac_midpoint_derivation_study.py` (`stored = normalise(cross(normal, tangent) * handedness)`).
+Other layouts, edited vertices whose UVs change, and generated geometry keep
+UV-derived tangents. This is source and synthetic-fixture evidence only; whether
+normal maps now match the game on mirrored or seamed parts has not been checked
+in game.
+
 Free Edit is a separate non-exact interchange output. Its new OBJ-based package
 does not confer unrestricted PAC/PAM/PAMLOD writeback. Importing geometry from
 OBJ, glTF/GLB, DAE or the configured Blender FBX route also does not establish
