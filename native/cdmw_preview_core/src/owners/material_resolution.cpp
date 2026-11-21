@@ -188,6 +188,9 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
     }
     std::ifstream in(native_file_path(utf8_path(path)), std::ios::binary);
     if (!in) return stats;
+    in.seekg(0, std::ios::end);
+    const std::streamoff file_size = in.tellg();
+    if (file_size <= 128) return stats;
     in.seekg(128, std::ios::beg);
     const size_t block_stride = bc3 ? 16u : 8u;
     const size_t colour_offset = bc3 ? 8u : 0u;
@@ -195,7 +198,8 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
     const size_t blocks_high = static_cast<size_t>((header.height + 3) / 4);
     const size_t block_count = blocks_wide * blocks_high;
     if (block_count == 0) return stats;
-    const size_t mip0_bytes = block_count * block_stride;
+    // Read no more than the file holds: a header can claim any size.
+    const size_t mip0_bytes = std::min(block_count * block_stride, static_cast<size_t>(file_size - 128));
     std::vector<unsigned char> mip0(mip0_bytes, 0);
     in.read(reinterpret_cast<char*>(mip0.data()), static_cast<std::streamsize>(mip0_bytes));
     const size_t available_blocks = static_cast<size_t>(std::max<std::streamsize>(0, in.gcount())) / block_stride;

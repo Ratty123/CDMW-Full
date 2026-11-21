@@ -1140,7 +1140,36 @@ static void run_batch_shader_family_owner_contract_self_test() {
         "an empty batch found a shader binding");
 }
 
+// A DDS header can claim any size; the channel statistics read only what the file holds.
+static void run_dds_channel_statistics_bound_self_test() {
+    const fs::path path = fs::temp_directory_path() / "cdmw_preview_core_self_test_huge_header.dds";
+    {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        std::string header(128, static_cast<char>(0));
+        header.replace(0, 4, "DDS ");
+        auto put_u32 = [&](size_t offset, std::uint32_t value) {
+            for (int i = 0; i < 4; ++i) header[offset + i] = static_cast<char>((value >> (8 * i)) & 0xFF);
+        };
+        put_u32(4, 124);
+        put_u32(12, 65535);  // height
+        put_u32(16, 65535);  // width: about 2 GiB of BC1 blocks
+        put_u32(76, 32);
+        put_u32(80, 4);
+        header.replace(84, 4, "DXT1");
+        out.write(header.data(), static_cast<std::streamsize>(header.size()));
+        const unsigned char block[8] = {0x00, 0xF8, 0x00, 0xF8, 0, 0, 0, 0};  // one red block
+        out.write(reinterpret_cast<const char*>(block), sizeof(block));
+    }
+    const DdsChannelStatistics stats = inspect_dds_channel_statistics(path.string());
+    std::error_code ignored;
+    fs::remove(path, ignored);
+    if (!stats.valid || stats.mean_red < 0.9f) {
+        throw std::runtime_error("DDS channel statistics did not read a truncated DDS within its file size");
+    }
+}
+
 static void run_material_contract_self_test() {
+    run_dds_channel_statistics_bound_self_test();
     run_material_text_scan_self_test();
     run_tiled_exact_uv_self_test();
     run_item_set_components_self_test();
