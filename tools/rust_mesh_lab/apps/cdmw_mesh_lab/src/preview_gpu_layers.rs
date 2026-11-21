@@ -587,6 +587,8 @@ fn build(
     Ok(result)
 }
 
+// Owned-bytes form of `prepare_arc`, kept for the tests; the app passes shared bytes.
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn prepare<F>(
     graph: &PreviewCoreMaterialGraph,
