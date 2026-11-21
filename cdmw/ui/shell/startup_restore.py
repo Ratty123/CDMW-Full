@@ -2,10 +2,30 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+import sys
+import threading
 from typing import Callable
 
 from PySide6.QtCore import QTimer
+
+
+# Strictly Qt-free heavy authoring/mesh modules warmed on an idle daemon thread
+# after the main window is shown so first-visit latency stays low without
+# paying their import cost during startup. Never add QObject/QWidget modules.
+_IDLE_PREIMPORT_MODULES: tuple[str, ...] = (
+    "numpy",
+    "cdmw.domain.mesh.validation",
+    "cdmw.services.mesh_service",
+    "cdmw.modding.scene_importer",
+    "cdmw.core.archive_mesh_import_build",
+    "cdmw.services.replace_from_archive_service",
+    "cdmw.services.hkx_edit_service",
+    "cdmw.services.mesh_workflow_service",
+    "cdmw.services.preview_rendering_service",
+    "cdmw.services.preview_workflow_service",
+)
 
 
 class ShellStartupRestoreMixin:
@@ -94,6 +114,73 @@ class ShellStartupRestoreMixin:
         if os.environ.get("CDMW_GUI_STARTUP_SMOKE") != "1":
             QTimer.singleShot(120, self._show_first_run_guide_if_needed)
             QTimer.singleShot(900, self._maybe_autoload_archive_on_startup)
+            self._idle_preimport_stop_event = threading.Event()
+            self._idle_preimport_thread = None
+            self._idle_preimport_attempts = 0
+            QTimer.singleShot(1800, self._maybe_start_idle_module_preimport)
+
+    def _stop_idle_module_preimport(self) -> None:
+        stop_event = getattr(self, "_idle_preimport_stop_event", None)
+        if stop_event is not None:
+            stop_event.set()
+
+    def _maybe_start_idle_module_preimport(self) -> None:
+        if getattr(self, "_shutting_down", False):
+            return
+        stop_event = getattr(self, "_idle_preimport_stop_event", None)
+        if stop_event is None or stop_event.is_set():
+            return
+        if getattr(self, "_idle_preimport_thread", None) is not None:
+            return
+        if not self.isVisible():
+            attempts = int(getattr(self, "_idle_preimport_attempts", 0) or 0) + 1
+            self._idle_preimport_attempts = attempts
+            if attempts <= 10:
+                QTimer.singleShot(1000, self._maybe_start_idle_module_preimport)
+            return
+        self._start_idle_module_preimport()
+
+    def _start_idle_module_preimport(
+        self,
+        modules: tuple[str, ...] = _IDLE_PREIMPORT_MODULES,
+    ) -> threading.Thread | None:
+        if getattr(self, "_shutting_down", False):
+            return None
+        stop_event = getattr(self, "_idle_preimport_stop_event", None)
+        if stop_event is None:
+            stop_event = threading.Event()
+            self._idle_preimport_stop_event = stop_event
+        if stop_event.is_set():
+            return None
+        archive = getattr(self, "archive", None)
+        is_interactive = getattr(archive, "_archive_ui_interactive_active", None)
+
+        def _preimport_worker() -> None:
+            for module_name in modules:
+                if stop_event.is_set():
+                    return
+                if module_name in sys.modules:
+                    continue
+                while callable(is_interactive) and is_interactive():
+                    if stop_event.wait(0.25):
+                        return
+                try:
+                    importlib.import_module(module_name)
+                except Exception:
+                    # Optional pre-warm must never surface errors; callers remain
+                    # authoritative for any real import failure on demand.
+                    pass
+                if stop_event.wait(0.05):
+                    return
+
+        thread = threading.Thread(
+            target=_preimport_worker,
+            name="cdmw-idle-module-preimport",
+            daemon=True,
+        )
+        self._idle_preimport_thread = thread
+        thread.start()
+        return thread
 
 
 __all__ = ["ShellStartupRestoreMixin"]

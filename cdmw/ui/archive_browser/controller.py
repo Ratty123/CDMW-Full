@@ -397,6 +397,38 @@ class ArchiveBrowserRowPayloadMixin:
     def _archive_ui_interactive_active(self) -> bool:
         return time.perf_counter() < float(getattr(self, "archive_ui_activity_until", 0.0) or 0.0)
 
+    def _archive_finder_warmup_allowed(self) -> bool:
+        """Allow Finder catalog warmup once the archive session is published and the UI is idle."""
+        if self.shell._shutting_down or getattr(self, "archive_browser_preload_state", "") != "ready":
+            return False
+        if getattr(self, "archive_remote_query_pending", False):
+            return False
+        if (
+            self._archive_ui_interactive_active()
+            or getattr(self, "archive_extension_picker_dialog", None) is not None
+            or bool(self.__dict__.get("_archive_foreground_holders"))
+        ):
+            return False
+        if self._archive_browser_background_work_allowed():
+            return True
+        archive_tab_active = self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
+        if archive_tab_active:
+            # Self-heal when the catalogue finished before the main window became
+            # visible (so the first-paint marker was skipped on publication).
+            if self.isVisible() and not getattr(self, "archive_browser_first_visible_paint_done", False):
+                schedule_paint = getattr(self, "_schedule_archive_browser_first_visible_paint_marker", None)
+                if callable(schedule_paint):
+                    schedule_paint()
+            return False
+        # When another tab is active, Archive Browser is hidden and will not paint
+        # until visited; let Finder catalogues warm once the window is shown and idle.
+        if not self.shell.isVisible():
+            return False
+        ready_at = float(getattr(self, "archive_browser_ready_at", 0.0) or 0.0)
+        if ready_at <= 0.0:
+            return False
+        return (time.perf_counter() - ready_at) >= 0.45
+
     def _archive_background_worker_limit(self) -> int:
         """Preset-derived worker count, used when sidecar indexing has no manual one."""
 

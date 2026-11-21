@@ -236,9 +236,13 @@ def settings_controls_theme_key(owner: object) -> str:
 
 
 def sync_settings_appearance_controls(owner: object) -> None:
-    owner.shell.settings_tab.sync_appearance_controls(  # type: ignore[attr-defined]
-        settings_controls_theme_key(owner)
-    )
+    from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+    settings_tab = created_tool_widget(getattr(owner.shell, "settings_tab", None))  # type: ignore[attr-defined]
+    if settings_tab is not None:
+        settings_tab.sync_appearance_controls(  # type: ignore[attr-defined]
+            settings_controls_theme_key(owner)
+        )
 
 
 def theme_applied(owner: object) -> None:

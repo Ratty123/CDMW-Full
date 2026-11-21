@@ -268,13 +268,18 @@ class ProfileControllerMixin:
         if theme_key in UI_THEME_SCHEMES:
             self.current_theme_key = theme_key
             self._handle_theme_changed(theme_key)
-        if hasattr(self.settings_tab, "_load_settings"):
-            self.settings_tab._load_settings(theme_key)
-            self.settings_tab.sync_archive_performance_controls()
-        if hasattr(self.replace_assistant_tab, "_load_settings"):
-            self.replace_assistant_tab._load_settings()
-        if hasattr(self.texture_editor_tab, "_load_settings"):
-            self.texture_editor_tab._load_settings()
+        from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+        settings_tab = created_tool_widget(getattr(self, "settings_tab", None))
+        if settings_tab is not None and hasattr(settings_tab, "_load_settings"):
+            settings_tab._load_settings(theme_key)
+            settings_tab.sync_archive_performance_controls()
+        replace_assistant_tab = created_tool_widget(getattr(self, "replace_assistant_tab", None))
+        if replace_assistant_tab is not None and hasattr(replace_assistant_tab, "_load_settings"):
+            replace_assistant_tab._load_settings()
+        texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
+        if texture_editor_tab is not None and hasattr(texture_editor_tab, "_load_settings"):
+            texture_editor_tab._load_settings()
         language_code = str(self.settings.value("appearance/language", self.ui_localizer.language_code) or "en")
         try:
             self.ui_localizer.load_language(language_code)

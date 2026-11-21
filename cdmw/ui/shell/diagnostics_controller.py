@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import os
-import ctypes
-import platform
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -70,24 +69,37 @@ def start_heartbeat_timer(
     return timer
 
 
-class _ProcessMemoryCountersEx(ctypes.Structure):
-    _fields_ = [
-        ("cb", ctypes.c_ulong),
-        ("PageFaultCount", ctypes.c_ulong),
-        ("PeakWorkingSetSize", ctypes.c_size_t),
-        ("WorkingSetSize", ctypes.c_size_t),
-        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-        ("PagefileUsage", ctypes.c_size_t),
-        ("PeakPagefileUsage", ctypes.c_size_t),
-        ("PrivateUsage", ctypes.c_size_t),
-    ]
+_PROCESS_MEMORY_COUNTERS_EX_CLS: type | None = None
+
+
+def _process_memory_counters_ex_class() -> type:
+    global _PROCESS_MEMORY_COUNTERS_EX_CLS
+    if _PROCESS_MEMORY_COUNTERS_EX_CLS is None:
+        import ctypes
+
+        class _ProcessMemoryCountersEx(ctypes.Structure):
+            _fields_ = [
+                ("cb", ctypes.c_ulong),
+                ("PageFaultCount", ctypes.c_ulong),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+                ("PrivateUsage", ctypes.c_size_t),
+            ]
+
+        _PROCESS_MEMORY_COUNTERS_EX_CLS = _ProcessMemoryCountersEx
+    return _PROCESS_MEMORY_COUNTERS_EX_CLS
 
 
 def windows_process_memory_snapshot(pid: int) -> dict[str, int]:
-    if platform.system().lower() != "windows":
+    # Use sys.platform instead of platform.system(): on Python 3.14 Windows,
+    # platform.system() runs a WMI query (~110 ms) during startup.
+    if sys.platform != "win32":
         return {}
     try:
         process_id = int(pid)
@@ -96,6 +108,9 @@ def windows_process_memory_snapshot(pid: int) -> dict[str, int]:
     if process_id <= 0:
         return {}
     try:
+        import ctypes
+
+        counters_cls = _process_memory_counters_ex_class()
         kernel32 = ctypes.windll.kernel32
         psapi = ctypes.windll.psapi
         process_query_limited_information = 0x1000
@@ -106,7 +121,7 @@ def windows_process_memory_snapshot(pid: int) -> dict[str, int]:
         kernel32.CloseHandle.restype = ctypes.c_int
         psapi.GetProcessMemoryInfo.argtypes = [
             ctypes.c_void_p,
-            ctypes.POINTER(_ProcessMemoryCountersEx),
+            ctypes.POINTER(counters_cls),
             ctypes.c_ulong,
         ]
         psapi.GetProcessMemoryInfo.restype = ctypes.c_int
@@ -118,7 +133,7 @@ def windows_process_memory_snapshot(pid: int) -> dict[str, int]:
         if not handle:
             return {}
         try:
-            counters = _ProcessMemoryCountersEx()
+            counters = counters_cls()
             counters.cb = ctypes.sizeof(counters)
             if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
                 return {}

@@ -22,8 +22,27 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import APP_TITLE, APP_VERSION
-from cdmw.ui.shell.theme_controller import build_monospace_font
-from cdmw.ui.widgets import AboutDialog
+
+
+def _resolve_symbol(name: str) -> object:
+    existing = globals().get(name)
+    if existing is not None:
+        return existing
+    return __getattr__(name)
+
+
+def __getattr__(name: str) -> object:
+    if name == "AboutDialog":
+        from cdmw.ui.widgets import AboutDialog
+
+        globals()["AboutDialog"] = AboutDialog
+        return AboutDialog
+    if name == "build_monospace_font":
+        from cdmw.ui.shell.theme_controller import build_monospace_font
+
+        globals()["build_monospace_font"] = build_monospace_font
+        return build_monospace_font
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class AboutControllerMixin:
@@ -163,7 +182,8 @@ class AboutControllerMixin:
         license_edit = QPlainTextEdit()
         license_edit.setReadOnly(True)
         license_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        license_edit.setFont(build_monospace_font(self.settings))
+        monospace_font = _resolve_symbol("build_monospace_font")(self.settings)
+        license_edit.setFont(monospace_font)
         license_edit.setPlainText(self._read_license_text())
         license_layout.addWidget(license_edit)
         about_tabs.addTab(license_page, "License")
@@ -174,7 +194,7 @@ class AboutControllerMixin:
         notices_edit = QPlainTextEdit()
         notices_edit.setReadOnly(True)
         notices_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        notices_edit.setFont(build_monospace_font(self.settings))
+        notices_edit.setFont(monospace_font)
         notices_edit.setPlainText(self._read_third_party_notices_text())
         notices_layout.addWidget(notices_edit)
         about_tabs.addTab(notices_page, "Third-Party Notices")
@@ -233,7 +253,8 @@ class AboutControllerMixin:
         """The Help topics in a window of their own: the Wiki's source, kept for when no browser opens."""
 
         title, intro_html, sections = self._build_about_document_for_language(self.ui_localizer.language_code)
-        dialog = AboutDialog(
+        about_dialog_cls = _resolve_symbol("AboutDialog")
+        dialog = about_dialog_cls(
             self,
             title=title,
             intro_html=intro_html,
