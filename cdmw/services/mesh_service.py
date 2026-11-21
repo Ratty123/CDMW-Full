@@ -477,11 +477,23 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
         )
 
 
+#: The deferred no-op round-trip report, kept on the parsed meshes it was computed for.
+_DEFERRED_ROUNDTRIP_REPORT_ATTR = "_cdmw_deferred_roundtrip_report"
+
+
 def _ensure_session_roundtrip_report(session: _MeshEditSession) -> Mapping[str, object] | None:
     report = session.no_op_roundtrip_report
     if isinstance(report, Mapping):
         return report
     source_mesh = getattr(session, "source_coordinate_base_mesh", None) or session.base_mesh
+    # Sessions can share these mesh objects (a shadow session's base, or its
+    # source-coordinate base). The first one to compute leaves the report on the
+    # meshes, so the others take it instead of seeing "not run".
+    for shared in (source_mesh, session.base_mesh):
+        cached = getattr(shared, _DEFERRED_ROUNDTRIP_REPORT_ATTR, None)
+        if isinstance(cached, Mapping) and session.original_data:
+            session.no_op_roundtrip_report = dict(cached)
+            return session.no_op_roundtrip_report
     deferred = bool(
         getattr(source_mesh, "_cdmw_no_op_roundtrip_deferred", False)
         or getattr(session.base_mesh, "_cdmw_no_op_roundtrip_deferred", False)
@@ -513,6 +525,9 @@ def _ensure_session_roundtrip_report(session: _MeshEditSession) -> Mapping[str, 
             "error": str(exc),
         }
     session.no_op_roundtrip_report = computed
+    for target in (session.base_mesh, source_mesh):
+        if target is not None:
+            setattr(target, _DEFERRED_ROUNDTRIP_REPORT_ATTR, dict(computed))
     for target in (session.base_mesh, session.working_mesh, source_mesh):
         if target is not None and getattr(target, "_cdmw_no_op_roundtrip_deferred", False):
             setattr(target, "_cdmw_no_op_roundtrip_deferred", False)
