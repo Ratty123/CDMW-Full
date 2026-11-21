@@ -589,8 +589,12 @@ def test_moves_named_pick_moves_by_name_and_show_in_the_factor_column(qt_app):
     dialog, calls = _dialog()
     dialog.select_set(PATH)
     assert dialog.named_label.text() == "Moves named:"
+    # The factor has its own label and is greyed until a name is typed: alone it changes nothing.
+    assert dialog.named_factor_label.text() == "Factor for these moves:"
+    assert not dialog.named_slider.isEnabled() and not dialog.named_spin.isEnabled()
     dialog.kind_spins["attack"].setValue(2.0)
     dialog.named_edit.setText("Attack_01, idle")
+    assert dialog.named_slider.isEnabled() and dialog.named_spin.isEnabled() and dialog.named_factor_label.isEnabled()
     dialog.named_spin.setValue(0.5)
     assert dialog.named_label.text() == "Moves named (2):"
     values = [dialog.move_table.cellWidget(row, 4).value() for row in range(3)]
@@ -613,6 +617,7 @@ def test_moves_named_pick_moves_by_name_and_show_in_the_factor_column(qt_app):
     assert dialog.factors() == again and dialog.named_edit.text() == "idle"
     dialog.reset_factors()
     assert dialog.named_edit.text() == "" and dialog.named_spin.value() == 1.0 and dialog.factors().is_identity
+    assert not dialog.named_slider.isEnabled() and not dialog.named_spin.isEnabled()
 
 
 def test_all_listed_sets_keeps_the_factors_and_exports_what_the_list_shows(qt_app):
