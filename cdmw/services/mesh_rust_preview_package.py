@@ -585,6 +585,36 @@ def _preview_core_material_source(package_dir: Path, value: object) -> Path | No
     return candidate
 
 
+def preview_core_missing_material_source(source_package: Path | str, manifest: Mapping[str, object]) -> str:
+    """The first texture a Preview Core manifest names that is not on disk any more, or "".
+
+    A cached package holds absolute paths into the archive index generation that prepared its
+    textures. The index is replaced when the archive cache is rebuilt, the old generation is
+    removed, and the package outlives it: it still draws in Browse Archives, but its material
+    graph cannot be read again. Whoever reuses a package asks this first.
+    """
+
+    package = Path(source_package)
+    batches = manifest.get("batches") if isinstance(manifest, Mapping) else None
+    if not isinstance(batches, Sequence) or isinstance(batches, (str, bytes, bytearray)):
+        return ""
+    for batch in batches:
+        if not isinstance(batch, Mapping):
+            continue
+        layers = [batch.get("primary_material_layer")]
+        extra = batch.get("material_layers")
+        if isinstance(extra, Sequence) and not isinstance(extra, (str, bytes, bytearray)):
+            layers.extend(extra)
+        for layer in layers:
+            if not isinstance(layer, Mapping):
+                continue
+            for role in ("diffuse", "normal", "material", "height", "mask"):
+                text = str(layer.get(f"{role}_source", "") or "").strip()
+                if text and _preview_core_material_source(package, text) is None:
+                    return str(layer.get(f"{role}_archive_path", "") or text).replace("\\", "/")
+    return ""
+
+
 def _preview_core_material_resource_index(
     package_dir: Path,
     textures: Sequence[object],
