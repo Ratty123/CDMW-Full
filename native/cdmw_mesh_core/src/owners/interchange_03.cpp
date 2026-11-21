@@ -18,7 +18,15 @@ void write_escaped(std::ostream& out, const std::string& text) {
             out << "\\t";
             break;
         default:
-            out << ch;
+            // A decoded escape can now carry any control character, and a
+            // raw one makes the reply invalid JSON for Python.
+            if (static_cast<unsigned char>(ch) < 0x20) {
+                static const char hex[] = "0123456789abcdef";
+                const auto raw = static_cast<unsigned char>(ch);
+                out << "\\u00" << hex[raw >> 4] << hex[raw & 0xF];
+            } else {
+                out << ch;
+            }
             break;
         }
     }

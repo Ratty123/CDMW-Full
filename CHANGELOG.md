@@ -45,6 +45,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Mesh Editor:** with a letter outside plain English in the path of the CDMW folder, such as a Chinese, Cyrillic or accented Windows user name, every mesh failed to open with "native edit-session clone failed and Python fallback was blocked ... native mesh-core service returned an error". The mesh core read those letters as `?` and looked for a folder that does not exist. Morph snapshots under such a folder are fixed too, and so is the archive helper, which made building a mod fail with "The archive checksum helper is unavailable" and made other archive jobs fall back to slower Python code.
 - **Textures > Upscale:** with **Overwrite existing DDS** off, **Start** reported every DDS it rebuilt with the native encoder as skipped ("output DDS already exists"), because it checked for the file after writing it. Those files now count as converted; only DDS files that were in the output folder before the run are skipped.
 - **Edit Translations:** **AI Translate** offers **The selected lines** when you select several rows, not only the first of them.
 - **Browse Archives** keeps both copies when you export a file that is in the base game and in a DLC. A DLC package now exports under `dlc/dlc_01/0015` instead of `0015`, the **Package** column and the folder view tell base and DLC packages apart, and when two selected files still land on the same output path the report says one replaced the other instead of listing both as exported.

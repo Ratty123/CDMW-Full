@@ -182,17 +182,79 @@ private:
                 result.push_back('\t');
                 break;
             case 'u':
-                if (pos_ + 4 > text_.size()) {
-                    throw std::runtime_error("short JSON unicode escape");
-                }
-                result.push_back('?');
-                pos_ += 4;
+                append_utf8(result, parse_unicode_escape());
                 break;
             default:
                 throw std::runtime_error("invalid JSON escape");
             }
         }
         throw std::runtime_error("unterminated JSON string");
+    }
+
+    // Python writes every job and request with ensure_ascii, so any letter outside
+    // ASCII in a path (an umlaut, Cyrillic, CJK) arrives as a backslash-u escape. Turning each escape into '?' sent
+    // the core to a folder that does not exist: every job failed with no report
+    // as soon as the CDMW folder's path held a letter outside ASCII.
+    std::uint32_t read_hex4() {
+        if (pos_ + 4 > text_.size()) {
+            throw std::runtime_error("short JSON unicode escape");
+        }
+        std::uint32_t value = 0;
+        for (int index = 0; index < 4; ++index) {
+            const char ch = text_[pos_++];
+            value <<= 4;
+            if (ch >= '0' && ch <= '9') {
+                value |= static_cast<std::uint32_t>(ch - '0');
+            } else if (ch >= 'a' && ch <= 'f') {
+                value |= static_cast<std::uint32_t>(ch - 'a' + 10);
+            } else if (ch >= 'A' && ch <= 'F') {
+                value |= static_cast<std::uint32_t>(ch - 'A' + 10);
+            } else {
+                throw std::runtime_error("invalid JSON escape");
+            }
+        }
+        return value;
+    }
+
+    // Called after the escape's "u". A lone surrogate, which Python can write for
+    // a string it could not decode, becomes U+FFFD instead of invalid UTF-8.
+    std::uint32_t parse_unicode_escape() {
+        const std::uint32_t value = read_hex4();
+        if (value >= 0xDC00 && value <= 0xDFFF) {
+            return 0xFFFD;
+        }
+        if (value < 0xD800 || value > 0xDBFF) {
+            return value;
+        }
+        if (pos_ + 6 > text_.size() || text_[pos_] != '\\' || text_[pos_ + 1] != 'u') {
+            return 0xFFFD;
+        }
+        const std::size_t resume = pos_;
+        pos_ += 2;
+        const std::uint32_t low = read_hex4();
+        if (low < 0xDC00 || low > 0xDFFF) {
+            pos_ = resume;  // the next escape stands on its own
+            return 0xFFFD;
+        }
+        return 0x10000 + ((value - 0xD800) << 10) + (low - 0xDC00);
+    }
+
+    static void append_utf8(std::string& out, std::uint32_t codepoint) {
+        if (codepoint < 0x80) {
+            out.push_back(static_cast<char>(codepoint));
+        } else if (codepoint < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+            out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+        } else if (codepoint < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+        }
     }
 
     void skip_ws() {

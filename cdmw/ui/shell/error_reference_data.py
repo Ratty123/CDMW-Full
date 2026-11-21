@@ -10705,7 +10705,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS offset is outside the name block",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 321,
+      "native/cdmw_archive_accelerator/src/main.cpp": 396,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 172
     }
   },
@@ -10770,7 +10770,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact VFS path is too deep",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 341,
+      "native/cdmw_archive_accelerator/src/main.cpp": 416,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 191
     }
   },
@@ -11260,7 +11260,7 @@ MESSAGE_REFERENCE = [
     "message": "DLC ItemInfo row directory is unsupported: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1888
+      "native/cdmw_archive_accelerator/src/main.cpp": 1963
     }
   },
   {
@@ -13513,7 +13513,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 length is out of bounds",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1050,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1125,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 360
     }
   },
@@ -13522,7 +13522,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1048,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1123,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 358
     }
   },
@@ -13531,7 +13531,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 literal run is outside its buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1060,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1135,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 371
     }
   },
@@ -13540,7 +13540,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match offset is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1070,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1145,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 379
     }
   },
@@ -13549,7 +13549,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match offset is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1065,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1140,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 376
     }
   },
@@ -13558,7 +13558,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC LZ4 match run is outside its output buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1073,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1148,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 381
     }
   },
@@ -13575,7 +13575,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container compressed size does not match its bytes",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1035
+      "native/cdmw_archive_accelerator/src/main.cpp": 1110
     }
   },
   {
@@ -13583,7 +13583,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container decoded size does not match its payload",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1078
+      "native/cdmw_archive_accelerator/src/main.cpp": 1153
     }
   },
   {
@@ -13591,7 +13591,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container header is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1032,
+      "native/cdmw_archive_accelerator/src/main.cpp": 1107,
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 344
     }
   },
@@ -13600,7 +13600,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container uncompressed size is out of bounds",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1038
+      "native/cdmw_archive_accelerator/src/main.cpp": 1113
     }
   },
   {
@@ -13843,7 +13843,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMT has duplicate or invalid PAZ identifiers",
     "recovery": "conflict",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 582,
+      "native/cdmw_archive_accelerator/src/main.cpp": 657,
       "native/cdmw_archive_core/src/pamt_index.cpp": 85,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 165
     }
@@ -14077,7 +14077,7 @@ MESSAGE_REFERENCE = [
     "message": "PAZ entry payload is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2149
+      "native/cdmw_archive_accelerator/src/main.cpp": 2214
     }
   },
   {
@@ -15487,7 +15487,7 @@ MESSAGE_REFERENCE = [
     "message": "StringInfo row directory is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1432
+      "native/cdmw_archive_accelerator/src/main.cpp": 1507
     }
   },
   {
@@ -18000,7 +18000,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write path checksum result",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2051
+      "native/cdmw_archive_accelerator/src/main.cpp": 2126
     }
   },
   {
@@ -18172,7 +18172,7 @@ MESSAGE_REFERENCE = [
     "message": "could not finish writing {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 998
+      "native/cdmw_archive_accelerator/src/main.cpp": 1073
     }
   },
   {
@@ -18214,7 +18214,7 @@ MESSAGE_REFERENCE = [
     "message": "could not open PAZ {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2145
+      "native/cdmw_archive_accelerator/src/main.cpp": 2210
     }
   },
   {
@@ -18222,7 +18222,7 @@ MESSAGE_REFERENCE = [
     "message": "could not open entries TSV",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 666
+      "native/cdmw_archive_accelerator/src/main.cpp": 741
     }
   },
   {
@@ -18230,7 +18230,7 @@ MESSAGE_REFERENCE = [
     "message": "could not open {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 76,
+      "native/cdmw_archive_accelerator/src/main.cpp": 170,
       "native/cdmw_archive_core/src/archive_core_internal.hpp": 131,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 140
     }
@@ -18304,7 +18304,7 @@ MESSAGE_REFERENCE = [
     "message": "could not write entry output",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2152
+      "native/cdmw_archive_accelerator/src/main.cpp": 2217
     }
   },
   {
@@ -18312,7 +18312,7 @@ MESSAGE_REFERENCE = [
     "message": "could not write {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 96
+      "native/cdmw_archive_accelerator/src/main.cpp": 190
     }
   },
   {
@@ -18361,7 +18361,7 @@ MESSAGE_REFERENCE = [
     "message": "directory block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 544
+      "native/cdmw_archive_accelerator/src/main.cpp": 619
     }
   },
   {
@@ -18386,7 +18386,7 @@ MESSAGE_REFERENCE = [
     "message": "entry has zero original size",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2143
+      "native/cdmw_archive_accelerator/src/main.cpp": 2208
     }
   },
   {
@@ -18518,7 +18518,7 @@ MESSAGE_REFERENCE = [
     "message": "file table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 562
+      "native/cdmw_archive_accelerator/src/main.cpp": 637
     }
   },
   {
@@ -18526,7 +18526,7 @@ MESSAGE_REFERENCE = [
     "message": "file table length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 558
+      "native/cdmw_archive_accelerator/src/main.cpp": 633
     }
   },
   {
@@ -18534,7 +18534,7 @@ MESSAGE_REFERENCE = [
     "message": "file-name block is truncated",
     "recovery": "locked",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 550
+      "native/cdmw_archive_accelerator/src/main.cpp": 625
     }
   },
   {
@@ -18542,7 +18542,7 @@ MESSAGE_REFERENCE = [
     "message": "file-name block length is truncated",
     "recovery": "locked",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 547
+      "native/cdmw_archive_accelerator/src/main.cpp": 622
     }
   },
   {
@@ -18550,7 +18550,7 @@ MESSAGE_REFERENCE = [
     "message": "folder table length is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 553
+      "native/cdmw_archive_accelerator/src/main.cpp": 628
     }
   },
   {
@@ -18630,7 +18630,7 @@ MESSAGE_REFERENCE = [
     "message": "incomplete path checksum output",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2071
+      "native/cdmw_archive_accelerator/src/main.cpp": 2146
     }
   },
   {
@@ -18672,7 +18672,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid path checksum job header",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2040
+      "native/cdmw_archive_accelerator/src/main.cpp": 2115
     }
   },
   {
@@ -18680,7 +18680,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid paz index",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 602
+      "native/cdmw_archive_accelerator/src/main.cpp": 677
     }
   },
   {
@@ -18704,7 +18704,7 @@ MESSAGE_REFERENCE = [
     "message": "is too small",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 535
+      "native/cdmw_archive_accelerator/src/main.cpp": 610
     }
   },
   {
@@ -19001,7 +19001,7 @@ MESSAGE_REFERENCE = [
     "message": "no .pamt files were found under {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 626
+      "native/cdmw_archive_accelerator/src/main.cpp": 701
     }
   },
   {
@@ -19155,7 +19155,7 @@ MESSAGE_REFERENCE = [
     "message": "path checksum count exceeds limit",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2049
+      "native/cdmw_archive_accelerator/src/main.cpp": 2124
     }
   },
   {
@@ -19163,7 +19163,7 @@ MESSAGE_REFERENCE = [
     "message": "path checksum input exceeds limit",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2064
+      "native/cdmw_archive_accelerator/src/main.cpp": 2139
     }
   },
   {
@@ -19212,7 +19212,7 @@ MESSAGE_REFERENCE = [
     "message": "paz table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 541
+      "native/cdmw_archive_accelerator/src/main.cpp": 616
     }
   },
   {
@@ -19473,7 +19473,7 @@ MESSAGE_REFERENCE = [
     "message": "trailing path checksum input",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2069
+      "native/cdmw_archive_accelerator/src/main.cpp": 2144
     }
   },
   {
@@ -19489,7 +19489,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated path checksum input",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2066
+      "native/cdmw_archive_accelerator/src/main.cpp": 2141
     }
   },
   {
@@ -19497,7 +19497,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated path checksum job",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 2044
+      "native/cdmw_archive_accelerator/src/main.cpp": 2119
     }
   },
   {
@@ -19505,7 +19505,7 @@ MESSAGE_REFERENCE = [
     "message": "u16 read outside buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 188
+      "native/cdmw_archive_accelerator/src/main.cpp": 263
     }
   },
   {
@@ -19513,7 +19513,7 @@ MESSAGE_REFERENCE = [
     "message": "u32 read outside buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 182
+      "native/cdmw_archive_accelerator/src/main.cpp": 257
     }
   },
   {
@@ -19562,7 +19562,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported PALOC container version",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_accelerator/src/main.cpp": 1033
+      "native/cdmw_archive_accelerator/src/main.cpp": 1108
     }
   },
   {
@@ -65545,7 +65545,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot dispose morph runtime snapshot",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 317
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 319
     }
   },
   {
@@ -65561,7 +65561,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot open OBJ round-trip manifest: {detail}",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 111
+      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 119
     }
   },
   {
@@ -65633,7 +65633,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write OBJ round-trip manifest: {detail}",
     "recovery": "write",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 170
+      "native/cdmw_mesh_core/src/owners/interchange_03.cpp": 178
     }
   },
   {
@@ -65641,7 +65641,7 @@ MESSAGE_REFERENCE = [
     "message": "cannot write complete morph runtime snapshot",
     "recovery": "write",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 75
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 76
     }
   },
   {
@@ -66587,7 +66587,7 @@ MESSAGE_REFERENCE = [
     "message": "expected '{detail}'",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 218
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 280
     }
   },
   {
@@ -66949,7 +66949,7 @@ MESSAGE_REFERENCE = [
     "message": "finish or cancel the active mesh gesture before capturing Morph & Refit state",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 126
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 127
     }
   },
   {
@@ -68196,7 +68196,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON escape",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 192
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 188
     }
   },
   {
@@ -70071,7 +70071,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 90
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 91
     }
   },
   {
@@ -70087,7 +70087,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot byte length does not match",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 86
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 87
     }
   },
   {
@@ -70111,7 +70111,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot dispose does not match its resident history",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 314
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 315
     }
   },
   {
@@ -70119,7 +70119,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot dispose session does not match its owner",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 308
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 309
     }
   },
   {
@@ -70319,7 +70319,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot identity does not match",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 104
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 105
     }
   },
   {
@@ -70471,7 +70471,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot requires a bounded snapshot_id",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 131
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 132
     }
   },
   {
@@ -70503,7 +70503,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot topology digest is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 111
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 112
     }
   },
   {
@@ -70511,7 +70511,7 @@ MESSAGE_REFERENCE = [
     "message": "morph runtime snapshot topology does not match the target session",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 233
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 234
     }
   },
   {
@@ -70527,7 +70527,7 @@ MESSAGE_REFERENCE = [
     "message": "morph snapshot history does not match the retained editor history",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 146
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 147
     }
   },
   {
@@ -70535,7 +70535,7 @@ MESSAGE_REFERENCE = [
     "message": "morph snapshot history is unavailable or belongs to another session",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 249
+      "native/cdmw_mesh_core/src/owners/session_morph_snapshot_io.cpp": 250
     }
   },
   {
@@ -74008,7 +74008,7 @@ MESSAGE_REFERENCE = [
     "message": "short JSON unicode escape",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 186
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 200
     }
   },
   {
@@ -75249,7 +75249,7 @@ MESSAGE_REFERENCE = [
     "message": "unterminated JSON string",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 195,
+      "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 191,
       "native/cdmw_preview_core/src/owners/protocol_json.cpp": 116
     }
   },
@@ -116482,8 +116482,8 @@ SOURCE_COVERAGE = {
     "native_message": 5
   },
   "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": {
-    "native_handoff": 10,
-    "native_message": 10
+    "native_handoff": 11,
+    "native_message": 11
   },
   "native/cdmw_mesh_core/src/owners/protocol_types_02.cpp": {
     "native_handoff": 3,

@@ -33,10 +33,10 @@ std::string mesh_editor_validate_morph_snapshot_path(const std::string& raw_path
         || filename.compare(filename.size() - suffix.size(), suffix.size(), suffix) != 0) {
         throw std::runtime_error("morph runtime snapshot path is not app-owned");
     }
-    const char* temp_raw = std::getenv("TEMP");
-    if (temp_raw == nullptr || *temp_raw == '\0') temp_raw = std::getenv("TMPDIR");
-    if (temp_raw == nullptr || *temp_raw == '\0') temp_raw = std::getenv("TMP");
-    if (temp_raw == nullptr || *temp_raw == '\0') {
+    std::string temp_raw = cdmw_env_utf8("TEMP");
+    if (temp_raw.empty()) temp_raw = cdmw_env_utf8("TMPDIR");
+    if (temp_raw.empty()) temp_raw = cdmw_env_utf8("TMP");
+    if (temp_raw.empty()) {
         throw std::runtime_error("morph runtime snapshot temp root is unavailable");
     }
     const std::string parent = raw_path.substr(0, separator);
@@ -71,7 +71,8 @@ void mesh_editor_write_morph_snapshot_file(const std::string& path, const std::s
     output.flush();
     if (!output) {
         output.close();
-        (void)std::remove(path.c_str());
+        std::error_code ignored;
+        std::filesystem::remove(cdmw_native_path(path), ignored);
         throw std::runtime_error("cannot write complete morph runtime snapshot");
     }
 }
@@ -313,7 +314,8 @@ std::string mesh_editor_morph_snapshot_dispose_report(
             || history->second.sha256 != lower_ascii(mesh_editor_snapshot_string(root, "snapshot_sha256")))) {
         throw std::runtime_error("morph runtime snapshot dispose does not match its resident history");
     }
-    if (std::remove(path.c_str()) != 0) {
+    std::error_code removed;
+    if (!std::filesystem::remove(cdmw_native_path(path), removed) || removed) {
         throw std::runtime_error("cannot dispose morph runtime snapshot");
     }
     g_mesh_morph_history_snapshots.erase(snapshot_id);
