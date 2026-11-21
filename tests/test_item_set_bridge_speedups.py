@@ -648,7 +648,7 @@ def test_prepared_context_cache_reuses_and_invalidates_and_switch_caches_pieces(
     )
     opened: list[tuple] = []
     # These stand for the set this preparation made in the new session, with no item scope.
-    preparation._ready_scope = ((), ())
+    preparation._remember_emitted_scope(contexts)
     tab = SimpleNamespace(item_set_contexts=contexts, item_set_preparation=preparation)
     bridge = SimpleNamespace(item_set_members=(upper, lower), item_set_contains=lambda _e: True)
     shell = SimpleNamespace(
@@ -677,6 +677,7 @@ def test_prepared_context_cache_reuses_and_invalidates_and_switch_caches_pieces(
         entry.prepared_path = tmp_path / f"extra_{idx}.pac"
         entry.prepared_path.write_bytes(b"x")
         ctx = ArchiveWorkflowDependencyContext(entry, (entry,), {entry.path: (entry,)}, {entry.basename: (entry,)}, True)
+        preparation._remember_emitted_scope((ctx,))
         preparation.cache_contexts((ctx,), members=(dto,))
     assert len(preparation._context_cache) == MAX_PREPARED_CONTEXT_CACHE
 
@@ -847,10 +848,20 @@ def test_contexts_prepared_for_one_item_scope_are_not_reused_for_another(tmp_pat
     # Nothing this preparation emitted: nothing is known about their scope, so nothing is seeded.
     assert preparation.cache_contexts(contexts, members=(upper, lower)) == 0
     # The open set was prepared for item A; Browse now scopes item B.
-    preparation._ready_scope = scope_a
+    preparation._preferred_prefab_stems, preparation._scope_entry_ids = scope_a
+    preparation._remember_emitted_scope(tuple(contexts))
+    # Then a set for item B was prepared (new context objects) but its open was refused,
+    # so the tab still holds A's contexts.
+    other = tuple(SimpleNamespace(selected_entry=context.selected_entry) for context in contexts)
+    preparation._preferred_prefab_stems, preparation._scope_entry_ids = scope_b
+    preparation._remember_emitted_scope(other)
     assert preparation.cache_contexts(
         contexts, members=(upper, lower), preferred_prefab_stems=scope_b[0], scope_entry_ids=scope_b[1],
     ) == 2
     assert preparation._cached_context_for(upper, *scope_b) is None
     assert preparation._cached_context_for(upper, *scope_a) is contexts[0]
     assert preparation._cached_context_for(lower, *scope_a) is contexts[1]
+    # A piece switch hands the same contexts back in another order: still A's scope.
+    preparation._context_cache.clear()
+    assert preparation.cache_contexts(tuple(reversed(contexts)), members=(upper, lower)) == 2
+    assert preparation._cached_context_for(lower, *scope_b) is None

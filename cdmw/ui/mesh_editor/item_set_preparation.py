@@ -98,8 +98,9 @@ class ItemSetEditorPreparation(QObject):
         self.edit_set = False
         self._preferred_prefab_stems: tuple[str, ...] = ()
         self._scope_entry_ids: tuple[int, ...] = ()
-        # The item scope the last emitted contexts were resolved with.
-        self._ready_scope: tuple[tuple[str, ...], tuple[int, ...]] | None = None
+        # The item scope each recently emitted set of contexts was resolved with, so a
+        # set is only ever cached under its own scope (whether or not it was opened).
+        self._emitted_scopes: list[tuple[tuple[object, ...], tuple[tuple[str, ...], tuple[int, ...]]]] = []
         if max_concurrency is None:
             slot_count = (
                 MAX_CONCURRENT_PREPARATION_SLOTS
@@ -183,6 +184,20 @@ class ItemSetEditorPreparation(QObject):
         self._context_cache.move_to_end(key)
         return cached
 
+    def _remember_emitted_scope(self, contexts: tuple[object, ...]) -> None:
+        self._emitted_scopes.append((contexts, (self._preferred_prefab_stems, self._scope_entry_ids)))
+        del self._emitted_scopes[:-8]
+
+    def _scope_of_emitted(self, contexts: Sequence[object]):
+        """The scope these exact context objects were emitted with (in any order), or None."""
+        wanted = {id(context) for context in contexts or ()}
+        if not wanted:
+            return None
+        for emitted, scope in reversed(self._emitted_scopes):
+            if {id(context) for context in emitted} == wanted:
+                return scope
+        return None
+
     def cache_contexts(
         self,
         contexts: Sequence[object],
@@ -197,9 +212,10 @@ class ItemSetEditorPreparation(QObject):
         asked for now: another variant of the same files picks other prefabs and must
         be resolved again.
         """
-        if self._ready_scope is None:
+        emitted_scope = self._scope_of_emitted(contexts)
+        if emitted_scope is None:
             return 0
-        preferred_prefab_stems, scope_entry_ids = self._ready_scope
+        preferred_prefab_stems, scope_entry_ids = emitted_scope
         session = getattr(self._service, "current_session", None)
         session_id = str(getattr(session, "session_id", "") or "")
         members_by_identity = {
@@ -288,7 +304,7 @@ class ItemSetEditorPreparation(QObject):
         self._members = ()
         self._resolved_contexts.clear()
         self._next_member_index = 0
-        self._ready_scope = (self._preferred_prefab_stems, self._scope_entry_ids)
+        self._remember_emitted_scope(contexts)
         self.ready.emit(contexts)
 
     def _dispatch_available_slots(self) -> bool:
@@ -347,7 +363,7 @@ class ItemSetEditorPreparation(QObject):
         self._members = ()
         self._resolved_contexts.clear()
         self._next_member_index = 0
-        self._ready_scope = (self._preferred_prefab_stems, self._scope_entry_ids)
+        self._remember_emitted_scope(contexts)
         self.ready.emit(contexts)
 
     def _failed(self, _slot_index: int, generation: int, message: str) -> None:
@@ -359,7 +375,7 @@ class ItemSetEditorPreparation(QObject):
     def _session_changed(self, _session: object) -> None:
         self._context_cache.clear()
         self._identity_cache_keys.clear()
-        self._ready_scope = None
+        self._emitted_scopes.clear()
         if self.pending:
             self.cancel()
             self.failed.emit("The archive catalogue changed while preparing the item set.")
