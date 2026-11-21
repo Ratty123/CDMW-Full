@@ -2430,6 +2430,7 @@ mod tests {
                         uvs: Vec::new(),
                         indices: Vec::new(),
                         shader_masks: Vec::new(),
+                        tangents: Vec::new(),
                         source_vertex_indices: Vec::new(),
                         source_range: SourceRange {
                             offset: 0,

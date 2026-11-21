@@ -1,7 +1,7 @@
 //! Shadow and ambient-depth resources shared by window and headless recorders.
 use super::*;
 
-pub(super) const SHADOW_SIZE: u32 = 2048;
+pub(super) const SHADOW_SIZE: u32 = 4096;
 pub(super) const SHADOW_FRAGMENT: &str = r#"
 @fragment fn fs_shadow(input: VertexOut) {
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
@@ -96,11 +96,19 @@ impl SceneBounds {
         self.world(Mat4::from_cols_array_2d(&camera.scene_model), visible)
     }
 
-    fn fit(&self, camera: &CameraUniform, visible: &[GpuMaterialRange]) -> (Mat4, Vec3, f32) {
+    fn fit(
+        &self,
+        camera: &CameraUniform,
+        visible: &[GpuMaterialRange],
+        look: environment_ibl::StudioLookSettings,
+    ) -> (Mat4, Vec3, f32) {
         let (low, high) = self.world(Mat4::from_cols_array_2d(&camera.scene_model), visible);
         let center = (low + high) * 0.5;
         let radius = ((high - low).length() * 0.6).max(0.1);
-        let light = key_direction(camera);
+        let mut light = key_direction(camera);
+        if camera.lighting_preset == 3 {
+            light = look.rotate_world_direction(light);
+        }
         let up = if light.dot(Vec3::Y).abs() > 0.98 {
             Vec3::Z
         } else {
@@ -151,6 +159,10 @@ pub(super) fn shadow_supported(device: &wgpu::Device) -> bool {
     device.limits().max_sampled_textures_per_shader_stage >= 17
 }
 
+pub(super) fn env_ibl_supported(device: &wgpu::Device) -> bool {
+    device.limits().max_sampled_textures_per_shader_stage >= 18
+}
+
 pub(super) fn shadow_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let mut entries = vec![wgpu::BindGroupLayoutEntry {
         binding: 2,
@@ -191,6 +203,36 @@ pub(super) fn shadow_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
                 count: None,
             },
         ]);
+        if env_ibl_supported(device) {
+            entries.extend([
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ]);
+        }
     }
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("preview shadow sampling"),
@@ -204,6 +246,7 @@ pub(super) struct ShadowResources {
     shadow_attachment: wgpu::TextureView,
     studio_attachment: wgpu::TextureView,
     sampler: wgpu::Sampler,
+    env_ibl: Option<environment_ibl::GpuEnvironmentIbl>,
     layout: wgpu::BindGroupLayout,
     camera_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
@@ -218,6 +261,7 @@ pub(super) struct ShadowFrame {
 impl ShadowResources {
     pub(super) fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         material_layout: &wgpu::BindGroupLayout,
         camera_layout: &wgpu::BindGroupLayout,
         shader: &wgpu::ShaderModule,
@@ -342,12 +386,15 @@ impl ShadowResources {
                 multiview_mask: None,
                 cache: None,
             });
+        let env_ibl = env_ibl_supported(device)
+            .then(|| environment_ibl::GpuEnvironmentIbl::new(device, queue));
         Self {
             _texture: texture,
             view,
             shadow_attachment,
             studio_attachment,
             sampler,
+            env_ibl,
             layout: shadow_layout(device),
             camera_layout: camera_layout.clone(),
             pipeline,
@@ -366,10 +413,11 @@ impl ShadowResources {
         camera: &CameraUniform,
         mode: ViewMode,
         settings: LightingDepthSettings,
+        look: environment_ibl::StudioLookSettings,
         size: [u32; 2],
         viewport: Option<[f32; 4]>,
     ) -> ShadowFrame {
-        let (light, center, radius) = mesh.lighting_bounds.fit(camera, &mesh.material_ranges);
+        let (light, center, radius) = mesh.lighting_bounds.fit(camera, &mesh.material_ranges, look);
         let enabled = settings.shadows && textured(mode) && shadow_supported(device);
         let studio_ao = camera.lighting_preset >= 3
             && settings.ambient_occlusion
@@ -434,6 +482,26 @@ impl ShadowResources {
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ]);
+            let _env_buffer = self.env_ibl.as_ref().map(|env_ibl| {
+                let buf = environment_ibl::GpuEnvironmentIbl::create_uniform_buffer(device, look);
+                entries.extend([
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(&env_ibl.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::Sampler(&env_ibl.sampler),
+                    },
+                ]);
+                buf
+            });
+            if let Some(env_buffer) = &_env_buffer {
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: env_buffer.as_entire_binding(),
+                });
+            }
             let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("preview shadow frame"),
                 layout: &self.layout,
@@ -791,6 +859,7 @@ pub async fn verify_lighting_depth_compatibility(
             }
             let mut pipelines = create_pipelines_with_sample_count(
                 &device,
+                &queue,
                 format,
                 &texture_layout,
                 &camera_layout,

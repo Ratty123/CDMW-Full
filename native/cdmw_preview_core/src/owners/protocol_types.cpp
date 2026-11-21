@@ -24,6 +24,8 @@ struct NativeSubmesh {
     std::vector<Vec3> positions;
     std::vector<Vec2> uvs;
     std::vector<Vec3> normals;
+    std::vector<Vec3> tangents;
+    std::vector<Vec3> bitangents;
     std::vector<std::uint32_t> indices;
     std::vector<std::int32_t> source_vertex_indices;
     // Present only for the verified 40-byte PAC layout; 63 is guide blend off.

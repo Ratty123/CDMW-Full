@@ -30,7 +30,12 @@ pub(crate) fn upload_materials(
                 .into_iter()
                 .map(|index| index + offset)
                 .collect::<Vec<_>>();
-            renderer.add_dds_texture(&texture.bytes, texture.role, &vec![ownership; lod_count])?;
+            renderer.add_verified_dds_texture(
+                &texture.bytes,
+                texture.role,
+                &vec![ownership; lod_count],
+                &texture.metadata.source_sha256,
+            )?;
         }
         for presentation in piece
             .material_presentations
@@ -41,6 +46,14 @@ pub(crate) fn upload_materials(
                 crate::cdmw_material_preview_factors(presentation),
                 &vec![vec![presentation.material_index + offset]; lod_count],
             )?;
+        }
+        for layer in piece.layers.iter().filter(|layer| layer.lod_index == 0) {
+            for lod_index in 0..lod_count {
+                let mut shifted = layer.clone();
+                shifted.lod_index = lod_index;
+                shifted.material_index += offset;
+                renderer.add_material_layers(&shifted)?;
+            }
         }
         offset += piece.part_count;
     }

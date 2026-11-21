@@ -44,7 +44,8 @@ pub const BLEND_NORMAL_SLOT: usize = 22;
 /// Slot of `_detailMaterialBlend` (Ver2): the symbol's roughness (G) and metal (B).
 pub const BLEND_MATERIAL_SLOT: usize = 23;
 /// Sampled textures of one fragment stage with layers bound: 16 material maps,
-/// the layer slots and the shadow map (41 of them; the limit leaves one spare).
+/// 24 layer slots, the shadow map, and the prefiltered HDRI environment array
+/// (42 total, fitting cleanly inside the device limit).
 const REQUIRED_SAMPLED_TEXTURES: u32 = 42;
 
 #[repr(C)]
@@ -157,20 +158,32 @@ pub(super) fn supported(device: &wgpu::Device) -> bool {
 
 pub(super) fn limits(adapter: &wgpu::Adapter) -> wgpu::Limits {
     let mut limits = wgpu::Limits::default();
-    if adapter.limits().max_sampled_textures_per_shader_stage >= REQUIRED_SAMPLED_TEXTURES {
+    let max = adapter.limits().max_sampled_textures_per_shader_stage;
+    if max >= REQUIRED_SAMPLED_TEXTURES {
         limits.max_sampled_textures_per_shader_stage = REQUIRED_SAMPLED_TEXTURES;
-    } else if adapter.limits().max_sampled_textures_per_shader_stage >= 17 {
+    } else if max >= 18 {
+        limits.max_sampled_textures_per_shader_stage = 18;
+    } else if max >= 17 {
         limits.max_sampled_textures_per_shader_stage = 17;
     }
     limits
 }
 
+static CACHED_DEVICE_SUPPORT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+pub(super) fn record_device_support(device: &wgpu::Device) {
+    let _ = CACHED_DEVICE_SUPPORT.set(supported(device));
+}
+
 /// Read-only capability query for the package loader, before it selects CPU work.
 pub async fn material_layers_supported() -> bool {
+    if let Some(&cached) = CACHED_DEVICE_SUPPORT.get() {
+        return cached;
+    }
     let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
     descriptor.backends = wgpu::Backends::DX12;
     let instance = wgpu::Instance::new(descriptor);
-    instance
+    let value = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
@@ -180,7 +193,9 @@ pub async fn material_layers_supported() -> bool {
         .await
         .is_ok_and(|adapter| {
             adapter.limits().max_sampled_textures_per_shader_stage >= REQUIRED_SAMPLED_TEXTURES
-        })
+        });
+    let _ = CACHED_DEVICE_SUPPORT.set(value);
+    value
 }
 
 pub(super) fn layout(device: &wgpu::Device) -> Option<wgpu::BindGroupLayout> {
@@ -234,6 +249,16 @@ pub(super) fn binding(
     uploaded: &[Option<UploadedDdsTexture>; LAYER_TEXTURE_SLOTS],
 ) -> Option<Arc<GpuLayers>> {
     let layout = layout(device)?;
+    Some(binding_with_layout(device, &layout, defaults, uniform, uploaded))
+}
+
+pub(super) fn binding_with_layout(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    defaults: &DefaultMaterialTextures,
+    uniform: &LayerUniform,
+    uploaded: &[Option<UploadedDdsTexture>; LAYER_TEXTURE_SLOTS],
+) -> Arc<GpuLayers> {
     let views: Vec<_> = uploaded
         .iter()
         .enumerate()
@@ -279,10 +304,10 @@ pub(super) fn binding(
         binding: 10,
         resource: buffer.as_entire_binding(),
     });
-    Some(Arc::new(GpuLayers {
+    Arc::new(GpuLayers {
         bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("material layer binding"),
-            layout: &layout,
+            layout,
             entries: &entries,
         }),
         _uniform: buffer,
@@ -291,27 +316,27 @@ pub(super) fn binding(
             .flatten()
             .map(|texture| Arc::clone(&texture.texture))
             .collect(),
-    }))
+    })
 }
 
 pub(super) fn shader(device: &wgpu::Device, include_depth: bool) -> String {
-    assembled_shader(supported(device), include_depth && lighting_depth::shadow_supported(device))
+    let depth = include_depth && lighting_depth::shadow_supported(device);
+    let ibl = depth && lighting_depth::env_ibl_supported(device);
+    assembled_shader_with_ibl(supported(device), depth, ibl)
 }
 
-/// The surface shader as the renderer builds it: the template with the layer
-/// functions (or their stand-ins) and the lighting files spliced in.
-pub(super) fn assembled_shader(layers_supported: bool, depth: bool) -> String {
+pub(super) fn assembled_shader_with_ibl(layers_supported: bool, depth: bool, ibl: bool) -> String {
     let source = if layers_supported {
         include_str!("material_layers.wgsl")
     } else {
         "fn material_layers_colour_only() -> bool { return false; }
-fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
+fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>, view_ts: vec3<f32>) -> LayerSurface { return LayerSurface(base.rgb, vec3<f32>(0.0,0.0,1.0), vec3<f32>(1.0,0.66,0.0), vec3<f32>(0.0)); }"
     };
     let main = SHADER.replace("// MATERIAL_LAYER_FUNCTIONS", source);
     let shadows = if depth {
         include_str!("shadows.wgsl")
     } else {
-        "fn shadow_visibility(world:vec3<f32>, normal:vec3<f32>) -> f32 { return 1.0; }"
+        "fn shadow_visibility(world:vec3<f32>, normal:vec3<f32>) -> f32 { return 1.0; }\nfn shadow_visibility_screen(world:vec3<f32>, normal:vec3<f32>, pixel:vec2<f32>, light_dir:vec3<f32>) -> f32 { return 1.0; }"
     };
     let ambient = if depth {
         include_str!("ambient_occlusion.wgsl")
@@ -323,8 +348,90 @@ fn evaluate_material_layers(uv: vec2<f32>, base: vec4<f32>) -> LayerSurface { re
     } else {
         "fn studio_ambient_visibility(pixel:vec2<f32>) -> f32 { return 1.0; }\nfn studio_view_direction(world:vec3<f32>) -> vec3<f32> { return safe_normalize(camera.view_direction.xyz,vec3(0.0,0.0,-1.0)); }".to_owned()
     };
+    let env_ibl = if ibl {
+        r#"
+struct StudioEnvUniform {
+    sh_studio: array<vec4<f32>, 9>,
+    sh_outdoor: array<vec4<f32>, 9>,
+    look: vec4<f32>,
+};
+@group(3) @binding(5) var studio_env_map: texture_2d_array<f32>;
+@group(3) @binding(6) var studio_env_sampler: sampler;
+@group(3) @binding(7) var<uniform> studio_env_uniform: StudioEnvUniform;
+
+fn studio_wetness() -> f32 {
+    return clamp(studio_env_uniform.look.x, 0.0, 1.0);
+}
+
+fn studio_exposure() -> f32 {
+    return clamp(studio_env_uniform.look.y, 0.4, 2.5);
+}
+
+fn studio_env_rotation() -> vec2<f32> {
+    return studio_env_uniform.look.zw;
+}
+
+fn studio_rotate_env_lookup(d: vec3<f32>) -> vec3<f32> {
+    let sc = studio_env_rotation();
+    return vec3<f32>(d.x * sc.y - d.z * sc.x, d.y, d.x * sc.x + d.z * sc.y);
+}
+
+fn studio_equirect_uv(dir: vec3<f32>) -> vec2<f32> {
+    let d = safe_normalize(dir, vec3<f32>(0.0, 1.0, 0.0));
+    let u = atan2(d.z, d.x) * 0.15915494309 + 0.5;
+    let v = acos(clamp(d.y, -1.0, 1.0)) * 0.31830988618;
+    return vec2<f32>(u, v);
+}
+
+fn studio_env_radiance(R: vec3<f32>, rough: f32, outdoor: bool) -> vec3<f32> {
+    let local_r = studio_rotate_env_lookup(R);
+    let uv = studio_equirect_uv(local_r);
+    let layer = select(0, 1, outdoor);
+    let lod = clamp(rough, 0.0, 1.0) * 6.0;
+    return max(textureSampleLevel(studio_env_map, studio_env_sampler, uv, layer, lod).rgb, vec3<f32>(0.015));
+}
+
+fn studio_env_irradiance(N: vec3<f32>, outdoor: bool) -> vec3<f32> {
+    let n = studio_rotate_env_lookup(safe_normalize(N, vec3<f32>(0.0, 1.0, 0.0)));
+    let basis = array<f32, 9>(
+        0.28209479,
+        0.48860251 * n.y,
+        0.48860251 * n.z,
+        0.48860251 * n.x,
+        1.09254843 * n.x * n.y,
+        1.09254843 * n.y * n.z,
+        0.31539157 * (3.0 * n.z * n.z - 1.0),
+        1.09254843 * n.x * n.z,
+        0.54627422 * (n.x * n.x - n.y * n.y),
+    );
+    var sum = vec3<f32>(0.0);
+    if outdoor {
+        for (var i = 0u; i < 9u; i++) {
+            sum += studio_env_uniform.sh_outdoor[i].rgb * basis[i];
+        }
+    } else {
+        for (var i = 0u; i < 9u; i++) {
+            sum += studio_env_uniform.sh_studio[i].rgb * basis[i];
+        }
+    }
+    return max(sum, vec3<f32>(0.02));
+}
+"#
+    } else {
+        r#"
+fn studio_wetness() -> f32 { return 0.0; }
+fn studio_exposure() -> f32 { return 1.0; }
+fn studio_env_rotation() -> vec2<f32> { return vec2<f32>(0.0, 1.0); }
+fn studio_env_radiance(R: vec3<f32>, rough: f32, outdoor: bool) -> vec3<f32> {
+    return studio_hdr_environment(R, rough, outdoor);
+}
+fn studio_env_irradiance(N: vec3<f32>, outdoor: bool) -> vec3<f32> {
+    return studio_hdr_irradiance(N, outdoor);
+}
+"#
+    };
     format!(
-        "{main}\n{shadows}\n{ambient}\n{}\n{}\n{}",
+        "{main}\n{shadows}\n{ambient}\n{env_ibl}\n{}\n{}\n{}",
         include_str!("studio_lighting.wgsl"),
         icon_studio::wgsl(),
         lighting_depth::SHADOW_FRAGMENT

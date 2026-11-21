@@ -64,6 +64,8 @@ pub struct Submesh {
     pub source_vertex_indices: Vec<i32>,
     #[serde(default)]
     pub shader_masks: Vec<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tangents: Vec<[f32; 4]>,
     pub source_range: SourceRange,
     pub vertex_stride: u32,
     pub layout: String,
@@ -86,6 +88,9 @@ impl Submesh {
         {
             return Err(FormatError::InvalidIndex);
         }
+        if !self.tangents.is_empty() && self.tangents.len() != self.positions.len() {
+            return Err(FormatError::InvalidIndex);
+        }
         if self.positions.is_empty()
             || self.indices.len() < 3
             || !self.indices.len().is_multiple_of(3)
@@ -106,6 +111,7 @@ impl Submesh {
                 .flatten()
                 .any(|value| !value.is_finite())
             || self.uvs.iter().flatten().any(|value| !value.is_finite())
+            || self.tangents.iter().flatten().any(|value| !value.is_finite())
         {
             return Err(FormatError::NonFiniteGeometry);
         }
@@ -900,6 +906,7 @@ fn decode_static_submesh(
         uvs,
         indices,
         shader_masks: Vec::new(),
+        tangents: Vec::new(),
         source_vertex_indices: (0..record.vertex_count)
             .map(|value| i32::try_from(value).unwrap_or(-1))
             .collect(),
@@ -1242,9 +1249,16 @@ fn decode_pac_section(
             .offset
             .checked_add(index_cursor)
             .ok_or(FormatError::ResourceLimit)?;
+        let exact_pac40 =
+            layout.stride == 40 && layout.uv_offset == 8 && layout.normal_offset == 16;
         let mut positions = Vec::with_capacity(vertex_count);
         let mut normals = Vec::with_capacity(vertex_count);
         let mut uvs = Vec::with_capacity(vertex_count);
+        let mut tangents = if exact_pac40 {
+            Vec::with_capacity(vertex_count)
+        } else {
+            Vec::new()
+        };
         for vertex in 0..vertex_count {
             let record = absolute_vertices
                 .checked_add(
@@ -1273,10 +1287,24 @@ fn decode_pac_section(
                 half_to_f32(read_u16(bytes, record + layout.uv_offset)?),
                 half_to_f32(read_u16(bytes, record + layout.uv_offset + 2)?),
             ]);
-            normals.push(decode_packed_normal(read_u32(
-                bytes,
-                record + layout.normal_offset,
-            )?));
+            let packed = read_u32(bytes, record + layout.normal_offset)?;
+            let normal = if exact_pac40 {
+                decode_canonical_pac_normal(packed)
+            } else {
+                decode_packed_normal(packed)
+            };
+            normals.push(normal);
+            if exact_pac40 {
+                let lane = i16::from_le_bytes([
+                    *bytes
+                        .get(record + 6)
+                        .ok_or(FormatError::Truncated("PAC tangent lane"))?,
+                    *bytes
+                        .get(record + 7)
+                        .ok_or(FormatError::Truncated("PAC tangent lane"))?,
+                ]);
+                tangents.push(decode_pac_tangent(lane, packed, normal));
+            }
         }
         let mut indices = Vec::with_capacity(index_count);
         for index in 0..index_count {
@@ -1301,6 +1329,7 @@ fn decode_pac_section(
             uvs,
             indices,
             shader_masks: Vec::new(),
+            tangents,
             source_vertex_indices: (0..vertex_count)
                 .map(|value| i32::try_from(value).unwrap_or(-1))
                 .collect(),
@@ -1365,6 +1394,42 @@ fn compute_normals(positions: &[[f32; 3]], indices: &[u32]) -> Result<Vec<[f32; 
         .into_iter()
         .map(|normal| normal.try_normalize().unwrap_or(Vec3::Y).to_array())
         .collect())
+}
+
+fn decode_canonical_pac_normal(packed: u32) -> [f32; 3] {
+    let nx = ((packed >> 10) & 0x3ff) as f32 / 511.5 - 1.0;
+    let ny = ((packed >> 20) & 0x3ff) as f32 / 511.5 - 1.0;
+    let mut nz = (1.0 - nx * nx - ny * ny).max(0.0).sqrt();
+    if (packed & 0x4000_0000) != 0 {
+        nz = -nz;
+    }
+    Vec3::new(nx, ny, nz)
+        .try_normalize()
+        .unwrap_or(Vec3::Y)
+        .to_array()
+}
+
+fn decode_pac_tangent(lane: i16, packed: u32, normal: [f32; 3]) -> [f32; 4] {
+    let bx = ((f32::from(lane) / 32_767.0).abs() * 2.0 - 1.0).clamp(-1.0, 1.0);
+    let by = (packed & 0x3ff) as f32 / 511.5 - 1.0;
+    let mut bz = (1.0 - bx * bx - by * by).max(0.0).sqrt();
+    if lane < 0 {
+        bz = -bz;
+    }
+    let sign = if (packed & 0x8000_0000) != 0 {
+        -1.0
+    } else {
+        1.0
+    };
+    let n = Vec3::from_array(normal).try_normalize().unwrap_or(Vec3::Y);
+    let raw_b = Vec3::new(bx, by, bz);
+    let Some(b) = (raw_b - n * raw_b.dot(n)).try_normalize() else {
+        return [0.0, 0.0, 0.0, sign];
+    };
+    match (b.cross(n) * sign).try_normalize() {
+        Some(t) => [t.x, t.y, t.z, sign],
+        None => [0.0, 0.0, 0.0, sign],
+    }
 }
 
 fn decode_packed_normal(packed: u32) -> [f32; 3] {
@@ -1830,6 +1895,7 @@ mod tests {
             indices: vec![0, 1, 2],
             source_vertex_indices: vec![0, 1, 2],
             shader_masks: vec![[0.2, 0.8, 1.0]; 3],
+            tangents: Vec::new(),
             source_range: SourceRange {
                 offset: 0,
                 length: 0,
@@ -1857,6 +1923,7 @@ mod tests {
             uvs: vec![[0.0, 0.0]],
             indices: vec![0, 1, 0],
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             source_vertex_indices: vec![0],
             source_range: SourceRange {
                 offset: 0,
@@ -2067,5 +2134,51 @@ mod tests {
             decode_pab(&cycle),
             Err(FormatError::InvalidSkeleton(message)) if message.contains("cycle")
         ));
+    }
+
+    #[test]
+    fn canonical_pac_decodes_authored_tangents_and_validates_bounds() -> Result<(), FormatError> {
+        let mut bytes = synthetic::two_lod_pac();
+        let initial = decode_mesh(&bytes, MeshFormat::Pac)?;
+        let initial_lod0 = initial.lods.iter().find(|lod| lod.level == 0).expect("LOD0");
+        let vertex_base = initial_lod0.submeshes[0].source_range.offset as usize;
+        let stride = 40_usize;
+        // Normal (0, 0, 1): nx=0 -> 512, ny=0 -> 512, z positive -> bit 30 clear.
+        // Bitangent (0, 1, 0): bx=0 -> lane=(0.5*32767)=16384, by=+1 -> 1023.
+        let encode_packed = |bit31: bool| -> u32 {
+            let mut v = 1023_u32 | (512_u32 << 10) | (512_u32 << 20);
+            if bit31 {
+                v |= 0x8000_0000;
+            }
+            v
+        };
+        let lane_bytes = 16_384_i16.to_le_bytes();
+        // Vertex 0: bit 31 clear (+1 handedness) -> B=(0,1,0), N=(0,0,1), T = +(B x N) = (+1,0,0)
+        bytes[vertex_base + 6..vertex_base + 8].copy_from_slice(&lane_bytes);
+        bytes[vertex_base + 16..vertex_base + 20].copy_from_slice(&encode_packed(false).to_le_bytes());
+        // Vertex 1: bit 31 set (-1 handedness) -> B=(0,1,0), N=(0,0,1), T = -(B x N) = (-1,0,0)
+        bytes[vertex_base + stride + 6..vertex_base + stride + 8].copy_from_slice(&lane_bytes);
+        bytes[vertex_base + stride + 16..vertex_base + stride + 20]
+            .copy_from_slice(&encode_packed(true).to_le_bytes());
+
+        let doc = decode_mesh(&bytes, MeshFormat::Pac)?;
+        let lod0 = doc.lods.iter().find(|lod| lod.level == 0).expect("LOD0");
+        let sub = &lod0.submeshes[0];
+        assert_eq!(sub.tangents.len(), sub.positions.len());
+        assert!(Vec3::from_array(sub.normals[0]).distance(Vec3::Z) < 0.02);
+        let t0 = sub.tangents[0];
+        let t1 = sub.tangents[1];
+        assert_eq!(t0[3], 1.0);
+        assert!(Vec3::new(t0[0], t0[1], t0[2]).distance(Vec3::X) < 0.02);
+        assert_eq!(t1[3], -1.0);
+        assert!(Vec3::new(t1[0], t1[1], t1[2]).distance(-Vec3::X) < 0.02);
+
+        let mut bad = sub.clone();
+        bad.tangents.pop();
+        assert!(matches!(bad.validate(), Err(FormatError::InvalidIndex)));
+        let mut nonfinite = sub.clone();
+        nonfinite.tangents[0][0] = f32::NAN;
+        assert!(matches!(nonfinite.validate(), Err(FormatError::NonFiniteGeometry)));
+        Ok(())
     }
 }

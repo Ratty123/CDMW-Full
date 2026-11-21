@@ -1772,6 +1772,7 @@ pub(super) fn symmetry_application() -> Result<LabApplication, Box<dyn std::erro
                 normals: vec![[0.0, 0.0, 1.0]; positions.len()],
                 uvs: vec![[0.0, 0.0]; positions.len()],
                 shader_masks: Vec::new(),
+                tangents: Vec::new(),
                 source_vertex_indices: vec![0, 1, 2, 3],
                 positions,
                 indices: vec![0, 1, 2],
@@ -3012,7 +3013,7 @@ fn integrated_session_retains_textures_when_a_shadow_revision_reloads_geometry()
             label: "body_base.dds".to_owned(),
             role: cdmw_texture::TextureRole::BaseColor,
             metadata,
-            bytes: bytes.clone(),
+            bytes: bytes.clone().into(),
             material_indices_by_lod: vec![vec![0]],
         }],
     );
@@ -3113,7 +3114,7 @@ fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidate
             label: "body_base.dds".to_owned(),
             role: cdmw_texture::TextureRole::BaseColor,
             metadata,
-            bytes,
+            bytes: bytes.into(),
             material_indices_by_lod: vec![vec![0]],
         }],
     );

@@ -357,7 +357,7 @@ impl ApplicationHandler for AuthoringRefreshProbe {
                     label: "owned.dds".to_owned(),
                     role: TextureRole::BaseColor,
                     metadata: cdmw_texture::inspect_dds(&bytes, TextureRole::BaseColor)?,
-                    bytes,
+                    bytes: bytes.into(),
                     material_indices_by_lod: vec![vec![0]],
                 }],
             );

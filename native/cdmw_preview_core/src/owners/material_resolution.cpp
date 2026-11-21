@@ -4,6 +4,24 @@ static std::string extracted_dds_path_for_entry(
     std::vector<std::string>& notes
 ) {
     if (ref.path.empty() || ref.extension != ".dds") return "";
+    if (!ref.prepared_path.empty()) {
+        try {
+            const fs::path prepared = ref.prepared_path;
+            if (fs::is_regular_file(native_file_path(prepared))) {
+                const auto prepared_size = fs::file_size(native_file_path(prepared));
+                if (prepared_size >= 128 && (ref.orig_size == 0 || prepared_size == ref.orig_size)) {
+                    std::ifstream in(native_file_path(prepared), std::ios::binary);
+                    char magic[4] = {};
+                    in.read(magic, sizeof(magic));
+                    if (in.gcount() == 4 && std::memcmp(magic, "DDS ", 4) == 0) {
+                        record_preview_decoded_dependency(ref);
+                        return path_utf8(fs::absolute(prepared));
+                    }
+                }
+            }
+        } catch (...) {
+        }
+    }
     if (ref.compressed() && ref.comp_size != ref.orig_size) {
         // Partial DDS entries are reconstructed with PATHC before reaching this cache.
         // The cache key includes the native extraction version to avoid stale padded DDS.
@@ -177,22 +195,22 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
     const size_t blocks_high = static_cast<size_t>((header.height + 3) / 4);
     const size_t block_count = blocks_wide * blocks_high;
     if (block_count == 0) return stats;
-    // Cap the read so a 2048x2048 map costs the same as a small one. The
-    // statistics only need to be representative, not exact.
+    const size_t mip0_bytes = block_count * block_stride;
+    std::vector<unsigned char> mip0(mip0_bytes, 0);
+    in.read(reinterpret_cast<char*>(mip0.data()), static_cast<std::streamsize>(mip0_bytes));
+    const size_t available_blocks = static_cast<size_t>(std::max<std::streamsize>(0, in.gcount())) / block_stride;
+    if (available_blocks == 0) return stats;
+    // Cap the sampled blocks so a 2048x2048 map costs the same as a small one.
     constexpr size_t kMaximumBlocks = 16384;
-    const size_t stride = std::max<size_t>(1, block_count / kMaximumBlocks);
+    const size_t stride = std::max<size_t>(1, available_blocks / kMaximumBlocks);
     double red_total = 0.0;
     double green_total = 0.0;
     double blue_total = 0.0;
     long long blue_high = 0;
     long long texels = 0;
-    std::vector<unsigned char> block(block_stride, 0);
-    for (size_t index = 0; index < block_count; index += stride) {
-        in.seekg(static_cast<std::streamoff>(128 + index * block_stride), std::ios::beg);
-        in.read(reinterpret_cast<char*>(block.data()), static_cast<std::streamsize>(block_stride));
-        if (in.gcount() != static_cast<std::streamsize>(block_stride)) break;
+    for (size_t index = 0; index < available_blocks; index += stride) {
         accumulate_bc1_colour_block(
-            block.data() + colour_offset, red_total, green_total, blue_total, blue_high, texels);
+            mip0.data() + index * block_stride + colour_offset, red_total, green_total, blue_total, blue_high, texels);
     }
     if (texels > 0) {
         stats.valid = true;

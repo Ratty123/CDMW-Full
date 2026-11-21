@@ -1207,7 +1207,7 @@ impl PreviewApplication {
             started: Some(Instant::now()),
             ..Default::default()
         };
-        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+        self.next_frame = Some(Instant::now() + Duration::from_millis(4));
         Ok(())
     }
 
@@ -1219,10 +1219,26 @@ impl PreviewApplication {
         if !progress.pending {
             return Ok(());
         }
+        let interacting = self.orbiting
+            || self.panning
+            || self.left_camera_drag
+            || self.gizmo_drag.is_some()
+            || self.navigator_drag.is_some();
+        let initial_budget = if interacting {
+            8 * 1024 * 1024
+        } else {
+            24 * 1024 * 1024
+        };
+        let time_budget = if interacting {
+            Duration::from_millis(2)
+        } else {
+            Duration::from_millis(6)
+        };
         let started = Instant::now();
-        let mut budget = 8 * 1024 * 1024;
+        let mut budget = initial_budget;
+        let mut bound_any = false;
         let result = (|| -> Result<(), cdmw_render_wgpu::RenderError> {
-            while budget > 0 && started.elapsed() < Duration::from_millis(2) {
+            while budget > 0 && started.elapsed() < time_budget {
                 if let Some(texture) = self.textures.get(progress.base) {
                     let (complete, used) = renderer.stage_verified_dds_texture(
                         &texture.bytes,
@@ -1240,6 +1256,7 @@ impl PreviewApplication {
                         &texture.material_indices_by_lod,
                         &texture.metadata.source_sha256,
                     )?;
+                    bound_any = true;
                     progress.base += 1;
                 } else if let Some(layers) = self.layers.get(progress.layer) {
                     if progress.layer_texture < layers.textures.len() {
@@ -1258,6 +1275,7 @@ impl PreviewApplication {
                         progress.layer_texture += 1;
                     } else {
                         renderer.add_material_layers(layers)?;
+                        bound_any = true;
                         progress.layer += 1;
                         progress.layer_texture = 0;
                     }
@@ -1276,6 +1294,7 @@ impl PreviewApplication {
                     let index = renderer.add_verified_effect_dds_texture(&texture.bytes, hash)?;
                     self.effect_texture_indices
                         .insert(texture.archive_path.clone(), index);
+                    bound_any = true;
                     progress.effect += 1;
                 } else {
                     renderer.finish_texture_uploads();
@@ -1283,10 +1302,12 @@ impl PreviewApplication {
                     break;
                 }
             }
-            renderer.set_material_lod(self.package.source_lod_index())?;
+            if bound_any || !progress.pending {
+                renderer.set_material_lod(self.package.source_lod_index())?;
+            }
             Ok(())
         })();
-        let used = 8 * 1024 * 1024 - budget;
+        let used = initial_budget - budget;
         progress.bytes += used;
         progress.maximum_slice_bytes = progress.maximum_slice_bytes.max(used);
         progress.maximum_slice_ms = progress
@@ -1303,7 +1324,12 @@ impl PreviewApplication {
             }));
         }
         // The last completed binding also needs one final redraw.
-        self.next_frame = Some(Instant::now() + Duration::from_millis(16));
+        let next_delay = if interacting || !progress.pending {
+            Duration::from_millis(16)
+        } else {
+            Duration::from_millis(4)
+        };
+        self.next_frame = Some(Instant::now() + next_delay);
         result.map_err(|error| error.to_string())
     }
 
@@ -2698,6 +2724,7 @@ impl PreviewApplication {
                 normals: Vec::new(),
                 uvs: Vec::new(),
                 shader_masks: Vec::new(),
+                tangents: Vec::new(),
                 source_vertex_indices: Vec::new(),
                 indices: Vec::new(),
                 source_range: SourceRange {
@@ -4767,6 +4794,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let snapshot = cdmw_mesh::DrawSnapshot {
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             mesh_identity: 1,
             draw_revision: 1,
             topology_generation: 1,
@@ -5545,6 +5573,7 @@ mod follow_tests {
             uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
             indices: vec![0, 1, 2],
             shader_masks: Vec::new(),
+            tangents: Vec::new(),
             source_vertex_indices: vec![0, 1, 2],
             source_range: SourceRange {
                 offset: 0,

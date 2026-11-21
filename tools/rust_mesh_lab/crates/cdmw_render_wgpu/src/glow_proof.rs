@@ -20,6 +20,7 @@ pub(super) fn verify(
     let saved_camera = *camera;
     let snapshot = DrawSnapshot {
         shader_masks: Vec::new(),
+        tangents: Vec::new(),
         mesh_identity: u64::MAX - 31,
         draw_revision: 1,
         topology_generation: 1,

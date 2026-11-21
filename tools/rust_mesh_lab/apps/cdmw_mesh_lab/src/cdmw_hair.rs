@@ -1441,6 +1441,7 @@ fn build_scene(
 ) -> HairScene {
     let mut snapshot = DrawSnapshot {
         shader_masks: Vec::new(),
+        tangents: Vec::new(),
         mesh_identity: u64::MAX - 1,
         draw_revision: 0,
         topology_generation: generation,

@@ -3393,6 +3393,31 @@ impl LabApplication {
                     );
                 }
             });
+        if self.lighting_preset == cdmw_render_wgpu::LightingPreset::StudioFixed {
+            ui.add(
+                egui::Slider::new(&mut self.studio_look.wetness, 0.0..=1.0)
+                    .custom_formatter(|value, _| format!("{:.0}%", value * 100.0))
+                    .text(crate::localization::tr("Wetness")),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.studio_look.exposure, 0.5..=2.0)
+                    .text(crate::localization::tr("Exposure")),
+            );
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::Slider::new(&mut self.studio_look.env_rotation_degrees, -180.0..=180.0)
+                        .suffix("°")
+                        .text(crate::localization::tr("Light rotation")),
+                );
+                let is_default = self.studio_look == cdmw_render_wgpu::StudioLookSettings::default();
+                if ui
+                    .add_enabled(!is_default, egui::Button::new(crate::localization::tr("Reset")))
+                    .clicked()
+                {
+                    self.studio_look = cdmw_render_wgpu::StudioLookSettings::default();
+                }
+            });
+        }
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"))
                 .on_hover_text(

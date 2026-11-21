@@ -89,17 +89,19 @@ fn icon_studio_lighting(C: vec3<f32>, N: vec3<f32>, V: vec3<f32>, T: vec3<f32>, 
     var gloss = select(select(1.0,0.45,skin),0.3,hair);
     if wet { gloss = 0.35; }
     var result = StudioTerms(
+        vec3<f32>(0.0),
+        vec3<f32>(0.0),
         C*(1.0-metal)*(vec3(1.0)-environment_brdf_approx(vec3(0.04*spec),rough,NV))*irradiance*cavity,
         reflection*brdf*specular_cavity*gloss);
     let key = safe_normalize(icon_studio_axes()*ICON_BOX_AXES[0],V);
     if skin {
-        result.diffuse += C*vec3(0.35,0.12,0.075)*clamp((dot(N,key)+0.35)/1.35,0.0,1.0)*0.35*shadow;
+        result.direct_diffuse += C*vec3(0.35,0.12,0.075)*clamp((dot(N,key)+0.35)/1.35,0.0,1.0)*0.35*shadow;
     }
     if hair {
         let H = safe_normalize(V+key,N);
         let alignment = dot(T,H);
         let band = pow(sqrt(clamp(1.0-alignment*alignment,0.0,1.0)),max(4.0,80.0*(1.0-rough)));
-        result.specular += C*band*0.22*spec*shadow;
+        result.direct_specular += C*band*0.22*spec*shadow;
     }
     return result;
 }

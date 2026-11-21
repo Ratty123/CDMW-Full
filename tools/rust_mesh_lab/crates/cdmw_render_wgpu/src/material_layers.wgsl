@@ -168,18 +168,25 @@ fn eye_tangent_normal(sampled: vec3<f32>, encoding: f32) -> vec3<f32> {
 // Slot B's entry holds P0 (dye), P1 (affine) and (brightness, iris normal,
 // iris material, normal encoding). The eye writes no metal and no occlusion map:
 // its `_materialTexture.b` lerp lands in the G-buffer's subsurface slot.
-fn evaluate_eye(uv: vec2<f32>) -> LayerSurface {
+const LAYER_MIP_LOD_BIAS: f32 = -1.35;
+
+fn evaluate_eye(uv: vec2<f32>, view_ts: vec3<f32>) -> LayerSurface {
     let p0 = layer_uniform.layers[2].dye;
     let p1 = layer_uniform.layers[2].affine;
     let info = layer_uniform.layers[2].properties;
     let uvp = (2.0 * uv - vec2<f32>(1.0)) * (1.0 - p1.w / 510.0) + vec2<f32>(0.5);
     let r = length(2.0 * abs(uvp) - vec2<f32>(1.0));
+    // Corneal refraction parallax: push the iris and pupil inward along the
+    // refracted view ray (IOR ~ 1.336) inside the curved corneal dome.
+    let dome = clamp(1.0 - r * 2.0, 0.0, 1.0);
+    let refract_offset = (view_ts.xy / max(abs(view_ts.z) + 0.42, 0.42)) * (0.028 * dome);
+    let uvp_refracted = uvp - refract_offset;
     var pw = 1.0;
     if r < 0.5 {
         let stretch = clamp(2.0 * (p0.y / 255.0 + 0.05 + abs(p0.z - p0.y) / 255.0 * (p0.x / 255.0)), 0.0, 1.0);
         pw = pow(2.0 * r, 1.0 - 2.0 * stretch);
     }
-    let uvi = (2.0 * uvp - vec2<f32>(1.0)) * (1.0 - p0.w / 255.0) + vec2<f32>(0.5);
+    let uvi = (2.0 * uvp_refracted - vec2<f32>(1.0)) * (1.0 - p0.w / 255.0) + vec2<f32>(0.5);
     var uvpu = uvi;
     if p1.x > 0.0 && p1.y > 0.0 {
         let a = p1.xy * 2.0 / 255.0;
@@ -189,29 +196,31 @@ fn evaluate_eye(uv: vec2<f32>) -> LayerSurface {
     let sclera = textureSampleBias(base_texture, material_sampler, uvp, MATERIAL_MIP_LOD_BIAS);
     var iris = vec4<f32>(0.0);
     if layer_uniform.layers[0].properties.z > 0.5 {
-        iris = textureSampleBias(layer_r_color, material_sampler, uvi, 0.0);
+        iris = textureSampleBias(layer_r_color, material_sampler, uvi, LAYER_MIP_LOD_BIAS);
     }
     var pupil = vec4<f32>(0.0);
     if layer_uniform.layers[1].properties.z > 0.5 {
-        pupil = textureSampleBias(layer_g_color, material_sampler, uvpu, 0.0);
+        pupil = textureSampleBias(layer_g_color, material_sampler, uvpu, LAYER_MIP_LOD_BIAS);
     }
+    // Natural limbus ring subtly darkens the outer iris perimeter.
+    let limbus = 1.0 - 0.16 * smoothstep(0.36, 0.50, r) * clamp(iris.a, 0.0, 1.0);
     var color = select(sclera.rgb, vec3<f32>(1.0), (layer_uniform.control.w & 1u) != 0u);
-    color = mix(color, iris.rgb, clamp(iris.a, 0.0, 1.0));
+    color = mix(color, iris.rgb * limbus, clamp(iris.a, 0.0, 1.0));
     color = mix(color, pupil.rgb, clamp(pupil.a, 0.0, 1.0));
     color = min(color * info.x * 2.0, vec3<f32>(1.0));
     var sclera_sp = vec3<f32>(0.0);
-    if (material.flags & MATERIAL_SURFACE) != 0u { sclera_sp = textureSampleBias(material_texture, material_sampler, uvpu, 0.0).rgb; }
+    if (material.flags & MATERIAL_SURFACE) != 0u { sclera_sp = textureSampleBias(material_texture, material_sampler, uvpu, LAYER_MIP_LOD_BIAS).rgb; }
     var iris_sp = vec3<f32>(0.0);
-    if info.z > 0.5 { iris_sp = textureSampleBias(layer_r_sp, material_sampler, uvpu, 0.0).rgb; }
+    if info.z > 0.5 { iris_sp = textureSampleBias(layer_r_sp, material_sampler, uvpu, LAYER_MIP_LOD_BIAS).rgb; }
     var rough = (1.0 - pupil.a) * select(0.1, 0.0, r < 0.5);
     if p1.z > 0.0 { rough = mix(sclera_sp.g, iris_sp.g, iris.a); }
-    rough = max(rough, 0.1);
+    rough = max(rough, 0.08);
     var sclera_n = vec3<f32>(0.0, 0.0, 1.0);
     if (material.flags & MATERIAL_NORMAL) != 0u {
-        sclera_n = eye_tangent_normal(textureSampleBias(normal_texture, material_sampler, uvpu, 0.0).rgb, 0.0);
+        sclera_n = eye_tangent_normal(textureSampleBias(normal_texture, material_sampler, uvpu, LAYER_MIP_LOD_BIAS).rgb, 0.0);
     }
     var iris_n = vec3<f32>(0.0, 0.0, 1.0);
-    if info.y > 0.5 { iris_n = eye_tangent_normal(textureSampleBias(layer_r_normal, material_sampler, uvpu, 0.0).rgb, info.w); }
+    if info.y > 0.5 { iris_n = eye_tangent_normal(textureSampleBias(layer_r_normal, material_sampler, uvpu, LAYER_MIP_LOD_BIAS).rgb, info.w); }
     let normal = safe_normalize(mix(sclera_n, iris_n, clamp(iris.a, 0.0, 1.0)), vec3<f32>(0.0, 0.0, 1.0));
     return LayerSurface(color, normal, vec3<f32>(1.0, clamp(rough, 0.0, 1.0), 0.0), vec3<f32>(iris.a, pupil.a, 0.0));
 }
@@ -288,7 +297,7 @@ fn blend_height_surface(uv: vec2<f32>, ur: vec2<f32>, ug: vec2<f32>, ub: vec2<f3
     return out;
 }
 
-fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurface {
+fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>, view_ts: vec3<f32>) -> LayerSurface {
     // control.w bit 0: no base colour map, so the surface beneath the layers is
     // white rather than the grey placeholder bound for untextured geometry.
     let base = vec4<f32>(select(sampled_base.rgb, vec3<f32>(1.0), (layer_uniform.control.w & 1u) != 0u), sampled_base.a);
@@ -297,7 +306,7 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     // Mode 1 picks one layer per pixel, so its mask is read as sharply as the base
     // maps are: at a mip two levels coarser the thin trims and inlays fall below
     // their neighbours and vanish from the picture.
-    let mask_texel = textureSampleBias(blend_mask, material_sampler, uv, select(0.0, MATERIAL_MIP_LOD_BIAS, layer_uniform.control.x == 1u));
+    let mask_texel = textureSampleBias(blend_mask, material_sampler, uv, select(LAYER_MIP_LOD_BIAS, MATERIAL_MIP_LOD_BIAS, layer_uniform.control.x == 1u));
     var mask = mask_texel.rgb;
     let raw_mask = mask;
     if (layer_uniform.control.w & 2u) != 0u {
@@ -312,14 +321,14 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     out.mask = mask;
     var base_normal = vec3<f32>(0.0,0.0,1.0);
     if (material.flags & MATERIAL_NORMAL) != 0u {
-        var xy = textureSampleBias(normal_texture, material_sampler, uv, 0.0).xy * 2.0 - vec2<f32>(1.0);
+        var xy = textureSampleBias(normal_texture, material_sampler, uv, LAYER_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
         if (material.flags & MATERIAL_NORMAL_Y_INVERTED) != 0u { xy.y = -xy.y; }
         base_normal = safe_normalize(vec3<f32>(xy,sqrt(max(1.0-dot(xy,xy),0.0))), base_normal);
     }
     var base_sp = vec3<f32>(1.0,0.66,0.0);
-    if (material.flags & MATERIAL_SURFACE) != 0u { base_sp = textureSampleBias(material_texture, material_sampler, uv, 0.0).rgb; }
+    if (material.flags & MATERIAL_SURFACE) != 0u { base_sp = textureSampleBias(material_texture, material_sampler, uv, LAYER_MIP_LOD_BIAS).rgb; }
     if layer_uniform.control.x == 3u {
-        return evaluate_eye(uv);
+        return evaluate_eye(uv, view_ts);
     }
     var colors: array<vec3<f32>,3>;
     var normals: array<vec3<f32>,3>;
@@ -328,9 +337,9 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     let ur = layer_uv(layer_uniform.layers[0], uv);
     let ug = layer_uv(layer_uniform.layers[1], uv);
     let ub = layer_uv(layer_uniform.layers[2], uv);
-    let texel_r = textureSampleBias(layer_r_color, material_sampler, ur, 0.0);
-    let texel_g = textureSampleBias(layer_g_color, material_sampler, ug, 0.0);
-    let texel_b = textureSampleBias(layer_b_color, material_sampler, ub, 0.0);
+    let texel_r = textureSampleBias(layer_r_color, material_sampler, ur, LAYER_MIP_LOD_BIAS);
+    let texel_g = textureSampleBias(layer_g_color, material_sampler, ug, LAYER_MIP_LOD_BIAS);
+    let texel_b = textureSampleBias(layer_b_color, material_sampler, ub, LAYER_MIP_LOD_BIAS);
     colors[0] = texel_r.rgb;
     colors[1] = texel_g.rgb;
     colors[2] = texel_b.rgb;
@@ -343,23 +352,23 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     // Mode 1: each layer's normal weight, the game's
     // w = opacity byte * (flag bit 4k ? alpha : 1) * ceil(mask[k]) where bit 4k+1 is set.
     var normal_weights = vec3<f32>(0.0);
-    normals[0] = textureSampleBias(layer_r_normal, material_sampler, ur, 0.0).rgb;
-    normals[1] = textureSampleBias(layer_g_normal, material_sampler, ug, 0.0).rgb;
-    normals[2] = textureSampleBias(layer_b_normal, material_sampler, ub, 0.0).rgb;
-    responses[0] = textureSampleBias(layer_r_sp, material_sampler, ur, 0.0).rgb;
-    responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, 0.0).rgb;
-    responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, 0.0).rgb;
+    normals[0] = textureSampleBias(layer_r_normal, material_sampler, ur, LAYER_MIP_LOD_BIAS).rgb;
+    normals[1] = textureSampleBias(layer_g_normal, material_sampler, ug, LAYER_MIP_LOD_BIAS).rgb;
+    normals[2] = textureSampleBias(layer_b_normal, material_sampler, ub, LAYER_MIP_LOD_BIAS).rgb;
+    responses[0] = textureSampleBias(layer_r_sp, material_sampler, ur, LAYER_MIP_LOD_BIAS).rgb;
+    responses[1] = textureSampleBias(layer_g_sp, material_sampler, ug, LAYER_MIP_LOD_BIAS).rgb;
+    responses[2] = textureSampleBias(layer_b_sp, material_sampler, ub, LAYER_MIP_LOD_BIAS).rgb;
     if layer_uniform.control.x == 5u {
         return blend_height_surface(uv, ur, ug, ub, base.rgb, base_normal, base_sp, raw_mask, colors, normals, responses);
     }
-    let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, 0.0).rgb;
+    let detail_texel = textureSampleBias(detail_mask, material_sampler, uv, LAYER_MIP_LOD_BIAS).rgb;
     // The blend layer is placed once: it draws where its own UV lies in 0.005 to
     // 0.995. Sampled here, outside the per-pixel choice below.
     let blend_uv = vec2<f32>(layer_uniform.blend_affine.x*uv.x + layer_uniform.blend_affine.z*uv.y,
                              layer_uniform.blend_affine.y*uv.x + layer_uniform.blend_affine.w*uv.y) + layer_uniform.blend_offset.xy;
-    let blend_texel = textureSampleBias(blend_color, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0);
-    let blend_normal_texel = textureSampleBias(blend_normal, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0).rgb;
-    let blend_material_texel = textureSampleBias(blend_material, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), 0.0).rgb;
+    let blend_texel = textureSampleBias(blend_color, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), LAYER_MIP_LOD_BIAS);
+    let blend_normal_texel = textureSampleBias(blend_normal, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), LAYER_MIP_LOD_BIAS).rgb;
+    let blend_material_texel = textureSampleBias(blend_material, material_sampler, clamp(blend_uv, vec2<f32>(0.005), vec2<f32>(0.995)), LAYER_MIP_LOD_BIAS).rgb;
     // The symbol's weight for its normal and material: (bit 12 ? alpha : 1) times
     // its opacity byte, where it is drawn (%1782-%1790).
     var symbol_weight = 0.0;
@@ -369,15 +378,15 @@ fn evaluate_material_layers(uv: vec2<f32>, sampled_base: vec4<f32>) -> LayerSurf
     let gr = grime_uv(layer_uniform.layers[0], uv);
     let gg = grime_uv(layer_uniform.layers[1], uv);
     let gb = grime_uv(layer_uniform.layers[2], uv);
-    grime_colors[0] = textureSampleBias(grime_r_color, material_sampler, gr, 0.0).rgb;
-    grime_colors[1] = textureSampleBias(grime_g_color, material_sampler, gg, 0.0).rgb;
-    grime_colors[2] = textureSampleBias(grime_b_color, material_sampler, gb, 0.0).rgb;
-    grime_normals[0] = textureSampleBias(grime_r_normal, material_sampler, gr, 0.0).rgb;
-    grime_normals[1] = textureSampleBias(grime_g_normal, material_sampler, gg, 0.0).rgb;
-    grime_normals[2] = textureSampleBias(grime_b_normal, material_sampler, gb, 0.0).rgb;
-    grime_responses[0] = textureSampleBias(grime_r_sp, material_sampler, gr, 0.0).rgb;
-    grime_responses[1] = textureSampleBias(grime_g_sp, material_sampler, gg, 0.0).rgb;
-    grime_responses[2] = textureSampleBias(grime_b_sp, material_sampler, gb, 0.0).rgb;
+    grime_colors[0] = textureSampleBias(grime_r_color, material_sampler, gr, LAYER_MIP_LOD_BIAS).rgb;
+    grime_colors[1] = textureSampleBias(grime_g_color, material_sampler, gg, LAYER_MIP_LOD_BIAS).rgb;
+    grime_colors[2] = textureSampleBias(grime_b_color, material_sampler, gb, LAYER_MIP_LOD_BIAS).rgb;
+    grime_normals[0] = textureSampleBias(grime_r_normal, material_sampler, gr, LAYER_MIP_LOD_BIAS).rgb;
+    grime_normals[1] = textureSampleBias(grime_g_normal, material_sampler, gg, LAYER_MIP_LOD_BIAS).rgb;
+    grime_normals[2] = textureSampleBias(grime_b_normal, material_sampler, gb, LAYER_MIP_LOD_BIAS).rgb;
+    grime_responses[0] = textureSampleBias(grime_r_sp, material_sampler, gr, LAYER_MIP_LOD_BIAS).rgb;
+    grime_responses[1] = textureSampleBias(grime_g_sp, material_sampler, gg, LAYER_MIP_LOD_BIAS).rgb;
+    grime_responses[2] = textureSampleBias(grime_b_sp, material_sampler, gb, LAYER_MIP_LOD_BIAS).rgb;
     var color = vec3<f32>(0.0);
     var normal = vec3<f32>(0.0);
     var orm = vec3<f32>(0.0);

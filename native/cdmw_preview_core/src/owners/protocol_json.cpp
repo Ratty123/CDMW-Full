@@ -49,11 +49,23 @@ void write_text(const fs::path& path, const std::string& text) {
 }
 
 std::vector<char> read_binary_file(const fs::path& path) {
-    std::ifstream in(native_file_path(path), std::ios::binary);
+    std::ifstream in(native_file_path(path), std::ios::binary | std::ios::ate);
     if (!in) {
         throw_file_error("open", path);
     }
-    return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const auto end_pos = in.tellg();
+    if (end_pos <= 0) {
+        return {};
+    }
+    std::vector<char> data(static_cast<size_t>(end_pos));
+    in.seekg(0, std::ios::beg);
+    in.read(data.data(), static_cast<std::streamsize>(data.size()));
+    const auto read_count = in.gcount();
+    if (read_count < 0) {
+        throw_file_error("read", path);
+    }
+    data.resize(static_cast<size_t>(read_count));
+    return data;
 }
 
 static std::uint32_t json_hex_codepoint(const std::string& json, size_t& pos) {
