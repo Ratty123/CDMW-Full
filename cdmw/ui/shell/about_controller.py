@@ -253,8 +253,11 @@ class AboutControllerMixin:
         """The Help topics in a window of their own: the Wiki's source, kept for when no browser opens."""
 
         title, intro_html, sections = self._build_about_document_for_language(self.ui_localizer.language_code)
-        about_dialog_cls = _resolve_symbol("AboutDialog")
-        dialog = about_dialog_cls(
+        # Imported here, not at module load (startup cost), but still called by its
+        # own name so the localization scan sees the Help text it is given.
+        from cdmw.ui.widgets import AboutDialog
+
+        dialog = AboutDialog(
             self,
             title=title,
             intro_html=intro_html,

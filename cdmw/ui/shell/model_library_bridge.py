@@ -407,7 +407,7 @@ class ModelLibraryShellBridgeMixin:
             set_dotnet_preview_texture_flip_vertical = _sym("set_dotnet_preview_texture_flip_vertical")
             scene_import_normalizes_texture_v = _sym("scene_import_normalizes_texture_v")
             prepare_model_preview = _sym("prepare_model_preview")
-            archive_preview_result_cls = _sym("ArchivePreviewResult")
+            ArchivePreviewResult = _sym("ArchivePreviewResult")
             raise_if_cancelled(stop_event, "Model Library preview cancelled.")
             if not scene_path.is_file():
                 raise FileNotFoundError(f"Model library preview file is missing: {scene_path}")
@@ -467,7 +467,7 @@ class ModelLibraryShellBridgeMixin:
                 detail_lines.append("")
                 detail_lines.append("Importer diagnostics:")
                 detail_lines.extend(f"- {line}" for line in scene_result.diagnostics[:20])
-            return archive_preview_result_cls(
+            return ArchivePreviewResult(
                 status="ok",
                 title=model_name,
                 metadata_summary=(
@@ -485,10 +485,10 @@ class ModelLibraryShellBridgeMixin:
             )
 
         def on_complete(result: object) -> None:
-            archive_preview_result_cls = _sym("ArchivePreviewResult")
+            ArchivePreviewResult = _sym("ArchivePreviewResult")
             if request_id != self.archive.archive_preview_request_id or bool(getattr(self, "_shutting_down", False)):
                 return
-            if not isinstance(result, archive_preview_result_cls):
+            if not isinstance(result, ArchivePreviewResult):
                 self.set_status_message("Model library preview finished with an unexpected response.", error=True)
                 return
             self.archive.archive_preview_requested_loose = False

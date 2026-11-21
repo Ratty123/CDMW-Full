@@ -331,7 +331,8 @@ class ArchiveHkxDocumentActionsMixin:
                 entry.path,
                 descriptor_hints,
             )
-            _sym("raise_if_cancelled")(stop_event, "HKX document export cancelled.")
+            raise_if_cancelled = _sym("raise_if_cancelled")
+            raise_if_cancelled(stop_event, "HKX document export cancelled.")
             _sym("atomic_write_text")(output_path, document_text)
             return output_path
 
@@ -436,7 +437,8 @@ class ArchiveHkxDocumentActionsMixin:
             source_data = _sym("read_file_bytes_cancellable")(source_path, stop_event=stop_event)
             log(f"Applying HKX {document_label} patch document from {document_source_label}...")
             patch_result = apply_document(source_data, document_text)
-            _sym("raise_if_cancelled")(stop_event, "HKX document import cancelled.")
+            raise_if_cancelled = _sym("raise_if_cancelled")
+            raise_if_cancelled(stop_event, "HKX document import cancelled.")
             for warning in patch_result.warnings:
                 log(f"Warning: {warning}")
             if not patch_result.changed_fields:
