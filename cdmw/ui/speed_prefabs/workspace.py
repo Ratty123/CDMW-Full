@@ -1380,15 +1380,14 @@ class SpeedPrefabsWorkspace(QWidget):
             self.prefab_table.setItem(number, 2, cell)
         self._prefab_scalable = tuple(scalable)
         if note:
-            text = note
+            self.prefab_status_label.setText(note)
         elif not counted:
-            text = f"{len(rows):,} prefab(s) found."
+            self.prefab_status_label.setText(f"{len(rows):,} prefab(s) found.")
         elif counted == len(scalable):
-            text = f"{len(scalable):,} prefab(s) hold speed values."
+            self.prefab_status_label.setText(f"{len(scalable):,} prefab(s) hold speed values.")
         else:
-            text = (f"{len(scalable):,} prefab(s) hold speed values; "
-                    f"{counted - len(scalable):,} hold none that can be scaled.")
-        self.prefab_status_label.setText(text)
+            self.prefab_status_label.setText(f"{len(scalable):,} prefab(s) hold speed values; "
+                                             f"{counted - len(scalable):,} hold none that can be scaled.")
         self._fit_prefab_columns()
         self._select_prefab_row(self._prefab_path)  # the open prefab stays marked when it is listed again
         self._sync_buttons()

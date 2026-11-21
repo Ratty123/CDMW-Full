@@ -41,7 +41,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 248,
+          "line": 350,
           "sink": "information"
         }
       ]
@@ -421,7 +421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 172,
+          "line": 180,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -991,7 +991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 172,
+          "line": 180,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -1461,7 +1461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 306,
+          "line": 316,
           "sink": "setText"
         }
       ]
@@ -1491,7 +1491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 306,
+          "line": 316,
           "sink": "setText"
         }
       ]
@@ -2096,12 +2096,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -2131,7 +2131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -2266,7 +2266,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -3637,6 +3637,16 @@
       ]
     },
     {
+      "key": "2x doubles every speed value, 0.5x halves it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 719,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "3 Finish and return to Create New Item (top right)",
       "origins": [
         {
@@ -3977,7 +3987,7 @@
       ]
     },
     {
-      "key": ": choose AI movement speeds or Pushed objects. The table loads in place; select a row and a value, type the new value and click Set value, then name the mod and click Write DMM Mod….",
+      "key": ": choose AI movement speeds or Pushed objects. The table loads in place; select a row and a value, type the new value and click Set value, then name the mod and click Write DMM Mod…. To change many rows at once, type a part of their name in the search, choose the speed beside Multiply, type a factor and click Add matching rows; each row's game value is multiplied and the changes join Changes in this mod.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -3987,7 +3997,7 @@
       ]
     },
     {
-      "key": ": choose a category and click Search to list prefabs that carry speed values (scene cameras, spinning and wind-driven objects, cloud drift). The first search reads every prefab and shows its progress; later searches are quick. Pick a prefab and the Prefab Inspector opens beside the list with Speed values ticked. Select rows, click Scale by factor..., then Save changes... and choose how to save the prefab.",
+      "key": ": choose a category and click Search to list prefabs that carry speed values (scene cameras, spinning and wind-driven objects, cloud drift). The first search reads every prefab and shows its progress; later searches are quick. The Speed values column shows how many values each prefab holds and which; prefabs that hold none, or that are only partly read, are greyed and cannot be scaled. Pick a prefab and the Prefab Inspector opens beside the list with Speed values ticked. Select rows, click Scale by factor..., then Save changes... and choose how to save the prefab. To change many at once, type a factor beside Scale the listed prefabs by and click Scale Listed Prefabs…: CDMW tells you how many values change and which prefabs are left out, then saves one item package (at most 128 prefabs) to add on the Mods page.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -4031,7 +4041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4061,7 +4071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4191,7 +4201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4201,7 +4211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4371,7 +4381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -4431,7 +4441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4531,7 +4541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -5091,7 +5101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 240,
+          "line": 264,
           "sink": "_hint"
         }
       ]
@@ -5156,7 +5166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 466,
+          "line": 500,
           "sink": "setToolTip"
         }
       ]
@@ -5326,7 +5336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 823,
+          "line": 988,
           "sink": "setToolTip"
         }
       ]
@@ -5428,6 +5438,16 @@
           "path": "cdmw/ui/shell/error_reference.py",
           "line": 45,
           "sink": "python-data:CODE_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "A package holds at most {value_0} prefabs, and {value_1} would change. Choose a category or search again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
         }
       ]
     },
@@ -5836,7 +5856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 415,
+          "line": 445,
           "sink": "setToolTip"
         }
       ]
@@ -5888,6 +5908,21 @@
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 14,
           "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "A speed mod you made…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1147,
+          "sink": "addItem"
         }
       ]
     },
@@ -6161,7 +6196,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -6181,7 +6216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6196,7 +6231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 681,
+          "line": 772,
           "sink": "QPushButton"
         }
       ]
@@ -6326,7 +6361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 171,
+          "line": 177,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -6671,7 +6706,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1174,
+          "line": 1111,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -6776,12 +6811,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 473,
+          "line": 507,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 477,
+          "line": 511,
           "sink": "setToolTip"
         }
       ]
@@ -8232,6 +8267,21 @@
       ]
     },
     {
+      "key": "Add matching rows",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 122,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 154,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Add mesh part",
       "origins": [
         {
@@ -8557,6 +8607,26 @@
       ]
     },
     {
+      "key": "Add {value_0} changes? Writing a mod with this many changes can take minutes and cannot be stopped part-way.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 176,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Add {value_0} matching rows",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 154,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Added",
       "origins": [
         {
@@ -8763,6 +8833,16 @@
           "path": "tools/placement_studio/window_clips.py",
           "line": 101,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Adds a change for every row the filter matches, not only the 500 listed. The game's value is multiplied, so pressing twice does not stack; 1.00x takes the changes back. Units are not known and these edits have not been tested in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 124,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -9606,7 +9686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -9616,7 +9696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -10066,7 +10146,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 598,
+          "line": 674,
           "sink": "addItem"
         }
       ]
@@ -10352,6 +10432,36 @@
       ]
     },
     {
+      "key": "All listed sets",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 635,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 871,
+          "sink": "setItemText"
+        }
+      ]
+    },
+    {
+      "key": "All listed sets: every set shown in the list on the left gets these factors in one mod. Narrow the list with Search sets first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 632,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "All material DDS files are used together.",
       "origins": [
         {
@@ -10488,6 +10598,16 @@
           "path": "cdmw/ui/mesh_editor/saved_work_page.py",
           "line": 645,
           "sink": "QListWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "All {value_0} listed sets of {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 871,
+          "sink": "setItemText"
         }
       ]
     },
@@ -10777,6 +10897,16 @@
       ]
     },
     {
+      "key": "Already served by another mounted DMM mod: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
+        }
+      ]
+    },
+    {
       "key": "Also",
       "origins": [
         {
@@ -10791,7 +10921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 532,
+          "line": 588,
           "sink": "QCheckBox"
         }
       ]
@@ -10801,7 +10931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 534,
+          "line": 590,
           "sink": "setToolTip"
         }
       ]
@@ -11206,7 +11336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -11401,7 +11531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -12006,7 +12136,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 255,
+          "line": 279,
           "sink": "addTab"
         }
       ]
@@ -12261,7 +12391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 156,
+          "line": 258,
           "sink": "show_error"
         },
         {
@@ -12551,7 +12681,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -12911,8 +13041,13 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 481,
+          "line": 516,
           "sink": "_hint"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 896,
+          "sink": "setText"
         }
       ]
     },
@@ -13628,6 +13763,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs",
           "line": 497,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Apply to:",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 629,
+          "sink": "QLabel"
         }
       ]
     },
@@ -15096,7 +15241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -15971,7 +16116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16536,7 +16681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16841,7 +16986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -19016,7 +19161,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 413,
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -19641,7 +19791,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 357,
+          "line": 395,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -21301,7 +21451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -22166,7 +22316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -23036,7 +23186,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -23401,7 +23551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24102,6 +24252,16 @@
       ]
     },
     {
+      "key": "Building the prefab item package...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 582,
+          "sink": "run_task_when_shell_idle"
+        }
+      ]
+    },
+    {
       "key": "Building the preview with your model...",
       "origins": [
         {
@@ -24721,7 +24881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -24876,7 +25036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25066,7 +25226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25076,7 +25236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25206,7 +25366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26116,7 +26276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26126,7 +26286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26136,7 +26296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26166,7 +26326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26893,6 +27053,16 @@
           "path": "tools/placement_studio/editing.py",
           "line": 765,
           "sink": "EditError"
+        }
+      ]
+    },
+    {
+      "key": "Cannot be scaled: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1376,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -27681,12 +27851,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 597,
+          "line": 673,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 620,
+          "line": 696,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -28151,7 +28321,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -28271,12 +28441,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 132,
+          "line": 138,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 690,
+          "line": 781,
           "sink": "_hint"
         }
       ]
@@ -28451,8 +28621,23 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 235,
+          "line": 242,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 511,
+          "sink": "setTitle"
+        }
+      ]
+    },
+    {
+      "key": "Changes in this mod ({value_0})",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/game_tables_editor.py",
+          "line": 511,
+          "sink": "setTitle"
         }
       ]
     },
@@ -28461,7 +28646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 189,
+          "line": 195,
           "sink": "QLabel"
         }
       ]
@@ -28511,7 +28696,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1134,
+          "line": 1236,
           "sink": "on_log"
         }
       ]
@@ -28606,7 +28791,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 421,
+          "line": 451,
           "sink": "setToolTip"
         },
         {
@@ -29486,7 +29671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 237,
+          "line": 261,
           "sink": "setToolTip"
         }
       ]
@@ -29536,7 +29721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 413,
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -30142,6 +30332,16 @@
       "manual": true
     },
     {
+      "key": "Checking set {value_0} of {value_1}…",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1237,
+          "sink": "setPlainText"
+        }
+      ]
+    },
+    {
       "key": "Checking texture sidecar cache in background...",
       "origins": [
         {
@@ -30202,6 +30402,26 @@
       "manual": true
     },
     {
+      "key": "Checking the listed sets...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 407,
+          "sink": "run_task_when_shell_idle"
+        }
+      ]
+    },
+    {
+      "key": "Checking the listed sets…",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1237,
+          "sink": "setPlainText"
+        }
+      ]
+    },
+    {
       "key": "Checking the prepared Mesh Editor session...",
       "origins": [
         {
@@ -30228,6 +30448,16 @@
           "path": "cdmw/ui/shell/startup_dialogs.py",
           "line": 713,
           "sink": "_set_status"
+        }
+      ]
+    },
+    {
+      "key": "Checking the sets was cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/animation_speed_service.py",
+          "line": 862,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -30302,6 +30532,16 @@
         {
           "path": "tools/placement_studio/corpus.py",
           "line": 610,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Checking {value_0} prefab(s) against the game's own copies...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 565,
           "sink": "log"
         }
       ]
@@ -30506,7 +30746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -30606,7 +30846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -30806,7 +31046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -31517,6 +31757,16 @@
       ]
     },
     {
+      "key": "Choose a Speed Tuning Mod Folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 426,
+          "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
       "key": "Choose a TXT or CSV file.",
       "origins": [
         {
@@ -31616,12 +31866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 397,
+          "line": 427,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 615,
+          "line": 691,
           "sink": "_hint"
         }
       ]
@@ -31876,7 +32126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -31886,7 +32136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -32011,7 +32261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -32176,12 +32426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 390,
+          "line": 417,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 447,
+          "line": 481,
           "sink": "QLabel"
         }
       ]
@@ -32221,7 +32471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -32286,7 +32536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -34341,7 +34591,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -34921,7 +35171,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -35001,7 +35251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -35546,7 +35796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -35586,7 +35836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -35616,7 +35866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -36347,6 +36597,16 @@
       "manual": true
     },
     {
+      "key": "Close the mod {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1149,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Close the window and choose how to save: Item Package (.cdmw)... writes a new item package for the Mods page, Add to Item Package... adds the edit to an existing package as its next release, and Loose Folder... writes a mod folder for DMM.",
       "origins": [
         {
@@ -36911,7 +37171,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -37736,7 +37996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -37831,7 +38091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -37841,7 +38101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -38861,7 +39121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39816,12 +40076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -40086,7 +40346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -40101,7 +40361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -40346,7 +40606,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 165,
+          "line": 171,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -40596,7 +40856,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -41691,7 +41951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 195,
+          "line": 217,
           "sink": "set_status_message"
         }
       ]
@@ -41767,6 +42027,16 @@
       ]
     },
     {
+      "key": "Could not read the speed mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 439,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Could not read {value_0}: {value_1}",
       "origins": [
         {
@@ -41786,12 +42056,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 353,
+          "line": 667,
           "sink": "show_prefab_inspector"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 775,
+          "line": 937,
           "sink": "setText"
         }
       ]
@@ -42181,7 +42451,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -42276,7 +42546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -42986,7 +43256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -43321,7 +43591,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 171,
+          "line": 177,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -44696,7 +44966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 357,
+          "line": 395,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -44721,7 +44991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -47941,7 +48211,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -48201,7 +48471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1121,
+          "line": 1508,
           "sink": "question"
         }
       ]
@@ -48456,7 +48726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48466,7 +48736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48681,7 +48951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -48921,7 +49191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -50111,7 +50381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -50771,7 +51041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -51296,7 +51566,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 86,
+          "line": 176,
+          "sink": "question"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 188,
           "sink": "setWindowTitle"
         }
       ]
@@ -52256,7 +52531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 560,
+          "line": 616,
           "sink": "setToolTip"
         }
       ]
@@ -52646,7 +52921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -54451,7 +54726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 428,
+          "line": 467,
           "sink": "setText"
         }
       ]
@@ -54886,7 +55161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -55216,7 +55491,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 404,
+          "line": 816,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -56176,7 +56461,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 235,
+          "line": 259,
           "sink": "QLabel"
         },
         {
@@ -56961,7 +57246,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 562,
+          "line": 618,
           "sink": "QPushButton"
         }
       ]
@@ -56991,7 +57276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -57726,12 +58011,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 234,
+          "line": 256,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 247,
+          "line": 269,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 308,
           "sink": "warning"
         }
       ]
@@ -57922,6 +58212,16 @@
       ]
     },
     {
+      "key": "Export all listed sets",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 93,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Export an experimental read-only JSON decode document for structured metadata, animation, and sequence-texture binaries such as .meshinfo, .motionblending, .paa, .paa_metabin, .prefab, .pappt, .pamhc, or .seqmt.",
       "origins": [
         {
@@ -58081,7 +58381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -58146,7 +58446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -58541,7 +58841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -59586,7 +59886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60221,7 +60521,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -61871,7 +62171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 509,
+          "line": 565,
           "sink": "setPlaceholderText"
         }
       ]
@@ -61901,7 +62201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 152,
+          "line": 158,
           "sink": "setPlaceholderText"
         }
       ]
@@ -62646,7 +62946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 588,
+          "line": 664,
           "sink": "QGroupBox"
         }
       ]
@@ -62906,7 +63206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 57,
+          "line": 69,
           "sink": "log"
         }
       ]
@@ -65226,7 +65526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -65796,12 +66096,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -67306,7 +67606,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 257,
+          "line": 281,
           "sink": "addTab"
         }
       ]
@@ -67316,7 +67616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 699,
+          "line": 790,
           "sink": "_hint"
         }
       ]
@@ -67616,12 +67916,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -69791,7 +70091,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -69821,7 +70121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -71781,7 +72081,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -73271,7 +73571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -73311,7 +73611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73321,7 +73621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73331,7 +73631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73361,7 +73661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -73501,7 +73801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -73626,7 +73926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74326,7 +74626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74376,7 +74676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74406,7 +74706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75121,7 +75421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -75591,7 +75891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -76551,7 +76851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -76581,7 +76881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -76591,7 +76891,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 413,
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -76621,7 +76926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76721,7 +77026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76761,7 +77066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -76821,7 +77126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 171,
+          "line": 177,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -77798,6 +78103,11 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 201,
           "sink": "getSaveFileName:filter-label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 615,
+          "sink": "getSaveFileName:filter-label"
         }
       ]
     },
@@ -77817,6 +78127,11 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 201,
+          "sink": "getSaveFileName"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 615,
           "sink": "getSaveFileName"
         }
       ]
@@ -78126,7 +78441,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 55,
+          "line": 67,
           "sink": "log"
         }
       ]
@@ -82451,7 +82766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82746,7 +83061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -82856,7 +83171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -82881,7 +83196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -82936,7 +83251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -82986,7 +83301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -83051,7 +83366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83476,7 +83791,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1120,
+          "line": 1222,
           "sink": "on_log"
         }
       ]
@@ -83518,6 +83833,21 @@
           "path": "cdmw/ui/new_item/component_list.py",
           "line": 50,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Kept as its own set, with its own factors: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
+          "sink": "python-return:speed_export_message"
         }
       ]
     },
@@ -83571,7 +83901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 165,
+          "line": 171,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -84261,7 +84591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -85077,12 +85407,52 @@
       ]
     },
     {
+      "key": "Left out:\n{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
+          "sink": "python-return:speed_export_message"
+        }
+      ]
+    },
+    {
       "key": "Left out: {hidden} of {total} worn components",
       "origins": [
         {
           "path": "cdmw/ui/new_item/component_list.py",
           "line": 323,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Left out: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -85481,7 +85851,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85831,7 +86201,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -86991,7 +87361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 147,
+          "line": 153,
           "sink": "QPushButton"
         }
       ]
@@ -87091,7 +87461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -87181,7 +87551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 206,
+          "line": 308,
           "sink": "show_error"
         }
       ]
@@ -88086,7 +88456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -88451,7 +88821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89231,7 +89601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -91201,7 +91571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -92226,7 +92596,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -95511,7 +95881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -95736,7 +96106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -96086,7 +96456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -96466,7 +96836,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -96526,7 +96896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -96851,7 +97221,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 58,
+          "line": 75,
           "sink": "QLabel"
         },
         {
@@ -96926,8 +97296,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Mod: {value_0}, {value_1} chart(s)",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1195,
+          "sink": "setText"
         }
       ]
     },
@@ -99376,7 +99756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 503,
+          "line": 559,
           "sink": "QGroupBox"
         }
       ]
@@ -99655,6 +100035,11 @@
       "key": "Multiply",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 102,
+          "sink": "QLabel"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 858,
           "sink": "addItem"
@@ -99691,7 +100076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 360,
+          "line": 365,
           "sink": "getDouble"
         }
       ]
@@ -100111,7 +100496,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 165,
+          "line": 171,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -100441,7 +100826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 210,
+          "line": 312,
           "sink": "warning"
         }
       ]
@@ -100716,7 +101101,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -102171,7 +102556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 191,
+          "line": 197,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -102186,7 +102571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 176,
+          "line": 182,
           "sink": "QLabel"
         }
       ]
@@ -103123,6 +103508,16 @@
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
           "line": 801,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No change in {value_0} set(s).",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -104387,6 +104782,16 @@
       ]
     },
     {
+      "key": "No listed prefab holds a speed value that can be scaled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1280,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "No live Mesh Editor session is attached.",
       "origins": [
         {
@@ -104571,7 +104976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -105381,7 +105786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 645,
+          "line": 736,
           "sink": "QLabel"
         }
       ]
@@ -106117,6 +106522,16 @@
       ]
     },
     {
+      "key": "No set is listed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1256,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "No shipped equipment carries {value_0}, so there is no value to go by; whatever you type here is a guess.",
       "origins": [
         {
@@ -106431,7 +106846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 159,
+          "line": 167,
           "sink": "python-return:plan_summary"
         }
       ]
@@ -106956,7 +107371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -106966,7 +107381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -106976,7 +107391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -107168,6 +107583,16 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_scope.py",
           "line": 379,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "None of the listed prefabs holds a speed value that can be scaled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
         }
       ]
     },
@@ -108126,7 +108551,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -108316,7 +108741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 401,
+          "line": 406,
           "sink": "setText"
         }
       ]
@@ -108461,7 +108886,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 404,
+          "line": 816,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -109191,7 +109626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -109721,7 +110156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 136,
+          "line": 142,
           "sink": "setToolTip"
         }
       ]
@@ -109996,7 +110431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -110121,7 +110556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -111007,6 +111442,16 @@
       ]
     },
     {
+      "key": "Open a speed mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 94,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Open a standalone Mesh Editor session before editing parts.",
       "origins": [
         {
@@ -111201,7 +111646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -111536,7 +111981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 558,
+          "line": 614,
           "sink": "QPushButton"
         }
       ]
@@ -112246,7 +112691,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -113146,7 +113591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -114446,7 +114891,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -115046,7 +115491,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -116121,7 +116566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -116191,7 +116636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -118336,7 +118781,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -118721,7 +119166,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -119286,7 +119731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -120806,7 +121251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -121596,7 +122041,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 620,
+          "line": 696,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -121691,7 +122136,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 657,
+          "line": 748,
           "sink": "QGroupBox"
         }
       ]
@@ -121706,7 +122151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 364,
+          "line": 678,
           "sink": "PrefabInspectorDialog"
         }
       ]
@@ -121887,6 +122332,16 @@
       ]
     },
     {
+      "key": "Prefab speed edits have not been tested in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
+        }
+      ]
+    },
+    {
       "key": "Prefab speed values",
       "origins": [
         {
@@ -121971,7 +122426,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 256,
+          "line": 280,
           "sink": "addTab"
         }
       ]
@@ -122626,7 +123081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 214,
+          "line": 236,
           "sink": "run_task_when_shell_idle"
         }
       ]
@@ -123806,7 +124261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -124656,7 +125111,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -124741,7 +125196,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127851,7 +128306,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -127861,7 +128316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -128186,7 +128641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -128976,7 +129431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 681,
+          "line": 772,
           "sink": "QPushButton"
         }
       ]
@@ -129511,7 +129966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -130136,7 +130591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 148,
+          "line": 154,
           "sink": "setToolTip"
         }
       ]
@@ -131066,12 +131521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 292,
+          "line": 316,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 330,
+          "line": 354,
           "sink": "setText"
         }
       ]
@@ -131083,6 +131538,16 @@
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 748,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Reading the listed prefabs…",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1425,
+          "sink": "setText"
         }
       ]
     },
@@ -131217,11 +131682,31 @@
       ]
     },
     {
+      "key": "Reading the speed mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 449,
+          "sink": "run_task_when_shell_idle"
+        }
+      ]
+    },
+    {
+      "key": "Reading the speed mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 435,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Reading the table from the game's archives…",
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 289,
+          "line": 299,
           "sink": "setText"
         }
       ]
@@ -131231,7 +131716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 180,
+          "line": 282,
           "sink": "show_error"
         }
       ]
@@ -131271,12 +131756,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 288,
+          "line": 486,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 289,
+          "line": 487,
           "sink": "emit"
         }
       ]
@@ -131286,7 +131771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 198,
+          "line": 300,
           "sink": "run_task_when_shell_idle"
         }
       ]
@@ -131826,12 +132311,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -131861,7 +132346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -133016,7 +133501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -133821,7 +134306,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -134161,12 +134646,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -135136,7 +135621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -135826,7 +136311,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -136076,7 +136561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 194,
+          "line": 200,
           "sink": "QPushButton"
         }
       ]
@@ -136236,7 +136721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 185,
+          "line": 191,
           "sink": "setToolTip"
         }
       ]
@@ -137431,7 +137916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 222,
+          "line": 324,
           "sink": "question"
         },
         {
@@ -138391,7 +138876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -138406,7 +138891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -138446,7 +138931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -138836,7 +139321,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -139291,7 +139776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -139601,7 +140086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 555,
+          "line": 611,
           "sink": "QPushButton"
         }
       ]
@@ -141231,7 +141716,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -141971,7 +142456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 184,
+          "line": 190,
           "sink": "QPushButton"
         }
       ]
@@ -142956,7 +143441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -142991,7 +143476,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 543,
+          "line": 599,
           "sink": "QGroupBox"
         }
       ]
@@ -144766,7 +145251,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 191,
+          "line": 197,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -144801,7 +145286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 212,
+          "line": 218,
           "sink": "QGroupBox"
         },
         {
@@ -145421,7 +145906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -145802,6 +146287,11 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 201,
+          "sink": "getSaveFileName"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 615,
           "sink": "getSaveFileName"
         }
       ]
@@ -146636,7 +147126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -147182,6 +147672,16 @@
       ]
     },
     {
+      "key": "Scale Listed Prefabs…",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 723,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Scale UV",
       "origins": [
         {
@@ -147281,7 +147781,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 360,
+          "line": 363,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
+          "line": 365,
           "sink": "getDouble"
         }
       ]
@@ -147332,6 +147837,16 @@
       ]
     },
     {
+      "key": "Scale listed prefabs",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/problem_report_catalog.py",
+          "line": 94,
+          "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
       "key": "Scale selected mesh elements or explicit PARTS rows.",
       "origins": [
         {
@@ -147348,6 +147863,26 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 243,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Scale the listed prefabs by",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 715,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Scale {value_0} value(s) in {value_1} prefab(s) by {value_2}x and save them as one item package?",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
         }
       ]
     },
@@ -147372,12 +147907,52 @@
       ]
     },
     {
+      "key": "Scales every speed value of the listed prefabs that is fully read and saves them as one item package. Prefab speed edits have not been tested in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1280,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Scales the playback speed of every animation in this chart.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 273,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Scaling the listed prefabs failed: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 547,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Scaling the listed prefabs...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 626,
+          "sink": "run_task_when_shell_idle"
+        }
+      ]
+    },
+    {
+      "key": "Scaling the prefabs was cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/prefab_speed_service.py",
+          "line": 362,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -148366,7 +148941,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 602,
+          "line": 678,
           "sink": "QPushButton"
         },
         {
@@ -148501,7 +149076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148511,7 +149086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148811,7 +149386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -148831,7 +149406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/problem_report_catalog.py",
-          "line": 93,
+          "line": 94,
           "sink": "python-data:REPORT_TOOLS"
         }
       ]
@@ -148851,7 +149426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 426,
+          "line": 456,
           "sink": "setPlaceholderText"
         }
       ]
@@ -149006,7 +149581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -149036,12 +149611,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 649,
+          "line": 740,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1134,
+          "line": 1521,
           "sink": "setText"
         }
       ]
@@ -149151,7 +149726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 311,
+          "line": 510,
           "sink": "run_task_when_shell_idle"
         }
       ]
@@ -149171,7 +149746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1009,
+          "line": 1323,
           "sink": "setText"
         }
       ]
@@ -149261,7 +149836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -149271,7 +149846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -150541,7 +151116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -151151,7 +151726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -151171,7 +151746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -151451,7 +152026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 178,
+          "line": 184,
           "sink": "setPlaceholderText"
         }
       ]
@@ -152936,7 +153511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 358,
+          "line": 363,
           "sink": "information"
         }
       ]
@@ -153296,7 +153871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -155251,7 +155826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -155351,7 +155926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -155576,7 +156151,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 414,
+          "line": 444,
           "sink": "QGroupBox"
         },
         {
@@ -155677,7 +156252,7 @@
       ]
     },
     {
-      "key": "Set a factor from 0.1x to 5x: for the whole set, for a kind of move (attacks, jumps, guard and parry, dodges, draw and sheathe, movement, idle) or for one move. 2x plays twice as fast. A move's own factor beats its kind's; the whole-set factor scales the chart's speed rate on top.",
+      "key": "Set a factor from 0.1x to 5x: for the whole set, for a kind of move (attacks, jumps, guard and parry, dodges, draw and sheathe, movement, idle), for Moves named or for one move. 2x plays twice as fast. Moves named takes parts of clip names, such as finish, takedown, and gives its factor to every move whose clip name contains one. A move's own factor beats Moves named, which beats its kind's; the whole-set factor scales the chart's speed rate on top.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -155691,7 +156266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 966,
+          "line": 1256,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1264,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1280,
           "sink": "setToolTip"
         }
       ]
@@ -155956,7 +156541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 427,
+          "line": 851,
           "sink": "python-return:reason"
         }
       ]
@@ -155976,7 +156561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 174,
+          "line": 196,
           "sink": "show_load_error"
         }
       ]
@@ -155987,6 +156572,11 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 190,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 533,
           "sink": "set_status_message"
         }
       ]
@@ -156056,7 +156646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 181,
+          "line": 187,
           "sink": "QPushButton"
         }
       ]
@@ -156096,7 +156686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 237,
+          "line": 259,
           "sink": "setToolTip"
         }
       ]
@@ -156191,7 +156781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156201,7 +156791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156211,7 +156801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156221,7 +156811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156231,7 +156821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156241,7 +156831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156251,7 +156841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156356,7 +156946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -156376,12 +156966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -156406,7 +156996,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -157226,7 +157816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -157256,7 +157846,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -157271,7 +157861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -157281,7 +157871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158946,7 +159536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 362,
+          "line": 400,
           "sink": "setText"
         }
       ]
@@ -159076,7 +159666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
-          "line": 401,
+          "line": 406,
           "sink": "setText"
         }
       ]
@@ -162506,7 +163096,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1102,
+          "line": 1204,
           "sink": "on_log"
         }
       ]
@@ -163385,6 +163975,11 @@
       "key": "Speed & Prefabs",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 441,
+          "sink": "warning"
+        },
+        {
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 141,
           "sink": "python-return:_build_start_sections"
@@ -163416,7 +164011,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1121,
+          "line": 1508,
           "sink": "question"
         }
       ]
@@ -163441,8 +164036,18 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 212,
+          "line": 234,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Speed & Prefabs (experimental): scaling {value_0} listed prefab(s) by {value_1}x",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 552,
+          "sink": "log"
         }
       ]
     },
@@ -163451,8 +164056,38 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 97,
+          "line": 109,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Speed & Prefabs shows the mod {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 466,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Speed Tuning (experimental): checking {value_0} listed set(s)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 351,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Speed Tuning (experimental): writing {value_0} set(s) into {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 361,
+          "sink": "log"
         }
       ]
     },
@@ -163461,7 +164096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 254,
+          "line": 300,
           "sink": "log"
         }
       ]
@@ -163471,7 +164106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 265,
+          "line": 289,
           "sink": "information"
         }
       ]
@@ -163481,7 +164116,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 261,
+          "line": 306,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 346,
           "sink": "set_status_message"
         }
       ]
@@ -163491,7 +164131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 266,
+          "line": 290,
           "sink": "set_status_message"
         }
       ]
@@ -163531,7 +164171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 465,
+          "line": 499,
           "sink": "QGroupBox"
         }
       ]
@@ -163546,7 +164186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 620,
+          "line": 696,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -163602,11 +164242,11 @@
       ]
     },
     {
-      "key": "Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's moves. Prefab speed edits have not been tested in game.",
+      "key": "Speeds of scene cameras, spinning and wind-driven objects and clouds. Not the player's moves, and not effects. Prefab speed edits have not been tested in game.",
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 589,
+          "line": 665,
           "sink": "setToolTip"
         }
       ]
@@ -164292,6 +164932,21 @@
       ]
     },
     {
+      "key": "Start from…",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1142,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Start hair authoring before submitting guides.",
       "origins": [
         {
@@ -164396,7 +165051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -164548,6 +165203,16 @@
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
           "line": 82,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Starting points put factors into the sliders and leave the others as they are; the numbers are not tested in game. A speed mod you made shows that mod's factors, so you can change them and export again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 624,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -167136,7 +167801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -167146,7 +167811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 191,
+          "line": 197,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -167211,7 +167876,7 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 141,
+          "line": 147,
           "sink": "QLabel"
         }
       ]
@@ -167353,6 +168018,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 5088,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Taken out of the mod because these factors change nothing there: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -167601,7 +168276,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -168271,7 +168946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -168731,7 +169406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -168771,7 +169446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -168816,12 +169491,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -169041,7 +169716,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169331,7 +170006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -169361,7 +170036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -169426,7 +170101,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -169921,7 +170596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -170166,7 +170841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -170281,7 +170956,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -170446,7 +171121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -171046,7 +171721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171066,7 +171741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 340,
+          "line": 364,
           "sink": "setText"
         }
       ]
@@ -171166,7 +171841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -171176,7 +171851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -171186,7 +171861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -172116,7 +172791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -172406,7 +173081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173247,6 +173922,16 @@
       ]
     },
     {
+      "key": "The factor",
+      "origins": [
+        {
+          "path": "cdmw/services/prefab_speed_service.py",
+          "line": 175,
+          "sink": "_check"
+        }
+      ]
+    },
+    {
       "key": "The factor must be above 0 and at most 100.",
       "origins": [
         {
@@ -173351,12 +174036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 604,
+          "line": 680,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 973,
+          "line": 1272,
           "sink": "setToolTip"
         }
       ]
@@ -173366,12 +174051,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 304,
+          "line": 328,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 349,
+          "line": 373,
           "sink": "show_loading"
         }
       ]
@@ -174177,6 +174862,26 @@
       ]
     },
     {
+      "key": "The listed prefabs are being read.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1280,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The listed sets are being checked.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1256,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "The loaded archive mesh changed during selection",
       "origins": [
         {
@@ -174751,7 +175456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 798,
+          "line": 960,
           "sink": "setText"
         }
       ]
@@ -175278,6 +175983,16 @@
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
           "line": 321,
           "sink": "_fail_rust_editor"
+        }
+      ]
+    },
+    {
+      "key": "The prefab names a speed type and holds no value of it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1376,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -176071,12 +176786,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 302,
+          "line": 501,
           "sink": "show_prefab_results"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 309,
+          "line": 508,
           "sink": "show_prefab_results"
         }
       ]
@@ -176878,6 +177593,16 @@
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 27,
           "sink": "python-data:RECOVERY_GUIDANCE"
+        }
+      ]
+    },
+    {
+      "key": "The speed value to multiply. Move and minimum speed are the move speed and the minimum move speed of every speed entry of a row; they change together.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 105,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -177836,8 +178561,18 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 954,
+          "line": 1230,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "These factors change no speed value in the listed sets.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -178381,7 +179116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -179682,6 +180417,16 @@
       ]
     },
     {
+      "key": "This prefab is only partly read, so its values cannot be changed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
+          "line": 358,
+          "sink": "information"
+        }
+      ]
+    },
+    {
       "key": "This prefab is only partly readable, so the list is limited to names of exactly the same length - those are the swaps that move nothing in the file.",
       "origins": [
         {
@@ -179856,12 +180601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 359,
+          "line": 397,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 423,
+          "line": 462,
           "sink": "setText"
         }
       ]
@@ -180043,6 +180788,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs",
           "line": 3618,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "This set",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 634,
+          "sink": "addItem"
         }
       ]
     },
@@ -181087,6 +181842,16 @@
       ]
     },
     {
+      "key": "To change a whole character at once, choose",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
       "key": "To change how fast moves, prefab effects or AI movement play, use",
       "origins": [
         {
@@ -181211,7 +181976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 240,
+          "line": 264,
           "sink": "_hint"
         }
       ]
@@ -181686,7 +182451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -182501,12 +183266,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -182801,7 +183566,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -182866,7 +183631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 309,
+          "line": 333,
           "sink": "QPushButton"
         }
       ]
@@ -182921,7 +183686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -183411,7 +184176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 857,
+          "line": 1022,
           "sink": "setToolTip"
         }
       ]
@@ -183503,6 +184268,21 @@
           "path": "cdmw/ui/archive_browser/hkx_physics_editor_actions.py",
           "line": 184,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Type parts of move names, separated by commas. Every move whose name contains one of them gets this factor. A move's own factor wins, then this, then its kind. Moves without speed windows do not change.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 540,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 546,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -183606,7 +184386,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -183666,7 +184446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -186846,7 +187626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187041,7 +187821,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -187166,7 +187946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187221,7 +188001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187556,7 +188336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -187991,7 +188771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -188446,7 +189226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -189476,12 +190256,12 @@
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 171,
+          "line": 177,
           "sink": "setHorizontalHeaderLabels"
         },
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 191,
+          "line": 197,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -189666,7 +190446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 228,
+          "line": 235,
           "sink": "QGroupBox"
         }
       ]
@@ -190351,7 +191131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191486,12 +192266,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 220,
+          "line": 242,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 317,
+          "line": 516,
           "sink": "show_prefab_progress"
         }
       ]
@@ -191501,7 +192281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 196,
+          "line": 298,
           "sink": "setText"
         }
       ]
@@ -191521,7 +192301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 973,
+          "line": 1272,
           "sink": "setToolTip"
         }
       ]
@@ -192721,7 +193501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -192761,7 +193541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192781,7 +193561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -192856,7 +193636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192906,7 +193686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -192996,7 +193776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193026,7 +193806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -193261,7 +194041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193301,7 +194081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193376,7 +194156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -193451,7 +194231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193461,7 +194241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193651,7 +194431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 472,
+          "line": 506,
           "sink": "QLabel"
         }
       ]
@@ -193726,7 +194506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193736,7 +194516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193746,7 +194526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193756,7 +194536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193766,7 +194546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193776,7 +194556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193786,7 +194566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193796,7 +194576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193806,7 +194586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193816,7 +194596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193976,7 +194756,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -194141,7 +194921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194151,7 +194931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -194206,7 +194986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -194602,6 +195382,16 @@
       ]
     },
     {
+      "key": "Works on one set at a time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 896,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Works out which draw animations start from which spot on the body, by playing each one and watching where the hands go.",
       "origins": [
         {
@@ -194871,22 +195661,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 210,
+          "line": 312,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 220,
+          "line": 322,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 222,
+          "line": 324,
           "sink": "question"
         },
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 248,
+          "line": 350,
           "sink": "information"
         }
       ]
@@ -194896,7 +195686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 61,
+          "line": 78,
           "sink": "QPushButton"
         }
       ]
@@ -195271,7 +196061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 63,
+          "line": 80,
           "sink": "setToolTip"
         }
       ]
@@ -195313,6 +196103,16 @@
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 305,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Write the mod {value_0}?",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -195541,7 +196341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 250,
+          "line": 352,
           "sink": "_run_utility_task"
         }
       ]
@@ -195656,8 +196456,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 268,
-          "sink": "_run_utility_task_when_idle"
+          "line": 316,
+          "sink": "run_task_when_shell_idle"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 373,
+          "sink": "run_task_when_shell_idle"
         }
       ]
     },
@@ -195731,7 +196536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 240,
+          "line": 342,
           "sink": "show_error"
         }
       ]
@@ -195741,7 +196546,7 @@
       "origins": [
         {
           "path": "cdmw/services/independent_prefab_authoring.py",
-          "line": 135,
+          "line": 179,
           "sink": "on_log"
         }
       ]
@@ -195876,7 +196681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196021,7 +196826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 247,
+          "line": 349,
           "sink": "set_status_message"
         }
       ]
@@ -196103,6 +196908,11 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 232,
           "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 579,
+          "sink": "information"
         }
       ]
     },
@@ -196112,6 +196922,11 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 237,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 577,
           "sink": "set_status_message"
         }
       ]
@@ -196251,7 +197066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 248,
+          "line": 350,
           "sink": "information"
         }
       ]
@@ -196721,7 +197536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196936,7 +197751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -198071,7 +198886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198161,12 +198976,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198176,7 +198991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198241,7 +199056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198271,7 +199086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198461,7 +199276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -198581,7 +199396,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -198636,7 +199451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -198656,7 +199471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198696,7 +199511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -199227,6 +200042,16 @@
       ]
     },
     {
+      "key": "beside Apply to. The factors then go to every set the list shows (type in Search sets to narrow it), and Export checks them all, tells you how many sets change and which are left out, and writes one mod. The whole-set factor works on one set at a time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
       "key": "blacks",
       "origins": [
         {
@@ -199586,7 +200411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199698,6 +200523,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 861,
           "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
+      "key": "by",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 109,
+          "sink": "QLabel"
         }
       ]
     },
@@ -200066,7 +200901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -200626,12 +201461,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -200681,7 +201516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -200756,7 +201591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -201256,7 +202091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201691,7 +202526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201701,7 +202536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201821,7 +202656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -201851,7 +202686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -203226,7 +204061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -204556,7 +205391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204566,7 +205401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204772,6 +205607,16 @@
       ]
     },
     {
+      "key": "fills in a starting point, such as Faster attacks (1.25x) or Slow-motion finishers (0.5x); the numbers are a first guess to adjust in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
       "key": "filters",
       "origins": [
         {
@@ -204826,7 +205671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -204951,7 +205796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -204961,7 +205806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -205086,7 +205931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -205146,7 +205991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206151,7 +206996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206171,7 +207016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206181,7 +207026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206441,7 +207286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206576,7 +207421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206586,7 +207431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206816,7 +207661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206856,7 +207701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -206866,7 +207711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206886,7 +207731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -206916,7 +207761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207041,7 +207886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -207376,7 +208221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207476,7 +208321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207596,7 +208441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207776,7 +208621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -209406,7 +210251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -209416,7 +210261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -209676,7 +210521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -209911,7 +210756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -210802,6 +211647,16 @@
       ]
     },
     {
+      "key": "none reached",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1375,
+          "sink": "QTableWidgetItem"
+        }
+      ]
+    },
+    {
       "key": "none — an existing one is reused",
       "origins": [
         {
@@ -210931,7 +211786,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -211701,8 +212556,18 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "opens the folder of a speed mod CDMW wrote: its sets are shown in bold and open with the factors the mod holds, and the next export updates that mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 861,
+          "sink": "python-return:_build_placement_texture_sections"
         }
       ]
     },
@@ -211821,7 +212686,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -211831,7 +212696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212113,6 +212978,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_controls_history.py",
           "line": 181,
           "sink": "_set_mesh_edit_row_visible"
+        }
+      ]
+    },
+    {
+      "key": "part of a move name, such as finish, takedown",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 544,
+          "sink": "setPlaceholderText"
         }
       ]
     },
@@ -212676,7 +213551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -213421,7 +214296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -213431,7 +214306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -214671,7 +215546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         },
         {
@@ -215141,7 +216016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -215186,7 +216061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -215596,7 +216471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -215606,7 +216481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -216263,6 +217138,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 634,
+          "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 857,
+          "sink": "python-return:scope"
         }
       ]
     },
@@ -216306,7 +217191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -217951,7 +218836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -218211,7 +219096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -219326,7 +220211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -219336,7 +220221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -219346,7 +220231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -219991,7 +220876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 972,
+          "line": 974,
           "sink": "python-return:_build_utility_sections"
         }
       ]
@@ -220866,7 +221751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -220886,7 +221771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1201,
+          "line": 1203,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -220981,7 +221866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -220991,7 +221876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1099,
+          "line": 1101,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -221009,6 +221894,11 @@
     {
       "key": "x",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/game_table_actions.py",
+          "line": 117,
+          "sink": "setSuffix"
+        },
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 134,
@@ -221056,7 +221946,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 78,
+          "line": 86,
           "sink": "setSuffix"
         },
         {
@@ -221642,6 +222532,16 @@
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 398,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}\nIn the mod {value_1}: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 838,
           "sink": "setToolTip"
         }
       ]
@@ -222581,7 +223481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 810,
+          "line": 967,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1048,
           "sink": "setText"
         }
       ]
@@ -223246,7 +224151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 684,
+          "line": 775,
           "sink": "setToolTip"
         }
       ]
@@ -223726,7 +224631,7 @@
       "origins": [
         {
           "path": "cdmw/services/action_chart_edit_service.py",
-          "line": 1103,
+          "line": 1205,
           "sink": "on_log"
         }
       ]
@@ -224571,7 +225476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/game_table_actions.py",
-          "line": 126,
+          "line": 228,
           "sink": "set_status_message"
         }
       ]
@@ -224941,7 +225846,7 @@
       "origins": [
         {
           "path": "cdmw/services/game_table_speed.py",
-          "line": 51,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -224981,7 +225886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 348,
+          "line": 662,
           "sink": "show_prefab_inspector"
         }
       ]
@@ -225542,6 +226447,16 @@
       ]
     },
     {
+      "key": "{value_0} of {value_1} listed prefabs read…",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 557,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "{value_0} of {value_1} models match. {value_2} selected, up to {value_3}.",
       "origins": [
         {
@@ -225576,7 +226491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 292,
+          "line": 490,
           "sink": "log"
         }
       ]
@@ -225586,12 +226501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 293,
+          "line": 491,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1021,
+          "line": 1335,
           "sink": "setText"
         }
       ]
@@ -225686,7 +226601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 819,
+          "line": 984,
           "sink": "setText"
         }
       ]
@@ -225696,7 +226611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 822,
+          "line": 987,
           "sink": "setText"
         }
       ]
@@ -225881,7 +226796,27 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1043,
+          "line": 1385,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} prefab(s) hold speed values.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1387,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} prefab(s) hold speed values; {value_1} hold none that can be scaled.",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1389,
           "sink": "setText"
         }
       ]
@@ -226156,7 +227091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/game_tables_editor.py",
-          "line": 306,
+          "line": 316,
           "sink": "setText"
         }
       ]
@@ -226343,6 +227278,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 7533,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} set(s) change ({value_1} speed values).",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -227491,7 +228436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 797,
+          "line": 959,
           "sink": "setText"
         }
       ]
@@ -227501,7 +228446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 795,
+          "line": 957,
           "sink": "setText"
         }
       ]
@@ -228121,7 +229066,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1179,
+          "line": 1577,
           "sink": "python-return:_short_member"
         }
       ]
@@ -228276,8 +229221,18 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 487,
+          "line": 522,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 538,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1050,
+          "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_workflow/asset_authoring_panel.py",
@@ -228291,7 +229246,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
-          "line": 413,
+          "line": 825,
+          "sink": "python-return:speed_export_message"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 837,
           "sink": "python-return:speed_export_message"
         }
       ]
@@ -228368,6 +229328,16 @@
           "path": "cdmw/services/mesh_emission.py",
           "line": 69,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: also served by the mounted DMM mod {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -228562,6 +229532,36 @@
       ]
     },
     {
+      "key": "{value_0}: left out, not in the game archives",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: left out, {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: left out. {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: missing EyeCover source texture {value_1}.",
       "origins": [
         {
@@ -228618,6 +229618,16 @@
           "path": "tools/placement_studio/armour.py",
           "line": 484,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: no change",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -228768,6 +229778,16 @@
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 725,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: taken out of the mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
         }
       ]
     },
@@ -229078,6 +230098,11 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 927,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1372,
+          "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/text_search/remote_catalogue.py",
@@ -229442,12 +230467,32 @@
       ]
     },
     {
+      "key": "{value_0}: {value_1} value(s)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 809,
+          "sink": "python-return:profile_summary"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: {value_1} value(s) change.",
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 172,
+          "line": 180,
           "sink": "python-return:plan_summary"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: {value_1} value(s), {value_2} -> {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/speed_tuning_actions.py",
+          "line": 775,
+          "sink": "python-return:prefab_batch_summary"
         }
       ]
     },
@@ -230684,6 +231729,18 @@
       "symbol": "LabApplication::draw_collision_volume_authoring",
       "source": "Collision shapes (experimental)",
       "reason": "Widget identity salt for the Collision shapes header, never drawn; the visible header is translated separately."
+    },
+    {
+      "path": "cdmw/ui/speed_prefabs/workspace.py",
+      "symbol": "SpeedPrefabsWorkspace.scope",
+      "source": "listed",
+      "reason": "Combo box data identity for Apply to; the visible choice label is translated separately."
+    },
+    {
+      "path": "cdmw/ui/speed_prefabs/workspace.py",
+      "symbol": "SpeedPrefabsWorkspace._fill_start_combo",
+      "source": "preset:{value_0}",
+      "reason": "Combo box data identity of a starting point; the visible choice label is shown separately."
     }
   ]
 }

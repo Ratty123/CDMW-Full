@@ -410,6 +410,7 @@ def values_by_category(values: Iterable[PrefabSpeedValue]) -> Mapping[str, int]:
 __all__ = [
     "MAX_SCALE",
     "MIN_SCALE",
+    "NOT_READ",
     "NO_VALUE",
     "PARTLY_READ",
     "PrefabScaleOutcome",
@@ -417,6 +418,7 @@ __all__ = [
     "PrefabSpeedError",
     "PrefabSpeedHit",
     "PrefabSpeedValue",
+    "UNDECIDED",
     "ZERO_VALUES",
     "apply_speed_edits",
     "prefab_label",

@@ -213,7 +213,8 @@ def test_prefab_batch_summary_counts_what_changes_and_what_is_left_out():
     text, details, count = prefab_batch_summary(outcomes, 0.5, ("gone.prefab",))
     assert count == 2
     assert text.splitlines()[0] == "Scale 8 value(s) in 2 prefab(s) by 0.5x and save them as one item package?"
-    assert "Left out: 1 partly read, 1 no speed value reached, 1 the values are 0, 1 not in the game archives." in text
+    assert ("Left out: partly read (1), no speed value reached (1), the values are 0 (1), "
+            "not in the game archives (1).") in text
     assert "not been tested in game" in text
     assert "a.prefab: 3 value(s), 1 to 4 -> 0.5 to 2" in details and "b.prefab: 5 value(s), 2 -> 1" in details
     assert "c.prefab: left out, partly read" in details and "gone.prefab: left out, not in the game archives" in details

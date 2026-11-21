@@ -5,7 +5,8 @@ reads and the workers) and still opens it from the Action Charts button's menu, 
 right-click menu of a `.paac` file and as the registry command `browse.speed_tuning`.
 Its sets are read from the same chart index the Action Chart Editor uses, and exports go
 through the action chart mod writer, so the Action Chart Editor and Crimson Live Edit can
-open the mods.
+open the mods. The Prefabs page's search and its batch (every listed prefab scaled into
+one item package) run here too.
 """
 
 from __future__ import annotations
@@ -740,11 +741,15 @@ def prefab_batch_summary(outcomes: Sequence, factor: float, missing: Sequence[st
     """The question asked before the listed prefabs become one package, the list behind Show
     Details, and how many prefabs would be written."""
 
+    from cdmw.services.prefab_speed_service import NO_VALUE, NOT_READ, PARTLY_READ, UNDECIDED, ZERO_VALUES
+
     changed = [item for item in outcomes if item.patched is not None]
     left: dict[str, int] = {}
     for item in outcomes:
         if item.patched is None:
-            reason = item.reason.split(":", 1)[0]
+            # One line per kind of reason; a reason of its own (a value too large) is in the details.
+            reason = next((known for known in (NOT_READ, PARTLY_READ, UNDECIDED, NO_VALUE, ZERO_VALUES)
+                           if item.reason.startswith(known)), "could not be scaled")
             left[reason] = left.get(reason, 0) + 1
     if missing:
         left["not in the game archives"] = len(missing)
@@ -759,7 +764,7 @@ def prefab_batch_summary(outcomes: Sequence, factor: float, missing: Sequence[st
     else:
         lines.append("None of the listed prefabs holds a speed value that can be scaled.")
     if left:
-        lines.append("Left out: " + ", ".join(f"{count:,} {reason}" for reason, count in left.items()) + ".")
+        lines.append("Left out: " + ", ".join(f"{reason} ({count:,})" for reason, count in left.items()) + ".")
     if changed:
         lines.append("")
         lines.append("Prefab speed edits have not been tested in game.")
@@ -807,9 +812,17 @@ def profile_summary(plan: SpeedProfilePlan, outcome: SpeedProfileOutcome, served
 def speed_export_message(result: SpeedExportResult, sent: bool) -> str:
     left_out = [f"  {path}: {reason}" for path, reason in result.left_out]
     if result.folder is None:
-        text = (f"Every set in {result.title} is back at the game's speed, so the mod was removed."
-                if result.removed else "Nothing was written: these factors change nothing.")
-        return text + ("\n\nLeft out:\n" + "\n".join(left_out) if left_out else "")
+        if not left_out:
+            return (f"Every set in {result.title} is back at the game's speed, so the mod was removed."
+                    if result.removed else "Nothing was written: these factors change nothing.")
+        lines = []
+        if result.removed:
+            lines.append(f"Every set in {result.title} is back at the game's speed, so the mod was removed.")
+        else:
+            lines.append("Nothing was written: these factors change nothing.")
+        lines.append("")
+        lines.append("Left out:\n" + "\n".join(left_out))
+        return "\n".join(lines)
     where = "Sent the Speed Tuning mod to DMM" if sent else "Wrote the Speed Tuning DMM mod"
     lines = [f"{where}:\n{result.folder}", ""]
     if result.removed:
