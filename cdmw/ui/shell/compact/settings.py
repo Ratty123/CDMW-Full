@@ -29,6 +29,11 @@ class CompactWorkspaceSettingsMixin:
         if layout_label is not None:
             layout_label.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
         self.application_layout_combo.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
+        # The notice is not in a layout yet; showing it now would open it as a window of
+        # its own for a moment. _show_compact_workspace_settings_notice shows it once placed.
+        self.application_layout_restart_label.setVisible(False)
+
+    def _show_compact_workspace_settings_notice(self) -> None:
         self.application_layout_restart_label.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
 
     def _connect_compact_workspace_settings(self) -> None:

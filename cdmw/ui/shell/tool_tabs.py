@@ -786,6 +786,13 @@ class ShellToolTabsMixin:
         settings_tab.archive_performance_settings_changed.connect(
             self.archive._handle_archive_performance_settings_changed
         )
+        # Built on first visit: show the Preview and archive values in use now, which
+        # the shell only pushes to a Settings tab that already exists.
+        try:
+            settings_tab._apply_model_preview_controls(self.archive._current_model_preview_render_settings())
+            settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings())
+        except Exception:
+            pass
         holder = getattr(self, "_deferred_settings_sections_holder", None)
         if holder is not None:
             holder.deleteLater()
