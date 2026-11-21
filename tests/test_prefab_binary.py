@@ -678,13 +678,13 @@ def _typedef(name: str, *members: tuple[str, str, int, int, int]) -> bytes:
     return body
 
 
-def _assemble(typedefs: tuple[bytes, ...], blob_for) -> bytes:
-    """A version-4, revision-15 prefab; ``blob_for(blob_offset)`` returns the blob."""
+def _assemble(typedefs: tuple[bytes, ...], blob_for, *, revision: int = 15) -> bytes:
+    """A version-4 prefab, revision 15 unless asked; ``blob_for(blob_offset)`` returns the blob."""
     header = bytearray(struct.pack("<HHH", 0xFFFF, 4, 0) + b"\x00" * 8)
-    header += struct.pack("<I", 15) + struct.pack("<H", len(typedefs))
+    header += struct.pack("<I", revision) + struct.pack("<H", len(typedefs))
     for item in typedefs:
         header += item
-    pool = struct.pack("<I", 0)
+    pool = struct.pack("<I", 0) if revision >= 14 else b""  # no string pool before 14
     blob_offset = len(header) + len(pool) + 28
     blob = bytes(blob_for(blob_offset))
     data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
@@ -1019,14 +1019,14 @@ class _Groups:
         self.base = base
         self.blob = bytearray(struct.pack("<H", 2) + (0b1).to_bytes(6, "little"))
 
-    def collection(self, count: int) -> None:
-        self.blob += b"\x00" + struct.pack("<I", count) + b"\x00" * 13  # kind, count, preamble
+    def collection(self, count: int, preamble: bytes = b"\x00" * 13, *, kind_byte: bool = True) -> None:
+        self.blob += (b"\x00" if kind_byte else b"") + struct.pack("<I", count) + preamble
 
     def open(self, width: int, mask: int, type_index: int, *, override: int = 0, z: int = 0, presence: bool = False) -> int:
         if presence:
             self.blob += b"\x01"
         self.blob += struct.pack("<H", width) + mask.to_bytes(width, "little")
-        self.blob += bytes((type_index, 0, override))
+        self.blob += struct.pack("<HB", type_index, override)
         start = _owner_and_pointer(self.blob, self.base)
         self.blob += struct.pack("<HH", z, 0)
         return start
@@ -1154,3 +1154,178 @@ def test_a_wide_mask_is_believed_only_for_a_type_that_needs_it() -> None:
     document = decode_prefab_binary(_decal_prefab(stated_type=2))
 
     assert not document.walk_complete
+
+
+# The rest of the partly read prefabs, same corpus and date: an overridden
+# pointee's header, masks of up to 13 bytes, list preambles that carry keys,
+# type indexes above 255, and the revision 13 and 14 layouts.
+
+
+def _preamble(keys: int = 0, *, with_ids: bool = False, stated_keys: int | None = None) -> bytes:
+    out = bytes((1 if with_ids else 0,)) + struct.pack("<II", keys + 1, 0)
+    out += struct.pack("<I", keys if stated_keys is None else stated_keys)
+    out += b"".join(struct.pack("<Q", 0x01C9_0000_0000_0000 + index) for index in range(keys))
+    if with_ids:
+        out += b"".join(struct.pack("<I", index) for index in range(keys))
+    return out
+
+
+def _decal_info_override_prefab() -> bytes:
+    """``_decalInfo`` overridden with only ``_tintColor``: its header ends ``00 01``."""
+    holder = _typedef("DecalThing", ("_isEnable", "bool", 0, 1, 2), ("_decalInfo", "ReflectObject", 4, 8, 8))
+    info = _typedef("DecalInfoThing", ("_priority", "int", 0, 4, 4), ("_tintColor", "Color", 0, 4, 0))
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1)
+        element = groups.open(1, 0b10, 1, override=1)
+        pointee = groups.open(1, 0b10, 2, override=1)
+        groups.blob += bytes((0x24, 0x24, 0x24, 0xFF))
+        groups.close(pointee)
+        groups.close(element)
+        return groups.blob
+
+    return _assemble((_components_root(), holder, info), blob_for)
+
+
+def test_an_overridden_pointee_is_read_by_its_stated_type() -> None:
+    """Read as a path, ``24 24 24 ff`` came out as a length of 4,280,558,628.
+
+    A pointee header whose last byte is the override flag 1 was not taken as a
+    header at all; 58 shipped prefabs stopped on such a ``_decalInfo``.
+    """
+    document = decode_prefab_binary(_decal_info_override_prefab())
+
+    assert document.walk_complete, document.walk_note
+    (decal,) = document.objects
+    assert [(item.name, item.raw) for item in decal.numbers] == [("_tintColor", bytes((0x24, 0x24, 0x24, 0xFF)))]
+
+
+def test_a_103_member_type_has_a_13_byte_mask() -> None:
+    """``ScenePostProcessing``: ``0d 00`` and 13 mask bytes, in every weather and post-process preset."""
+    members = [(f"_value{index}", "float", 0, 4, 4) for index in range(103)]
+    big = _typedef("PostProcessThing", *members)
+    holder = _typedef("Holder", ("_info", "ReflectObjectPtr", KIND_POINTER, 8, 0x1008))
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1)
+        element = groups.open(1, 0b1, 1)
+        pointee = groups.open(13, (1 << 0) | (1 << 102), 2, presence=True)
+        groups.blob += struct.pack("<ff", 1.5, 2.5)
+        groups.close(pointee)
+        groups.close(element)
+        return groups.blob
+
+    document = decode_prefab_binary(_assemble((_components_root(), holder, big), blob_for))
+
+    assert document.walk_complete, document.walk_note
+    (holder_object,) = document.objects
+    assert [item.name for item in holder_object.numbers] == ["_value0", "_value102"]
+
+
+def _listed_prefab(preamble: bytes, count: int = 2, *, indexed: bool = False) -> bytes:
+    leaf = _typedef("Leaf", ("_width", "float", 0, 4, 4))
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(count, preamble)
+        for index in range(count):
+            groups.blob += struct.pack("<H", 1) + bytes((0b1,)) + struct.pack("<HB", 1, 0)
+            groups.blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+            if indexed:
+                groups.blob += struct.pack("<I", index)
+            groups.blob += struct.pack("<I", base + len(groups.blob) + 4)
+            start = len(groups.blob)
+            groups.blob += struct.pack("<HH", 0, 0) + struct.pack("<f", float(index))
+            groups.close(start)
+        return groups.blob
+
+    return _assemble((_components_root(), leaf), blob_for)
+
+
+@pytest.mark.parametrize(
+    ("preamble", "indexed"),
+    [
+        (_preamble(69), False),  # a nested instance's _childSceneObjects: 552 bytes of keys
+        (_preamble(3, with_ids=True), True),  # keys and indexes; the elements carry theirs
+        (_preamble(0, stated_keys=0xFFFFFFFF), False),  # "no keys" written as -1
+    ],
+)
+def test_a_list_preamble_is_read_by_what_it_says(preamble: bytes, indexed: bool) -> None:
+    """``u8 withIds, u32, u32, u32 n``, then ``n`` u64 keys and ``n`` u32 indexes with ids.
+
+    Stepped over by the header search, a long one put the first element out of
+    reach (512 bytes), and ``n`` -1 read as 4 billion keys.
+    """
+    document = decode_prefab_binary(_listed_prefab(preamble, indexed=indexed))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.numbers[0].raw for item in document.objects] == [struct.pack("<f", 0.0), struct.pack("<f", 1.0)]
+    (listed,) = document.collections
+    assert listed.count == len(listed.elements) == 2
+    # The preamble belongs to the list, not to its first element.
+    assert listed.elements[0][0] == listed.header_offset + listed.header_width + len(preamble)
+
+
+def test_an_empty_list_still_carries_its_preamble() -> None:
+    """A nested instance's ``_childSceneObjects`` with no children can still list 78 keys."""
+    document = decode_prefab_binary(_listed_prefab(_preamble(78), count=0))
+
+    assert document.walk_complete, document.walk_note
+    assert document.collections[0].count == 0
+
+
+def test_a_type_index_above_255_is_read_as_a_u16() -> None:
+    """A spot prefab declaring more than 256 types names type 258 as ``02 01``.
+
+    Read as one byte it was type 2 followed by a stray 01, so the element took
+    the wrong type or the walk stopped.
+    """
+    fillers = tuple(_typedef(f"Filler{index}", ("_x", "bool", 0, 1, 0)) for index in range(300))
+    leaf = _typedef("FarLeaf", ("_width", "float", 0, 4, 4), ("_depth", "float", 0, 4, 4))
+    far = 1 + len(fillers)
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1)
+        element = groups.open(1, 0b11, far)
+        groups.blob += struct.pack("<ff", 1.0, 2.0)
+        groups.close(element)
+        return groups.blob
+
+    document = decode_prefab_binary(_assemble((_components_root(), *fillers, leaf), blob_for))
+
+    assert far > 255
+    assert document.walk_complete, document.walk_note
+    (item,) = document.objects
+    assert item.component_type == "FarLeaf" and item.type_source == "stated"
+
+
+@pytest.mark.parametrize("revision", [13, 14])
+def test_revision_13_and_14_lists_have_no_kind_byte(revision: int) -> None:
+    """A bare u32 count, then the preamble (no withIds byte in revision 13).
+
+    Five shipped prefabs still use these revisions; none read to the end before.
+    """
+    root = _typedef(
+        "SceneObject",
+        ("_components", "ReflectObjectPtr", KIND_COLLECTION, 0, 0x1008),
+        ("_children", "ReflectObjectPtr", KIND_COLLECTION, 0, 0x1028),
+    )
+    leaf = _typedef("Leaf", ("_width", "float", 0, 4, 4))
+    preamble = (b"\x00" if revision == 14 else b"") + b"\x00" * 12
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1, preamble, kind_byte=False)
+        element = groups.open(1, 0b1, 1)
+        groups.blob += struct.pack("<f", 3.0)
+        groups.close(element)
+        groups.collection(0, preamble, kind_byte=False)  # _children, unselected: still its count
+        return groups.blob
+
+    document = decode_prefab_binary(_assemble((root, leaf), blob_for, revision=revision))
+
+    assert document.walk_complete, document.walk_note
+    assert [item.numbers[0].raw for item in document.objects] == [struct.pack("<f", 3.0)]
