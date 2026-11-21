@@ -25,8 +25,6 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     untextured_fallback_display_mode,
 )
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
-from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab

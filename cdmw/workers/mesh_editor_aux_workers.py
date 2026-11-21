@@ -19,6 +19,8 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.services.mesh_service import MeshService
+
+_REAL_MESH_SERVICE = MeshService
 from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.modify_original_workspace_service import (
     ModifyOriginalDraft,
@@ -110,6 +112,7 @@ class MeshArchiveSessionLoadWorker(QObject):
         archive_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         draft_request: MeshDraftRequest | None = None,
         offer_drafts: bool = False,
+        run_roundtrip: bool = True,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -119,6 +122,7 @@ class MeshArchiveSessionLoadWorker(QObject):
         self.draft_root = Path(draft_root).expanduser() if draft_root is not None else None
         self.draft_request = draft_request
         self.offer_drafts = bool(offer_drafts)
+        self.run_roundtrip = bool(run_roundtrip)
         if resume_manifest_path is None and draft_request is not None:
             resume_manifest_path = draft_request.resume_manifest_path
         self.resume_manifest_path = (
@@ -159,7 +163,7 @@ class MeshArchiveSessionLoadWorker(QObject):
                 self.drafts_found.emit(self.request_id, drafts)
                 return
             service = MeshService()
-            mesh = service.load_mesh_bytes(payload, self.entry.path, run_roundtrip=True)
+            mesh = service.load_mesh_bytes(payload, self.entry.path, run_roundtrip=self.run_roundtrip)
             source_sha256 = str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or "")
             resumed_manifest_path: Path | None = None
             draft_manifest_path: Path | None = None
@@ -191,11 +195,13 @@ class MeshArchiveSessionLoadWorker(QObject):
                 lineage = draft_lineage(plan.manifest)
             if self.stop_event.is_set():
                 return
-            view = service.open_edit_session(
-                mesh,
-                session_id=self.session_id or f"mesh-editor-archive:{self.entry.path}",
-                mode=self.mode,
-            )
+            open_kwargs: dict[str, object] = {
+                "session_id": self.session_id or f"mesh-editor-archive:{self.entry.path}",
+                "mode": self.mode,
+            }
+            if isinstance(service, _REAL_MESH_SERVICE):
+                open_kwargs["adopt_parsed_mesh"] = True
+            view = service.open_edit_session(mesh, **open_kwargs)
             # A draft continued after a game update opens its saved copy over
             # the file's new location; its saved target follows the file.
             if resumed_manifest_path is not None or getattr(mesh, "_cdmw_mesh_layer_seed_project_path", ""):
@@ -713,12 +719,14 @@ class MeshFileSessionLoadWorker(QObject):
         *,
         session_id: str = "",
         mode: str = "object",
+        run_roundtrip: bool = True,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
         self.path = Path(path)
         self.session_id = str(session_id or "")
         self.mode = str(mode or "object")
+        self.run_roundtrip = bool(run_roundtrip)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -733,14 +741,16 @@ class MeshFileSessionLoadWorker(QObject):
             if self.stop_event.is_set():
                 return
             service = MeshService()
-            mesh = service.load_mesh_file(self.path, run_roundtrip=True)
+            mesh = service.load_mesh_file(self.path, run_roundtrip=self.run_roundtrip)
             if self.stop_event.is_set():
                 return
-            view = service.open_edit_session(
-                mesh,
-                session_id=self.session_id or f"mesh-editor-file:{self.path.name}",
-                mode=self.mode,
-            )
+            open_kwargs: dict[str, object] = {
+                "session_id": self.session_id or f"mesh-editor-file:{self.path.name}",
+                "mode": self.mode,
+            }
+            if isinstance(service, _REAL_MESH_SERVICE):
+                open_kwargs["adopt_parsed_mesh"] = True
+            view = service.open_edit_session(mesh, **open_kwargs)
             if not self.stop_event.is_set():
                 self.loaded.emit(self.request_id, service, view, mesh)
                 transferred = True

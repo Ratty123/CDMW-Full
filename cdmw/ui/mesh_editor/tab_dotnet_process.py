@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
-
 import json
 import time
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import QProgressDialog
@@ -17,6 +15,9 @@ from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
     MeshEditorDotNetSessionEventMixin,
 )
 from cdmw.ui.mesh_editor.tab_support import _mesh_edit_result_with_metric
+
+if TYPE_CHECKING:
+    from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
 
 
 class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):

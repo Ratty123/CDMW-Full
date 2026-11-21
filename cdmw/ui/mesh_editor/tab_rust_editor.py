@@ -548,7 +548,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self._start_selected_mesh_editor(controller)
 
     def _defer_rust_editor_for_material_context(self, controller: object) -> bool:
-        if bool(
+        if bool(getattr(self, "edit_item_set", False)) or bool(
             getattr(self, "archive_material_context_verified_for_rust", False)
         ):
             self.standalone_rust_texture_unavailable_reason = ""

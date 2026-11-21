@@ -764,6 +764,7 @@ class MeshEditorRustProcessMixin:
         the shader combines count, the ones combined when the model opened do not."""
 
         from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel, _host_textures_panel
+        from cdmw.ui.mesh_editor.texture_tools_dock import prewarm_texture_editor_imports
         from cdmw.ui.mesh_editor.textures_panel import shown_live_by_source
 
         shown = shown_live_by_source(textures)
@@ -775,6 +776,8 @@ class MeshEditorRustProcessMixin:
         show = getattr(tools, "set_shown_live_sources", None)
         if callable(show):
             show(shown)
+        if tools is not None and getattr(tools, "_editor_factory", None) is None:
+            prewarm_texture_editor_imports()
 
     def _live_texture_keeper(self):
         """Keeps this document's texture edits in its draft (step 8, item 3)."""
@@ -876,49 +879,143 @@ class MeshEditorRustProcessMixin:
     def open_texture_in_window(self, texture_id: str) -> None:
         """Open a Textures panel row in the texture tools docked beside the model (step 8)."""
 
-        from cdmw.ui.mesh_editor.tab_rust_editor import _host_textures_panel
+        from PySide6.QtCore import QObject, QThreadPool, Qt
+        from PySide6.QtWidgets import QMessageBox
+
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel, _host_textures_panel
+        from cdmw.ui.mesh_editor.texture_tools_dock import (
+            _PendingTextureOpen,
+            _TextureOpenCheckRunnable,
+            _TextureOpenCheckSignals,
+        )
+        from cdmw.ui.texture_workflow.editor_source_binding import texture_editor_open_source_task_label
 
         dock = _host_textures_panel(self)
         row = dock.texture_row(texture_id) if dock is not None else None
         session_id = self._live_texture_session_id()
         if row is None or not row.decoded_path:
             return
-        from cdmw.domain.textures.original_output import TextureOutputRefused, check_texture_editable
-        from cdmw.services.mesh_live_texture_output import LiveTextureSource
-        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel
-        from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
-
         tools = _host_panel(self, "_texture_tools_panel")
         if tools is None:
             return
 
-        users = dock.texture_users(texture_id)
-        try:
-            # Refused before the first edit when the original cannot be written back as it was.
-            original = check_texture_editable(Path(row.decoded_path))
-        except TextureOutputRefused as exc:
-            self.status_message_requested.emit(exc.reason, True)
-            from PySide6.QtWidgets import QMessageBox
+        request_id = int(getattr(self, "_texture_open_request_id", 0)) + 1
+        self._texture_open_request_id = request_id
+        previous_stop = getattr(self, "_texture_open_stop_event", None)
+        if previous_stop is not None:
+            previous_stop.set()
+        stop_event = threading.Event()
+        self._texture_open_stop_event = stop_event
 
-            QMessageBox.warning(self.window(), "Texture Editor", exc.reason)
-            return
-        self._live_textures().remember_source(row.source_sha256, LiveTextureSource(
-            game_path=row.game_path, original=original, users=users, role=row.role))
-
-        tools.open_target(LiveTextureTarget(
+        users = tuple(dock.texture_users(texture_id))
+        warning_fn = QMessageBox.warning
+        captured_warning = (
+            warning_fn
+            if getattr(warning_fn, "__module__", "") != "PySide6.QtWidgets"
+            else None
+        )
+        pending = _PendingTextureOpen(
+            request_id=request_id,
+            texture_id=str(texture_id),
             session_id=session_id,
-            source_path=row.decoded_path,
-            source_sha256=row.source_sha256,
-            channel=row.role,
-            display_name=row.file_name,
-            game_path=row.game_path,
+            decoded_path=str(row.decoded_path),
+            source_sha256=str(row.source_sha256),
+            game_path=str(row.game_path),
+            role=str(row.role),
+            file_name=str(row.file_name),
             users=users,
             in_renderer=self._texture_shown_live(dock, row),
+            tools_generation=int(getattr(tools, "_open_generation", 0)),
+            stop_event=stop_event,
+            captured_warning=captured_warning,
+        )
+        status_signal = getattr(self, "status_message_requested", None)
+        if status_signal is not None:
+            status_signal.emit(
+                texture_editor_open_source_task_label(Path(pending.file_name or pending.decoded_path)),
+                False,
+            )
+
+        signals = getattr(self, "_texture_open_signals", None)
+        if signals is None or not shiboken6.isValid(signals):
+            signals = _TextureOpenCheckSignals(self if isinstance(self, QObject) else None)
+            signals.checked.connect(self._finish_open_texture_in_window, Qt.ConnectionType.QueuedConnection)
+            self._texture_open_signals = signals
+        QThreadPool.globalInstance().start(_TextureOpenCheckRunnable(pending, signals))
+
+    def _finish_open_texture_in_window(
+        self,
+        pending: object,
+        original: object,
+        refused_reason: str,
+    ) -> None:
+        from PySide6.QtCore import QObject
+
+        from cdmw.services.mesh_live_texture_output import LiveTextureSource
+        from cdmw.ui.mesh_editor.tab_rust_editor import _host_panel, _host_textures_panel
+        from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
+
+        if isinstance(self, QObject) and not shiboken6.isValid(self):
+            return
+        if pending.request_id != int(getattr(self, "_texture_open_request_id", 0)):
+            return
+        if pending.stop_event.is_set() or bool(getattr(self, "standalone_rust_closing", False)):
+            return
+        if pending.session_id != self._live_texture_session_id():
+            return
+        tools = _host_panel(self, "_texture_tools_panel")
+        if tools is None or (isinstance(tools, QObject) and not shiboken6.isValid(tools)):
+            return
+        if pending.tools_generation != int(getattr(tools, "_open_generation", 0)):
+            return
+        dock = _host_textures_panel(self)
+        if dock is not None and not getattr(dock, "has_session", True):
+            return
+
+        if refused_reason:
+            status_signal = getattr(self, "status_message_requested", None)
+            if status_signal is not None:
+                status_signal.emit(refused_reason, True)
+            from PySide6.QtWidgets import QMessageBox
+
+            warning_fn = pending.captured_warning or QMessageBox.warning
+            parent = self.window() if callable(getattr(self, "window", None)) else None
+            warning_fn(parent, "Texture Editor", refused_reason)
+            return
+
+        self._live_textures().remember_source(
+            pending.source_sha256,
+            LiveTextureSource(
+                game_path=pending.game_path,
+                original=original,
+                users=pending.users,
+                role=pending.role,
+            ),
+        )
+        row = (
+            dock.texture_row(pending.texture_id)
+            if dock is not None and callable(getattr(dock, "texture_row", None))
+            else None
+        )
+        in_renderer = (
+            self._texture_shown_live(dock, row)
+            if (dock is not None and row is not None)
+            else pending.in_renderer
+        )
+        tools.open_target(LiveTextureTarget(
+            session_id=pending.session_id,
+            source_path=pending.decoded_path,
+            source_sha256=pending.source_sha256,
+            channel=pending.role,
+            display_name=pending.file_name,
+            game_path=pending.game_path,
+            users=pending.users,
+            in_renderer=in_renderer,
         ))
         # Which other game files use it, searched in the background (item 5).
         check = self._shared_texture_check()
-        check.search_texture_users(row.game_path)
-        self._show_shared_texture_result(row.game_path)
+        check.search_texture_users(pending.game_path)
+        self._show_shared_texture_result(pending.game_path)
 
     @staticmethod
     def _texture_shown_live(dock, row) -> bool:

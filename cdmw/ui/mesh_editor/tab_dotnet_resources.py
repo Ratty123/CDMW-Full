@@ -10,14 +10,6 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QComboBox
 
 from cdmw.services.mesh_interaction_diagnostics import send_recorded_mesh_protocol_message
-from cdmw.services.mesh_dotnet_material_state import (
-    copy_dotnet_preview_material_bindings,
-    defer_dotnet_preview_material_synthesis,
-)
-from cdmw.services.mesh_dotnet_material_compiler import (
-    MeshDotNetMaterialCompileRequest,
-    snapshot_mesh_dotnet_material_inputs,
-)
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.services.mesh_material_publication import MaterialPublicationStatus
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
@@ -578,6 +570,11 @@ class MeshEditorDotNetResourceProtocolMixin(
         if controller is None or not self._dotnet_resident_material_updates_supported():
             return False
         try:
+            from cdmw.services.mesh_dotnet_material_compiler import (
+                MeshDotNetMaterialCompileRequest,
+                snapshot_mesh_dotnet_material_inputs,
+            )
+
             view = controller.session_view()
             mesh = mesh_snapshot if mesh_snapshot is not None else controller.working_mesh(clone=False)
             package = getattr(self, "standalone_dotnet_experiment_package", None)
@@ -722,6 +719,8 @@ class MeshEditorDotNetResourceProtocolMixin(
         if controller is None:
             return False
         try:
+            from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+
             editable_mesh = controller.working_mesh(clone=False)
             if copy_dotnet_preview_material_bindings(editable_mesh, preview_model) <= 0:
                 return False
@@ -763,6 +762,12 @@ class MeshEditorDotNetResourceProtocolMixin(
         if controller is None:
             return False
         try:
+            from cdmw.services.mesh_dotnet_material_compiler import snapshot_mesh_dotnet_material_inputs
+            from cdmw.services.mesh_dotnet_material_state import (
+                copy_dotnet_preview_material_bindings,
+                defer_dotnet_preview_material_synthesis,
+            )
+
             editable_mesh = controller.working_mesh(clone=False)
             editable_count = len(tuple(getattr(editable_mesh, "submeshes", ()) or ()))
             if editable_count <= 0 or copy_dotnet_preview_material_bindings(

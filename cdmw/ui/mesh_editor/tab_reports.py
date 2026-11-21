@@ -7,10 +7,7 @@ from typing import Mapping
 from PySide6.QtCore import QThread, QTimer, Qt
 from PySide6.QtWidgets import QProgressDialog
 
-from cdmw.domain.mesh.panel_state import MeshPanelStatus
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.services.archive_extraction_service import find_available_output_path
-from cdmw.services.new_item_service import game_is_running
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -101,6 +98,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         controller = self.standalone_controller
         current_session_id = str(getattr(controller, "active_session_id", "") or "")
         current_revision = self._standalone_session_revision()
+        from cdmw.domain.mesh.panel_state import MeshPanelStatus
+
         state = self._standalone_panel_state("standalone_validation_panel_state")
         if (
             not started_session_id
@@ -147,6 +146,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         if int(request_id) != int(self.standalone_validation_request_id):
             return
         text = f"Validation failed: {message}"
+        from cdmw.domain.mesh.panel_state import MeshPanelStatus
+
         state = self._standalone_panel_state("standalone_validation_panel_state")
         if state.matches_request(
             session_id=self.standalone_validation_started_session_id,
@@ -368,6 +369,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
     def _handle_standalone_rebuild_report_completed(self, request_id: int, report: object) -> None:
         if int(request_id) != int(self.standalone_rebuild_report_request_id):
             return
+        from cdmw.domain.mesh.panel_state import MeshPanelStatus
+
         state = self._standalone_panel_state("standalone_rebuild_panel_state")
         current_session_id = str(getattr(self.standalone_controller, "active_session_id", "") or "")
         current_revision = self._standalone_session_revision()
@@ -592,6 +595,8 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         )
 
     def _publish_standalone_rebuild_failure_state(self, code: str, message: str) -> None:
+        from cdmw.domain.mesh.panel_state import MeshPanelStatus
+
         state = self._standalone_panel_state("standalone_rebuild_panel_state")
         revision = self.standalone_rebuild_started_revision
         if revision is None or not state.matches_request(

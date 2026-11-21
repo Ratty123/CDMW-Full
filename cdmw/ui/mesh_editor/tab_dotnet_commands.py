@@ -8,19 +8,31 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
-from cdmw.domain.mesh.resident_mutation import (
-    _resident_interaction_descriptor,
-    RESIDENT_INTERACTION_FORMAT_VERSION,
-    RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
-    RESIDENT_INTERACTION_MAPPING_PREFIX,
-)
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
 from cdmw.ui.mesh_editor.tab_dotnet_named_commands import MeshEditorDotNetNamedCommandMixin
+
+_LAZY_RESIDENT_MUTATION_EXPORTS = frozenset(
+    {
+        "_resident_interaction_descriptor",
+        "RESIDENT_INTERACTION_FORMAT_VERSION",
+        "RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION",
+        "RESIDENT_INTERACTION_MAPPING_PREFIX",
+    }
+)
+
+
+def __getattr__(name: str) -> object:
+    if name in _LAZY_RESIDENT_MUTATION_EXPORTS:
+        from cdmw.domain.mesh import resident_mutation as _rm
+
+        value = getattr(_rm, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(name)
 
 
 def _record_interaction_decision(target: object, event: str, **payload: object) -> None:
@@ -55,6 +67,8 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             self._reject_dotnet_request_without_session("resident_interaction", payload)
             return False
         try:
+            from cdmw.domain.mesh.resident_mutation import _resident_interaction_descriptor
+
             descriptor = _resident_interaction_descriptor(payload)
             command = _tab.MeshEditCommand(
                 "_resident_interaction_transaction",
@@ -885,6 +899,8 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             if direct_result is not None:
                 return direct_result
             else:
+                from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
+
                 action_key = _DOTNET_ACTION_ALIASES.get(command, command)
                 action = mesh_editor_actions_by_key().get(action_key)
                 params: dict[str, object] = dict(action.params) if action is not None else {}

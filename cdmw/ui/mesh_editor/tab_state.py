@@ -7,21 +7,10 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from cdmw.domain.mesh.authoring_capability import (
-    MeshOutputPolicy,
-    PROVEN_AUTHORING_LOD,
-    normalize_mesh_format,
-)
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
     normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,
-)
-from cdmw.ui.mesh_editor.actions import (
-    NATIVE_EDITOR_SESSION_COMMANDS,
-    mesh_editor_action_authoring_blocker,
-    normalize_mesh_element_type,
-    normalize_mesh_selection_shape,
 )
 
 
@@ -94,8 +83,12 @@ class MeshEditorStateMixin(
         if mode:
             self.current_edit_mode = str(mode)
         if active_selection_mode:
+            from cdmw.ui.mesh_editor.actions import normalize_mesh_selection_shape
+
             self.current_selection_mode = normalize_mesh_selection_shape(active_selection_mode)
         if active_element_type:
+            from cdmw.ui.mesh_editor.actions import normalize_mesh_element_type
+
             self.current_element_type = normalize_mesh_element_type(active_element_type)
         if active_tool_key is not None:
             self.current_tool_action_key = str(active_tool_key)
@@ -186,6 +179,8 @@ class MeshEditorStateMixin(
             return self.current_request.target_entry
         return self.current_archive_selection
     def _standalone_mesh_format(self) -> str:
+        from cdmw.domain.mesh.authoring_capability import normalize_mesh_format
+
         view = self._standalone_output_policy_view()
         if view is not None and str(getattr(view, "mesh_format", "") or "").strip():
             return normalize_mesh_format(view.mesh_format)
@@ -209,12 +204,16 @@ class MeshEditorStateMixin(
             central_blocker = ui_state.action_blocker(normalized)
             if central_blocker:
                 return central_blocker
+        from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, PROVEN_AUTHORING_LOD
+
         view = policy_view or self._standalone_output_policy_view()
         output_policy = (
             str(getattr(view, "output_policy", "") or "")
             if view is not None
             else MeshOutputPolicy.EXACT_GAME_ASSET.value
         )
+        from cdmw.ui.mesh_editor.actions import mesh_editor_action_authoring_blocker
+
         blocker = mesh_editor_action_authoring_blocker(
             action_key,
             deletes_parts=deletes_parts,
@@ -268,6 +267,8 @@ class MeshEditorStateMixin(
             return "Mesh Editor is synchronizing with the renderer. Editing is temporarily unavailable."
         return ""
     def _standalone_exact_output_required(self) -> bool:
+        from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
+
         view = self._standalone_output_policy_view()
         output_policy = str(getattr(view, "output_policy", "") or "") if view is not None else ""
         if output_policy:
@@ -287,6 +288,8 @@ class MeshEditorStateMixin(
         except (OSError, RuntimeError, TypeError, ValueError):
             return False
     def _native_editor_action_blocked(self, command: str, *, embedded: bool = False) -> bool:
+        from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
+
         normalized = str(command or "").strip().lower()
         if normalized not in NATIVE_EDITOR_SESSION_COMMANDS or self._native_mesh_editor_available():
             return False

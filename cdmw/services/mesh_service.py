@@ -454,7 +454,10 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
         )
         setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", bone_count)
     if not run_roundtrip:
+        if source_data:
+            setattr(mesh, "_cdmw_no_op_roundtrip_deferred", True)
         return
+    setattr(mesh, "_cdmw_no_op_roundtrip_deferred", False)
     try:
         # The asset view above describes exactly the mesh the parser lambda
         # returns, so the roundtrip reuses it instead of walking every vertex
@@ -474,22 +477,64 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
         )
 
 
-def _session_roundtrip_status(session: _MeshEditSession) -> str:
+def _ensure_session_roundtrip_report(session: _MeshEditSession) -> Mapping[str, object] | None:
     report = session.no_op_roundtrip_report
+    if isinstance(report, Mapping):
+        return report
+    source_mesh = getattr(session, "source_coordinate_base_mesh", None) or session.base_mesh
+    deferred = bool(
+        getattr(source_mesh, "_cdmw_no_op_roundtrip_deferred", False)
+        or getattr(session.base_mesh, "_cdmw_no_op_roundtrip_deferred", False)
+    )
+    if not deferred or not session.original_data:
+        return report
+    try:
+        use_source_mesh = (
+            source_mesh is getattr(session, "source_coordinate_base_mesh", None)
+            and source_mesh is not None
+        ) or bool(session.base_mesh_is_original_parse)
+        if use_source_mesh and source_mesh is not None:
+            result = roundtrip_mesh_bytes(
+                session.original_data,
+                str(getattr(source_mesh, "path", "") or ""),
+                parser=lambda _data, _filename: source_mesh,
+            )
+        else:
+            result = roundtrip_mesh_bytes(
+                session.original_data,
+                str(getattr(session.base_mesh, "path", "") or ""),
+            )
+        computed: dict[str, object] = dict(result.report)
+    except Exception as exc:
+        computed = {
+            "result": "FAIL",
+            "parse": "FAIL",
+            "rebuild": "NOT_RUN",
+            "error": str(exc),
+        }
+    session.no_op_roundtrip_report = computed
+    for target in (session.base_mesh, session.working_mesh, source_mesh):
+        if target is not None and getattr(target, "_cdmw_no_op_roundtrip_deferred", False):
+            setattr(target, "_cdmw_no_op_roundtrip_deferred", False)
+    return computed
+
+
+def _session_roundtrip_status(session: _MeshEditSession) -> str:
+    report = _ensure_session_roundtrip_report(session)
     if not isinstance(report, Mapping):
         return "not_run" if session.original_data else ""
     return str(report.get("result") or "FAIL")
 
 
 def _session_roundtrip_byte_identical(session: _MeshEditSession) -> bool | None:
-    report = session.no_op_roundtrip_report
+    report = _ensure_session_roundtrip_report(session)
     if not isinstance(report, Mapping) or "byte_identical" not in report:
         return None
     return bool(report.get("byte_identical"))
 
 
 def _session_roundtrip_unexpected_differences(session: _MeshEditSession) -> int:
-    report = session.no_op_roundtrip_report
+    report = _ensure_session_roundtrip_report(session)
     if not isinstance(report, Mapping):
         return 0
     try:
@@ -862,6 +907,24 @@ class _MeshServiceSessionLayerCore(
     def load_mesh_file(self, path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
         return _load_mesh_file(path, run_roundtrip=run_roundtrip)
 
+    def capture_export_snapshot(
+        self,
+        session_id: str,
+        *,
+        stop_event: object | None = None,
+        expected_mesh_revision: int | None = None,
+    ):
+        if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
+            raise RunCancelled("Export snapshot cancelled")
+        session = self._session(session_id)
+        with session.export_lock:
+            _ensure_session_roundtrip_report(session)
+        return super().capture_export_snapshot(
+            session_id,
+            stop_event=stop_event,
+            expected_mesh_revision=expected_mesh_revision,
+        )
+
     def open_edit_session(
         self,
         mesh: ParsedMesh,
@@ -870,6 +933,8 @@ class _MeshServiceSessionLayerCore(
         mode: str = "object",
         load_layer_project: bool = True,
         adopt_owned_mesh: bool = False,
+        adopt_parsed_mesh: bool = False,
+        shared_base_mesh: ParsedMesh | None = None,
     ) -> MeshEditSessionView:
         if not isinstance(mesh, ParsedMesh):
             raise TypeError("mesh must be a ParsedMesh")
@@ -893,6 +958,7 @@ class _MeshServiceSessionLayerCore(
         # A seed project is restored, but saving continues into the session's
         # own project, so the draft it came from keeps its state.
         load_project_path = Path(seed_text).expanduser().resolve() if seed_text else project_path
+        has_layer_project = load_project_path is not None and load_project_path.is_file()
         mesh_format, lod_index, initial_output_policy = _mesh_session_output_context(mesh)
         if adopt_owned_mesh:
             if load_layer_project:
@@ -901,18 +967,45 @@ class _MeshServiceSessionLayerCore(
                 )
             # This path is only for a caller that already made an isolated,
             # disposable clone. Retain that clone as the working document and
-            # create only the immutable base snapshot required for validation.
+            # reuse a verified immutable base snapshot when supplied.
             working_mesh = mesh
-            base_mesh = _clone_mesh_for_service_native_snapshot(
-                mesh,
-                "session.open_adopted_base_clone",
-                "Python adopted-session base clone fallback blocked while native mesh core is available",
-            )
+            if shared_base_mesh is not None:
+                if shared_base_mesh is mesh:
+                    raise ValueError(
+                        "shared_base_mesh must be distinct from the adopted working mesh"
+                    )
+                base_mesh = shared_base_mesh
+            else:
+                base_mesh = _clone_mesh_for_service_native_snapshot(
+                    mesh,
+                    "session.open_adopted_base_clone",
+                    "Python adopted-session base clone fallback blocked while native mesh core is available",
+                )
+        elif adopt_parsed_mesh:
+            # Caller owns this freshly parsed mesh exclusively: adopt it for one
+            # side of the (working, base) pair and clone only the other side.
+            levels = getattr(mesh, "lod_levels", None)
+            if levels and lod_index == 0 and levels[0] is mesh.submeshes:
+                mesh.lod_levels = []
+            if has_layer_project:
+                base_mesh = mesh
+                working_mesh = _clone_mesh_for_service_native_snapshot(
+                    mesh,
+                    "session.open_adopted_working_clone",
+                    "Python adopted-session working clone fallback blocked while native mesh core is available",
+                )
+            else:
+                working_mesh = mesh
+                base_mesh = _clone_mesh_for_service_native_snapshot(
+                    mesh,
+                    "session.open_adopted_base_clone",
+                    "Python adopted-session base clone fallback blocked while native mesh core is available",
+                )
         else:
             working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
         loaded_layer_project: Mapping[str, object] | None = None
         base_mesh_is_original_parse = _native_source_parse_eligible(mesh, original_data)
-        if load_project_path is not None and load_project_path.is_file():
+        if has_layer_project:
             loaded_layer_project = load_mesh_layer_project(
                 working_mesh,
                 load_project_path,
@@ -934,7 +1027,13 @@ class _MeshServiceSessionLayerCore(
                     )
         if working_mesh is not mesh:
             _copy_mesh_validation_metadata(mesh, working_mesh)
-        _copy_mesh_validation_metadata(mesh, base_mesh)
+        if base_mesh is not mesh and base_mesh is not shared_base_mesh:
+            _copy_mesh_validation_metadata(mesh, base_mesh)
+        if getattr(mesh, "_cdmw_no_op_roundtrip_deferred", False) and getattr(
+            mesh, "_cdmw_no_op_roundtrip_report", None
+        ) is None:
+            setattr(base_mesh, "_cdmw_no_op_roundtrip_deferred", True)
+            setattr(working_mesh, "_cdmw_no_op_roundtrip_deferred", True)
         refresh_mesh_totals(working_mesh)
         session = _MeshEditSession(
             session_id=session_key,
