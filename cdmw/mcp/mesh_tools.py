@@ -533,7 +533,9 @@ def _open(call) -> dict[str, object]:
         entry = archive._current_archive_mesh_entry()
         return str(getattr(entry, "path", "") or "").replace("\\", "/").strip("/")
 
-    if wanted:
+    # A file that is already the current row is opened as it stands. Revealing it again re-lists
+    # Browse around it, and Open would be pressed in the moment its row is gone: nothing opened.
+    if wanted and context.ui_call(current).casefold() != wanted.casefold():
         def reveal() -> bool:
             archive._note_archive_ui_activity()
             return bool(archive._reveal_archive_path_in_live_catalogue(wanted))
@@ -547,10 +549,17 @@ def _open(call) -> dict[str, object]:
                 raise ToolError(NOT_FOUND, f"Browse Archives did not show {wanted} as a mesh it can open. "
                                            "search_archive finds the path of a .pac, .pam or .pamlod file.")
             time.sleep(0.05)
-    elif not context.ui_call(current):
+    elif not wanted and not context.ui_call(current):
         raise ToolError(UNAVAILABLE, "Select a mesh in Browse Archives first, or give its path.")
     path = context.ui_call(current)
-    outcome = _act(call, lambda: window.shell._open_current_archive_mesh_editor())
+
+    def press() -> object:
+        # Checked where the button is pressed: the row can go between the wait above and this call.
+        if not path or current().casefold() != path.casefold():
+            raise ToolError(UNAVAILABLE, "Browse Archives is listing its files again; call mesh_open once more.")
+        return window.shell._open_current_archive_mesh_editor()
+
+    outcome = _act(call, press)
     return {**outcome, "opening": True, "path": path,
             "message": "The Mesh Editor is opening this mesh; mesh_state says when it is ready."}
 

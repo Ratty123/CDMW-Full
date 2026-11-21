@@ -66,6 +66,34 @@ def test_authoring_attaches_only_exact_file_section_and_material(tmp_path):
     assert all(unedited_preview_core_material_source(p) is None for p in mesh.submeshes)
 
 
+def test_a_package_whose_textures_are_gone_is_not_reused(tmp_path):
+    """A cached Browse package outlives the archive index that prepared its textures.
+
+    Opening the model in the Mesh Editor then stopped with "Preview Core material graph
+    DDS is missing". The editor now prepares its own materials instead.
+    """
+    from cdmw.services.mesh_preview_material_source import native_companion_reference_mesh
+    from cdmw.services.mesh_rust_preview_package import preview_core_missing_material_source
+
+    package = _native(tmp_path)
+    manifest = json.loads((package / "manifest.json").read_text())
+    part = SimpleNamespace(material="helmet", preview_native_material_overrides={})
+    fresh = lambda: SimpleNamespace(path="character/helmet.pac", lod_levels=[],
+                                    submeshes=[copy.copy(part) for _ in range(5)])
+    assert preview_core_missing_material_source(package, manifest) == ""
+    mesh = fresh()
+    bind_authoring_preview_core_materials(mesh, package)
+    assert any(unedited_preview_core_material_source(p) for p in mesh.submeshes)
+    # The index generation is replaced: the file the manifest points at is gone.
+    (tmp_path / "helmet_base.dds").unlink()
+    missing = preview_core_missing_material_source(package, manifest)
+    assert missing and missing.endswith(".dds")
+    mesh = fresh()
+    bind_authoring_preview_core_materials(mesh, package)
+    assert all(unedited_preview_core_material_source(p) is None for p in mesh.submeshes)
+    assert native_companion_reference_mesh(SimpleNamespace(path="character/helmet.pac"), package) is None
+
+
 def test_new_item_graph_and_painted_alpha_use_same_owned_source(tmp_path):
     from cdmw.domain.textures.transparency_mask import TransparencyMask
     from cdmw.services.transparency_masks import preview_masked_part
