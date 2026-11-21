@@ -2768,6 +2768,8 @@ impl PreviewApplication {
             let submesh = self
                 .document_submesh_mut(source_index)
                 .ok_or_else(|| format!("vertex update submesh {source_index} is out of range"))?;
+            // Authored tangents describe the old surface; derive them from the edit instead.
+            submesh.tangents.clear();
             for (row, vertex_index) in indices.into_iter().enumerate() {
                 let position = [
                     positions[row * 3],
@@ -2827,6 +2829,7 @@ impl PreviewApplication {
                 submesh.uvs.clear();
                 submesh.source_vertex_indices.clear();
                 submesh.indices.clear();
+                submesh.tangents.clear();
             } else {
                 if source_vertices.len().saturating_mul(3) != positions.len() {
                     return Err(
@@ -2850,6 +2853,8 @@ impl PreviewApplication {
                 } else {
                     vec![[0.0, 0.0]; submesh.positions.len()]
                 };
+                // The new triangles' tangents are derived from their positions and UVs.
+                submesh.tangents.clear();
                 submesh.source_vertex_indices = source_vertices
                     .into_iter()
                     .map(|index| i32::try_from(index).unwrap_or(i32::MAX))
@@ -2885,6 +2890,7 @@ impl PreviewApplication {
                         submesh.uvs.clear();
                         submesh.source_vertex_indices.clear();
                         submesh.indices.clear();
+                        submesh.tangents.clear();
                     }
                 }
             }
@@ -5555,6 +5561,8 @@ fn fill_followed_part(part: &mut Submesh, snapshot: &cdmw_mesh::DrawSnapshot) {
     part.uvs.clone_from(&snapshot.uvs);
     part.shader_masks.clone_from(&snapshot.shader_masks);
     part.indices.clone_from(&snapshot.indices);
+    // The preview's own authored tangents belong to the old surface.
+    part.tangents.clone_from(&snapshot.tangents);
     part.source_vertex_indices = vec![-1; snapshot.positions.len()];
 }
 
@@ -5657,5 +5665,20 @@ mod follow_tests {
             "the added part is drawn"
         );
         WorkingMesh::from_document_lod(&followed, 0).expect("the followed document builds");
+    }
+
+    #[test]
+    fn a_followed_part_drops_the_preview_s_authored_tangents() {
+        let mut blade = part("blade", 0.0);
+        blade.tangents = vec![[0.0, 1.0, 0.0, 1.0]; 3];
+        let preview = document(vec![blade]);
+        let edit = WorkingMesh::from_document_lod(&document(vec![part("blade", 5.0)]), 0).expect("edit mesh");
+        let followed = followed_document(&preview, 0, &[(0, 0)], &edit).expect("followed");
+        let followed_part = &followed.lods[0].submeshes[0];
+        assert!(
+            followed_part.tangents.is_empty() || followed_part.tangents.len() == followed_part.positions.len(),
+            "tangents match the followed geometry"
+        );
+        assert!(followed_part.tangents.iter().all(|t| t[1] != 1.0), "old tangents are not kept");
     }
 }

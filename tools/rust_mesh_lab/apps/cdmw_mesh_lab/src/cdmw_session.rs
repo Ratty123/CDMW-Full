@@ -1218,7 +1218,7 @@ impl LoadedCdmwSessionPackage {
         // One immutable snapshot per exact file reference for this package load.
         // Different lengths, digests or types never reuse the same verification.
         let mut texture_sources =
-            prefetch_texture_sources(&root, &manifest, cancelled, resident_textures)?;
+            prefetch_texture_sources(&root, &manifest, cancelled, resident_textures, true)?;
         let mut source_bytes: u64 = texture_sources
             .values()
             .fold(0_u64, |acc, bytes| acc.saturating_add(bytes.len() as u64));
@@ -2880,7 +2880,7 @@ fn read_updated_materials(
     validate_manifest_for(manifest, PACKAGE_SCHEMA, PROTOCOL, EDIT_BACKEND)?;
     validate_document_material_graph(manifest, document)?;
     let no_resident = HashMap::new();
-    let mut sources = prefetch_texture_sources(root, manifest, &|| false, &no_resident)?;
+    let mut sources = prefetch_texture_sources(root, manifest, &|| false, &no_resident, false)?;
     let mut total: u64 = sources
         .values()
         .fold(0_u64, |acc, bytes| acc.saturating_add(bytes.len() as u64));
@@ -4052,11 +4052,14 @@ fn is_owned_texture_filename(value: &str) -> bool {
         && parts.next().is_none()
 }
 
+/// `include_reference_pieces`: also read the reference pieces' textures, which only a
+/// package load draws; a material reload rebuilds the main document's alone.
 fn prefetch_texture_sources<'a>(
     root: &Path,
     manifest: &'a SessionManifest,
     cancelled: &dyn Fn() -> bool,
     resident_textures: &HashMap<String, Arc<[u8]>>,
+    include_reference_pieces: bool,
 ) -> Result<BTreeMap<Vec<u8>, Arc<[u8]>>, SessionError> {
     let mut loaded = BTreeMap::<Vec<u8>, Arc<[u8]>>::new();
     let mut unique = Vec::<(Vec<u8>, &'a FileReference)>::new();
@@ -4101,7 +4104,12 @@ fn prefetch_texture_sources<'a>(
             }
         }
     }
-    for piece in &manifest.reference_pieces {
+    let pieces: &[_] = if include_reference_pieces {
+        &manifest.reference_pieces
+    } else {
+        &[]
+    };
+    for piece in pieces {
         for texture in &piece.textures {
             collect(&texture.file);
         }
@@ -6627,6 +6635,46 @@ pub(crate) mod tests {
             layers.is_empty(),
             "edited material state clears native layers"
         );
+    }
+
+    #[test]
+    fn a_material_reload_does_not_read_reference_piece_textures() {
+        let root = tempdir().unwrap();
+        let path = write_composite_material_fixture(root.path());
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["schema"] = json!(PACKAGE_SCHEMA);
+        manifest["protocol"] = json!(PROTOCOL);
+        manifest["edit_backend"] = json!(EDIT_BACKEND);
+        fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let package = LoadedCdmwSessionPackage::load(&path).expect("package");
+        let mut with_piece = package.manifest.clone();
+        // The piece's texture: a copy of the main one under its own name.
+        let mut piece_texture = with_piece.textures[0].clone();
+        // An owned texture name: texture-<index>-<12 hex>.dds, in the package folder.
+        let piece_path = "texture-0099-0123456789ab.dds".to_owned();
+        fs::copy(
+            package.root.join(&piece_texture.file.path),
+            package.root.join(&piece_path),
+        )
+        .unwrap();
+        piece_texture.file.path = piece_path;
+        let piece_key = serde_json::to_vec(&piece_texture.file).unwrap();
+        with_piece.reference_pieces.push(ReferencePieceManifest {
+            index: 1,
+            name: "piece".to_owned(),
+            role: "reference".to_owned(),
+            document: piece_texture.file.clone(),
+            textures: vec![piece_texture],
+            material_presentations: Vec::new(),
+            preview_core_material_graph: None,
+        });
+        let none = HashMap::new();
+        let loaded = prefetch_texture_sources(&package.root, &with_piece, &|| false, &none, true).unwrap();
+        assert!(loaded.contains_key(&piece_key), "a package load reads the piece's textures");
+        let reload = prefetch_texture_sources(&package.root, &with_piece, &|| false, &none, false).unwrap();
+        assert!(!reload.contains_key(&piece_key), "a material reload leaves them alone");
+        read_updated_materials(&package.root, &with_piece, package.document())
+            .expect("the reload still builds the main document's materials");
     }
 
     #[test]
