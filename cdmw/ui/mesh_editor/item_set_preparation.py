@@ -98,6 +98,8 @@ class ItemSetEditorPreparation(QObject):
         self.edit_set = False
         self._preferred_prefab_stems: tuple[str, ...] = ()
         self._scope_entry_ids: tuple[int, ...] = ()
+        # The item scope the last emitted contexts were resolved with.
+        self._ready_scope: tuple[tuple[str, ...], tuple[int, ...]] | None = None
         if max_concurrency is None:
             slot_count = (
                 MAX_CONCURRENT_PREPARATION_SLOTS
@@ -189,7 +191,15 @@ class ItemSetEditorPreparation(QObject):
         preferred_prefab_stems: Sequence[str] = (),
         scope_entry_ids: Sequence[int] = (),
     ) -> int:
-        """Seed the bounded cache from already-prepared piece contexts (e.g. on piece switch)."""
+        """Seed the bounded cache from already-prepared piece contexts (e.g. on piece switch).
+
+        A context is stored under the item scope it was resolved with, not the scope
+        asked for now: another variant of the same files picks other prefabs and must
+        be resolved again.
+        """
+        if self._ready_scope is None:
+            return 0
+        preferred_prefab_stems, scope_entry_ids = self._ready_scope
         session = getattr(self._service, "current_session", None)
         session_id = str(getattr(session, "session_id", "") or "")
         members_by_identity = {
@@ -278,6 +288,7 @@ class ItemSetEditorPreparation(QObject):
         self._members = ()
         self._resolved_contexts.clear()
         self._next_member_index = 0
+        self._ready_scope = (self._preferred_prefab_stems, self._scope_entry_ids)
         self.ready.emit(contexts)
 
     def _dispatch_available_slots(self) -> bool:
@@ -336,6 +347,7 @@ class ItemSetEditorPreparation(QObject):
         self._members = ()
         self._resolved_contexts.clear()
         self._next_member_index = 0
+        self._ready_scope = (self._preferred_prefab_stems, self._scope_entry_ids)
         self.ready.emit(contexts)
 
     def _failed(self, _slot_index: int, generation: int, message: str) -> None:
@@ -347,6 +359,7 @@ class ItemSetEditorPreparation(QObject):
     def _session_changed(self, _session: object) -> None:
         self._context_cache.clear()
         self._identity_cache_keys.clear()
+        self._ready_scope = None
         if self.pending:
             self.cancel()
             self.failed.emit("The archive catalogue changed while preparing the item set.")

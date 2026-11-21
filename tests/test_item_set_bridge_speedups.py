@@ -647,6 +647,8 @@ def test_prepared_context_cache_reuses_and_invalidates_and_switch_caches_pieces(
         ArchiveWorkflowDependencyContext(lower_entry, (lower_entry,), {lower_entry.path: (lower_entry,)}, {lower_entry.basename: (lower_entry,)}, True),
     )
     opened: list[tuple] = []
+    # These stand for the set this preparation made in the new session, with no item scope.
+    preparation._ready_scope = ((), ())
     tab = SimpleNamespace(item_set_contexts=contexts, item_set_preparation=preparation)
     bridge = SimpleNamespace(item_set_members=(upper, lower), item_set_contains=lambda _e: True)
     shell = SimpleNamespace(
@@ -822,3 +824,33 @@ def test_full_preview_wait_handles_worker_signals_on_the_ui_thread() -> None:
         timer.stop()
     assert [terminal for terminal, _thread in harness.handled] == [False, True]
     assert all(handled_thread is ui_thread for _terminal, handled_thread in harness.handled)
+
+
+
+def test_contexts_prepared_for_one_item_scope_are_not_reused_for_another(tmp_path: Path) -> None:
+    """Two variants can share PAC files but pick other prefabs: a set opened for item A
+    must not hand its dependency contexts to item B."""
+
+    _app()
+    preparation = ItemSetEditorPreparation(_MockService(), max_concurrency=4)
+    upper, lower = _dto(1, "upper.pac"), _dto(2, "lower.pac")
+    contexts = []
+    for dto in (upper, lower):
+        entry = ArchiveCatalogueService.compatibility_entry(dto)
+        entry.prepared_path = tmp_path / Path(dto.path).name
+        entry.prepared_path.write_bytes(b"PAC")
+        contexts.append(ArchiveWorkflowDependencyContext(
+            entry, (entry,), {entry.path: (entry,)}, {entry.basename: (entry,)}, True))
+    scope_a = (("item_a",), (11,))
+    scope_b = (("item_b",), (22,))
+
+    # Nothing this preparation emitted: nothing is known about their scope, so nothing is seeded.
+    assert preparation.cache_contexts(contexts, members=(upper, lower)) == 0
+    # The open set was prepared for item A; Browse now scopes item B.
+    preparation._ready_scope = scope_a
+    assert preparation.cache_contexts(
+        contexts, members=(upper, lower), preferred_prefab_stems=scope_b[0], scope_entry_ids=scope_b[1],
+    ) == 2
+    assert preparation._cached_context_for(upper, *scope_b) is None
+    assert preparation._cached_context_for(upper, *scope_a) is contexts[0]
+    assert preparation._cached_context_for(lower, *scope_a) is contexts[1]
