@@ -379,3 +379,23 @@ def test_remote_item_finder_warmup_restarts_after_failure_on_new_start(tmp_path)
     finally:
         warmup.request_shutdown()
         app.processEvents()
+
+
+@pytest.mark.parametrize("language", ["en", "es", "de"])
+def test_builtin_documentation_builds_through_the_lazy_dispatcher(language) -> None:
+    """Help > Documentation without a browser builds every topic from the window's mixin."""
+
+    from cdmw.ui.shell.about_documentation import AboutDocumentationMixin
+
+    class _Window(AboutDocumentationMixin):
+        settings_file_path = "CrimsonDesertModWorkbench.ini"
+        archive = SimpleNamespace(archive_cache_root="archive_cache")
+
+        def _build_about_intro_html(self) -> str:
+            return "<p>intro</p>"
+
+    # The window's class may not have the English topic helpers; the dispatcher adds them.
+    assert not hasattr(_Window, "_build_start_sections")
+
+    _title, _intro, sections = _Window()._build_about_document_for_language(language)
+    assert sections and all(section.get("title") for section in sections)
