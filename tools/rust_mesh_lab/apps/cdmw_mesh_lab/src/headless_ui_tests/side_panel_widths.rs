@@ -16,6 +16,25 @@ const LEFT_HEADERS: [&str; 9] = [
     "Rig",
     "Morph & Refit",
 ];
+// The rail's tool buttons; an open group shows them in a grid at the collapsed width.
+const LEFT_TOOLS: [&str; 16] = [
+    "Move",
+    "Rotate",
+    "Scale",
+    "Grab",
+    "Bend",
+    "Smooth",
+    "Inflate",
+    "Pinch",
+    "Vertex Parameters",
+    "Topology",
+    "Cleanup",
+    "Normals & Tangents",
+    "UV",
+    "Cloth",
+    "Jiggle",
+    "Rig & Weights",
+];
 const RIGHT_HEADERS: [&str; 7] = [
     "Inspector",
     "Parts",
@@ -89,10 +108,31 @@ fn laid_out_right(ui: &HeadlessUi, label: &str, rect: Rect) -> f32 {
         .max(rect.right())
 }
 
+/// Where the widest tool button would end in the left panel: the panel's left
+/// margin, then the translated name in the button font with its padding.
+fn widest_tool_button_end(ui: &HeadlessUi, translate: &dyn Fn(&str) -> String) -> f32 {
+    let context = &ui.application.egui_context;
+    let style = context.global_style();
+    let font = egui::TextStyle::Button.resolve(&style);
+    let margin = egui::Frame::side_top_panel(&style).total_margin().left;
+    LEFT_TOOLS
+        .iter()
+        .map(|tool| {
+            context.fonts_mut(|fonts| {
+                fonts
+                    .layout_no_wrap(translate(tool), font.clone(), Color32::WHITE)
+                    .size()
+                    .x
+            }) + style.spacing.button_padding.x * 2.0
+                + margin
+        })
+        .fold(0.0, f32::max)
+}
+
 /// Checks that every collapsed header is whole and that each panel is no wider
-/// than its widest header plus the padding to its right: the header's button
-/// padding, a group frame, the panel's margin and separator line and a solid
-/// scroll bar. Returns the panel widths.
+/// than its widest header (or, on the left, tool button) plus the padding to
+/// its right: the header's button padding, a group frame, the panel's margin
+/// and separator line and a solid scroll bar. Returns the panel widths.
 fn assert_collapsed_fit(
     ui: &HeadlessUi,
     translate: &dyn Fn(&str) -> String,
@@ -115,7 +155,11 @@ fn assert_collapsed_fit(
         (&RIGHT_HEADERS[..], false, right),
     ] {
         let panel_left = if on_left { 0.0 } else { viewport.right() };
-        let mut widest = 0.0_f32;
+        let mut widest = if on_left {
+            widest_tool_button_end(ui, translate)
+        } else {
+            0.0_f32
+        };
         let mut ends = Vec::new();
         for header in headers {
             let label = translate(header);
@@ -181,21 +225,46 @@ fn collapsed_side_panels_fit_their_headers_in_every_language_up_to_15_pt() -> Te
     Ok(())
 }
 
+/// The painted frame of each tool button, by name, inside the left panel.
+fn tool_button_rects(ui: &HeadlessUi, tools: &[&str]) -> Result<Vec<Rect>, Error> {
+    tools
+        .iter()
+        .map(|tool| header_rect(ui, tool, true))
+        .collect()
+}
+
 #[test]
-fn opening_a_tool_section_gives_the_left_panel_its_working_width() -> TestResult {
+fn opening_tool_groups_keeps_the_left_panel_compact() -> TestResult {
     let mut ui = side_panel_ui(&json!({"font_point_size": 10.0}))?;
     let (collapsed, _) = panel_widths(&ui)?;
     assert!(
         collapsed < LEFT_OPEN_MINIMUM,
         "collapsed left panel {collapsed}"
     );
+    // A group of buttons fits the compact rail: no group widens it.
+    for group in ["Transform", "Sculpt", "Mesh Data", "Rig"] {
+        ui.click_tool_button(group)?;
+        let (open, _) = panel_widths(&ui)?;
+        assert!(
+            (open - collapsed).abs() <= 1.0,
+            "{group} open: left panel {open}, collapsed {collapsed}"
+        );
+    }
+    // Every button is whole inside the compact rail.
+    for tools in [&LEFT_TOOLS[0..3], &LEFT_TOOLS[3..8], &LEFT_TOOLS[8..15]] {
+        ui.scroll_tool_rail(-2_000.0);
+        ui.reveal(tools[0])?;
+        tool_button_rects(&ui, tools)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn opening_a_tool_page_gives_the_left_panel_its_working_width() -> TestResult {
+    let mut ui = side_panel_ui(&json!({"font_point_size": 10.0}))?;
+    let (collapsed, _) = panel_widths(&ui)?;
     ui.click_tool_button("Sculpt")?;
-    let (open, _) = panel_widths(&ui)?;
-    assert!(
-        open >= LEFT_OPEN_MINIMUM && (open - LEFT_OPEN_DEFAULT).abs() <= 1.0,
-        "Sculpt open: left panel {open}"
-    );
-    // A brush's sliders get the same room as before.
+    // A brush's sliders get the rail's usual room.
     ui.click_tool_button("Grab")?;
     let (brush, _) = panel_widths(&ui)?;
     assert!(
@@ -255,8 +324,9 @@ fn collapsed_side_panels_give_remembered_widths_to_the_viewport() -> TestResult 
         "viewport {} beside {left} and {right} px panels",
         viewport.width()
     );
-    // The remembered widths come back as soon as a section needs the room.
+    // The remembered widths come back as soon as a page needs the room.
     ui.click_tool_button("Sculpt")?;
+    ui.click_tool_button("Grab")?;
     ui.click("Parts")?;
     ui.settle_layout();
     let (left, right) = panel_widths(&ui)?;
