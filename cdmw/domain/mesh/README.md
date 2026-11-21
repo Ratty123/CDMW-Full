@@ -26,8 +26,8 @@ configured hard limit. The compatibility UI packet owner applies the
 256-sample / 64 KiB packet bounds and fixed segment queue.
 
 `resident_mutation.py` owns pure shared-memory descriptor validation and
-protocol constants. UI and service compatibility imports expose this same
-contract without importing widget or native execution code into the domain.
+protocol constants. Services and the Mesh Editor import it directly, without
+pulling widget or native execution code into the domain.
 
 ## Output policy
 
@@ -123,10 +123,7 @@ fail to activate.
 `body_region_atlas.py` is the Qt-free presentation model for a region browser:
 grouped rows, a readable summary, warnings worth surfacing, and a stable colour
 per region so a list, a 3D overlay, and an exported OBJ all agree. Colours are
-keyed by sorted region id, so adding a region cannot recolour the others. The
-widget that renders it lives at `cdmw/ui/mesh_editor/body_region_atlas_panel.py`
-and is self-contained — it emits the picked region ids and knows nothing about
-its host.
+keyed by sorted region id, so adding a region cannot recolour the others.
 
 ### Inspection and focused checks
 

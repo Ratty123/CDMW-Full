@@ -296,9 +296,6 @@ def test_archive_request_error_keeps_operation_generation_and_detail(tmp_path, r
 
 
 def test_diagnostic_handler_failure_cannot_change_worker_result_or_completion(monkeypatch):
-    from cdmw.workers.qt_worker_runner import run_worker_task
-    from cdmw.workers.results import WorkerFailure
-
     def failure(_log=None):
         raise ValueError("original operation error")
 
@@ -309,8 +306,6 @@ def test_diagnostic_handler_failure_cannot_change_worker_result_or_completion(mo
     worker.finished.connect(lambda: finished.append(True))
     worker.run()
     assert errors == ["original operation error"] and finished == [True]
-    result = run_worker_task(failure)
-    assert isinstance(result, WorkerFailure) and result.message == "original operation error"
 
 
 def test_normal_activity_does_not_sample_process_memory(tmp_path):

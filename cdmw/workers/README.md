@@ -1,7 +1,6 @@
 # Workers
 
-Owns shared long-running worker contracts, cancellation, result payloads, Qt
-worker runner glue, and extracted archive, asset authoring, preview, package,
+Owns shared long-running worker contracts and extracted archive, asset authoring, preview, package,
 texture, utility, Model Library, Mesh Editor topology edit, and Rust preview package
 workers.
 
@@ -10,9 +9,8 @@ workers.
 Workers must not mutate UI widgets directly. Report progress and results through typed
 payloads, Qt signals, and cancellation-aware execution. Keep business policy in
 services/domain and keep UI rendering decisions in UI packages.
-`CancellationToken.raise_if_cancelled()` raises the shared
-`cdmw.domain.cancellation.RunCancelled`, also exposed by legacy `cdmw.models` and core
-compatibility imports. Asset authoring workers cover OpenImageIO metadata, convert, and
+Cancellation raises the shared `cdmw.domain.cancellation.RunCancelled`, also exposed by
+legacy `cdmw.models` and core compatibility imports. Asset authoring workers cover OpenImageIO metadata, convert, and
 diff tasks.
 
 Mesh Editor topology workers execute Delete/Subdivide/Refine through service bridges off

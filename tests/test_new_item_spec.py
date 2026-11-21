@@ -357,31 +357,5 @@ class EffectTransformRuleTests(unittest.TestCase):
         self.assertEqual((_spec().effect_scale, _spec().effect_offset), (1.0, (0.0, 0.0, 0.0)))
 
 
-class EffectPresetTests(unittest.TestCase):
-    def test_presets_name_shipped_stems_and_filter_to_what_is_available(self) -> None:
-        from cdmw.domain.new_item.effects import EFFECT_PRESETS, presets_for
-
-        stems = [preset.stem for preset in EFFECT_PRESETS]
-        self.assertEqual(len(stems), len(set(stems)), "no stem twice")
-        self.assertTrue(all(preset.stem and preset.element for preset in EFFECT_PRESETS))
-        self.assertTrue(all(not preset.label for preset in EFFECT_PRESETS), "the compatibility table supplies no UI labels")
-        self.assertTrue(all(not preset.proven and not preset.note for preset in EFFECT_PRESETS))
-        self.assertTrue(all(preset.scale == 1.0 for preset in EFFECT_PRESETS), "all visible choices start at neutral scale")
-        self.assertEqual(presets_for(None), EFFECT_PRESETS)
-        self.assertEqual([p.stem for p in presets_for({"fx_cc_firesweapon_a__fire1", "nothing"})], ["fx_cc_firesweapon_a__fire1"])
-        self.assertEqual(presets_for(set()), ())
-        # every preset is a bare stem: no folder, no `.level.effect`, no `.pae`
-        for stem in stems:
-            self.assertNotIn("/", stem)
-            self.assertNotIn(".", stem)
-
-    def test_material_route_defaults_to_the_plain_shaders(self) -> None:
-        from cdmw.domain.new_item.spec import MaterialRoute
-
-        self.assertEqual(_spec().material_route, MaterialRoute.PLAIN_PBR)
-        self.assertEqual(_spec(material_route=MaterialRoute.BUILDER).material_route, MaterialRoute.BUILDER)
-        self.assertEqual({route.value for route in MaterialRoute}, {"builder", "plain_pbr"})
-
-
 if __name__ == "__main__":
     unittest.main()

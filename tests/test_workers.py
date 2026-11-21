@@ -2,41 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from cdmw.domain.cancellation import RunCancelled
-from cdmw.workers.cancellation import CancellationToken
 from cdmw.workers.preview_workers import AlignmentOriginalTexturePreviewWorker, VisualPlacementPreviewWorker
-from cdmw.workers.qt_worker_runner import run_worker_task
-from cdmw.workers.results import WorkerFailure, WorkerSuccess
 from cdmw.workers.utility_workers import UtilityWorker
 
 
 class WorkerFoundationTests(unittest.TestCase):
-    def test_worker_task_returns_success_with_elapsed_time(self) -> None:
-        result = run_worker_task(lambda: "ok")
-
-        self.assertIsInstance(result, WorkerSuccess)
-        self.assertEqual(result.value, "ok")
-        self.assertGreaterEqual(result.elapsed_ms, 0.0)
-
-    def test_worker_task_returns_failure_with_traceback(self) -> None:
-        def fail() -> str:
-            raise ValueError("bad")
-
-        result = run_worker_task(fail)
-
-        self.assertIsInstance(result, WorkerFailure)
-        self.assertEqual(result.exception_type, "ValueError")
-        self.assertIn("ValueError: bad", result.traceback_text)
-
-    def test_cancellation_token_raises_after_stop_requested(self) -> None:
-        token = CancellationToken()
-
-        self.assertFalse(token.is_stop_requested())
-        token.request_stop()
-        self.assertTrue(token.is_stop_requested())
-        with self.assertRaises(RunCancelled):
-            token.raise_if_cancelled()
-
     def test_utility_worker_runs_callable_and_emits_result(self) -> None:
         messages: list[str] = []
         results: list[object] = []

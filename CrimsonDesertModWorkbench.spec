@@ -76,21 +76,8 @@ def _should_collect_numpy_submodule(name):
 
 
 def _should_collect_cdmw_submodule(name):
-    # Historical Vortice executable/package adapters remain in source for
-    # compatibility archaeology, but production routes never import them and
-    # the frozen application must not carry them.
-    retired_prefixes = (
-        "cdmw.rendering.native_preview_package",
-        "cdmw.rendering.native_preview_package_writer",
-        "cdmw.services.mesh_dotnet_experiment",
-        "cdmw.services.mesh_dotnet_preview_package",
-        "cdmw.services.mesh_dotnet_runtime_status",
-        "cdmw.services.native_dotnet_preview_adapter",
-        # Only tools/*.py import these (removal list item 5).
-        "cdmw.rendering.ingame_capture",
-        "cdmw.rendering.preview_comparison",
-        "cdmw.rendering.test_run_sword_tuning",
-    )
+    # Modules named here stay in source but out of the frozen app. None at present.
+    retired_prefixes: tuple[str, ...] = ()
     return not any(
         name == prefix or name.startswith(prefix + ".")
         for prefix in retired_prefixes
@@ -508,13 +495,6 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        "cdmw.rendering.native_preview_package",
-        "cdmw.rendering.native_preview_package_writer",
-        "cdmw.services.mesh_dotnet_experiment",
-        "cdmw.services.mesh_dotnet_experiment_output",
-        "cdmw.services.mesh_dotnet_preview_package",
-        "cdmw.services.mesh_dotnet_runtime_status",
-        "cdmw.services.native_dotnet_preview_adapter",
         "PIL.AvifImagePlugin",
         "PIL._avif",
         "PIL._imagingtk",  # no Tk anywhere (removal list item 3)

@@ -13,7 +13,7 @@ from cdmw.core.archive_mesh_import_materials import (
     configure_mesh_import_materials,
 )
 from cdmw.modding.static_mesh_replacer import StaticMeshReplacementOptions
-from cdmw.services.material_authority_build_artifacts import (
+from cdmw.core.material_authority_build_artifacts import (
     synchronize_material_authority_build_payloads,
 )
 from cdmw.services.mesh_dotnet_material_compiler import (

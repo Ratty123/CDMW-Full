@@ -2,10 +2,6 @@
 
 import pytest
 
-from cdmw.core.prefab_corpus_probe_values import (
-    _longer_placement_probe_value,
-    _same_length_placement_probe_value,
-)
 from cdmw.domain.part_names import (
     bare_part_name,
     find_part_name,
@@ -56,13 +52,3 @@ def test_lookup_returns_the_spelling_the_descriptor_uses():
 ])
 def test_role_shape(text, expected):
     assert is_part_role_name(text) is expected
-
-
-@pytest.mark.parametrize("value", ["CD_MainWeapon_Sword_R", "MainWeapon_Sword_R"])
-def test_corpus_probes_rename_a_role_in_either_naming_and_keep_its_form(value):
-    same = _same_length_placement_probe_value("_partName", value)
-    assert same and same != value and len(same) == len(value)
-    assert same.startswith("CD_") is value.startswith("CD_")
-    longer = _longer_placement_probe_value("_partName", value)
-    assert longer.startswith(value) and len(longer) > len(value)
-    assert _same_length_placement_probe_value("_partName", "character/model/a.pac") == ""

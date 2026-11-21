@@ -78,7 +78,7 @@ def integrate_cloth_forces(
 
     environmental_acceleration must ALREADY include the game's air/water force
     construction, acceleration cap, orientation response and wave modulation.
-    pac_cloth_environment supplies that stage from explicit scene samples. It
+    The caller supplies that stage from explicit scene samples. It
     consumes velocity after gravity/inertia; resolve it from that intermediate
     state before supplying it here with the ORIGINAL velocity. The skip flag
     skips both inertia and environment, but still applies gravity and buoyancy.
