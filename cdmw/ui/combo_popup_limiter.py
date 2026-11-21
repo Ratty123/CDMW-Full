@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QTimer, Qt
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QWidget
+from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Qt
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QWidget
 from cdmw.ui.app_event_hub import install_app_event_filter
 
 
@@ -38,24 +38,73 @@ class ComboPopupLimiter(QObject):
         view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         view.setTextElideMode(Qt.TextElideMode.ElideRight)
-        model = view.model()
-        rows = min(cls.MAX_VISIBLE_ROWS, int(model.rowCount()) if model is not None else 0)
-        if rows <= 0:
-            return
-        fallback = max(20, int(view.fontMetrics().height()) + 8)
-        content_height = sum(max(fallback, int(view.sizeHintForRow(row))) for row in range(rows))
         available = screen.availableGeometry()
-        height_limit = max(fallback, int(available.height() * cls.MAX_SCREEN_FRACTION))
-        target_height = min(height_limit, content_height + 2 * int(view.frameWidth()) + 8)
         width_limit = max(180, int(available.width() * cls.MAX_SCREEN_WIDTH_FRACTION))
-        target_width = min(width_limit, max(180, int(popup.width())))
-        popup.setMaximumHeight(target_height)
         popup.setMaximumWidth(width_limit)
-        popup.resize(target_width, target_height)
         geometry = popup.geometry()
+        # Qt has already sized the popup to its rows (up to the combo's own
+        # maxVisibleItems). Only ever shrink it: long lists stop at
+        # MAX_VISIBLE_ROWS or MAX_SCREEN_FRACTION of the screen, short lists
+        # keep Qt's exact height, so no empty space is left under the last row.
+        target_height = geometry.height()
+        combo = popup.parentWidget()
+        column = int(combo.modelColumn()) if isinstance(combo, QComboBox) else 0
+        content_height = cls._rows_height(view, column)
+        if content_height > 0:
+            # Frames and margins around the rows; the sideways scroll bar is off from here on.
+            chrome = geometry.height() - int(view.viewport().height())
+            scroll_bar = view.horizontalScrollBar()
+            if scroll_bar is not None and scroll_bar.isVisible():
+                chrome -= int(scroll_bar.height())
+            chrome = max(0, chrome)
+            target_height = min(target_height, content_height + chrome)
+        target_height = min(target_height, max(1, int(available.height() * cls.MAX_SCREEN_FRACTION)))
+        target_width = min(width_limit, max(180, geometry.width()))
+        opened_upwards = cls._opened_above_combo(popup, geometry)
+        bottom = geometry.bottom()
+        geometry.setWidth(target_width)
+        geometry.setHeight(target_height)
+        if opened_upwards:
+            # Qt put the list above the combo: keep it touching the combo.
+            geometry.moveBottom(bottom)
         geometry.moveLeft(min(max(geometry.left(), available.left()), available.right() - geometry.width() + 1))
         geometry.moveTop(min(max(geometry.top(), available.top()), available.bottom() - geometry.height() + 1))
-        popup.setGeometry(geometry)
+        if geometry != popup.geometry():
+            popup.setGeometry(geometry)
+
+    @classmethod
+    def _rows_height(cls, view: QAbstractItemView, column: int) -> int:
+        """Height of the first MAX_VISIBLE_ROWS shown rows, or 0 when the list has no more.
+
+        Measured between row tops as the view lays them out, so item spacing and
+        the real row height (data font, delegate) are included exactly.
+        """
+        model = view.model()
+        if model is None:
+            return 0
+        root = view.rootIndex()
+        is_hidden = getattr(view, "isRowHidden", None)
+        shown = []
+        for row in range(int(model.rowCount(root))):
+            if callable(is_hidden) and is_hidden(row):
+                continue
+            shown.append(row)
+            if len(shown) > cls.MAX_VISIBLE_ROWS:
+                break
+        if len(shown) <= cls.MAX_VISIBLE_ROWS:
+            return 0
+        first = view.visualRect(model.index(shown[0], column, root))
+        after_last = view.visualRect(model.index(shown[-1], column, root))
+        height = int(after_last.top() - first.top())
+        return height if height > 0 else 0
+
+    @staticmethod
+    def _opened_above_combo(popup: QWidget, geometry) -> bool:
+        combo = popup.parentWidget()
+        if combo is None:
+            return False
+        combo_top = combo.mapToGlobal(QPoint(0, 0)).y()
+        return geometry.bottom() <= combo_top
 
 
 def ensure_app_combo_popup_limiter(app: QApplication) -> ComboPopupLimiter:
