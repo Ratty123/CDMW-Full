@@ -545,12 +545,21 @@ class SpeedPrefabsWorkspace(QWidget):
         self.named_edit.setClearButtonEnabled(True)
         self.named_edit.setToolTip(named_tip)
         self.named_edit.textChanged.connect(lambda _text: self._kind_changed())
-        grid.addWidget(self.named_edit, line, 1, 1, 4)
+        grid.addWidget(self.named_edit, line, 1, 1, 2)
+        # The factor gets a label of its own in the right column, so it does not read as a slider
+        # without a name; it stays greyed until a name is typed, since only then does it change anything.
+        self.named_factor_label = QLabel("Factor for these moves:")
+        self.named_factor_label.setObjectName("speedNamedFactorLabel")
+        self.named_factor_label.setToolTip(named_tip)
+        grid.addWidget(self.named_factor_label, line, 4)
         self.named_spin = _spin("speedNamedFactorSpin")
+        self.named_spin.setToolTip(named_tip)
         self.named_spin.valueChanged.connect(lambda _value: self._kind_changed())
         self.named_slider = _factor_slider(self.named_spin)
+        self.named_slider.setToolTip(named_tip)
         grid.addWidget(self.named_slider, line, 5)
         grid.addWidget(self.named_spin, line, 6)
+        self._enable_named_factor(False)
         grid.setColumnMinimumWidth(3, 24)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(5, 1)
@@ -1041,8 +1050,13 @@ class SpeedPrefabsWorkspace(QWidget):
     def _shown_factor(self, clip: str, kind: str) -> float:
         return self._move_factors.get(clip.lower(), self._base_factor(clip, kind))
 
+    def _enable_named_factor(self, enabled: bool) -> None:
+        for widget in (self.named_factor_label, self.named_slider, self.named_spin):
+            widget.setEnabled(enabled)
+
     def _refresh_named_label(self) -> None:
         texts = self._named()
+        self._enable_named_factor(bool(texts))
         if texts and self._chart is not None:
             count = sum(1 for move in self._chart.moves if named_match(move.clip, texts))
             self.named_label.setText(f"{NAMED_LABEL} ({count}):")
