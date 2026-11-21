@@ -3641,7 +3641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 719,
+          "line": 728,
           "sink": "setToolTip"
         }
       ]
@@ -5336,7 +5336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 988,
+          "line": 997,
           "sink": "setToolTip"
         }
       ]
@@ -5921,7 +5921,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1147,
+          "line": 1161,
           "sink": "addItem"
         }
       ]
@@ -6231,7 +6231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 772,
+          "line": 781,
           "sink": "QPushButton"
         }
       ]
@@ -10146,7 +10146,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 674,
+          "line": 683,
           "sink": "addItem"
         }
       ]
@@ -10441,12 +10441,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 635,
+          "line": 644,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 871,
+          "line": 880,
           "sink": "setItemText"
         }
       ]
@@ -10456,7 +10456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 632,
+          "line": 641,
           "sink": "setToolTip"
         }
       ]
@@ -10606,7 +10606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 871,
+          "line": 880,
           "sink": "setItemText"
         }
       ]
@@ -10921,7 +10921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 588,
+          "line": 597,
           "sink": "QCheckBox"
         }
       ]
@@ -10931,7 +10931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 590,
+          "line": 599,
           "sink": "setToolTip"
         }
       ]
@@ -13046,7 +13046,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 896,
+          "line": 905,
           "sink": "setText"
         }
       ]
@@ -13771,7 +13771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 629,
+          "line": 638,
           "sink": "QLabel"
         }
       ]
@@ -27076,7 +27076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1376,
+          "line": 1390,
           "sink": "setToolTip"
         }
       ]
@@ -27866,12 +27866,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 673,
+          "line": 682,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 696,
+          "line": 705,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -28461,7 +28461,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 781,
+          "line": 790,
           "sink": "_hint"
         }
       ]
@@ -30351,7 +30351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1237,
+          "line": 1251,
           "sink": "setPlainText"
         }
       ]
@@ -30431,7 +30431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1237,
+          "line": 1251,
           "sink": "setPlainText"
         }
       ]
@@ -31886,7 +31886,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 691,
+          "line": 700,
           "sink": "_hint"
         }
       ]
@@ -36616,7 +36616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1149,
+          "line": 1163,
           "sink": "addItem"
         }
       ]
@@ -42076,7 +42076,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 937,
+          "line": 946,
           "sink": "setText"
         }
       ]
@@ -48486,7 +48486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1508,
+          "line": 1522,
           "sink": "question"
         }
       ]
@@ -52546,7 +52546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 616,
+          "line": 625,
           "sink": "setToolTip"
         }
       ]
@@ -57261,7 +57261,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 618,
+          "line": 627,
           "sink": "QPushButton"
         }
       ]
@@ -60887,6 +60887,16 @@
       ]
     },
     {
+      "key": "Factor for these moves:",
+      "origins": [
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 551,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Fade",
       "origins": [
         {
@@ -62201,7 +62211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 565,
+          "line": 574,
           "sink": "setPlaceholderText"
         }
       ]
@@ -62976,7 +62986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 664,
+          "line": 673,
           "sink": "QGroupBox"
         }
       ]
@@ -67646,7 +67656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 790,
+          "line": 799,
           "sink": "_hint"
         }
       ]
@@ -97421,7 +97431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1195,
+          "line": 1209,
           "sink": "setText"
         }
       ]
@@ -99871,7 +99881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 559,
+          "line": 568,
           "sink": "QGroupBox"
         }
       ]
@@ -104901,7 +104911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1280,
+          "line": 1294,
           "sink": "setToolTip"
         }
       ]
@@ -105901,7 +105911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 736,
+          "line": 745,
           "sink": "QLabel"
         }
       ]
@@ -106641,7 +106651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1256,
+          "line": 1270,
           "sink": "setToolTip"
         }
       ]
@@ -112096,7 +112106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 614,
+          "line": 623,
           "sink": "QPushButton"
         }
       ]
@@ -122156,7 +122166,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 696,
+          "line": 705,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -122251,7 +122261,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 748,
+          "line": 757,
           "sink": "QGroupBox"
         }
       ]
@@ -129551,7 +129561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 772,
+          "line": 781,
           "sink": "QPushButton"
         }
       ]
@@ -131666,7 +131676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1425,
+          "line": 1439,
           "sink": "setText"
         }
       ]
@@ -140211,7 +140221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 611,
+          "line": 620,
           "sink": "QPushButton"
         }
       ]
@@ -143601,7 +143611,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 599,
+          "line": 608,
           "sink": "QGroupBox"
         }
       ]
@@ -147801,7 +147811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 723,
+          "line": 732,
           "sink": "QPushButton"
         }
       ]
@@ -147996,7 +148006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 715,
+          "line": 724,
           "sink": "QLabel"
         }
       ]
@@ -148036,7 +148046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1280,
+          "line": 1294,
           "sink": "setToolTip"
         }
       ]
@@ -149066,7 +149076,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 678,
+          "line": 687,
           "sink": "QPushButton"
         },
         {
@@ -149736,12 +149746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 740,
+          "line": 749,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1521,
+          "line": 1535,
           "sink": "setText"
         }
       ]
@@ -149871,7 +149881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1323,
+          "line": 1337,
           "sink": "setText"
         }
       ]
@@ -156391,17 +156401,17 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1256,
+          "line": 1270,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1264,
+          "line": 1278,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1280,
+          "line": 1294,
           "sink": "setToolTip"
         }
       ]
@@ -164136,7 +164146,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1508,
+          "line": 1522,
           "sink": "question"
         }
       ]
@@ -164311,7 +164321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 696,
+          "line": 705,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -164371,7 +164381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 665,
+          "line": 674,
           "sink": "setToolTip"
         }
       ]
@@ -165066,7 +165076,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1142,
+          "line": 1156,
           "sink": "addItem"
         }
       ]
@@ -165336,7 +165346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 624,
+          "line": 633,
           "sink": "setToolTip"
         }
       ]
@@ -173571,7 +173581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 197,
+          "line": 199,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -173666,7 +173676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/live_edit/component.py",
-          "line": 206,
+          "line": 208,
           "sink": "emit"
         }
       ]
@@ -174161,12 +174171,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 680,
+          "line": 689,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1272,
+          "line": 1286,
           "sink": "setToolTip"
         }
       ]
@@ -175001,7 +175011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1280,
+          "line": 1294,
           "sink": "setToolTip"
         }
       ]
@@ -175011,7 +175021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1256,
+          "line": 1270,
           "sink": "setToolTip"
         }
       ]
@@ -175591,7 +175601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 960,
+          "line": 969,
           "sink": "setText"
         }
       ]
@@ -176126,7 +176136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1376,
+          "line": 1390,
           "sink": "setToolTip"
         }
       ]
@@ -178696,7 +178706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1230,
+          "line": 1244,
           "sink": "setPlainText"
         }
       ]
@@ -180931,7 +180941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 634,
+          "line": 643,
           "sink": "addItem"
         }
       ]
@@ -184311,7 +184321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1022,
+          "line": 1031,
           "sink": "setToolTip"
         }
       ]
@@ -184417,6 +184427,21 @@
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
           "line": 546,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 553,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 556,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 559,
           "sink": "setToolTip"
         }
       ]
@@ -192446,7 +192471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1272,
+          "line": 1286,
           "sink": "setToolTip"
         }
       ]
@@ -195541,7 +195566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 896,
+          "line": 905,
           "sink": "setText"
         }
       ]
@@ -211821,7 +211846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1375,
+          "line": 1389,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -217326,7 +217351,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 634,
+          "line": 643,
           "sink": "addItem"
         }
       ]
@@ -222741,7 +222766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 838,
+          "line": 847,
           "sink": "setToolTip"
         }
       ]
@@ -223681,12 +223706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 967,
+          "line": 976,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1048,
+          "line": 1062,
           "sink": "setText"
         }
       ]
@@ -224351,7 +224376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 775,
+          "line": 784,
           "sink": "setToolTip"
         }
       ]
@@ -226731,7 +226756,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1335,
+          "line": 1349,
           "sink": "setText"
         }
       ]
@@ -226826,7 +226851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 984,
+          "line": 993,
           "sink": "setText"
         }
       ]
@@ -226836,7 +226861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 987,
+          "line": 996,
           "sink": "setText"
         }
       ]
@@ -227021,7 +227046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1385,
+          "line": 1399,
           "sink": "setText"
         }
       ]
@@ -227031,7 +227056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1387,
+          "line": 1401,
           "sink": "setText"
         }
       ]
@@ -227041,7 +227066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1389,
+          "line": 1403,
           "sink": "setText"
         }
       ]
@@ -228661,7 +228686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 959,
+          "line": 968,
           "sink": "setText"
         }
       ]
@@ -228671,7 +228696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 957,
+          "line": 966,
           "sink": "setText"
         }
       ]
@@ -229291,7 +229316,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1577,
+          "line": 1591,
           "sink": "python-return:_short_member"
         }
       ]
@@ -229456,7 +229481,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1050,
+          "line": 1064,
           "sink": "setText"
         },
         {
@@ -230326,7 +230351,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1372,
+          "line": 1386,
           "sink": "QTableWidgetItem"
         },
         {
