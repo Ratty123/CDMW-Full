@@ -35,7 +35,6 @@ from cdmw.services.mesh_rust_preview_cache import (
     rust_preview_package_cache_root,
     validate_resident_rust_preview_package as validate_dotnet_preview_package,
 )
-from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
 
 
@@ -651,15 +650,20 @@ class ArchivePreviewCacheMixin:
                 current_result,
                 keep_prepared_model=False,
             )
+        # Browse's 3D view keeps showing the model (Fredric, 2026-11-21). It used to be
+        # cleared here to save memory, which left Browse empty until Refresh after every
+        # Mesh Editor open. The view pauses on its own while the Mesh Editor tab hides it,
+        # and the editor runs its own renderer: the two only read the same package files.
         current_entry = self._current_archive_entry()
         same_current_entry = bool(
             entry is not None
             and current_entry is not None
             and self._same_archive_entry(current_entry, entry)
         )
-        if same_current_entry and self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+        settle = getattr(self, "_settle_archive_texture_request_for_mesh_editor", None)
+        if same_current_entry and callable(settle):
             try:
-                self._shutdown_archive_isolated_renderer_host()
+                settle()
             except Exception as exc:
                 self.shell._record_runtime_event(
                     "mesh_editor_archive_preview_pause_failed",

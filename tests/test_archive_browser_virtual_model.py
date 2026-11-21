@@ -518,7 +518,8 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("keep_prepared_model=False", strip_body)
         self.assertIn("same_current_entry", strip_body)
         self.assertIn("self._same_archive_entry(current_entry, entry)", strip_body)
-        self.assertIn("self._shutdown_archive_isolated_renderer_host()", strip_body)
+        # Browse keeps showing the model while the Mesh Editor edits it (no Refresh needed).
+        self.assertNotIn("_shutdown_archive_isolated_renderer_host", strip_body)
         self.assertIn('"mesh_editor_archive_preview_payloads_stripped"', strip_body)
         self.assertIn("reclaimed_prepared_bytes", strip_body)
         self.assertIn('self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)', source)

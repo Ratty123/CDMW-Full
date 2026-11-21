@@ -109,15 +109,38 @@ class ArchivePreviewDotNetLifecycleMixin:
             # Clearing the viewport withdraws its pending package acknowledgement.
             # Mesh Editor has already acquired its own texture lease before this
             # handoff; the next PAC must start a fresh request, not wait on this one.
-            self._archive_texture_request_loading = False
-            self._archive_texture_request_id = 0
-            self._archive_texture_request_automatic = False
-            self._archive_texture_package_generation = 0
-            self._archive_texture_package_path = ""
-            self._archive_texture_render_settings = None
-            self._archive_pending_texture_result = None
-            self._archive_textures_visible = False
-            self._sync_archive_texture_action_state()
+            self._withdraw_archive_texture_request()
+
+    def _withdraw_archive_texture_request(self) -> None:
+        self._archive_texture_request_loading = False
+        self._archive_texture_request_id = 0
+        self._archive_texture_request_automatic = False
+        self._archive_texture_package_generation = 0
+        self._archive_texture_package_path = ""
+        self._archive_texture_render_settings = None
+        self._archive_pending_texture_result = None
+        self._archive_textures_visible = False
+        self._sync_archive_texture_action_state()
+
+    def _settle_archive_texture_request_for_mesh_editor(self) -> None:
+        """The Mesh Editor opens the model Browse shows: settle Browse's texture load.
+
+        Browse keeps its view (Fredric, 2026-11-21), but the Mesh Editor tab hides it and
+        a hidden view is paused, so it acknowledges a textured package only when Browse
+        is shown again. Until then the request would stay open and the next model's
+        texture load would wait on it. A package already sent to the view is taken as
+        applied (the view draws it when shown); a load still being prepared is withdrawn
+        and the view keeps the geometry it has. The Mesh Editor holds its own lease.
+        """
+
+        if not bool(getattr(self, "_archive_texture_request_loading", False)):
+            return
+        package_path = str(getattr(self, "_archive_texture_package_path", "") or "")
+        generation = int(getattr(self, "_archive_texture_package_generation", 0) or 0)
+        if package_path and generation:
+            self._handle_archive_resident_package_applied(package_path, generation)
+        if bool(getattr(self, "_archive_texture_request_loading", False)):
+            self._withdraw_archive_texture_request()
 
     def _open_archive_isolated_d3d11_preview(self) -> None:
         """Save texture intent and apply it without restarting the renderer."""
@@ -223,7 +246,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
             self.archive_isolated_renderer_active_package = Path(package_path)
             self.archive_isolated_renderer_package_source = "dotnet-canonical"
-            self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
+            self._populate_archive_scene_parts(Path(package_path))
             expected_upgrade = str(
                 getattr(self, "archive_preview_texture_upgrade_package_path", "") or ""
             )
@@ -241,7 +264,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         self.archive_isolated_renderer_active_package = Path(package_path)
         self.archive_isolated_renderer_package_source = "dotnet-canonical"
-        self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
+        self._populate_archive_scene_parts(Path(package_path))
         render_settings = getattr(self, "_archive_texture_render_settings", None)
         host = getattr(self, "archive_d3d11_preview_host", None)
         show_textures = bool(self._current_model_preview_render_settings().use_textures_by_default)

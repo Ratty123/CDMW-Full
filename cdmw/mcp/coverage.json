@@ -2575,18 +2575,6 @@
       "milestone": "P13 MCP gap plan item 13: Prefab Inspector, Game Tables, Skinned Decal and Add Bones tools"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|<label>",
-      "tool": "app.ui_act"
-    },
-    {
-      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Hide added prefab pieces",
-      "tool": "app.ui_act"
-    },
-    {
-      "key": "menu:cdmw/ui/archive_browser/preview_d3d11_parts.py|Show all parts",
-      "tool": "app.ui_act"
-    },
-    {
       "key": "menu:cdmw/ui/archive_browser/preview_layout.py|<action_text>",
       "tool": "app.ui_act"
     },

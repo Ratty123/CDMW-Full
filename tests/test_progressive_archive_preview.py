@@ -82,7 +82,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
                 self.health: list[tuple[str, bool, bool, bool]] = []
                 self.statuses: list[tuple[str, bool]] = []
 
-            def _populate_archive_d3d11_part_visibility_menu(self, _package: Path) -> None:
+            def _populate_archive_scene_parts(self, _package: Path) -> None:
                 pass
 
             def _set_archive_preview_health_message(

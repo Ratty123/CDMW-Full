@@ -462,7 +462,8 @@ def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path
     from PySide6.QtWidgets import QApplication
     from cdmw.models import ArchivePreviewResult
     from cdmw.services.mesh_service import MeshService
-    from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin, ARCHIVE_MODEL_RENDERER_D3D11
+    from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+    from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
     from cdmw.workers.mesh_editor_aux_workers import MeshArchiveSessionLoadResult
     from tests.test_archive_d3d11_process_lifecycle import _PreviewResultHarness
     from tests.test_mesh_editor_direct_mode import _mesh
@@ -720,7 +721,7 @@ def test_texture_lifecycle_queues_mesh_editor_notification_after_resident_public
             pass
 
         @staticmethod
-        def _populate_archive_d3d11_part_visibility_menu(_package: Path) -> None:
+        def _populate_archive_scene_parts(_package: Path) -> None:
             pass
 
         @staticmethod

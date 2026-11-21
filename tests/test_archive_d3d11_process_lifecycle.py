@@ -138,7 +138,7 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def _mesh_replacement_builder_active(self) -> bool:
         return False
 
-    def _populate_archive_d3d11_part_visibility_menu(self, package: Path) -> None:
+    def _populate_archive_scene_parts(self, package: Path) -> None:
         self.populated_packages.append(Path(package))
 
 

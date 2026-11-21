@@ -6,8 +6,9 @@ sets. A prefab component that is not loaded yet (such as a sword's ``_in.pac``
 scabbard) is listed as its own file, unticked; ticking it loads it.
 
 A context menu on parts and files offers Isolate, Show all, Hide, Preview only
-this file, Open in Mesh Editor and Open ticked parts in Mesh Editor. The Parts
-dropdown above the preview stays a shortcut to the same state.
+this file, Open in Mesh Editor and Open ticked parts in Mesh Editor. It is the
+one place to show, hide and load parts: the Parts dropdown that used to sit above
+Browse's preview was removed (2026-11-21).
 """
 from __future__ import annotations
 
