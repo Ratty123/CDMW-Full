@@ -34,7 +34,7 @@ def entry(root, path, data):
 
 
 def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", surface=None,
-                     surface_parameter="_materialTexture"):
+                     surface_parameter="_materialTexture", untextured=()):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
@@ -60,9 +60,12 @@ def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", 
         f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}">'
         + (f'<Material Name="_resourceMaterial" _materialName="{shader[i] if isinstance(shader, tuple) else shader}">'
            if shader else '<Material>')
-        + '<Vector Name="_parameters">'
-        f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture _path="character/texture/original{i}.dds"/>'
-        f'</MaterialParameterTexture>{layer(i)}</Vector></Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
+        # A part in `untextured` is drawn by a material with an empty parameter list, as the game writes it (a mold).
+        + ('<Vector Name="_permutations"/><Vector Name="_parameters"/>' if i in untextured else
+           '<Vector Name="_parameters">'
+           f'<MaterialParameterTexture _name="_diffuseTexture" Index="0"><ResourceReferencePath_ITexture '
+           f'_path="character/texture/original{i}.dds"/></MaterialParameterTexture>{layer(i)}</Vector>')
+        + '</Material></SkinnedMeshMaterialWrapper>' for i in range(2)) + '</Root>')
     target = entry(root, snapshot.mesh.path, snapshot.original_data)
     entries = [target, entry(root, str(Path(target.path).with_suffix(".pac_xml")), xml.encode()),
                *(entry(root, f"character/texture/original{i}.dds", original.read_bytes()) for i in range(2)),

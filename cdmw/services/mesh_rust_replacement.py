@@ -146,13 +146,20 @@ def _build_imported_material_status(pending):
                  for _role, texture in getattr(binding, "texture_slots", ()) or ())
     status = {"error": pending.material_error, "textures": len(files)}
     if not pending.material_error:
-        from cdmw.services.mesh_replacement_materials import helper_material_targets, imported_surface_start
+        from cdmw.services.mesh_replacement_materials import (
+            helper_material_targets, imported_surface_start, untextured_material_targets)
         status["surface"] = {**imported_surface_start(pending), "reason": imported_surface_support(pending),
                              # Target parts whose shader keeps its own surface (an eye);
                              # the mapping step names the ones a source is mapped to.
                              "unsupported": imported_surface_unsupported(pending)}
         # The mapping step warns before Apply when a part goes to one of these.
         status["helper_targets"] = sorted(helper_material_targets(pending))
+        # Parts whose game material has no texture slot at all (a ghost accessory, a mold).
+        try:
+            status["untextured_targets"] = sorted(untextured_material_targets(pending))
+        except ValueError:
+            # An unreadable material file is reported by Apply; the mapping step stays usable.
+            status["untextured_targets"] = []
     return status
 
 

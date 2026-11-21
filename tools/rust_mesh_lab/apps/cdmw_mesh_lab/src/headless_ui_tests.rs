@@ -6267,6 +6267,41 @@ fn integrated_replacement_mapping_warns_about_helper_material_targets() -> TestR
 }
 
 #[test]
+fn integrated_replacement_mapping_warns_about_targets_without_textures() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    // Helmet 0468's `mold` is drawn by a material with no texture at all; a
+    // valid import mapped there reached Apply and got only "no proven target
+    // binding".
+    let warning = "mold has no textures in the game's material, so it cannot take imported textures. Map Visor to another part, join it with one before exporting, or choose Keep Original Materials.";
+    let mut state = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1, "helper_targets": [], "untextured_targets": ["stable:1"],
+    }));
+    state["parts"] = json!([
+        {"index": 0, "id": "stable:0", "name": "Helm", "included": true},
+        {"index": 1, "id": "stable:1", "name": "mold", "included": true},
+    ]);
+    state["pending"]["targets"] = json!([{"id": "stable:0", "name": "Helm"}, {"id": "stable:1", "name": "mold"}]);
+    state["pending"]["sources"] = json!([{"name": "Visor", "material": "VisorMat", "target": "stable:1"}]);
+    ui.application.cdmw_state["replacement"] = state;
+    ui.settle_layout();
+    // Keep Original Materials leaves the part's material as it is: no warning.
+    assert!(ui.label_rect(warning).is_none());
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal(warning)?;
+    // A textured part replaced in the same import lends its texture format: Apply accepts that.
+    ui.application.cdmw_state["replacement"]["pending"]["sources"] = json!([
+        {"name": "Shell", "material": "HelmMat", "target": "stable:0"},
+        {"name": "Visor", "material": "VisorMat", "target": "stable:1"},
+    ]);
+    ui.settle_layout();
+    assert!(ui.reveal(warning).is_err());
+    Ok(())
+}
+
+#[test]
 fn integrated_replacement_mapping_skips_helper_warning_when_material_also_reaches_main_part() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

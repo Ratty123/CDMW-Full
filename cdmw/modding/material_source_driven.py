@@ -3496,6 +3496,15 @@ def _insert_source_driven_texture_parameter(
         f"\n{parameter_indent}</MaterialParameterTexture>"
     )
 
+    # A material without parameters ships its list self-closed. Open it, so the row
+    # goes into that material and not into a second one appended to the wrapper.
+    wrapper_text = re.sub(
+        r'<Vector\b([^<>]*\bName="_parameters"[^<>]*?)\s*/>',
+        r"<Vector\1></Vector>",
+        wrapper_text,
+        count=1,
+        flags=re.IGNORECASE,
+    )
     parameter_vector_match = re.search(
         r'(<Vector\b[^>]*\bName="_parameters"[^>]*>)(.*?)(\s*</Vector>)',
         wrapper_text,

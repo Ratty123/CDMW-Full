@@ -36,7 +36,8 @@ def material_binding_names(state):
         if path == pac_xml or (not target.endswith(".pac") and path.endswith(".pami")):
             text = _sidecar_text(file.data)
             if path.endswith(".pac_xml"):
-                names.update(row.submesh_name.casefold() for row in find_material_wrappers(text))
+                # A few shipped names carry a stray space; texture references do not.
+                names.update(row.submesh_name.strip().casefold() for row in find_material_wrappers(text))
             else:
                 names.update(control_material_sources(text, static=True))
     return names
@@ -45,10 +46,10 @@ def material_binding_names(state):
 def material_binding_name(part, names):
     """PAC wrappers bind the part name, not a possibly unrelated texture label."""
     for value in (part.name, part.material):
-        if value and value.casefold() in names:
-            return value.casefold()
+        if value and value.strip().casefold() in names:
+            return value.strip().casefold()
     # Retain an unmatched identity so the strict writer reports the missing part.
-    return (part.name or part.material).casefold()
+    return (part.name or part.material).strip().casefold()
 
 
 def _merge_material_rows(current, donor, names):
@@ -145,6 +146,148 @@ def _check_helper_targets(pending, targets):
                 f"{helpers[target]} is a helper material for the inside of the model and cannot take imported textures. "
                 f"Map {part.name or part.material} to a main part, join it with one before exporting, "
                 "or choose Keep Original Materials.")
+
+
+_TEXTURE_REFERENCE = re.compile(r'<MaterialParameterTexture\b[^>]*>\s*<ResourceReferencePath_ITexture\b[^>]*\b_path="([^"]+)"')
+
+
+def _folded(value):
+    """A material or part name as the pipeline compares it: trimmed and case-folded."""
+    return str(value or "").strip().casefold()
+
+
+def _wrapper_texture_paths(pending):
+    """Texture paths each target wrapper names in the game's material file, over all its variants."""
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    sidecar = target_sidecar(pending)
+    paths = defaultdict(set)
+    if sidecar is not None:
+        text = _sidecar_text(sidecar.data)
+        for wrapper in find_material_wrappers(text):
+            # Any texture reference in the block counts, however its row is written.
+            paths[_folded(wrapper.submesh_name)].update(_TEXTURE_REFERENCE.findall(text[wrapper.start:wrapper.end]))
+    return paths
+
+
+def _target_part_names(pending, targets=None):
+    """part id -> (the game's part name, its material wrapper name) for the wanted target parts."""
+    from cdmw.modding.mesh_parser import parse_mesh
+    wanted = set(pending.target_part_ids if targets is None else targets)
+    original = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+    bindings = material_binding_names(pending.state)
+    names = {}
+    for part in pending.state.parts:
+        if part.part_id in wanted:
+            source = original.submeshes[part.target_index]
+            wrapper = material_binding_name(source, bindings)
+            names[part.part_id] = (source.name or wrapper, wrapper)
+    return names
+
+
+def untextured_material_targets(pending, targets=None):
+    """Target parts whose game material binds no texture at all, by part id.
+
+    A few shipped parts are drawn by a material without a single texture
+    parameter (``SkinnedMeshGhost`` accessories, a helmet's ``mold``). Imported
+    textures are written in the format of the textures they replace, and such a
+    part has none to take it from.
+    """
+    paths = _wrapper_texture_paths(pending)
+    return {part_id: name for part_id, (name, wrapper) in _target_part_names(pending, targets).items()
+            if wrapper in paths and not paths[wrapper]}
+
+
+def _check_untextured_targets(pending, targets):
+    """Refuse an import whose target parts have no game texture between them, naming the first."""
+    bare = untextured_material_targets(pending, targets)
+    if not bare:
+        return
+    helpers = helper_material_targets(pending, targets)
+    # A textured part replaced in the same import lends its texture format; that stays allowed.
+    if all(target in bare or target in helpers for target in targets):
+        part, target = next((part, target) for part, target in zip(pending.source.mesh.submeshes, targets)
+                            if target in bare)
+        raise ValueError(
+            f"{bare[target]} has no textures in the game's material, so it cannot take imported textures. "
+            f"Map {part.name or part.material} to another part, join it with one before exporting, "
+            "or choose Keep Original Materials.")
+
+
+def _check_one_part_per_target(pending, targets):
+    """Imported materials go one imported part to one game part; say which part got several."""
+    if len(targets) == len(pending.source.mesh.submeshes):
+        shared = next((target for target in targets if targets.count(target) > 1), None)
+        if shared is None:
+            return
+        name = _target_part_names(pending, (shared,)).get(shared, ("",))[0]
+        if name:
+            raise ValueError(
+                f"{targets.count(shared)} imported parts are mapped to {name}. With Imported Materials & Textures "
+                "each game part takes one imported part. Join them before exporting, map them to different parts, "
+                "or choose Keep Original Materials.")
+    raise ValueError("Imported materials require one source material part per target part.")
+
+
+def _is_generated_filler(slot):
+    """A neutral texture CDMW made itself (a flat normal), not one the import brought."""
+    path = Path(str(getattr(slot, "source_path", "") or ""))
+    return "_neutral_" in path.name.casefold() and "cdmw_synthetic_materials" in str(path.parent).casefold()
+
+
+def _source_material_texture_names(pending, part):
+    """File names of the textures the imported model's own material names for this part."""
+    material = _folded(part.material or part.name)
+    names = []
+    source = Path(pending.source_path)
+    try:
+        if source.suffix.lower() == ".obj":
+            from cdmw.modding.scene_texture_discovery import _obj_material_texture_slots
+            for name, slots in _obj_material_texture_slots(source).items():
+                if _folded(name) == material:
+                    names.extend(Path(str(slot.path)).name for slot in slots)
+        else:
+            for binding in getattr(pending.source, "material_bindings", ()) or ():
+                if _folded(binding.material_name) == material:
+                    names.extend(Path(str(texture)).name for _role, texture in binding.texture_slots)
+    except (OSError, ValueError):
+        pass
+    texture = str(getattr(part, "texture", "") or "").strip()
+    if texture:
+        names.append(Path(texture.replace("\\", "/")).name)
+    return tuple(dict.fromkeys(name for name in names if name))
+
+
+def _unbound_material_reason(pending, index, wrapper=""):
+    """Why one imported part's material reached no texture slot of its target part."""
+    parts = pending.source.mesh.submeshes
+    part = parts[index]
+    material = str(part.material or part.name).strip()
+    piece = str(part.name or part.material).strip()
+    own = ", ".join(_source_material_texture_names(pending, part))
+    if own:
+        # Imported textures take their format from the game textures they replace.
+        # With none of those in the session's file set there is nothing to fit to.
+        named = {Path(path.replace("\\", "/")).name.casefold() for path in _wrapper_texture_paths(pending).get(_folded(wrapper), ())}
+        held = {Path(str(file.path).replace("\\", "/")).name.casefold() for file in pending.state.dependencies}
+        if named and not named & held:
+            return (f"The game's textures for {wrapper} were not loaded with this model, so the imported textures "
+                    "cannot be fitted to it. Select the model in Browse Archives again, open it in Mesh Editor "
+                    "as a new edit and import again. If that does not help, choose Keep Original Materials.")
+        return (f"Imported material {material} has no proven target binding: none of its textures ({own}) fits a "
+                f"texture slot of {wrapper or piece}. Map {piece} to another part, or choose Keep Original Materials.")
+    # Images lying beside the model that no imported material names: another
+    # model's files, or this one's when the exporter wrote no texture lines.
+    claimed = {name.casefold() for other in parts for name in _source_material_texture_names(pending, other)}
+    loose = sorted({Path(str(path)).name for path in getattr(pending.source, "discovered_texture_files", ()) or ()
+                    if Path(str(path)).name.casefold() not in claimed}, key=str.casefold)
+    if loose:
+        found = ", ".join(loose[:4] + ["..."] * (len(loose) > 4))
+        return (f"Imported material {material} has no textures of its own. The textures found beside the model "
+                f"({found}) are not assigned to it, so they were not used. "
+                "Assign them to the material before exporting, or choose Keep Original Materials.")
+    return (f"Imported material {material} has no textures of its own (a plain colour is not imported), and "
+            "Imported Materials & Textures needs a texture on every imported part. Give the material an image "
+            "texture or put its faces on a textured material, export again, or choose Keep Original Materials.")
 
 
 def _prune_unreferenced_generated_files(files):
@@ -244,11 +387,11 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
     from cdmw.services.mesh_replacement_output import manual_replacement_options, prepare_replacement_output
 
     verify_import_sources(pending, include_materials=True)
-    if len(targets) != len(pending.source.mesh.submeshes) or len(set(targets)) != len(targets):
-        raise ValueError("Imported materials require one source material part per target part.")
+    _check_one_part_per_target(pending, tuple(targets))
     if not pending.state.dependencies:
         raise ValueError("Imported materials require the original material sidecar and texture dependencies.")
     _check_helper_targets(pending, targets)
+    _check_untextured_targets(pending, targets)
     names = _target_material_names(pending, targets)
     candidate, candidate_state = compose_import(pending, targets, material_choice="imported", companion_files=(),
                                                 skin_policy=skin_policy)
@@ -312,15 +455,26 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
         configure_mesh_import_materials(state)
         payloads, report = build_static_texture_payloads(state, state.original_sidecars_for_static)
         raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
-        if report is None or report.errors:
-            raise ValueError("Imported material conversion failed: " + ("; ".join(report.errors) if report else "no representable source material textures"))
+        if report is None:
+            # Not one texture came with the import, so nothing was converted.
+            raise ValueError(_unbound_material_reason(
+                pending, 0, material_binding_name(original.submeshes[rows[targets[0]].target_index], bindings)))
+        if report.errors:
+            details = "; ".join(report.errors)
+            raise ValueError("Imported material conversion failed: " + details)
+        outputs = {str(payload.target_path).casefold(): payload for payload in payloads}
+        # Proof is a texture the import brought, bound under the part's own material
+        # or object name (textures named after the object are routed by that name).
+        # A flat normal CDMW generated for the target is not proof: with only that,
+        # the part kept the game's colour texture on the import's UVs.
+        mapped_sources = {_folded(getattr(slot, "source_material_name", ""))
+                          for slot in report.slot_mappings if not _is_generated_filler(slot)}
+        for index, part in enumerate(pending.source.mesh.submeshes):
+            if not ({_folded(part.material), _folded(part.name)} - {""}) & mapped_sources:
+                raise ValueError(_unbound_material_reason(
+                    pending, index, material_binding_name(original.submeshes[rows[targets[index]].target_index], bindings)))
         if not payloads:
             raise ValueError("Imported materials produced no output textures or sidecars; original-material fallback is disabled.")
-        outputs = {str(payload.target_path).casefold(): payload for payload in payloads}
-        mapped_sources = {str(getattr(slot, "source_material_name", "") or "").casefold() for slot in report.slot_mappings}
-        for part in pending.source.mesh.submeshes:
-            if str(part.material or part.name).casefold() not in mapped_sources:
-                raise ValueError(f"Imported material {part.material or part.name} has no proven target binding.")
         slots = [slot for slot in report.slot_mappings if slot.target_material_name.casefold() in names]
         for slot in slots:
             target_path = str(getattr(slot, "output_texture_path", "") or "").casefold()
@@ -598,7 +752,8 @@ def _fragment_surface_means(pending, fragment, names):
                 with Image.open(io.BytesIO(texture.data)) as image:
                     image.thumbnail((256, 256))
                     rgb = image.convert("RGB")
-            except (OSError, ValueError):
+            except (OSError, ValueError, NotImplementedError):
+                # Pillow does not decode every DXGI format; such a surface is left unread.
                 continue
             red, green, blue = (sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram()))
                                 / max(1, rgb.width * rgb.height) / 255 for c in "RGB")
@@ -619,6 +774,37 @@ def _dds_format(data):
     return {b"DXT1": "BC1_UNORM", b"DXT3": "BC2_UNORM", b"DXT5": "BC3_UNORM"}.get(fourcc, "")
 
 
+def _source_image(path, directory=None):
+    """The imported texture as a loaded Pillow image.
+
+    Pillow reads most DDS files, but not every DXGI format a texture tool can
+    save (BC1/BC3 sRGB, B8G8R8A8 with a DX10 header). Those go through the
+    app's own DDS decoder, and a file neither can read is named in the refusal.
+    """
+    from PIL import Image
+    path = Path(path)
+    try:
+        with Image.open(path) as image:
+            image.load()
+            return image.copy()
+    except (NotImplementedError, OSError, ValueError, SyntaxError) as error:
+        reason = str(error) or error.__class__.__name__
+    if path.suffix.lower() == ".dds":
+        from cdmw.core.texture_native import decode_dds_preview_with_directxtex
+        with TemporaryDirectory(prefix="cdmw-surface-source-", dir=directory) as temporary:
+            png = Path(temporary) / "source.png"
+            try:
+                decoded = decode_dds_preview_with_directxtex(path, png, max_dimension=0, slot_kind="material")
+            except (OSError, ValueError, RuntimeError):
+                decoded = None
+            if decoded and png.is_file():
+                with Image.open(png) as image:
+                    image.load()
+                    return image.copy()
+    raise ValueError(f"Imported texture {path.name} could not be read ({reason}). "
+                     "Save it as BC7 or as PNG, then import again.")
+
+
 def _packed_material_dds(values, dds_format, directory):
     """The imported roughness/metallic maps as a game ``_sp`` texture.
 
@@ -633,8 +819,7 @@ def _packed_material_dds(values, dds_format, directory):
     images = {}
     for kind, value in values.items():
         if value[0] == "map":
-            with Image.open(value[1]) as image:
-                images[kind] = image.convert("RGB").getchannel(value[2])
+            images[kind] = _source_image(value[1], directory).convert("RGB").getchannel(value[2])
     size = max((image.size for image in images.values()), key=lambda size: size[0] * size[1])
     channels = []
     for kind in ("roughness", "metallic"):
@@ -655,10 +840,9 @@ def _packed_material_dds(values, dds_format, directory):
 
 
 def _image_channel_means(path, channels):
-    from PIL import Image
-    with Image.open(path) as image:
-        image.thumbnail((256, 256))
-        rgb = image.convert("RGB")
+    image = _source_image(path)
+    image.thumbnail((256, 256))
+    rgb = image.convert("RGB")
     stats = [sum(value * count for value, count in enumerate(rgb.getchannel(c).histogram())) / max(1, rgb.width * rgb.height)
              for c in "RGB"]
     return tuple(stats["RGB".index(c)] / 255 for c in channels)
