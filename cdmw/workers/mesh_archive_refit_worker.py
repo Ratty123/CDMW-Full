@@ -191,9 +191,29 @@ def prepare_hair_editor_session(entry, dependencies, args, draft_root, stop_even
                 owner.lease = None
 
 
-def prepare_archive_refit_source(args, stop_event):
+def attach_archive_refit_materials(entry, dependencies, mesh, stop_event, *, physics_profile_context=None):
+    materials = MeshArchiveMaterialContextWorker(
+        1, entry, entries_by_normalized_path=dependencies.entries_by_normalized_path,
+        entries_by_basename=dependencies.entries_by_basename,
+    )
+    context = _run(materials, materials.context_resolved, stop_event)
+    lease = ArchiveRefitPreviewLease(context, dependencies)
+    controller = SimpleNamespace(mesh_service=None, active_session_id="")
+    prime_rust_mesh_preview_context(
+        controller, context.preview_model, material_package_path=context.material_package_path,
+        target_entry=entry, entries_by_basename=dependencies.entries_by_basename,
+        physics_profile_context=physics_profile_context,
+    )
+    _count, reason = _prepare_shadow_mesh_materials(
+        mesh, getattr(controller, _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR), "", stop_event,
+    )
+    return lease, reason
+
+
+def prepare_archive_refit_source(args, stop_event, *, skip_materials: bool = False):
     from cdmw.services.mesh_refit_loading import MAX_REFIT_INPUT_BYTES
 
+    skip_materials = bool(skip_materials or args.get("_skip_materials", False))
     entry = args["_archive_entry"]
     if not 0 < max(int(entry.orig_size), int(entry.comp_size), int(entry.prepared_size or 0)) <= MAX_REFIT_INPUT_BYTES:
         raise ValueError("Archive Refit source must be a non-empty mesh no larger than 256 MiB")
@@ -205,29 +225,36 @@ def prepare_archive_refit_source(args, stop_event):
     loader = MeshArchiveSessionLoadWorker(
         1, entry, archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
         archive_entries_by_basename=dependencies.entries_by_basename,
+        run_roundtrip=not bool(args.get("_skip_roundtrip", False)),
     )
     loaded = _run(loader, loader.loaded, stop_event)
     try:
         snapshot = loaded.service.capture_export_snapshot(loaded.view.session_id, stop_event=stop_event)
         appearance = loaded.service._session(loaded.view.session_id).neutral_appearance
-        materials = MeshArchiveMaterialContextWorker(
-            1, entry, entries_by_normalized_path=dependencies.entries_by_normalized_path,
-            entries_by_basename=dependencies.entries_by_basename,
-        )
-        context = _run(materials, materials.context_resolved, stop_event)
-        lease = ArchiveRefitPreviewLease(context, dependencies)
-        controller = SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id)
-        prime_rust_mesh_preview_context(
-            controller, context.preview_model, material_package_path=context.material_package_path,
-            target_entry=entry, entries_by_basename=dependencies.entries_by_basename,
-            physics_profile_context=getattr(loaded, "physics_profile_context", None),
-        )
-        _count, reason = _prepare_shadow_mesh_materials(
-            snapshot.mesh, getattr(controller, _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR), "", stop_event,
-        )
+        if skip_materials:
+            lease = None
+            reason = ""
+        else:
+            materials = MeshArchiveMaterialContextWorker(
+                1, entry, entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                entries_by_basename=dependencies.entries_by_basename,
+            )
+            context = _run(materials, materials.context_resolved, stop_event)
+            lease = ArchiveRefitPreviewLease(context, dependencies)
+            controller = SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id)
+            prime_rust_mesh_preview_context(
+                controller, context.preview_model, material_package_path=context.material_package_path,
+                target_entry=entry, entries_by_basename=dependencies.entries_by_basename,
+                physics_profile_context=getattr(loaded, "physics_profile_context", None),
+            )
+            _count, reason = _prepare_shadow_mesh_materials(
+                snapshot.mesh, getattr(controller, _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR), "", stop_event,
+            )
         raise_if_cancelled(stop_event, "Archive Refit loading cancelled")
         return {**args, "_archive_snapshot": snapshot, "_archive_preview_lease": lease,
+                "_archive_materials_skipped": skip_materials,
                 "_archive_skeleton": loaded.source_skeleton,
+                "_archive_physics_profile_context": getattr(loaded, "physics_profile_context", None),
                 "_archive_material_reason": reason, "_archive_neutral_appearance": appearance,
                 "_archive_appearance_warning": getattr(loaded, "appearance_warning", "")}
     finally:

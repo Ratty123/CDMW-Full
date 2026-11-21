@@ -43,7 +43,12 @@ from cdmw.domain.material_layer_uv import (
     pac_scratch_bytes,
 )
 from cdmw.services import mesh_rust_preview_files as _preview_files
-from cdmw.services.mesh_rust_preview_files import atomic_preview_publication, validate_preview_files
+from cdmw.services.mesh_rust_preview_files import (
+    atomic_preview_publication,
+    remember_verified_preview_file,
+    validate_preview_files,
+    verified_preview_file_digest,
+)
 from cdmw.services.json_file_facts import json_file_fact
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -488,18 +493,43 @@ def _copy_preview_core_binary(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        with source.open("rb") as reader, temporary.open("xb") as writer:
-            while True:
-                _cancelled(cancelled)
-                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
-                if not block:
-                    break
-                writer.write(block)
-                digest.update(block)
-                byte_length += len(block)
-            writer.flush()
-            if _preview_files.PREVIEW_CACHE_FSYNC:
-                os.fsync(writer.fileno())
+        try:
+            os.link(source, temporary)
+            linked = True
+        except OSError:
+            linked = False
+        verified_at_ns = time.time_ns()
+        if linked:
+            known_sha256 = verified_preview_file_digest(source_before)
+            if known_sha256 is not None:
+                byte_length = int(source_before.st_size)
+                sha256 = known_sha256.upper()
+            else:
+                with temporary.open("rb") as reader:
+                    while True:
+                        _cancelled(cancelled)
+                        block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                        if not block:
+                            break
+                        digest.update(block)
+                        byte_length += len(block)
+                sha256 = digest.hexdigest().upper()
+                remember_verified_preview_file(source_before, sha256, verified_at_ns, path=source)
+        else:
+            with source.open("rb") as reader, temporary.open("xb") as writer:
+                while True:
+                    _cancelled(cancelled)
+                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                    if not block:
+                        break
+                    writer.write(block)
+                    digest.update(block)
+                    byte_length += len(block)
+                writer.flush()
+                if _preview_files.PREVIEW_CACHE_FSYNC:
+                    os.fsync(writer.fileno())
+            sha256 = digest.hexdigest().upper()
+            remember_verified_preview_file(source_before, sha256, verified_at_ns, path=source)
         source_after = source.stat()
         source_identity_before = (
             int(source_before.st_dev),
@@ -515,7 +545,6 @@ def _copy_preview_core_binary(
         )
         if source_identity_before != source_identity_after or byte_length != expected_byte_length:
             raise ValueError("Preview Core binary payload changed while it was copied.")
-        sha256 = digest.hexdigest().upper()
         name = f"preview-{kind}-{file_index:04d}-{sha256[:12].lower()}.bin"
         destination = package_dir / name
         _cancelled(cancelled)
@@ -586,6 +615,79 @@ def _preview_core_material_resource_index(
     return resources, next_index, total_bytes
 
 
+def _prehash_preview_core_material_sources(
+    sources: Sequence[Path],
+    cancelled: Callable[[], bool] | None,
+) -> dict[Path, tuple[tuple[int, int, int, int], str]]:
+    """Compute SHA-256 digests for unique uncached source DDS paths in parallel."""
+    unique: list[tuple[Path, os.stat_result, tuple[int, int, int, int]]] = []
+    seen: set[Path] = set()
+    prehashed: dict[Path, tuple[tuple[int, int, int, int], str]] = {}
+    for source in sources:
+        if source in seen:
+            continue
+        seen.add(source)
+        try:
+            st = source.stat()
+        except OSError:
+            continue
+        if st.st_size <= 0 or st.st_size > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+            continue
+        identity = (int(st.st_dev), int(st.st_ino), int(st.st_size), int(st.st_mtime_ns))
+        known = verified_preview_file_digest(st)
+        if known is not None:
+            prehashed[source] = (identity, known.upper())
+        else:
+            unique.append((source, st, identity))
+
+    if not unique:
+        return prehashed
+
+    abort = threading.Event()
+
+    def hash_one(item: tuple[Path, os.stat_result, tuple[int, int, int, int]]) -> tuple[Path, tuple[int, int, int, int], str] | None:
+        source, st, identity = item
+        if abort.is_set() or (cancelled is not None and cancelled()):
+            raise RunCancelled("preview package preparation cancelled.")
+        verified_at_ns = time.time_ns()
+        digest = hashlib.sha256()
+        with source.open("rb") as reader:
+            while True:
+                if abort.is_set() or (cancelled is not None and cancelled()):
+                    raise RunCancelled("preview package preparation cancelled.")
+                block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                if not block:
+                    break
+                digest.update(block)
+        after = source.stat()
+        after_id = (int(after.st_dev), int(after.st_ino), int(after.st_size), int(after.st_mtime_ns))
+        if after_id != identity:
+            return None
+        sha256 = digest.hexdigest().upper()
+        remember_verified_preview_file(st, sha256, verified_at_ns, path=source)
+        return source, identity, sha256
+
+    if len(unique) == 1:
+        outcome = hash_one(unique[0])
+        if outcome is not None:
+            prehashed[outcome[0]] = (outcome[1], outcome[2])
+        return prehashed
+
+    with ThreadPoolExecutor(max_workers=min(4, len(unique)), thread_name_prefix="cdmw-layer-hash") as pool:
+        futures = [pool.submit(hash_one, item) for item in unique]
+        try:
+            for future in futures:
+                outcome = future.result()
+                if outcome is not None:
+                    prehashed[outcome[0]] = (outcome[1], outcome[2])
+        except BaseException:
+            abort.set()
+            for future in futures:
+                future.cancel()
+            raise
+    return prehashed
+
+
 def _copy_preview_core_material_resource(
     package_dir: Path,
     source: Path,
@@ -596,6 +698,7 @@ def _copy_preview_core_material_resource(
     aggregate_bytes: int,
     cancelled: Callable[[], bool] | None,
     durable: bool = True,
+    prehashed: Mapping[Path, tuple[tuple[int, int, int, int], str]] | None = None,
 ) -> tuple[dict[str, object], int, int]:
     from cdmw.services.mesh_rust_authoring import (
         _session_root_identity,
@@ -611,29 +714,49 @@ def _copy_preview_core_material_resource(
     digest = hashlib.sha256()
     byte_length = 0
     try:
-        linked = False
-        if not durable:
-            # A Mesh Editor session on the cache's volume shares the immutable
-            # cache file instead of rewriting it; it is still hashed below.
-            try:
-                os.link(source, temporary)
-                linked = True
-            except OSError:
-                linked = False
+        # Immutable DDS cache files are safe to hardlink on the same volume
+        # for both durable preview caches and transient editor sessions.
+        try:
+            os.link(source, temporary)
+            linked = True
+        except OSError:
+            linked = False
+        verified_at_ns = time.time_ns()
         if linked:
             source_before = os.stat(source)
-            with temporary.open("rb") as reader:
-                while True:
-                    _cancelled(cancelled)
-                    block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
-                    if not block:
-                        break
-                    digest.update(block)
-                    byte_length += len(block)
-                    if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
-                        raise ValueError(
-                            "Preview Core material DDS resources exceed the 512 MiB package limit."
-                        )
+            before_identity = (
+                int(source_before.st_dev),
+                int(source_before.st_ino),
+                int(source_before.st_size),
+                int(source_before.st_mtime_ns),
+            )
+            known_sha256 = verified_preview_file_digest(source_before)
+            if known_sha256 is None and prehashed is not None:
+                entry = prehashed.get(source)
+                if entry is not None and entry[0] == before_identity:
+                    known_sha256 = entry[1]
+            if known_sha256 is not None:
+                byte_length = int(source_before.st_size)
+                if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                    raise ValueError(
+                        "Preview Core material DDS resources exceed the 512 MiB package limit."
+                    )
+                sha256 = known_sha256.upper()
+            else:
+                with temporary.open("rb") as reader:
+                    while True:
+                        _cancelled(cancelled)
+                        block = reader.read(_PREVIEW_CORE_COPY_CHUNK_BYTES)
+                        if not block:
+                            break
+                        digest.update(block)
+                        byte_length += len(block)
+                        if aggregate_bytes + byte_length > _PREVIEW_CORE_MATERIAL_RESOURCE_BYTES:
+                            raise ValueError(
+                                "Preview Core material DDS resources exceed the 512 MiB package limit."
+                            )
+                sha256 = digest.hexdigest().upper()
+                remember_verified_preview_file(source_before, sha256, verified_at_ns, path=source)
             source_after = os.stat(source)
         else:
             with source.open("rb") as reader, temporary.open("xb") as writer:
@@ -656,6 +779,8 @@ def _copy_preview_core_material_resource(
                     # damaged, so they are not flushed file by file either.
                     os.fsync(writer.fileno())
                 source_after = os.fstat(reader.fileno())
+            sha256 = digest.hexdigest().upper()
+            remember_verified_preview_file(source_before, sha256, verified_at_ns, path=source)
         before = (
             int(source_before.st_dev),
             int(source_before.st_ino),
@@ -670,7 +795,6 @@ def _copy_preview_core_material_resource(
         )
         if before != after or byte_length != source_size:
             raise ValueError("Preview Core material DDS changed while it was copied.")
-        sha256 = digest.hexdigest().upper()
         existing = resources.get(sha256)
         if existing is not None:
             return copy.deepcopy(existing), next_index, aggregate_bytes
@@ -1127,10 +1251,63 @@ def _is_net_veil_wrapper(parameters: Sequence[object]) -> bool:
                for parameter in parameters)
 
 
+def _collect_preview_core_layer_sources(
+    raw_batches: Sequence[object],
+    source_package: Path,
+    parameter_index: Mapping[object, object],
+) -> list[Path]:
+    found: list[Path] = []
+    seen: set[Path] = set()
+    for raw_batch in raw_batches:
+        if not isinstance(raw_batch, Mapping):
+            continue
+        raw_layers = raw_batch.get("material_layers")
+        if not isinstance(raw_layers, Sequence) or isinstance(raw_layers, (str, bytes, bytearray)) or not raw_layers:
+            continue
+        expanded = list(raw_layers)
+        expanded.extend(
+            (
+                _preview_core_legacy_dye_layers(expanded, parameter_index, source_package)
+                + _preview_core_ver2_overlay_layer(expanded, parameter_index, source_package)
+                + _preview_core_ver2_blend_layer(expanded, parameter_index, source_package)
+            )[: _PREVIEW_CORE_MATERIAL_LAYER_LIMIT - len(expanded)]
+        )
+        expanded = _preview_core_eye_layers(expanded, parameter_index, source_package)
+        for raw_layer in expanded:
+            if not isinstance(raw_layer, Mapping):
+                continue
+            for resource_role in ("diffuse", "normal", "material", "height", "mask", "detail_mask"):
+                text = str(raw_layer.get(f"{resource_role}_source", "") or "").strip()
+                if not text:
+                    continue
+                resolved = _preview_core_material_source(source_package, text)
+                if resolved is not None and resolved not in seen:
+                    seen.add(resolved)
+                    found.append(resolved)
+    for params in parameter_index.values():
+        if not isinstance(params, Sequence):
+            continue
+        for _name, value in params:
+            if isinstance(value, Mapping) and value.get("source"):
+                resolved = _preview_core_material_source(source_package, value["source"])
+                if resolved is not None and resolved not in seen:
+                    seen.add(resolved)
+                    found.append(resolved)
+    return found
+
+
 def _copy_preview_core_material_layers(
     raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
     materials, source_edge_count, cancelled, expected_root_identity, parameter_index, durable=True,
+    prehashed=None,
 ):
+    if quality == "full" and prehashed is None:
+        candidate_paths = [
+            path
+            for path in _collect_preview_core_layer_sources(raw_batches, source_package, parameter_index)
+            if path not in copied_sources
+        ]
+        prehashed = _prehash_preview_core_material_sources(candidate_paths, cancelled)
     for material_index, raw_batch in enumerate(raw_batches):
         if not isinstance(raw_batch, Mapping):
             raise ValueError("Preview Core material graph contains an invalid batch.")
@@ -1316,6 +1493,7 @@ def _copy_preview_core_material_layers(
                                     aggregate_bytes=aggregate_bytes,
                                     cancelled=cancelled,
                                     durable=durable,
+                                    prehashed=prehashed,
                                 )
                             )
                             source_after = source.stat()
@@ -1814,13 +1992,42 @@ def _preview_core_material_sample(
         _deterministic_luminance_face_indices,
     )
 
-    positions: list[tuple[float, float, float]] = []
-    uvs: list[tuple[float, float]] = []
-    faces: list[tuple[int, int, int]] = []
     face_indices = _deterministic_luminance_face_indices(vertex_count // 3)
+    if not face_indices:
+        return [], [], []
     with geometry_path.open("rb") as stream, mmap.mmap(
         stream.fileno(), 0, access=mmap.ACCESS_READ
     ) as payload:
+        try:
+            import numpy as np
+        except ImportError:
+            np = None
+        if np is not None:
+            _cancelled(cancelled)
+            arr = np.frombuffer(payload, dtype="<f4", count=vertex_count * 23).reshape(vertex_count, 23)
+            try:
+                fidx = np.asarray(face_indices, dtype=np.int64)
+                ridx = np.empty(fidx.size * 3, dtype=np.int64)
+                ridx[0::3] = fidx * 3
+                ridx[1::3] = fidx * 3 + 1
+                ridx[2::3] = fidx * 3 + 2
+                sampled = arr[ridx].copy()
+            finally:
+                del arr
+            inv_scale = 1.0 / float(scale)
+            pos_arr = sampled[:, 0:3].astype(np.float64, copy=False) * inv_scale
+            pos_arr[:, 0] += center[0]
+            pos_arr[:, 1] += center[1]
+            pos_arr[:, 2] += center[2]
+            uv_arr = sampled[:, 9:11].astype(np.float64, copy=False)
+            positions = [tuple(row) for row in pos_arr.tolist()]
+            uvs = [tuple(row) for row in uv_arr.tolist()]
+            faces = [(i, i + 1, i + 2) for i in range(0, len(positions), 3)]
+            _cancelled(cancelled)
+            return positions, uvs, faces
+        positions: list[tuple[float, float, float]] = []
+        uvs: list[tuple[float, float]] = []
+        faces: list[tuple[int, int, int]] = []
         for ordinal, face_index in enumerate(face_indices):
             if ordinal % 128 == 0:
                 _cancelled(cancelled)
@@ -2500,14 +2707,29 @@ def _composite_preview_core_material_graph(package_dir, scene, textures, present
     initial_resources = set(resources)
     copied_sources, materials = {}, []
     source_edge_count = 0
+    parameter_indices: dict[int, dict] = {}
+    all_candidate_paths: list[Path] = []
+    for _lod_index, _material_index, source, _channels in sources:
+        conservation = source["conservation"]
+        cid = id(conservation)
+        pindex = parameter_indices.get(cid)
+        if pindex is None:
+            pindex = _preview_core_layer_parameter_index(conservation.get("parameters", ()))
+            parameter_indices[cid] = pindex
+        if quality == "full":
+            all_candidate_paths.extend(
+                _collect_preview_core_layer_sources([source["batch"]], Path(source["package"]), pindex)
+            )
+    prehashed = _prehash_preview_core_material_sources(all_candidate_paths, cancelled) if quality == "full" else {}
     slots = {(row["lod_index"], row["material_index"]): row["material_slot_index"] for row in presentations}
     for lod_index, material_index, source, channels in sources:
         _cancelled(cancelled)
         aggregate_bytes, source_edge_count = _copy_preview_core_material_layers(
             [source["batch"]], Path(source["package"]), package_dir, quality, resources,
             next_index, aggregate_bytes, copied_sources, materials, source_edge_count, cancelled, root_identity,
-            _preview_core_layer_parameter_index(source["conservation"].get("parameters", ())),
+            parameter_indices[id(source["conservation"])],
             durable=False,
+            prehashed=prehashed,
         )
         materials[-1].update(lod_index=lod_index, material_index=material_index,
                              material_slot_index=slots.get((lod_index, material_index), material_index))

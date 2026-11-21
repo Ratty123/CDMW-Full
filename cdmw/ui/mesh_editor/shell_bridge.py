@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Optional, Sequence
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, QThread, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from cdmw.domain.archives.filters import archive_entry_identity_key
@@ -54,6 +54,30 @@ def _manifest_match_facts(payload: object) -> tuple[object, bool, object] | None
 
 
 register_json_file_fact("manifest.json", _manifest_match_facts, encoding="utf-8-sig")
+
+
+def _manifest_set_reuse_facts(payload: object) -> bool:
+    """Whether a Preview Core manifest carries conserved schema-8+ set batches."""
+
+    if not isinstance(payload, Mapping):
+        return False
+    try:
+        schema_version = int(payload.get("schema_version") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    conservation = payload.get("material_conservation")
+    batches = payload.get("batches")
+    return bool(
+        schema_version >= 8
+        and isinstance(conservation, Mapping)
+        and conservation.get("conserved") is True
+        and isinstance(batches, Sequence)
+        and not isinstance(batches, (str, bytes, bytearray))
+        and len(batches) > 0
+    )
+
+
+register_json_file_fact("manifest.json", _manifest_set_reuse_facts, encoding="utf-8-sig")
 
 
 def _interim_preview(result: object) -> bool:
@@ -485,6 +509,38 @@ class MeshEditorShellBridgeMixin:
             return None
         return package if self._mesh_editor_package_matches_archive_entry(package, entry) else None
 
+    def _mesh_editor_active_set_package_for_contexts(
+        self,
+        entry: ArchiveEntry,
+        item_set_contexts: Sequence[object],
+        *,
+        textured_package: Path | None = None,
+    ) -> Path | None:
+        """Return Browse's conserved Preview Core set package when it covers this set."""
+        candidates: list[Path] = []
+        if textured_package is not None:
+            candidates.append(textured_package)
+        for context in item_set_contexts:
+            member = getattr(context, "selected_entry", None)
+            if not isinstance(member, ArchiveEntry) or member.identity == entry.identity:
+                continue
+            member_package = self._mesh_editor_active_textured_package_for_entry(member)
+            if member_package is not None and member_package not in candidates:
+                candidates.append(member_package)
+        for candidate in candidates:
+            manifest_path = candidate / "manifest.json"
+            if not manifest_path.is_file():
+                continue
+            try:
+                reusable = bool(
+                    json_file_fact(manifest_path, _manifest_set_reuse_facts, encoding="utf-8-sig")
+                )
+            except (OSError, TypeError, ValueError):
+                reusable = False
+            if reusable:
+                return candidate
+        return None
+
     def _defer_rust_mesh_editor_for_archive_textures(
         self,
         entry: ArchiveEntry,
@@ -538,6 +594,7 @@ class MeshEditorShellBridgeMixin:
             "identity": identity,
             "entry": copy.deepcopy(entry),
         }
+        self._start_preloaded_mesh_editor_session(entry)
         self.set_status_message(
             "Resolving this mesh's textures before Mesh Editor opens..."
         )
@@ -551,17 +608,93 @@ class MeshEditorShellBridgeMixin:
             return False
         return _interim_preview(getattr(self.archive, "current_archive_preview_result", None))
 
+    def _disconnect_full_archive_preview_wait(self) -> None:
+        deadline_timer = getattr(self, "_mesh_editor_full_preview_deadline_timer", None)
+        self._mesh_editor_full_preview_deadline_timer = None
+        if deadline_timer is not None:
+            try:
+                deadline_timer.stop()
+                deadline_timer.deleteLater()
+            except RuntimeError:
+                pass
+        wait = getattr(self, "_mesh_editor_full_preview_wait", None)
+        if not isinstance(wait, dict):
+            return
+        connections = wait.pop("connections", ()) or ()
+        wait.pop("worker", None)
+        for signal, callback in connections:
+            try:
+                signal.disconnect(callback)
+            except (RuntimeError, TypeError):
+                pass
+
+    def _connect_full_archive_preview_signals(self, wait: dict[str, object]) -> bool:
+        """Subscribe directly to Browse's preview completion signals when available."""
+        token = int(wait.get("token", 0) or 0)
+        connections: list[tuple[object, object]] = []
+        worker = getattr(self.archive, "archive_preview_worker", None)
+
+        def attach(signal: object, *, terminal: bool = False) -> None:
+            connect = getattr(signal, "connect", None)
+            if not callable(connect):
+                return
+
+            def on_signal(*_args: object, wait_token: int = token, is_terminal: bool = terminal) -> None:
+                self._handle_full_archive_preview_signal(wait_token, terminal=is_terminal)
+
+            try:
+                connect(on_signal)
+            except (RuntimeError, TypeError):
+                return
+            connections.append((signal, on_signal))
+
+        if worker is not None:
+            attach(getattr(worker, "completed", None), terminal=False)
+            attach(getattr(worker, "error", None), terminal=True)
+            attach(getattr(worker, "finished", None), terminal=True)
+        for signal_name in ("archive_preview_ready", "preview_ready", "preview_finished"):
+            attach(getattr(self.archive, signal_name, None), terminal=False)
+        if not connections:
+            return False
+        wait["worker"] = worker
+        wait["connections"] = tuple(connections)
+        remaining_ms = max(1, int((float(wait.get("deadline", 0.0)) - time.monotonic()) * 1000.0))
+        parent = self if isinstance(self, QObject) else None
+        timer = QTimer(parent)
+        timer.setSingleShot(True)
+        timer.timeout.connect(self._check_full_archive_preview_wait)
+        self._mesh_editor_full_preview_deadline_timer = timer
+        timer.start(remaining_ms)
+        return True
+
+    def _handle_full_archive_preview_signal(self, wait_token: int, *, terminal: bool = False) -> None:
+        wait = getattr(self, "_mesh_editor_full_preview_wait", None)
+        if not isinstance(wait, dict) or int(wait.get("token", 0) or 0) != int(wait_token):
+            return
+        if terminal:
+            self._disconnect_full_archive_preview_wait()
+            QTimer.singleShot(0, self._check_full_archive_preview_wait)
+            return
+        self._check_full_archive_preview_wait()
+
     def _wait_for_full_archive_preview(self, entry: ArchiveEntry, identity: object) -> None:
         wait = getattr(self, "_mesh_editor_full_preview_wait", None)
         if isinstance(wait, Mapping) and wait.get("identity") == identity:
             return  # already waiting for this file (another click on Open)
-        self._mesh_editor_full_preview_wait = {
+        self._disconnect_full_archive_preview_wait()
+        token = int(getattr(self, "_mesh_editor_full_preview_wait_token", 0) or 0) + 1
+        self._mesh_editor_full_preview_wait_token = token
+        wait_state: dict[str, object] = {
+            "token": token,
             "identity": identity,
             "entry": copy.deepcopy(entry),
             "deadline": time.monotonic() + _FULL_PREVIEW_WAIT_S,
         }
+        self._mesh_editor_full_preview_wait = wait_state
+        self._start_preloaded_mesh_editor_session(entry)
         self.set_status_message(WAITING_FOR_FULL_PREVIEW_TEXT)
-        QTimer.singleShot(_FULL_PREVIEW_POLL_MS, self._check_full_archive_preview_wait)
+        if not self._connect_full_archive_preview_signals(wait_state):
+            QTimer.singleShot(_FULL_PREVIEW_POLL_MS, self._check_full_archive_preview_wait)
 
     def _check_full_archive_preview_wait(self) -> None:
         """Open once Browse has the full preview; drop the open if another file was
@@ -569,6 +702,10 @@ class MeshEditorShellBridgeMixin:
 
         wait = getattr(self, "_mesh_editor_full_preview_wait", None)
         if not isinstance(wait, Mapping) or bool(getattr(self, "_shutting_down", False)):
+            self._disconnect_full_archive_preview_wait()
+            if bool(getattr(self, "_shutting_down", False)):
+                self._mesh_editor_full_preview_wait = None
+                self._cancel_preloaded_mesh_editor_session()
             return
         entry = wait.get("entry")
         current = getattr(self.archive, "_current_archive_entry", lambda: None)()
@@ -577,16 +714,251 @@ class MeshEditorShellBridgeMixin:
             or not isinstance(current, ArchiveEntry)
             or archive_entry_identity_key(current) != wait.get("identity")
         ):
+            self._disconnect_full_archive_preview_wait()
             self._mesh_editor_full_preview_wait = None
+            self._cancel_preloaded_mesh_editor_session()
             return
         still_interim = self._archive_preview_interim_for(entry)
         if still_interim and time.monotonic() < float(wait.get("deadline", 0.0)):
+            active_worker = getattr(self.archive, "archive_preview_worker", None)
+            connected_worker = wait.get("worker") if isinstance(wait, dict) else None
+            if isinstance(wait, dict) and wait.get("connections") and (
+                connected_worker is None or connected_worker is active_worker
+            ):
+                return  # signal-driven: still attached to the running preview worker
+            self._disconnect_full_archive_preview_wait()
+            if isinstance(wait, dict) and self._connect_full_archive_preview_signals(wait):
+                return
             QTimer.singleShot(_FULL_PREVIEW_POLL_MS, self._check_full_archive_preview_wait)
             return
+        self._disconnect_full_archive_preview_wait()
         self._mesh_editor_full_preview_wait = None
         if still_interim:
             self._mesh_editor_full_preview_given_up = wait.get("identity")
         self._launch_archive_mesh_editor_for_entry(entry)
+
+    def _start_preloaded_mesh_editor_session(self, entry: ArchiveEntry) -> bool:
+        """Overlap PAC parsing, draft lookup, appearance and skeleton loading with Browse's wait."""
+        if bool(getattr(self, "_shutting_down", False)) or not isinstance(entry, ArchiveEntry):
+            return False
+        from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, created_tool_widget
+
+        tab_container = getattr(self, "mesh_editor_tab", None)
+        tab_widget = created_tool_widget(tab_container)
+        if tab_widget is None and not isinstance(tab_container, LazyToolTab):
+            tab_widget = tab_container
+        if tab_widget is None:
+            return False
+        draft_root = getattr(tab_widget, "mesh_editor_draft_root", None)
+        owner = self if isinstance(self, QObject) else (tab_widget if isinstance(tab_widget, QObject) else None)
+        if draft_root is None or not isinstance(owner, QObject):
+            return False
+        archive_dependencies = None
+        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
+        if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
+            try:
+                archive_dependencies = archive_workflow_dependency_context(self, entry, owned=True)
+            except ArchiveWorkflowDependenciesUnavailable:
+                return False
+            load_entry = copy.deepcopy(archive_dependencies.selected_entry)
+            path_index = archive_dependencies.entries_by_normalized_path
+            basename_index = archive_dependencies.entries_by_basename
+        else:
+            path_index = getattr(self.archive, "archive_entries_by_normalized_path", None) or {}
+            basename_index = getattr(self.archive, "archive_entries_by_basename", None) or {}
+            if not path_index and not basename_index:
+                return False
+            load_entry = copy.deepcopy(entry)
+
+        target_key = (
+            load_entry.identity,
+            str(load_entry.prepared_sha256 or ""),
+            str(load_entry.path or "").casefold(),
+        )
+        existing_ready = getattr(self, "_mesh_editor_preloaded_session", None)
+        if isinstance(existing_ready, Mapping) and existing_ready.get("key") == target_key:
+            return True
+        if getattr(self, "_mesh_editor_preload_active_key", None) == target_key and getattr(
+            self, "_mesh_editor_preload_worker", None
+        ) is not None:
+            return True
+
+        self._cancel_preloaded_mesh_editor_session()
+        from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
+        from cdmw.workers.mesh_editor_aux_workers import MeshArchiveSessionLoadWorker
+
+        request_id = int(getattr(self, "_mesh_editor_preload_request_id", 0) or 0) + 1
+        self._mesh_editor_preload_request_id = request_id
+        self._mesh_editor_preload_active_key = target_key
+        worker = MeshArchiveSessionLoadWorker(
+            request_id,
+            load_entry,
+            session_id=f"mesh-editor-archive:{load_entry.path}",
+            mode="edit",
+            draft_root=draft_root,
+            archive_entries_by_normalized_path=path_index,
+            archive_entries_by_basename=basename_index,
+            draft_request=default_session_draft_request(load_entry, archive_dependencies),
+            offer_drafts=True,
+        )
+        thread = QThread(owner)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.loaded.connect(
+            lambda rid, result, key=target_key: self._handle_preloaded_mesh_editor_session_loaded(
+                rid, result, key,
+            )
+        )
+        worker.drafts_found.connect(
+            lambda rid, _drafts: self._handle_preloaded_mesh_editor_session_aborted(rid)
+        )
+        worker.error.connect(
+            lambda rid, _message: self._handle_preloaded_mesh_editor_session_aborted(rid)
+        )
+
+        def finish_worker_thread(target_worker: object = worker, owner_obj: QObject = owner) -> None:
+            current = QThread.currentThread()
+            worker_thread = getattr(target_worker, "thread", None)
+            move_to_thread = getattr(target_worker, "moveToThread", None)
+            if callable(worker_thread) and callable(move_to_thread) and worker_thread() is current:
+                try:
+                    move_to_thread(owner_obj.thread())
+                except RuntimeError:
+                    pass
+            current.quit()
+
+        worker.finished.connect(finish_worker_thread, Qt.DirectConnection)
+        thread.finished.connect(
+            lambda target_thread=thread, target_worker=worker: self._cleanup_preloaded_mesh_editor_session_loader(
+                target_thread,
+                target_worker,
+            )
+        )
+        retained = getattr(self, "_mesh_editor_preload_retained", None)
+        if not isinstance(retained, set):
+            retained = set()
+            self._mesh_editor_preload_retained = retained
+        retained.add((thread, worker))
+        if not getattr(owner, "_cdmw_preload_destroy_connected", False):
+            try:
+                owner.destroyed.connect(self._cancel_preloaded_mesh_editor_session)
+                setattr(owner, "_cdmw_preload_destroy_connected", True)
+            except (AttributeError, RuntimeError):
+                pass
+        self._mesh_editor_preload_thread = thread
+        self._mesh_editor_preload_worker = worker
+        thread.start(QThread.LowPriority)
+        return True
+
+    @staticmethod
+    def _discard_preloaded_session_result(result: object) -> None:
+        service = getattr(result, "service", None)
+        view = getattr(result, "view", None)
+        session_id = getattr(view, "session_id", "") if view is not None else ""
+        if service is not None and session_id:
+            try:
+                service.close_edit_session(session_id, force_without_saving=True)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                pass
+
+    def _handle_preloaded_mesh_editor_session_loaded(
+        self,
+        request_id: int,
+        result: object,
+        target_key: tuple[object, ...],
+    ) -> None:
+        if (
+            int(request_id) != int(getattr(self, "_mesh_editor_preload_request_id", 0) or 0)
+            or bool(getattr(self, "_shutting_down", False))
+        ):
+            self._discard_preloaded_session_result(result)
+            return
+        previous = getattr(self, "_mesh_editor_preloaded_session", None)
+        if isinstance(previous, Mapping) and previous.get("result") is not None:
+            self._discard_preloaded_session_result(previous.get("result"))
+        self._mesh_editor_preloaded_session = {"key": target_key, "result": result}
+        self._mesh_editor_preload_active_key = None
+
+    def _handle_preloaded_mesh_editor_session_aborted(self, request_id: int) -> None:
+        if int(request_id) != int(getattr(self, "_mesh_editor_preload_request_id", 0) or 0):
+            return
+        self._mesh_editor_preload_active_key = None
+
+    def _cleanup_preloaded_mesh_editor_session_loader(
+        self,
+        thread: QThread,
+        worker: object,
+    ) -> None:
+        try:
+            if not thread.wait(0):
+                QTimer.singleShot(
+                    0,
+                    lambda target_thread=thread, target_worker=worker: self._cleanup_preloaded_mesh_editor_session_loader(
+                        target_thread,
+                        target_worker,
+                    ),
+                )
+                return
+        except RuntimeError:
+            return
+        retained = getattr(self, "_mesh_editor_preload_retained", None)
+        if isinstance(retained, set):
+            retained.discard((thread, worker))
+        if getattr(self, "_mesh_editor_preload_thread", None) is thread:
+            self._mesh_editor_preload_thread = None
+        if getattr(self, "_mesh_editor_preload_worker", None) is worker:
+            self._mesh_editor_preload_worker = None
+            self._mesh_editor_preload_active_key = None
+        try:
+            worker.deleteLater()
+        except (AttributeError, RuntimeError):
+            pass
+        try:
+            thread.deleteLater()
+        except RuntimeError:
+            pass
+
+    def _cancel_preloaded_mesh_editor_session(self, *_args: object) -> None:
+        self._mesh_editor_preload_request_id = int(
+            getattr(self, "_mesh_editor_preload_request_id", 0) or 0
+        ) + 1
+        self._mesh_editor_preload_active_key = None
+        ready = getattr(self, "_mesh_editor_preloaded_session", None)
+        self._mesh_editor_preloaded_session = None
+        if isinstance(ready, Mapping) and ready.get("result") is not None:
+            self._discard_preloaded_session_result(ready.get("result"))
+        worker = getattr(self, "_mesh_editor_preload_worker", None)
+        thread = getattr(self, "_mesh_editor_preload_thread", None)
+        if worker is not None:
+            try:
+                worker.stop()
+            except (AttributeError, RuntimeError):
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                pass
+
+    def _take_preloaded_mesh_editor_session(self, entry: ArchiveEntry) -> object | None:
+        ready = getattr(self, "_mesh_editor_preloaded_session", None)
+        self._mesh_editor_preloaded_session = None
+        target_key = (
+            entry.identity,
+            str(entry.prepared_sha256 or ""),
+            str(entry.path or "").casefold(),
+        )
+        matched = (
+            ready.get("result")
+            if isinstance(ready, Mapping) and ready.get("key") == target_key
+            else None
+        )
+        if matched is None and isinstance(ready, Mapping) and ready.get("result") is not None:
+            self._discard_preloaded_session_result(ready.get("result"))
+        # Invalidate and stop any still-running background preload so late results are discarded.
+        self._cancel_preloaded_mesh_editor_session()
+        return matched
 
     def _finish_pending_rust_mesh_editor_texture_launch(
         self,
@@ -608,6 +980,7 @@ class MeshEditorShellBridgeMixin:
             return
         self._mesh_editor_pending_rust_texture_launch = None
         if bool(getattr(self, "_shutting_down", False)):
+            self._cancel_preloaded_mesh_editor_session()
             return
         entry = pending.get("entry")
         identity = pending.get("identity")
@@ -617,6 +990,7 @@ class MeshEditorShellBridgeMixin:
             or not isinstance(current_entry, ArchiveEntry)
             or current_entry.identity != identity
         ):
+            self._cancel_preloaded_mesh_editor_session()
             return
         textured_package = self._mesh_editor_active_textured_package_for_entry(entry)
         failed = not bool(success) or textured_package is None
@@ -996,8 +1370,12 @@ class MeshEditorShellBridgeMixin:
         **session_options: object,
     ) -> None:
         """Open ``entry`` with the Archive Browser's matching materials, if any."""
+        item_set_contexts = tuple(session_options.get("item_set_contexts") or ())
         if not self._prepare_mesh_editor_archive_launch(
-                entry, item_set_contexts=tuple(session_options.get("item_set_contexts") or ())):
+                entry, item_set_contexts=item_set_contexts):
+            cancel_preload = getattr(self, "_cancel_preloaded_mesh_editor_session", None)
+            if callable(cancel_preload):
+                cancel_preload()
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
         prepared_preview = getattr(self.archive, "_archive_pending_texture_result", None)
@@ -1033,7 +1411,6 @@ class MeshEditorShellBridgeMixin:
             entry.identity if material_preview_model is not None else None
         )
         material_context_verified_for_rust = False
-        textured_package = self._mesh_editor_active_textured_package_for_entry(entry)
         if textured_package is not None:
             # Keep the Archive Browser's resolved PAC/PAC_XML material model.
             # The native package owns the immutable DDS lease, while rebuilding
@@ -1043,28 +1420,61 @@ class MeshEditorShellBridgeMixin:
                 material_preview_model is not None
                 and material_source_identity == entry.identity
             )
-        if session_options.get("item_set_contexts"):
-            # The browser package combines several PACs. Authoring must resolve
-            # this file's own material owners from its separate snapshot.
+        item_set_material_package_path = ""
+        if item_set_contexts:
+            # The browser package combines several PACs. Keep the single-file
+            # material context empty so single-file priming never borrows combined
+            # owners; for an editable set, retain Browse's conserved Preview Core
+            # set package (with a cache lease) so prepare_editable_item_set can
+            # bind each piece directly from it.
+            if session_options.get("edit_item_set"):
+                find_set_package = getattr(self, "_mesh_editor_active_set_package_for_contexts", None)
+                set_package = (
+                    find_set_package(
+                        entry,
+                        item_set_contexts,
+                        textured_package=textured_package,
+                    )
+                    if callable(find_set_package)
+                    else None
+                )
+                if set_package is not None:
+                    item_set_material_package_path = str(set_package)
             material_preview_model = None
             material_package_path = ""
             material_source_identity = None
             material_context_verified_for_rust = False
+        lease_target = material_package_path or item_set_material_package_path
         material_package_lease = (
             acquire_dotnet_preview_package_cache_lease_for_path(
-                Path(material_package_path)
+                Path(lease_target)
             )
-            if material_package_path
+            if lease_target
             else None
         )
-        material_companion_entry = (None if session_options.get("item_set_contexts")
+        if item_set_material_package_path and material_package_lease is None:
+            item_set_material_package_path = ""
+        material_companion_entry = (None if item_set_contexts
                                     else self.archive._find_archive_preview_companion_entry(entry))
-        # P4 V3: a model Browse already shows is edited in Browse's own viewport.
+        if item_set_contexts:
+            cancel_preload = getattr(self, "_cancel_preloaded_mesh_editor_session", None)
+            if callable(cancel_preload):
+                cancel_preload()
+            preloaded_result = None
+        else:
+            take_preload = getattr(self, "_take_preloaded_mesh_editor_session", None)
+            preloaded_result = take_preload(entry) if callable(take_preload) else None
+        # P4 V3: a model (or item set) Browse already shows is edited in Browse's own viewport.
         binding = self._browse_edit_binding(entry, preview_matches_entry, session_options)
         if binding is None:
             # The tab edits: Browse's copy of the model is not needed meanwhile. An
             # edit in Browse's viewport keeps it, since that viewport shows it.
             self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+        open_options = dict(session_options)
+        if item_set_material_package_path:
+            open_options["item_set_material_package_path"] = item_set_material_package_path
+        if preloaded_result is not None and "prepared_result" not in open_options:
+            open_options["prepared_result"] = preloaded_result
         self.mesh_editor_tab.open_archive_session(
             entry,
             material_preview_model=material_preview_model,
@@ -1074,7 +1484,7 @@ class MeshEditorShellBridgeMixin:
             material_context_verified_for_rust=material_context_verified_for_rust,
             material_source_identity=material_source_identity,
             archive_dependencies=archive_dependencies,
-            **session_options,
+            **open_options,
         )
         # P5: parts left unticked in the Scene panel start with View off.
         pending = getattr(self, "_mesh_editor_hidden_parts_for_open", None)
@@ -1091,11 +1501,59 @@ class MeshEditorShellBridgeMixin:
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")
 
+    def _browse_shows_item_set(
+        self,
+        entry: ArchiveEntry,
+        preview_matches_entry: bool,
+        item_set_contexts: Sequence[object],
+    ) -> bool:
+        """Whether Browse's viewport is already showing the full item set being opened."""
+        set_identities = {
+            ctx.selected_entry.identity
+            for ctx in item_set_contexts
+            if isinstance(getattr(ctx, "selected_entry", None), ArchiveEntry)
+        }
+        if not set_identities:
+            return False
+        if not preview_matches_entry:
+            current_getter = getattr(self.archive, "_current_archive_entry", None)
+            current_entry = current_getter() if callable(current_getter) else None
+            requested_entry = getattr(self.archive, "archive_preview_request_entry", None)
+            if not (
+                isinstance(current_entry, ArchiveEntry)
+                and current_entry.identity in set_identities
+                and (
+                    not isinstance(requested_entry, ArchiveEntry)
+                    or requested_entry.identity in set_identities
+                )
+            ):
+                return False
+        if _interim_preview(getattr(self.archive, "current_archive_preview_result", None)):
+            return False
+        bridge = getattr(self.archive, "archive_remote_bridge", None)
+        if bridge is not None:
+            contains = getattr(bridge, "item_set_contains", None)
+            members = tuple(getattr(bridge, "item_set_members", ()) or ())
+            if members and callable(contains):
+                if not all(
+                    contains(ctx.selected_entry)
+                    for ctx in item_set_contexts
+                    if isinstance(getattr(ctx, "selected_entry", None), ArchiveEntry)
+                ):
+                    return False
+        return True
+
     def _browse_edit_binding(self, entry: ArchiveEntry, preview_matches_entry: bool,
                              session_options: Mapping[str, object]):
-        """Bind the Mesh Editor to Browse's viewport when it shows ``entry`` and can edit it."""
+        """Bind the Mesh Editor to Browse's viewport when it shows ``entry`` (or its set) and can edit it."""
 
-        if not preview_matches_entry or session_options.get("item_set_contexts"):
+        item_set_contexts = tuple(session_options.get("item_set_contexts") or ())
+        if item_set_contexts:
+            if not MeshEditorShellBridgeMixin._browse_shows_item_set(
+                self, entry, preview_matches_entry, item_set_contexts,
+            ):
+                return None
+        elif not preview_matches_entry:
             return None
         live_edit = getattr(self.mesh_editor_tab, "live_edit", None)
         begin = getattr(self.archive, "begin_edit_in_place", None)

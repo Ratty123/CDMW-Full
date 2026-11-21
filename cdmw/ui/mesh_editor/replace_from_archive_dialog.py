@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Mapping
 from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
@@ -42,10 +44,6 @@ from cdmw.domain.archives.replace_from_archive import (
 )
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
-from cdmw.services.archive_query_service import find_archive_model_related_entries
-from cdmw.services.replace_from_archive_service import (
-    archive_entries_are_character_pair,
-)
 from cdmw.ui.archive_browser.remote_model import (
     RemoteArchiveBrowserModel,
     RemotePageFetch,
@@ -57,8 +55,33 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import (
 from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
 )
-from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
-from cdmw.ui.mesh_editor.archive_mesh_comparison import ArchiveMeshComparisonPreview
+
+if TYPE_CHECKING:
+    from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
+
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    "find_archive_model_related_entries": ("cdmw.services.archive_query_service", "find_archive_model_related_entries"),
+    "archive_entries_are_character_pair": ("cdmw.services.replace_from_archive_service", "archive_entries_are_character_pair"),
+    "ArchivePreviewWorker": ("cdmw.workers.archive_preview_workers", "ArchivePreviewWorker"),
+    "ArchiveMeshComparisonPreview": ("cdmw.ui.mesh_editor.archive_mesh_comparison", "ArchiveMeshComparisonPreview"),
+}
+
+
+def __getattr__(name: str) -> object:
+    target = _LAZY_IMPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = target
+    value = getattr(importlib.import_module(module_name), attr_name)
+    globals()[name] = value
+    return value
+
+
+def _sym(name: str) -> object:
+    existing = globals().get(name)
+    if existing is not None:
+        return existing
+    return __getattr__(name)
 
 _SORT_FIELDS: Mapping[int, ArchiveSortField] = {
     0: ArchiveSortField.NAME,
@@ -110,8 +133,10 @@ class _ArchivePreviewLane(QObject):
         self._image_label.setText(f"Loading {entry.basename}...")
         self._status_label.setText(entry.path)
         self.settled_changed.emit()
+        find_related = _sym("find_archive_model_related_entries")
+        preview_worker_cls = _sym("ArchivePreviewWorker")
         related = tuple(
-            find_archive_model_related_entries(entry, dict(context.entries_by_basename))
+            find_related(entry, dict(context.entries_by_basename))
         )
         companion = next(
             (
@@ -129,7 +154,7 @@ class _ArchivePreviewLane(QObject):
         basenames = {
             key: list(value) for key, value in context.entries_by_basename.items()
         }
-        worker = ArchivePreviewWorker(
+        worker = preview_worker_cls(
             request_id,
             entry,
             companion,
@@ -305,7 +330,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
             for panel in (target_panel, source_panel):
                 panel.setParent(self)
                 panel.hide()
-            self._comparison_preview = ArchiveMeshComparisonPreview(self, refit_role=refit_role)
+            comparison_cls = _sym("ArchiveMeshComparisonPreview")
+            self._comparison_preview = comparison_cls(self, refit_role=refit_role)
             self._comparison_preview.idle.connect(self._preview_lane_idle)
             content.addWidget(self._comparison_preview)
         else:
@@ -709,7 +735,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
     def _update_character_mode_visibility(self, source: ArchiveEntry | None) -> None:
         character_pair = not self._refit_role and isinstance(
             source, ArchiveEntry
-        ) and archive_entries_are_character_pair(
+        ) and _sym("archive_entries_are_character_pair")(
             self._target_entry,
             source,
         )
@@ -727,7 +753,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
             )
             and self._source_lane.settled
         )
-        if ready and not self._refit_role and archive_entries_are_character_pair(
+        if ready and not self._refit_role and _sym("archive_entries_are_character_pair")(
             self._target_entry, self.selected_entry
         ):
             ready = self._selected_character_mode() is not None
@@ -738,7 +764,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
             self.selected_entry, ArchiveEntry
         ):
             return
-        if not self._refit_role and archive_entries_are_character_pair(self._target_entry, self.selected_entry):
+        if not self._refit_role and _sym("archive_entries_are_character_pair")(self._target_entry, self.selected_entry):
             mode = self._selected_character_mode()
             if mode is None:
                 return

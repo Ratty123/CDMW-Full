@@ -381,7 +381,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         hit = lookup_dotnet_preview_package_cache(
             Path(cache_root),
             cache_key,
-            validate_package=self._validate_native_preview_core_package_basic,
+            validate_package=lambda pkg_dir: (
+                (True, ()) if (Path(pkg_dir) / "manifest.json").is_file() else (False, ("manifest.json",))
+            ),
         )
         if hit is None:
             return None
@@ -661,6 +663,10 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         prepared_model_started_at = time.perf_counter()
         prepared_preview_model = None
         if getattr(payload, "preview_model", None) is not None:
+            needs_geometry_blob = (
+                self.static_thumbnail_size is not None
+                or str(quality_tier or "").strip().lower() != "full"
+            )
             prepared_model, prepared_preview_model = prepare_model_preview(
                 payload.preview_model,
                 render_settings=render_settings,
@@ -668,6 +674,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 # The canonical .NET package compiler owns material synthesis.
                 # A preparatory combiner here would bake the same graph twice.
                 enable_material_combiner=False,
+                build_geometry_blob=needs_geometry_blob,
             )
             payload = dataclasses.replace(
                 payload,

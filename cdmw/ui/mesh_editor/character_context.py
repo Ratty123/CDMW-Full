@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
 
-from cdmw.domain.character_context import appearance_model_body_family, appearance_model_slot
-from cdmw.models import ArchiveEntry
+if TYPE_CHECKING:
+    from cdmw.models import ArchiveEntry
 
 
 class MeshEditorCharacterContextMixin:
@@ -65,6 +66,8 @@ class MeshEditorCharacterContextMixin:
         button = getattr(self, "character_context_toggle_button", None)
         if panel is None or button is None or not hasattr(panel, "set_source_entry"):
             return
+        from cdmw.domain.character_context import appearance_model_body_family, appearance_model_slot
+
         path = str(getattr(entry, "path", "") or "")
         slot = appearance_model_slot(path)
         eligible = bool(appearance_model_body_family(path) and slot == "head")
@@ -87,6 +90,8 @@ class MeshEditorCharacterContextMixin:
             entry = getattr(self, "current_archive_selection", None)
             cached_result = getattr(service, "cached_result", None)
             request_package = getattr(service, "request_native_package", None)
+            from cdmw.models import ArchiveEntry
+
             if (
                 isinstance(entry, ArchiveEntry)
                 and callable(cached_result)
@@ -125,6 +130,8 @@ class MeshEditorCharacterContextMixin:
     ) -> None:
         service = getattr(self, "character_context_service", None)
         entry = getattr(self, "current_archive_selection", None)
+        from cdmw.models import ArchiveEntry
+
         if service is None or not isinstance(entry, ArchiveEntry):
             return
         if source_key != service.source_key(entry):
@@ -138,6 +145,8 @@ class MeshEditorCharacterContextMixin:
     def _handle_mesh_character_context_package_started(self, source_key: str) -> None:
         service = getattr(self, "character_context_service", None)
         entry = getattr(self, "current_archive_selection", None)
+        from cdmw.models import ArchiveEntry
+
         if service is None or not isinstance(entry, ArchiveEntry) or source_key != service.source_key(entry):
             return
         self.status_message_requested.emit("Building preview-only Character Context geometry...", False)
@@ -150,6 +159,8 @@ class MeshEditorCharacterContextMixin:
     ) -> None:
         service = getattr(self, "character_context_service", None)
         entry = getattr(self, "current_archive_selection", None)
+        from cdmw.models import ArchiveEntry
+
         if service is None or not isinstance(entry, ArchiveEntry) or source_key != service.source_key(entry):
             return
         self.character_context_native_package_path = str(package_path or "").strip()
@@ -168,6 +179,8 @@ class MeshEditorCharacterContextMixin:
     def _handle_mesh_character_context_package_failed(self, source_key: str, message: str) -> None:
         service = getattr(self, "character_context_service", None)
         entry = getattr(self, "current_archive_selection", None)
+        from cdmw.models import ArchiveEntry
+
         if service is None or not isinstance(entry, ArchiveEntry) or source_key != service.source_key(entry):
             return
         self._restore_mesh_character_context_visibility(accepted=False)

@@ -1,5 +1,6 @@
 """Package view-only worn pieces without adding them to the editable mesh."""
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor, wait
 import threading
 
 
@@ -22,63 +23,113 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
                 != authoring._sha256_bytes(source.original_data).casefold())
             or len({context.selected_entry.identity for context in contexts}) != len(contexts)):
         raise ValueError("Item set dependencies do not match the selected mesh")
-    rows = []
-    for index, context in enumerate(contexts[1:], 1):
+    bounded_map = getattr(session, "bounded_item_set_references", {})
+    from cdmw.services.mesh_item_set_editing import (
+        _clear_head_companion_cache,
+        _set_head_companion_cache,
+    )
+    _set_head_companion_cache(contexts)
+
+    def _prepare_piece(index, context):
         session._raise_if_cancelled(stop_event)
         entry = context.selected_entry
-        if progress is not None:
-            progress("Preparing reference meshes...")
-        bounded = getattr(session, "bounded_item_set_references", {}).get(entry.identity)
+        bounded = bounded_map.get(entry.identity)
         prepared = ({} if bounded is not None else prepare_archive_refit_source(
-            {"_archive_entry": entry, "_archive_dependencies": context}, stop_event))
+            {"_archive_entry": entry, "_archive_dependencies": context, "_skip_roundtrip": True},
+            stop_event,
+        ))
         try:
             mesh = bounded if bounded is not None else prepared["_archive_snapshot"].mesh
             appearance = prepared.get("_archive_neutral_appearance")
             if bounded is None:
                 from cdmw.services.mesh_item_set_editing import head_companion_appearance
-                appearance = (head_companion_appearance(contexts, context, prepared["_archive_snapshot"], stop_event)
-                              or appearance)
+                appearance = (head_companion_appearance(
+                    contexts, context, prepared["_archive_snapshot"], stop_event,
+                ) or appearance)
             if appearance is not None:
                 mesh = appearance.to_neutral(mesh)
             if editing_set and bounded is None:
                 from cdmw.services.mesh_item_set_budget import _reference_mesh
                 mesh = _reference_mesh(mesh)
-            document = authoring._atomic_write_payload(
-                session.root, f"reference-{index:02d}.bin",
-                authoring.PreparedMeshDocument(authoring.encode_mesh_document(
-                    authoring._mesh_document_arrays(mesh),
-                    max_payload_bytes=authoring.RUST_MESH_MAX_PAYLOAD_BYTES)),
-                data_type=authoring.BINARY_MESH_DOCUMENT_TYPE,
-                element_count=sum(len(level) for level in authoring._mesh_lods(mesh)),
-                expected_root_identity=session.root_identity,
-            )
-            synthesis = authoring._RustMaterialSynthesisState()
-            textures = [] if editing_set else authoring._mesh_texture_payloads(
-                session.root, mesh, expected_root_identity=session.root_identity,
-                stop_event=stop_event, synthesis_state=synthesis,
-            )
-            presentations = authoring._mesh_material_presentations(
-                mesh, generated_overrides=synthesis.presentation_overrides)
-            row = {
-                "index": index, "name": entry.basename, "role": "reference",
-                "document": document, "textures": textures,
-                "material_presentations": presentations,
-            }
-            if not editing_set:
-                # A reference piece keeps its native material graph, so the
-                # helper composes it with the same layer rule as Browse and
-                # the editable document instead of a Python-synthesised map.
-                from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
-                graph = _composite_preview_core_material_graph(
-                    session.root, mesh, textures, presentations, "full", session.root_identity,
-                    lambda: stop_event.is_set(),
-                )
-                if graph is not None:
-                    row["preview_core_material_graph"] = graph
-            rows.append(row)
-        finally:
-            # DDS files are owned copies by now; release the temporary cache lease.
+            return index, entry, mesh, prepared
+        except BaseException:
             prepared.clear()
-        session._raise_if_cancelled(stop_event)
-    getattr(session, "bounded_item_set_references", {}).clear()
+            raise
+
+    extra_contexts = list(enumerate(contexts[1:], 1))
+    if not extra_contexts:
+        _clear_head_companion_cache(contexts)
+        bounded_map.clear()
+        return []
+    if progress is not None:
+        progress("Preparing reference meshes...")
+    prepared_items = []
+    try:
+        if len(extra_contexts) == 1:
+            prepared_items.append(_prepare_piece(*extra_contexts[0]))
+        else:
+            workers = min(4, len(extra_contexts))
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cdmw-ref-piece") as pool:
+                futures = [pool.submit(_prepare_piece, idx, ctx) for idx, ctx in extra_contexts]
+                wait(futures)
+            first_error = None
+            for future in futures:
+                try:
+                    prepared_items.append(future.result())
+                except BaseException as exc:
+                    if first_error is None:
+                        first_error = exc
+            if first_error is not None:
+                for _idx, _entry, _mesh, prep in prepared_items:
+                    prep.clear()
+                raise first_error
+    finally:
+        _clear_head_companion_cache(contexts)
+
+    rows = []
+    try:
+        for index, entry, mesh, prepared in prepared_items:
+            session._raise_if_cancelled(stop_event)
+            try:
+                document = authoring._atomic_write_payload(
+                    session.root, f"reference-{index:02d}.bin",
+                    authoring.PreparedMeshDocument(authoring.encode_mesh_document(
+                        authoring._mesh_document_arrays(mesh),
+                        max_payload_bytes=authoring.RUST_MESH_MAX_PAYLOAD_BYTES)),
+                    data_type=authoring.BINARY_MESH_DOCUMENT_TYPE,
+                    element_count=sum(len(level) for level in authoring._mesh_lods(mesh)),
+                    expected_root_identity=session.root_identity,
+                )
+                synthesis = authoring._RustMaterialSynthesisState()
+                textures = [] if editing_set else authoring._mesh_texture_payloads(
+                    session.root, mesh, expected_root_identity=session.root_identity,
+                    stop_event=stop_event, synthesis_state=synthesis,
+                )
+                presentations = authoring._mesh_material_presentations(
+                    mesh, generated_overrides=synthesis.presentation_overrides)
+                row = {
+                    "index": index, "name": entry.basename, "role": "reference",
+                    "document": document, "textures": textures,
+                    "material_presentations": presentations,
+                }
+                if not editing_set:
+                    # A reference piece keeps its native material graph, so the
+                    # helper composes it with the same layer rule as Browse and
+                    # the editable document instead of a Python-synthesised map.
+                    from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+                    graph = _composite_preview_core_material_graph(
+                        session.root, mesh, textures, presentations, "full", session.root_identity,
+                        lambda: stop_event.is_set(),
+                    )
+                    if graph is not None:
+                        row["preview_core_material_graph"] = graph
+                rows.append(row)
+            finally:
+                # DDS files are owned copies by now; release the temporary cache lease.
+                prepared.clear()
+            session._raise_if_cancelled(stop_event)
+    finally:
+        for _idx, _entry, _mesh, prep in prepared_items:
+            prep.clear()
+    bounded_map.clear()
     return rows
