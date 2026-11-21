@@ -151,6 +151,7 @@ class GroupBlob:
 
     def collection(self, writers) -> None:
         self.out += b"\x00" + struct.pack("<I", len(writers))
+        self.out += b"\x00" * 13  # the preamble: no ids, no keys
         for write in writers:
             write(self)
 

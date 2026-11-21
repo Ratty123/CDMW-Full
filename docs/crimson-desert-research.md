@@ -2169,6 +2169,33 @@ validated length fields. Measured over the shipped revision-15 prefabs on game
 complete only by reading socket elements as other components now report a
 partial walk. This is a decode result over the archive corpus, not game proof.
 
+Nested prefab instances, wide components, by-value lists and large type tables
+use more forms than the walk first followed. The element header ends
+`u16 typeIndex, u8 override` (the effect grammar's layout): files that declare
+more than 256 types write indexes such as `02 01`, and an overridden object
+says `override` 1, on a group (`CustomAttributeSplineComponent`) or on a pointee
+(`DecalComponent._decalInfo` with only `_tintColor` set). Overridden records
+(`SplineObject3D`, `SplineDecalPointData`, `SplineDecalVolumeData`,
+`CustomAttributeLayoutContainer`) open with a u16 `z` of 1 instead of 0. The
+mask is as many bytes as the stated type needs: `SplineDecalComponent` (43
+members) writes 6, `ScenePostProcessing` (103 members, every weather and
+post-process preset) 13. Kind 6 (by-value) object lists are laid out in a prefab
+as kind 7 lists are. Every object list carries the effect grammar's preamble
+after its count, even when empty: `u8 withIds, u32, u32, u32 n`, then `n` u64
+keys and, with ids, `n` u32 indexes (and a u32 index after each element's
+owner field). `n` is usually 0, sometimes written as -1, and a nested instance's
+`_childSceneObjects` can list 78 keys with no children. Revisions 13 and 14
+write a list as its bare count (no kind byte and no empty byte, even when
+unselected), and revision 13 has no `withIds` byte. Measured over the 51,178
+prefabs of the installed game (2026-11-21): every walk completes, against
+50,910 before, and none completes less. The 268 newly complete walks are all
+determined. Of the walks that already completed, 16 change to the group-list
+reading. None of them loses a pointee length field or a resource, and none has
+more collections over-declared. A handful of values the earlier reading had
+attributed inside misread objects are dropped, and objects past type 255 now
+carry their real types. A `.pcg` kind 6 member still does not read this way.
+This is a decode result over the archive corpus, not game proof.
+
 The decoder exposes objects, asset references, numeric values and transforms.
 The supported serialized `Transform` is 40 bytes: scale, quaternion `xyzw` and
 position. A larger runtime transform structure is a different contract and must

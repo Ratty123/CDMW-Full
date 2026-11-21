@@ -157,13 +157,22 @@ def element_bounds(data: bytes, document: PrefabDocument, collection_index: int,
     return header, _element_end(data, walk_end, site + 4), site
 
 
+def _u16(data: bytes, at: int) -> int:
+    return struct.unpack_from("<H", data, at)[0]
+
+
 def _pointer_header_index_offset(data: bytes, site: int) -> Optional[int]:
-    """Offset of the type-index byte in the header that precedes the pointer record at `site`."""
+    """Offset of the u16 type index in the header that precedes the pointer record at `site`.
+
+    The header ends ``u16 typeIndex, u8 override``. Only a header with override 0
+    is taken: an overridden object is a delta over a nested prefab, not a whole
+    object to copy.
+    """
 
     owner_at = site - 8
     for width in _HEADER_WIDTHS:
         start = owner_at - (2 + width + 3)
-        if start >= 0 and struct.unpack_from("<H", data, start)[0] == width and data[owner_at - 2: owner_at] == b"\x00\x00":
+        if start >= 0 and struct.unpack_from("<H", data, start)[0] == width and data[owner_at - 1] == 0:
             return owner_at - 3
     return None
 
@@ -274,7 +283,7 @@ def graft_prefab_component(
             raise PrefabEditError(f"the donor pointer at 0x{site:x} has no readable header; refusing to remap its type")
         header_index_offsets[site] = at
     target_names = [item.type_name for item in tdoc.types]
-    added = _needed_types(ddoc, component_type, [donor_data[at] for at in header_index_offsets.values()], target_names)
+    added = _needed_types(ddoc, component_type, [_u16(donor_data, at) for at in header_index_offsets.values()], target_names)
     type_end = _type_table_end(target_data, tdoc)
     new_types = b"".join(encode_prefab_type(item) for item in added)
     index_map: dict[int, int] = {}
@@ -289,10 +298,10 @@ def graft_prefab_component(
     element = bytearray(donor_data[d_start:d_end])
     for site in donor_sites:
         at = header_index_offsets[site]
-        old_index = donor_data[at]
+        old_index = _u16(donor_data, at)
         if old_index not in index_map:
             raise PrefabEditError(f"the donor element names type index {old_index}, which the target does not declare")
-        element[at - d_start] = index_map[old_index]
+        struct.pack_into("<H", element, at - d_start, index_map[old_index])
     if offset_transform is not None:
         number = next((n for n in donor_object.numbers if n.name == "_offsetTransform"), None)
         if number is None or len(number.raw) != _TRANSFORM_SIZE:
