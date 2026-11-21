@@ -56,6 +56,9 @@ RUST_HOST_CAMERA_CAPABILITY = "host_camera_v1"
 # and X-ray, brush, overlay colours and sizes, part visibility) and answers with a
 # "view_state" event.
 RUST_HOST_VIEW_STATE_CAPABILITY = "host_view_state_v1"
+# Optional hello capability: set_view_state also takes the lighting preset and the Studio
+# look (wetness, exposure, light_rotation, reset "look"), and view_state reports them.
+RUST_HOST_VIEW_LOOK_CAPABILITY = "host_view_look_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",

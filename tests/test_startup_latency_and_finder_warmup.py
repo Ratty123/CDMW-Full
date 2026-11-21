@@ -61,6 +61,11 @@ def test_lazy_workspace_mixins_match_real_classes_without_collisions() -> None:
                     if not (attr_name.startswith("__") and attr_name.endswith("__")):
                         actual_attrs.add(attr_name)
             assert set(expected_attrs) <= actual_attrs, f"Stale lazy attr in {mod_name}.{cls_name}"
+            # Every attribute, so the first one the app touches attaches the mixin; one left
+            # out raises AttributeError if it is reached before a listed one.
+            assert actual_attrs <= set(expected_attrs), (
+                f"Lazy attrs missing from {mod_name}.{cls_name}: {sorted(actual_attrs - set(expected_attrs))}"
+            )
             for attr_name in expected_attrs:
                 assert attr_name not in seen_attrs, (
                     f"Duplicate lazy attr {attr_name}: {seen_attrs[attr_name]} vs {mod_name}.{cls_name}"

@@ -545,6 +545,13 @@ fn runtime_route(key: &str) -> RuntimeRoute {
             Kind::LocalState,
             "viewport_background_colour+viewport_grid_colour",
         ),
+        "display.lighting" => (Kind::SharedSetting, "lighting_preset"),
+        "display.studio_look.wetness" => (Kind::LocalState, "studio_look.wetness"),
+        "display.studio_look.exposure" => (Kind::LocalState, "studio_look.exposure"),
+        "display.studio_look.light_rotation" => {
+            (Kind::LocalState, "studio_look.env_rotation_degrees")
+        }
+        "display.studio_look.reset" => (Kind::LocalState, "studio_look"),
         "camera.front" | "camera.back" | "camera.top" | "camera.left" | "camera.right"
         | "camera.bottom" => (Kind::UiAction, "UiAction::StandardView"),
         "camera.yaw_minus_15" | "camera.yaw_plus_15" => (Kind::UiAction, "UiAction::OrbitYaw"),
@@ -705,6 +712,11 @@ display.overlay.vertex_size|camera_display|executable|session|false|
 display.background_colour|camera_display|executable|session|false|
 display.grid_colour|camera_display|executable|session|false|
 display.colours.reset|camera_display|executable|session|false|
+display.lighting|camera_display|executable|session|false|
+display.studio_look.wetness|camera_display|executable|session|false|
+display.studio_look.exposure|camera_display|executable|session|false|
+display.studio_look.light_rotation|camera_display|executable|session|false|
+display.studio_look.reset|camera_display|executable|session|false|
 camera.front|camera_display|executable|session|false|
 camera.back|camera_display|executable|session|false|
 camera.top|camera_display|executable|session|false|

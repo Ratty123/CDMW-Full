@@ -22,6 +22,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_HOST_OUTPUT_COMMANDS_CAPABILITY,
     RUST_HOST_CAMERA_CAPABILITY,
     RUST_HOST_VIEW_STATE_CAPABILITY,
+    RUST_HOST_VIEW_LOOK_CAPABILITY,
     RUST_HOST_HIGHLIGHT_PART_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
@@ -686,6 +687,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_host_output_commands_supported = RUST_HOST_OUTPUT_COMMANDS_CAPABILITY in capability_set
         self.standalone_rust_camera_supported = RUST_HOST_CAMERA_CAPABILITY in capability_set
         self.standalone_rust_view_state_supported = RUST_HOST_VIEW_STATE_CAPABILITY in capability_set
+        self.standalone_rust_view_look_supported = RUST_HOST_VIEW_LOOK_CAPABILITY in capability_set
         self.standalone_rust_capabilities = tuple(sorted(capability_set))
         self.standalone_rust_highlight_part_supported = RUST_HOST_HIGHLIGHT_PART_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session

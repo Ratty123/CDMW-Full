@@ -140,6 +140,8 @@ NO_OUTPUT_COMMANDS = ("This Mesh Editor helper does not take these commands from
 NO_CAMERA = "This Mesh Editor helper does not take its camera from CDMW; it is older than this app (host_camera_v1)."
 NO_VIEW_STATE = ("This Mesh Editor helper does not take its view settings from CDMW; it is older than this app "
                  "(host_view_state_v1).")
+NO_VIEW_LOOK = ("This Mesh Editor helper does not take its lighting or Studio look from CDMW; it is older than "
+                "this app (host_view_look_v1).")
 #: The commands that need host_output_commands_v1 (cdmw_session.rs, host_cdmw_output_command).
 OUTPUT_COMMANDS = ("vertex_edit", "hair_begin", "hair_texture_export", "export_free_edit", "import_editable_package",
                    "morph_export_recipe", "morph_export_preset", "replacement_export_rig")
@@ -502,7 +504,10 @@ def _camera(call) -> dict[str, object]:
 
 #: mesh.view's arguments, as set_view_state takes them (cdmw_session.rs, decode_set_view_state).
 _VIEW_KEYS = ("reset", "selection_shape", "selection_operation", "selection_xray", "brush_radius", "brush_strength",
-              "brush_falloff", "colours", "wire_width", "vertex_size", "show_parts", "hide_parts")
+              "brush_falloff", "colours", "wire_width", "vertex_size", "show_parts", "hide_parts",
+              "lighting_preset", "wetness", "exposure", "light_rotation")
+#: The keys that need host_view_look_v1 (the View panel's Lighting menu and Studio look sliders).
+_LOOK_KEYS = ("lighting_preset", "wetness", "exposure", "light_rotation")
 _HEX = {"type": "string", "minLength": 7, "maxLength": 7, "description": "#RRGGBB"}
 _PARTS = {"type": "array", "items": {"type": "integer", "minimum": 0}, "maxItems": 4096}
 
@@ -522,11 +527,14 @@ def _view(call) -> dict[str, object]:
     shown = set(values.get("show_parts") or ())
     if shown & set(values.get("hide_parts") or ()):
         raise ToolError(INVALID_ARGUMENTS, "A part can be in show_parts or hide_parts, not both.")
+    needs_look = values.get("reset") == "look" or any(key in values for key in _LOOK_KEYS)
 
     def send() -> bool:
         tab = ready_document(call.context)
         if not getattr(tab, "standalone_rust_view_state_supported", False):
             raise ToolError(UNAVAILABLE, NO_VIEW_STATE)
+        if needs_look and not getattr(tab, "standalone_rust_view_look_supported", False):
+            raise ToolError(UNAVAILABLE, NO_VIEW_LOOK)
         return tab.set_view_state_in_view(values)
 
     if not call.context.ui_call(send):
@@ -654,12 +662,16 @@ def mesh_edit_tools() -> list[Tool]:
                          "brush_radius in pixels (also Grab's radius), brush_strength (negative only for "
                          "Inflate), brush_falloff, overlay colours as #RRGGBB, wire_width, vertex_size, and parts "
                          "to show or hide by number. reset 'overlay' restores the four overlay colours, "
-                         "'colours' the background and screen grid; it runs before the other values. Values "
-                         "left out stay as they are; with none, it only reads. The mesh is not changed, but "
-                         "hiding a part drops it from the selection. Returns the settings as the editor holds "
-                         "them, with hidden_parts.",
+                         "'colours' the background and screen grid, 'look' the Studio look; it runs before the "
+                         "other values. Experimental: lighting_preset picks the View panel's Lighting, and "
+                         "wetness (0 to 1), exposure (0.5 to 2) and light_rotation (degrees, -180 to 180) are "
+                         "its Wetness, Exposure and Light rotation sliders, which the view uses only under "
+                         "'studio_fixed' (look_applies says whether it does now). Values left out stay as they "
+                         "are; with none, it only reads. The mesh is not changed, but hiding a part drops it "
+                         "from the selection. Returns the settings as the editor holds them, with "
+                         "hidden_parts.",
              input_schema=object_schema({
-                 "reset": {"type": "string", "enum": ["overlay", "colours"]},
+                 "reset": {"type": "string", "enum": ["overlay", "colours", "look"]},
                  "selection_shape": {"type": "string", "enum": ["click", "brush", "rectangle", "lasso"]},
                  "selection_operation": {"type": "string", "enum": ["replace", "add", "subtract", "toggle"]},
                  "selection_xray": {"type": "boolean"},
@@ -670,7 +682,12 @@ def mesh_edit_tools() -> list[Tool]:
                                            "live_selection": _HEX, "grid": _HEX}),
                  "wire_width": {"type": "number", "minimum": 0.5, "maximum": 6},
                  "vertex_size": {"type": "number", "minimum": 0.5, "maximum": 10},
-                 "show_parts": _PARTS, "hide_parts": _PARTS}),
+                 "show_parts": _PARTS, "hide_parts": _PARTS,
+                 "lighting_preset": {"type": "string",
+                                     "enum": ["studio_fixed", "neutral_studio", "showcase", "dark"]},
+                 "wetness": {"type": "number", "minimum": 0, "maximum": 1},
+                 "exposure": {"type": "number", "minimum": 0.5, "maximum": 2},
+                 "light_rotation": {"type": "number", "minimum": -180, "maximum": 180}}),
              effect=EDIT, effect_of=_view_effect, route="helper:set_view_state", handler=_view,
              runs_on=ON_WORKER),
         Tool(name="mesh.vertex_edit", family="mesh", title="Edit vertex parameters",

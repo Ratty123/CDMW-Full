@@ -741,6 +741,10 @@ pub const HOST_CAMERA_CAPABILITY: &str = "host_camera_v1";
 /// answers it with a `view_state` event.
 pub const HOST_VIEW_STATE_CAPABILITY: &str = "host_view_state_v1";
 
+/// Hello capability: `set_view_state` also takes the lighting preset and the Studio
+/// look (Wetness, Exposure, Light rotation), and `view_state` reports them.
+pub const HOST_VIEW_LOOK_CAPABILITY: &str = "host_view_look_v1";
+
 /// The overlay colours `set_view_state` takes under `colours`, by the names the
 /// `view_state` event reports them with.
 pub const VIEW_STATE_COLOURS: [&str; 5] = ["wire", "vertex", "selection", "live_selection", "grid"];
@@ -749,7 +753,8 @@ pub const VIEW_STATE_COLOURS: [&str; 5] = ["wire", "vertex", "selection", "live_
 /// `reset` runs before the rest, as the Reset button would before the user changes more.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ViewStateChange {
-    /// `overlay` (the four overlay colours) or `colours` (background and screen grid).
+    /// `overlay` (the four overlay colours), `colours` (background and screen grid) or
+    /// `look` (Wetness, Exposure and Light rotation back to their defaults).
     pub reset: Option<&'static str>,
     /// `click`, `brush`, `rectangle` or `lasso`.
     pub selection_shape: Option<&'static str>,
@@ -772,6 +777,13 @@ pub struct ViewStateChange {
     /// Parts to show and to hide in the 3D view, by number.
     pub show_parts: Vec<u32>,
     pub hide_parts: Vec<u32>,
+    /// A lighting preset id from the View panel's menu (`LightingPreset::MENU`).
+    pub lighting_preset: Option<&'static str>,
+    /// The Studio look: Wetness 0 to 1, Exposure 0.5 to 2, Light rotation in degrees,
+    /// -180 to 180. The view uses them under the Studio (fixed lights) preset.
+    pub wetness: Option<f32>,
+    pub exposure: Option<f32>,
+    pub light_rotation: Option<f32>,
 }
 
 /// Hello capability: the helper takes `highlight_part` (`HostEvent::HighlightPart`).
@@ -900,6 +912,14 @@ pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str
     }
 }
 
+/// The lighting presets `set_view_state` takes: the View panel's menu.
+const VIEW_STATE_LIGHTING_PRESETS: [&str; 4] = [
+    cdmw_render_wgpu::LightingPreset::MENU[0].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[1].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[2].id(),
+    cdmw_render_wgpu::LightingPreset::MENU[3].id(),
+];
+
 /// `set_view_state`: each key is optional; a name outside its list, a number outside its
 /// range or a colour that is not `#RRGGBB` refuses the whole message.
 fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError> {
@@ -969,7 +989,7 @@ fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError>
         ),
     };
     let change = ViewStateChange {
-        reset: name("reset", &["overlay", "colours"])?,
+        reset: name("reset", &["overlay", "colours", "look"])?,
         selection_shape: name("selection_shape", &["click", "brush", "rectangle", "lasso"])?,
         selection_operation: name(
             "selection_operation",
@@ -984,6 +1004,10 @@ fn decode_set_view_state(value: &Value) -> Result<ViewStateChange, SessionError>
         vertex_size: number("vertex_size", 0.5, 10.0)?,
         show_parts: parts("show_parts")?,
         hide_parts: parts("hide_parts")?,
+        lighting_preset: name("lighting_preset", &VIEW_STATE_LIGHTING_PRESETS)?,
+        wetness: number("wetness", 0.0, 1.0)?,
+        exposure: number("exposure", 0.5, 2.0)?,
+        light_rotation: number("light_rotation", -180.0, 180.0)?,
     };
     if change.show_parts.iter().any(|part| change.hide_parts.contains(part)) {
         return Err(bad("a part to be in show_parts or hide_parts, not both".to_owned()));
@@ -1694,6 +1718,7 @@ impl CdmwBridge {
                 HOST_OUTPUT_COMMANDS_CAPABILITY,
                 HOST_CAMERA_CAPABILITY,
                 HOST_VIEW_STATE_CAPABILITY,
+                HOST_VIEW_LOOK_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
                 translation_transfer::CAPABILITY
             ]
@@ -7379,6 +7404,10 @@ pub(crate) mod tests {
         value["colours"] = json!({"wire": "#102030"});
         value["hide_parts"] = json!([2, 0]);
         value["reset"] = json!("overlay");
+        value["lighting_preset"] = json!("studio_fixed");
+        value["wetness"] = json!(0.25);
+        value["exposure"] = json!(1.5);
+        value["light_rotation"] = json!(-90.0);
         let HostEvent::SetViewState(change) = bridge.decode_host_event(value) else {
             panic!("set_view_state was not taken");
         };
@@ -7388,6 +7417,10 @@ pub(crate) mod tests {
         assert_eq!(change.colours, vec![("wire", [0x10, 0x20, 0x30])]);
         assert_eq!(change.hide_parts, vec![2, 0]);
         assert_eq!(change.reset, Some("overlay"));
+        assert_eq!(change.lighting_preset, Some("studio_fixed"));
+        assert_eq!(change.wetness, Some(0.25));
+        assert_eq!(change.exposure, Some(1.5));
+        assert_eq!(change.light_rotation, Some(-90.0));
         assert!(matches!(
             bridge.decode_host_event(base.clone()),
             HostEvent::SetViewState(change) if change == ViewStateChange::default()
@@ -7396,7 +7429,9 @@ pub(crate) mod tests {
                            ("brush_strength", json!(1.5)), ("wire_width", json!("thick")),
                            ("colours", json!({"wire": "blue"})), ("colours", json!({"floor": "#000000"})),
                            ("hide_parts", json!([-1])), ("selection_xray", json!("yes")),
-                           ("reset", json!("everything"))] {
+                           ("reset", json!("everything")), ("lighting_preset", json!("icon_studio")),
+                           ("wetness", json!(1.5)), ("exposure", json!(0.1)),
+                           ("light_rotation", json!(270.0))] {
             let mut value = base.clone();
             value[key] = bad;
             assert!(matches!(bridge.decode_host_event(value), HostEvent::Fatal(_)), "{key}");

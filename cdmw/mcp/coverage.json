@@ -1159,7 +1159,7 @@
     {
       "id": "mesh.view",
       "area": "Mesh Editor",
-      "what": "Selection shape, operation and X-ray, brush radius, strength and falloff, overlay colours and sizes, part visibility",
+      "what": "Selection shape, operation and X-ray, brush radius, strength and falloff, overlay colours and sizes, part visibility, Lighting and the Studio look's Wetness, Exposure and Light rotation (experimental)",
       "class": "edit",
       "tool": "mesh.view"
     },
@@ -3692,6 +3692,10 @@
       "tool": "mesh.view"
     },
     {
+      "key": "helper_control:display.lighting",
+      "tool": "mesh.view"
+    },
+    {
       "key": "helper_control:display.mode",
       "tool": "view.settings"
     },
@@ -3721,6 +3725,22 @@
     },
     {
       "key": "helper_control:display.overlay.wire_width",
+      "tool": "mesh.view"
+    },
+    {
+      "key": "helper_control:display.studio_look.exposure",
+      "tool": "mesh.view"
+    },
+    {
+      "key": "helper_control:display.studio_look.light_rotation",
+      "tool": "mesh.view"
+    },
+    {
+      "key": "helper_control:display.studio_look.reset",
+      "tool": "mesh.view"
+    },
+    {
+      "key": "helper_control:display.studio_look.wetness",
       "tool": "mesh.view"
     },
     {
