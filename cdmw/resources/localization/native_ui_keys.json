@@ -2958,6 +2958,7 @@
   "{value_0} enabled / {value_1} garments",
   "{value_0} garment Parts selected",
   "{value_0} has no painted pins. Paint pins on it, or pin the guides by height.",
+  "{value_0} has no textures in the game's material, so it cannot take imported textures. Map {value_1} to another part, join it with one before exporting, or choose Keep Original Materials.",
   "{value_0} has weights without their imported rig identity.",
   "{value_0} influenced vertices are in hidden Parts",
   "{value_0} influenced vertices · {value_1} {value_2}",

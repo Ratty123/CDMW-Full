@@ -42619,7 +42619,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1223,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6629
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6646
     }
   },
   {
@@ -42636,7 +42636,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1205,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6616
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6633
     }
   },
   {
@@ -45729,7 +45729,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6191
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6208
     }
   },
   {
@@ -45865,7 +45865,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6006
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6023
     }
   },
   {
@@ -48055,7 +48055,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6503
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6520
     }
   },
   {
@@ -48063,7 +48063,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6485
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6502
     }
   },
   {
@@ -63460,7 +63460,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5837
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5854
     }
   },
   {
@@ -63764,7 +63764,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6873
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6890
     }
   },
   {
@@ -76134,6 +76134,14 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/modding/static_mesh_output_plan.py": 554
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{target} has no textures in the game's material, so it cannot take imported textures. Map {part} to another part, join it with one before exporting, or choose Keep Original Materials.",
+    "recovery": "input",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5844
     }
   },
   {
@@ -96870,7 +96878,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous original material dependency: {binding.texture_path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 190
+      "cdmw/services/mesh_replacement_materials.py": 333
     }
   },
   {
@@ -97104,7 +97112,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 282
+      "cdmw/services/mesh_rust_replacement.py": 289
     }
   },
   {
@@ -97112,7 +97120,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a target part for every imported part before applying replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 344
+      "cdmw/services/mesh_replacement_import.py": 364
     }
   },
   {
@@ -97120,7 +97128,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an OBJ, DAE, glTF, GLB or FBX replacement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 175
+      "cdmw/services/mesh_replacement_import.py": 195
     }
   },
   {
@@ -97145,7 +97153,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose how to handle the imported weights. {skin.summary}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 311
+      "cdmw/services/mesh_replacement_import.py": 331
     }
   },
   {
@@ -97153,7 +97161,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose original or imported materials.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 335
+      "cdmw/services/mesh_replacement_import.py": 355
     }
   },
   {
@@ -97161,7 +97169,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose valid parts to include in the mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 446
+      "cdmw/services/mesh_replacement_import.py": 466
     }
   },
   {
@@ -97771,7 +97779,7 @@ MESSAGE_REFERENCE = [
     "message": "FBX import needs a working folder for its converted copy.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 181
+      "cdmw/services/mesh_replacement_import.py": 201
     }
   },
   {
@@ -97835,7 +97843,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated material sidecar has no captured target: {payload.target_path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 347
+      "cdmw/services/mesh_replacement_materials.py": 501
     }
   },
   {
@@ -97995,7 +98003,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement before adjusting its placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 456
+      "cdmw/services/mesh_replacement_import.py": 476
     }
   },
   {
@@ -98003,7 +98011,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 246
+      "cdmw/services/mesh_rust_replacement.py": 253
     }
   },
   {
@@ -98011,7 +98019,7 @@ MESSAGE_REFERENCE = [
     "message": "Import topology changed; undo topology edits before resetting placement.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 481
+      "cdmw/services/mesh_replacement_import.py": 501
     }
   },
   {
@@ -98019,7 +98027,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported dependency changed during preparation: {path}. Import again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 162
+      "cdmw/services/mesh_replacement_import.py": 182
     }
   },
   {
@@ -98056,18 +98064,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Imported material conversion failed: no representable source material textures",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 316
-    }
-  },
-  {
-    "area": "placement",
     "message": "Imported material conversion failed: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 316
+      "cdmw/services/mesh_replacement_materials.py": 464
     }
   },
   {
@@ -98080,18 +98080,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
-    "message": "Imported material {part.material or part.name} has no proven target binding.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 323
-    }
-  },
-  {
-    "area": "placement",
     "message": "Imported materials have no proven target sidecar wrapper mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 358
+      "cdmw/services/mesh_replacement_materials.py": 512
     }
   },
   {
@@ -98099,7 +98091,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 318
+      "cdmw/services/mesh_replacement_materials.py": 477
     }
   },
   {
@@ -98107,7 +98099,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a captured archive target identity.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 284
+      "cdmw/services/mesh_replacement_materials.py": 427
     }
   },
   {
@@ -98115,7 +98107,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a complete prepared material and texture bundle.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 338
+      "cdmw/services/mesh_replacement_import.py": 358
     }
   },
   {
@@ -98123,7 +98115,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 303
+      "cdmw/services/mesh_replacement_materials.py": 446
     }
   },
   {
@@ -98131,7 +98123,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 248
+      "cdmw/services/mesh_replacement_materials.py": 228
     }
   },
   {
@@ -98139,7 +98131,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require one source material part per target part. Split the mapping before applying.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 383
+      "cdmw/services/mesh_replacement_import.py": 403
     }
   },
   {
@@ -98147,7 +98139,7 @@ MESSAGE_REFERENCE = [
     "message": "Imported materials require the original material sidecar and texture dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 250
+      "cdmw/services/mesh_replacement_materials.py": 392
     }
   },
   {
@@ -98268,6 +98260,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_replacement_skinning.py": 223
+    }
+  },
+  {
+    "area": "placement",
+    "message": "Imported texture {path.name} could not be read ({reason}). Save it as BC7 or as PNG, then import again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_replacement_materials.py": 804
     }
   },
   {
@@ -98764,7 +98764,7 @@ MESSAGE_REFERENCE = [
     "message": "Map skinned and unskinned imported parts to separate game parts to preserve authored skin weights.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 360
+      "cdmw/services/mesh_replacement_import.py": 380
     }
   },
   {
@@ -98772,7 +98772,7 @@ MESSAGE_REFERENCE = [
     "message": "Material mapping changed the target model-property variants.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 72
+      "cdmw/services/mesh_replacement_materials.py": 73
     }
   },
   {
@@ -98780,7 +98780,7 @@ MESSAGE_REFERENCE = [
     "message": "Material mapping has an ambiguous model-property index.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 66
+      "cdmw/services/mesh_replacement_materials.py": 67
     }
   },
   {
@@ -98788,7 +98788,7 @@ MESSAGE_REFERENCE = [
     "message": "Material mapping is not an unambiguous target wrapper: {name}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 93
+      "cdmw/services/mesh_replacement_materials.py": 94
     }
   },
   {
@@ -98964,15 +98964,15 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported dependency: {uri}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 142
+      "cdmw/services/mesh_replacement_import.py": 162
     }
   },
   {
     "area": "placement",
-    "message": "Missing imported material library: {library}",
+    "message": "Missing imported material library: {written}. Put it next to {path.name}, or name the MTL {same_name.name}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 120
+      "cdmw/services/mesh_replacement_import.py": 139
     }
   },
   {
@@ -98980,7 +98980,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 307
+      "cdmw/services/mesh_replacement_materials.py": 450
     }
   },
   {
@@ -98988,7 +98988,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported texture: {reference}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 147
+      "cdmw/services/mesh_replacement_import.py": 167
     }
   },
   {
@@ -98996,7 +98996,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing imported {role} texture: {texture_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 243
+      "cdmw/services/mesh_replacement_import.py": 263
     }
   },
   {
@@ -99020,7 +99020,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required generated texture: {target_path or 'unresolved material slot'}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 328
+      "cdmw/services/mesh_replacement_materials.py": 482
     }
   },
   {
@@ -99613,7 +99613,7 @@ MESSAGE_REFERENCE = [
     "message": "Not in this model's game skeleton, so they cannot be added: {', '.join(foreign)}. Choose Move to Parent Bones, or weight to game bones only.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 285
+      "cdmw/services/mesh_replacement_import.py": 305
     }
   },
   {
@@ -99999,7 +99999,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepare an existing-bone palette experiment from the original source-coordinate session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 189
+      "cdmw/services/mesh_replacement_import.py": 209
     }
   },
   {
@@ -100343,7 +100343,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 220
+      "cdmw/services/mesh_replacement_materials.py": 363
     }
   },
   {
@@ -100407,7 +100407,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is stale because the mesh changed. Import again.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 425
+      "cdmw/services/mesh_replacement_import.py": 445
     }
   },
   {
@@ -100599,7 +100599,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 208
+      "cdmw/services/mesh_rust_replacement.py": 215
     }
   },
   {
@@ -100607,7 +100607,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no replaced equipment material to apply to.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 396
+      "cdmw/services/mesh_replacement_materials.py": 550
     }
   },
   {
@@ -100615,7 +100615,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic must be between 0% and 100%.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 223
+      "cdmw/services/mesh_rust_replacement.py": 230
     }
   },
   {
@@ -100623,7 +100623,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic need the item's equipment material file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 206
+      "cdmw/services/mesh_rust_replacement.py": 213
     }
   },
   {
@@ -100657,7 +100657,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_replacement_draft.py": 210,
-      "cdmw/services/mesh_replacement_import.py": 485
+      "cdmw/services/mesh_replacement_import.py": 505
     }
   },
   {
@@ -100674,7 +100674,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 271
+      "cdmw/services/mesh_rust_replacement.py": 278
     }
   },
   {
@@ -100690,7 +100690,7 @@ MESSAGE_REFERENCE = [
     "message": "Selected parts share a material with an untouched part. Select all parts using that material.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 108
+      "cdmw/services/mesh_replacement_materials.py": 109
     }
   },
   {
@@ -101108,7 +101108,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive target and its dependency snapshot are required for replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 176
+      "cdmw/services/mesh_replacement_materials.py": 319
     }
   },
   {
@@ -101116,7 +101116,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive target changed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 61
+      "cdmw/ui/mesh_editor/replacement_flow.py": 65
     }
   },
   {
@@ -101249,6 +101249,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "The game's textures for {wrapper} were not loaded with this model, so the imported textures cannot be fitted to it. Select the model in Browse Archives again, open it in Mesh Editor as a new edit and import again. If that does not help, choose Keep Original Materials.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_replacement_materials.py": 273
+    }
+  },
+  {
+    "area": "placement",
     "message": "The import was cancelled",
     "recovery": "cancelled",
     "sources": {
@@ -101260,7 +101268,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported model has no editable triangle geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 221
+      "cdmw/services/mesh_replacement_import.py": 241
     }
   },
   {
@@ -101268,7 +101276,7 @@ MESSAGE_REFERENCE = [
     "message": "The imported roughness and metallic maps could not be encoded as a game texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 653
+      "cdmw/services/mesh_replacement_materials.py": 838
     }
   },
   {
@@ -101308,7 +101316,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 286
+      "cdmw/services/mesh_rust_replacement.py": 293
     }
   },
   {
@@ -101316,7 +101324,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh session closed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 59
+      "cdmw/ui/mesh_editor/replacement_flow.py": 63
     }
   },
   {
@@ -101364,7 +101372,7 @@ MESSAGE_REFERENCE = [
     "message": "The original mesh bounds cannot provide a usable uniform fit.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 476
+      "cdmw/services/mesh_replacement_import.py": 496
     }
   },
   {
@@ -101444,7 +101452,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected replacement parts are no longer available.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 195
+      "cdmw/services/mesh_replacement_import.py": 215
     }
   },
   {
@@ -101452,7 +101460,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected target cannot encode imported skin weights in a proven PAC layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 358
+      "cdmw/services/mesh_replacement_import.py": 378
     }
   },
   {
@@ -101564,7 +101572,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's bone list cannot be extended: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 294
+      "cdmw/services/mesh_replacement_import.py": 314
     }
   },
   {
@@ -101572,7 +101580,7 @@ MESSAGE_REFERENCE = [
     "message": "This older replacement draft has no saved import normals. Import the model again before using Reset Placement or Fit to Original.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 483
+      "cdmw/services/mesh_replacement_import.py": 503
     }
   },
   {
@@ -101588,7 +101596,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 284
+      "cdmw/services/mesh_rust_replacement.py": 291
     }
   },
   {
@@ -101812,7 +101820,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 242
+      "cdmw/services/mesh_rust_replacement.py": 249
     }
   },
   {
@@ -101852,7 +101860,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 351
+      "cdmw/services/mesh_rust_replacement.py": 358
     }
   },
   {
@@ -102141,6 +102149,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service_replacement.py": 217
+    }
+  },
+  {
+    "area": "placement",
+    "message": "ignore",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_replacement_import.py": 109
     }
   },
   {
@@ -102671,6 +102687,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "placement",
+    "message": "{bare[target]} has no textures in the game's material, so it cannot take imported textures. Map {part.name or part.material} to another part, join it with one before exporting, or choose Keep Original Materials.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_replacement_materials.py": 210
+    }
+  },
+  {
+    "area": "placement",
     "message": "{command.target} hangs on {destination} ({want_zone}) but is aimed by {child}, which belongs to the {have_zone}",
     "recovery": "internal",
     "sources": {
@@ -102778,7 +102802,7 @@ MESSAGE_REFERENCE = [
     "message": "{helpers[target]} is a helper material for the inside of the model and cannot take imported textures. Map {part.name or part.material} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_materials.py": 144
+      "cdmw/services/mesh_replacement_materials.py": 145
     }
   },
   {
@@ -103122,7 +103146,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not a Blender CDMW can run. Choose blender.exe, or export the model as GLB.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 87
+      "cdmw/ui/mesh_editor/replacement_flow.py": 91
     }
   },
   {
@@ -103291,6 +103315,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/material_replacement_pipeline.py": 471
+    }
+  },
+  {
+    "area": "placement",
+    "message": "{targets.count(shared)} imported parts are mapped to {name}. With Imported Materials & Textures each game part takes one imported part. Join them before exporting, map them to different parts, or choose Keep Original Materials.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_replacement_materials.py": 224
     }
   },
   {
@@ -110520,6 +110552,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/placement_tools.py",
     "cdmw/modding/asset_replacement.py",
     "cdmw/services/mesh_replacement_import.py",
+    "cdmw/services/mesh_replacement_materials.py",
     "cdmw/services/mesh_replacement_output.py",
     "cdmw/services/mesh_rust_replacement.py",
     "cdmw/services/mesh_rust_replacement_materials.py",
@@ -113374,11 +113407,13 @@ SOURCE_COVERAGE = {
     "raise": 51
   },
   "cdmw/services/mesh_replacement_import.py": {
+    "diagnostic_field": 1,
     "raise": 30,
     "validation": 2
   },
   "cdmw/services/mesh_replacement_materials.py": {
-    "raise": 23
+    "raise": 26,
+    "validation": 1
   },
   "cdmw/services/mesh_replacement_output.py": {
     "finding": 2,
@@ -116791,12 +116826,12 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
+    "native_message": 1
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
     "native_handoff": 18,
     "native_message": 12
-  },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
-    "native_message": 1
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCatalogInventory.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
@@ -116892,11 +116927,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,
@@ -117457,7 +117492,7 @@ SOURCE_COVERAGE = {
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": {
     "native_handoff": 1,
-    "native_message": 28
+    "native_message": 29
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_vertex_inspector.rs": {
     "native_handoff": 7,
