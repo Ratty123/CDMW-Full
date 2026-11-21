@@ -1618,7 +1618,7 @@ def test_active_rust_material_and_preview_paths_have_no_vortice_launcher() -> No
 
 
 @pytest.mark.parametrize("durable", [True, False])
-def test_session_material_resource_links_cache_file_only_when_not_durable(tmp_path, durable):
+def test_session_material_resource_shares_the_cache_file(tmp_path, durable):
     import os
 
     from cdmw.services import mesh_rust_preview_package as owner
@@ -1641,6 +1641,7 @@ def test_session_material_resource_links_cache_file_only_when_not_durable(tmp_pa
     assert reference["sha256"] == hashlib.sha256(payload).hexdigest().upper()
     assert (next_index, aggregate) == (1, len(payload))
     assert published.read_bytes() == payload
-    # Durable cache packages own their bytes; a session may share the cache file.
-    assert os.path.samefile(source, published) is (not durable)
+    # The cache's DDS files are never changed in place, so durable cache packages and
+    # editor sessions on the same volume both share the file instead of copying it.
+    assert os.path.samefile(source, published)
     assert sorted(path.name for path in package.iterdir()) == [reference["path"]]

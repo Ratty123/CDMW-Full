@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import platform
 import sys
 import threading
 import time
@@ -12,7 +11,6 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Dict, Optional
 
-from cdmw.domain.mesh.validation import mesh_import_mode_availability
 from cdmw.services.diagnostics_service import (
     RuntimeEventRecorder,
     RuntimeDiagnosticLogHandler,
@@ -331,6 +329,8 @@ def run_gui() -> int:
         ):
             return
         report_context = context if context is not None else _collect_crash_context()
+        import platform
+
         _write_crash_report_file(
             crash_reports_dir,
             kind,
@@ -611,5 +611,14 @@ def run_gui() -> int:
         _cleanup_native_fault_log_on_exit(clean_exit=bool(normal_exit))
         logging.getLogger().removeHandler(_diagnostic_log_handler)
         _diagnostic_log_handler.close()
+
+def __getattr__(name: str) -> object:
+    if name == "mesh_import_mode_availability":
+        from cdmw.domain.mesh.validation import mesh_import_mode_availability
+
+        globals()["mesh_import_mode_availability"] = mesh_import_mode_availability
+        return mesh_import_mode_availability
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["MainWindow", "mesh_import_mode_availability", "run_gui"]

@@ -19,14 +19,6 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QComboBox
 
 from cdmw.services.mesh_interaction_diagnostics import send_recorded_mesh_protocol_message
-from cdmw.services.mesh_dotnet_material_state import (
-    copy_dotnet_preview_material_bindings,
-    defer_dotnet_preview_material_synthesis,
-)
-from cdmw.services.mesh_dotnet_material_compiler import (
-    MeshDotNetMaterialCompileRequest,
-    snapshot_mesh_dotnet_material_inputs,
-)
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,

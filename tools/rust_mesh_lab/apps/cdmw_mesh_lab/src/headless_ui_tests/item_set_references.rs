@@ -57,6 +57,7 @@ fn reference_pieces_inspector_switch_and_view_do_not_edit_geometry() -> TestResu
         part_count: 1,
         snapshot: snapshot.clone(),
         textures: Vec::new(),
+        layers: Vec::new(),
         material_presentations: Vec::new(),
     }];
     let mut bridge = CdmwBridge::for_test(root.path().to_owned(), "set", 1, 0);

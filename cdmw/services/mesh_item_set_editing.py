@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import replace
 import hashlib
 import threading
+import weakref
 from pathlib import Path
 from typing import NamedTuple
 
@@ -45,6 +46,79 @@ def item_set_material_cache(session_root: Path) -> Path:
     return sessions / "item-set-native-cache"
 
 
+_HEAD_COMPANION_CACHE_LOCK = threading.Lock()
+_HEAD_COMPANION_CACHES: dict[int, tuple[dict, threading.Lock]] = {}
+
+_BROWSE_SET_MATERIAL_PACKAGE_LOCK = threading.Lock()
+_BROWSE_SET_MATERIAL_PACKAGES: dict[int, dict[str, str]] = {}
+_BROWSE_SET_MATERIAL_FINALIZERS: dict[int, weakref.finalize] = {}
+
+
+def _drop_browse_set_packages_for_service_id(service_id: int) -> None:
+    with _BROWSE_SET_MATERIAL_PACKAGE_LOCK:
+        _BROWSE_SET_MATERIAL_PACKAGES.pop(service_id, None)
+        _BROWSE_SET_MATERIAL_FINALIZERS.pop(service_id, None)
+
+
+def register_item_set_browse_material_package(
+    service: object,
+    session_id: str,
+    package_path: Path | str | None,
+) -> None:
+    """Attach (or clear) Browse's conserved set material package for an open edit session."""
+
+    path_text = str(package_path or "").strip()
+    key = str(session_id or "")
+    if service is None or not key:
+        return
+    service_id = id(service)
+    with _BROWSE_SET_MATERIAL_PACKAGE_LOCK:
+        entries = _BROWSE_SET_MATERIAL_PACKAGES.get(service_id)
+        if path_text:
+            if entries is None:
+                entries = {}
+                _BROWSE_SET_MATERIAL_PACKAGES[service_id] = entries
+                try:
+                    _BROWSE_SET_MATERIAL_FINALIZERS[service_id] = weakref.finalize(
+                        service,
+                        _drop_browse_set_packages_for_service_id,
+                        service_id,
+                    )
+                except TypeError:
+                    pass
+            entries[key] = path_text
+        elif entries is not None:
+            entries.pop(key, None)
+            if not entries:
+                _BROWSE_SET_MATERIAL_PACKAGES.pop(service_id, None)
+                finalizer = _BROWSE_SET_MATERIAL_FINALIZERS.pop(service_id, None)
+                if finalizer is not None:
+                    finalizer.detach()
+
+
+def lookup_item_set_browse_material_package(service: object, session_id: str) -> str:
+    """Return Browse's registered set material package path for ``(service, session_id)``."""
+
+    key = str(session_id or "")
+    if service is None or not key:
+        return ""
+    with _BROWSE_SET_MATERIAL_PACKAGE_LOCK:
+        entries = _BROWSE_SET_MATERIAL_PACKAGES.get(id(service))
+        return entries.get(key, "") if entries is not None else ""
+
+
+def _set_head_companion_cache(contexts: object) -> tuple[dict, threading.Lock]:
+    cache = ({}, threading.Lock())
+    with _HEAD_COMPANION_CACHE_LOCK:
+        _HEAD_COMPANION_CACHES[id(contexts)] = cache
+    return cache
+
+
+def _clear_head_companion_cache(contexts: object) -> None:
+    with _HEAD_COMPANION_CACHE_LOCK:
+        _HEAD_COMPANION_CACHES.pop(id(contexts), None)
+
+
 def head_companion_appearance(contexts, context, source, stop_event):
     """The head's own shape for a set piece that a head in the same set declares.
 
@@ -63,22 +137,43 @@ def head_companion_appearance(contexts, context, source, stop_event):
     def key(path):
         return str(path or "").replace("\\", "/").casefold()
 
+    with _HEAD_COMPANION_CACHE_LOCK:
+        shared = _HEAD_COMPANION_CACHES.get(id(contexts))
+    head_cache, head_cache_lock = shared if shared is not None else (None, None)
+
     piece = context.selected_entry
     read = lambda candidate: read_archive_entry_data(candidate, stop_event=stop_event)[0]
     for head_context in contexts:
         head = head_context.selected_entry
         if head_context is context or "/head/head/" not in key(head.path):
             continue
-        stem = Path(head.path).stem.casefold()
-        prefabs = tuple(entry for entry in head_context.entries
-                        if entry.extension.casefold() == ".prefab" and Path(entry.path).stem.casefold() == stem)
-        declared = native_preview_model_property_indices(prefabs, stop_event)
+        cache_key = getattr(head, "identity", key(head.path))
+        declared = None
+        if head_cache is not None and head_cache_lock is not None:
+            with head_cache_lock:
+                declared = head_cache.get(("declared", cache_key))
+        if declared is None:
+            stem = Path(head.path).stem.casefold()
+            prefabs = tuple(entry for entry in head_context.entries
+                            if entry.extension.casefold() == ".prefab" and Path(entry.path).stem.casefold() == stem)
+            declared = native_preview_model_property_indices(prefabs, stop_event)
+            if head_cache is not None and head_cache_lock is not None:
+                with head_cache_lock:
+                    head_cache[("declared", cache_key)] = declared
         if key(head.path) not in declared or key(piece.path) not in declared:
             continue
         paths = {**context.entries_by_normalized_path, **head_context.entries_by_normalized_path}
         basenames = {**context.entries_by_basename, **head_context.entries_by_basename}
-        resolution = resolve_skeleton_descriptor_for_model(head, head_context.entries,
-            archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames, read_entry_data=read)
+        resolution = None
+        if head_cache is not None and head_cache_lock is not None:
+            with head_cache_lock:
+                resolution = head_cache.get(("resolution", cache_key))
+        if resolution is None:
+            resolution = resolve_skeleton_descriptor_for_model(head, head_context.entries,
+                archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames, read_entry_data=read)
+            if head_cache is not None and head_cache_lock is not None:
+                with head_cache_lock:
+                    head_cache[("resolution", cache_key)] = resolution
         descriptor = resolution.skeleton_descriptor_entry or resolution.descriptor_entry
         if descriptor is None or resolution.skeleton_variation_entry is None:
             continue
@@ -124,16 +219,31 @@ def item_set_budget_notice(contexts, bounded_references, reason: str = "") -> st
             "than one Mesh Editor session holds; open fewer at once to edit these.")
 
 
-def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop_event, progress, root, root_identity):
+def prepare_editable_item_set(
+    service,
+    session_id,
+    material_mesh,
+    contexts,
+    stop_event,
+    progress,
+    root,
+    root_identity,
+    *,
+    browse_material_package_path: Path | str | None = None,
+):
     """Called only by the existing cancellable session preparation worker."""
     import time as _time
 
     timings: dict[str, float] = {}
     started = _time.perf_counter()
     from cdmw.domain.cancellation import raise_if_cancelled
-    from cdmw.services.mesh_item_set_budget import prepare_item_set_budget
-    from cdmw.services.mesh_preview_material_source import prepare_item_set_material_source
-    from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source
+    from cdmw.services.mesh_item_set_budget import pop_budget_neutral_meshes, prepare_item_set_budget
+    from cdmw.services.mesh_preview_material_source import (
+        bind_item_set_piece_from_preview_core_package,
+        load_preview_core_set_package,
+        prepare_item_set_material_source,
+    )
+    from cdmw.workers.mesh_archive_refit_worker import attach_archive_refit_materials, prepare_archive_refit_source
 
     stop_event = stop_event or threading.Event()
     primary = service.capture_export_snapshot(session_id, stop_event=stop_event)
@@ -145,37 +255,101 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     for name in ("interchange_skeleton", "interchange_bone_palette"):
         if hasattr(primary.mesh, name):
             setattr(material_mesh, name, getattr(primary.mesh, name))
+    setattr(material_mesh, "_cdmw_item_set_direct_native_materials", True)
     primary = replace(primary, mesh=material_mesh)
     material_cache = item_set_material_cache(Path(root))
+    package_started = _time.perf_counter()
+    resolved_browse_package = (
+        str(browse_material_package_path or "").strip()
+        or lookup_item_set_browse_material_package(service, session_id)
+    )
+    browse_set_package = (
+        load_preview_core_set_package(
+            resolved_browse_package,
+            cache_root=material_cache,
+            stop_event=stop_event,
+        )
+        if resolved_browse_package
+        else None
+    )
+    if browse_set_package is not None:
+        timings["browse_package_load_ms"] = round((_time.perf_counter() - package_started) * 1000.0, 1)
+    _set_head_companion_cache(contexts)
+
+    def prepare_primary():
+        native_lease = (
+            bind_item_set_piece_from_preview_core_package(
+                material_mesh, contexts[0], browse_set_package, stop_event,
+            )
+            if browse_set_package is not None
+            else None
+        )
+        if native_lease is None:
+            native_lease = prepare_item_set_material_source(material_mesh, contexts[0], material_cache, stop_event)
+        if native_lease is None and not any(
+            getattr(part, "preview_material_texture_inputs", ()) for part in material_mesh.submeshes
+        ):
+            # Fallback only when Preview Core did not bind the primary piece and no
+            # pre-resolved materials were attached (e.g. skipped upfront worker).
+            try:
+                fallback_lease, _ = attach_archive_refit_materials(
+                    contexts[0].selected_entry, contexts[0], material_mesh, stop_event,
+                )
+                return fallback_lease
+            except Exception:
+                return None
+        return native_lease
 
     def prepare_piece(context):
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         piece_started = _time.perf_counter()
         prepared = prepare_archive_refit_source({"_archive_entry": context.selected_entry,
-                                                "_archive_dependencies": context}, stop_event)
+                                                "_archive_dependencies": context,
+                                                "_skip_materials": True}, stop_event)
         source = prepared["_archive_snapshot"]
+        setattr(source.mesh, "_cdmw_item_set_direct_native_materials", True)
         parsed = _time.perf_counter()
-        native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
+        native_lease = (
+            bind_item_set_piece_from_preview_core_package(
+                source.mesh, context, browse_set_package, stop_event,
+            )
+            if browse_set_package is not None
+            else None
+        )
+        if native_lease is None:
+            native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
+        preview_lease = prepared.get("_archive_preview_lease")
+        if native_lease is None and prepared.get("_archive_materials_skipped"):
+            preview_lease, _ = attach_archive_refit_materials(
+                context.selected_entry, context, source.mesh, stop_event,
+                physics_profile_context=prepared.get("_archive_physics_profile_context"),
+            )
         name = context.selected_entry.basename
         timings[f"piece_parse_ms:{name}"] = round((parsed - piece_started) * 1000.0, 1)
         timings[f"piece_material_ms:{name}"] = round((_time.perf_counter() - parsed) * 1000.0, 1)
-        leases = (prepared.get("_archive_preview_lease"), native_lease)
+        leases = (preview_lease, native_lease)
         appearance = (head_companion_appearance(contexts, context, source, stop_event)
                       or prepared.get("_archive_neutral_appearance"))
         return (context.selected_entry, source, appearance, leases, context)
 
     progress("Preparing editable item set...")
-    # Each piece loads into its own mesh service and runs its own Preview Core
-    # job. The service runs one job at a time, so its jobs queue while the other
-    # pieces parse; preparing them side by side overlaps the two. Results keep
-    # the set's order, and a failure surfaces after the others have finished;
+    # Each piece loads into its own mesh service and binds from Browse's set
+    # package when present (or runs its own Preview Core job on fallback).
+    # Preparing them side by side overlaps parsing and material binding; results
+    # keep the set's order, and a failure surfaces after the others have finished;
     # their leases release themselves when dropped, as before.
     workers = max(1, min(ITEM_SET_PREPARATION_WORKERS, len(contexts)))
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cdmw-item-set") as pool:
-        primary_future = pool.submit(prepare_item_set_material_source, material_mesh, contexts[0],
-                                     material_cache, stop_event)
-        piece_futures = [pool.submit(prepare_piece, context) for context in contexts[1:]]
-        wait([primary_future, *piece_futures])
+    try:
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cdmw-item-set") as pool:
+            primary_future = pool.submit(prepare_primary)
+            piece_futures = [pool.submit(prepare_piece, context) for context in contexts[1:]]
+            wait([primary_future, *piece_futures])
+    finally:
+        _clear_head_companion_cache(contexts)
+        if browse_set_package is not None:
+            release = getattr(browse_set_package.lease, "release", None)
+            if callable(release):
+                release()
     primary_lease = primary_future.result()
     timings["pieces_ms"] = round((_time.perf_counter() - started) * 1000.0, 1)
     sources = [(contexts[0].selected_entry, primary, service._session(session_id).neutral_appearance, primary_lease, contexts[0])]
@@ -184,6 +358,7 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
     progress("Preparing material textures for Mesh Editor...")
     budget_started = _time.perf_counter()
     budget = prepare_item_set_budget(sources, root, root_identity, stop_event)
+    neutral_meshes = pop_budget_neutral_meshes(id(sources))
     admitted, bounded_references, materials = budget.admitted, budget.references, budget.materials
     notice = item_set_budget_notice(contexts, bounded_references, budget.reason)
     if notice:
@@ -195,7 +370,12 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
             references.append(context)
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     compose_started = _time.perf_counter()
-    mesh, context = compose_item_set([source for index, source in enumerate(sources) if index in admitted])
+    admitted_sources = [source for index, source in enumerate(sources) if index in admitted]
+    admitted_neutral = (
+        [neutral_meshes.get(index) for index in range(len(sources)) if index in admitted]
+        if neutral_meshes else None
+    )
+    mesh, context = compose_item_set(admitted_sources, pre_neutralized=admitted_neutral)
     timings["compose_ms"] = round((_time.perf_counter() - compose_started) * 1000.0, 1)
     LAST_ITEM_SET_PREPARATION_MS.clear()
     LAST_ITEM_SET_PREPARATION_MS.update(timings)
@@ -203,32 +383,40 @@ def prepare_editable_item_set(service, session_id, material_mesh, contexts, stop
                            materials, notice)
 
 
-def compose_item_set(sources):
+def compose_item_set(sources, *, pre_neutralized=None):
     """Each row supplies (entry, immutable snapshot, appearance, material lease)."""
     from cdmw.services.mesh_archive_refit import _clone
 
     combined = None
     assets = []
-    for entry, source, appearance, lease, *dependencies in sources:
+    for source_index, (entry, source, appearance, lease, *dependencies) in enumerate(sources):
         if not source.original_data or not source.mesh.submeshes or source.replacement_state is not None:
             raise ValueError(f"Item set needs an original game mesh: {entry.basename}")
         if assets and entry.identity in {asset.entry.identity for asset in assets}:
             raise ValueError("Item set contains duplicate source files")
-        # The clone skips the bound Preview Core material sources and gets them
-        # back by part (P4 V4): they were most of the clone's JSON work.
-        from cdmw.services.mesh_preview_material_source import (
-            restore_preview_core_sources, set_aside_preview_core_sources,
+        reused = (
+            pre_neutralized[source_index]
+            if pre_neutralized is not None and source_index < len(pre_neutralized)
+            else None
         )
+        if reused is not None and appearance is not None:
+            mesh = reused
+        else:
+            # The clone skips the bound Preview Core material sources and gets them
+            # back by part (P4 V4): they were most of the clone's JSON work.
+            from cdmw.services.mesh_preview_material_source import (
+                restore_preview_core_sources, set_aside_preview_core_sources,
+            )
 
-        set_aside = set_aside_preview_core_sources(source.mesh)
-        try:
-            mesh = appearance.to_neutral(source.mesh) if appearance is not None else _clone(source.mesh)
-        finally:
-            originals = list(source.mesh.submeshes)
-            copies = list(mesh.submeshes) if "mesh" in locals() else []
-            onto = ({id(original): copy_ for original, copy_ in zip(originals, copies)}
-                    if len(originals) == len(copies) else None)
-            restore_preview_core_sources(set_aside, onto=onto)
+            set_aside = set_aside_preview_core_sources(source.mesh)
+            try:
+                mesh = appearance.to_neutral(source.mesh) if appearance is not None else _clone(source.mesh)
+            finally:
+                originals = list(source.mesh.submeshes)
+                copies = list(mesh.submeshes) if "mesh" in locals() else []
+                onto = ({id(original): copy_ for original, copy_ in zip(originals, copies)}
+                        if len(originals) == len(copies) else None)
+                restore_preview_core_sources(set_aside, onto=onto)
         first = len(combined.submeshes) if combined is not None else 0
         asset = MeshAsset(copy.copy(entry), replace(source, archive_refit_context=None),
                           tuple(range(first, first + len(mesh.submeshes))), "editable", lease, appearance,

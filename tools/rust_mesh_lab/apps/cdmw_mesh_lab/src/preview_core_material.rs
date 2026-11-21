@@ -6,7 +6,8 @@ use crate::cdmw_session::{
 };
 use cdmw_formats::MeshDocument;
 use cdmw_texture::{
-    DecodedRgba8, TextureRole, decode_dds_rgba8, encode_rgba8_mipmapped_dds, inspect_dds,
+    DecodedRgba8, TextureRole, decode_dds_rgba8, decode_dds_rgba8_with_verified_sha256,
+    encode_rgba8_mipmapped_dds, inspect_dds, inspect_dds_with_verified_sha256,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -523,7 +524,7 @@ mod work {
                     result.push((
                         *owner,
                         role_label(resource.role).into(),
-                        resource.bytes.clone(),
+                        resource.bytes.to_vec(),
                     ));
                 }
             }
@@ -634,7 +635,7 @@ mod work {
                         label: reference.path.clone(),
                         role,
                         metadata: inspect_dds(&bytes, role).unwrap(),
-                        bytes,
+                        bytes: bytes.into(),
                         material_indices_by_lod: vec![vec![0]],
                     });
                 }
@@ -686,7 +687,7 @@ mod work {
                     label: "painted.dds".into(),
                     role: TextureRole::BaseColor,
                     metadata: inspect_dds(&bytes, TextureRole::BaseColor).unwrap(),
-                    bytes,
+                    bytes: bytes.into(),
                     material_indices_by_lod: vec![vec![0]],
                 }];
                 let metrics = compose(
@@ -905,8 +906,9 @@ impl ImageCache {
                 // The owning reader remains serial: it validates hashes and
                 // cancellation, including directly reusable and cached maps.
                 let bytes = read_reference(reference)?;
-                let metadata = inspect_dds(&bytes, TextureRole::Unknown)
-                    .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+                let metadata =
+                    inspect_dds_with_verified_sha256(&bytes, TextureRole::Unknown, &sha256)
+                        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
                 if !required.contains(&sha256) {
                     continue;
                 }
@@ -944,7 +946,7 @@ impl ImageCache {
                 inputs.push((sha256, reference.path.clone(), bytes));
             }
             let decode = |(sha256, path, bytes): (String, String, Vec<u8>)| {
-                decode_dds_rgba8(&bytes, TextureRole::Unknown)
+                decode_dds_rgba8_with_verified_sha256(&bytes, TextureRole::Unknown, &sha256)
                     .map(|image| (sha256, Arc::new(image)))
                     .map_err(|error| {
                         SessionError::InvalidPayload(format!(
@@ -3189,7 +3191,7 @@ fn publish_prepared_resource(
     let existing_index = resources.iter().position(|resource| {
         resource.role == role
             && resource.metadata.source_sha256 == metadata.source_sha256
-            && resource.bytes == *bytes
+            && &*resource.bytes == bytes.as_slice()
     });
     if let Some(index) = existing_index
         && resources[index]
@@ -3270,7 +3272,7 @@ fn publish_prepared_resource(
             ),
             role,
             metadata: metadata.clone(),
-            bytes: bytes.clone(),
+            bytes: Arc::from(bytes.as_slice()),
             material_indices_by_lod,
         });
     }
@@ -3382,6 +3384,7 @@ mod tests {
                     uvs: vec![[0.0, 0.0]; 3],
                     indices: vec![0, 1, 2],
                     shader_masks: Vec::new(),
+                    tangents: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     source_range: SourceRange {
                         offset: 0,
@@ -3565,7 +3568,7 @@ mod tests {
             label: "authored.dds".to_owned(),
             role: TextureRole::Normal,
             metadata: inspect_dds(&encoded, TextureRole::Normal).unwrap(),
-            bytes: encoded,
+            bytes: encoded.into(),
             material_indices_by_lod: vec![vec![0]],
         }];
         publish_composed_resource(
@@ -3742,7 +3745,7 @@ mod tests {
                 label: "owned paint".to_owned(),
                 role,
                 metadata: inspect_dds(&bytes, role).unwrap(),
-                bytes,
+                bytes: bytes.into(),
                 material_indices_by_lod: vec![vec![0, 1]],
             });
         }
@@ -3831,7 +3834,7 @@ mod tests {
                 label: file.path.clone(),
                 role,
                 metadata: inspect_dds(&bytes, role).expect("DDS metadata"),
-                bytes: bytes.clone(),
+                bytes: bytes.clone().into(),
                 material_indices_by_lod: vec![vec![0]],
             });
             files.insert(file.path.clone(), bytes);

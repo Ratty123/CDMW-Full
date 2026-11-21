@@ -1781,6 +1781,52 @@ def test_view_settings_go_to_the_helper_and_come_back_as_it_holds_them(editor, c
     assert reset["colours"]["wire"] == before["colours"]["wire"] and reset["hidden_parts"] == []
 
 
+@pytest.mark.skipif(not __import__("cdmw.modding.mesh_native_core", fromlist=["x"]).native_mesh_core_available(),
+                    reason="the native mesh core is not built (CDMW_MESH_CORE_BIN names a built one)")
+def test_view_lighting_and_studio_look_need_the_look_capability(editor, connect) -> None:  # noqa: F811
+    """mesh_view's experimental Lighting, Wetness, Exposure and Light rotation go to the helper only
+    when its hello names host_view_look_v1; out-of-range values are refused before sending. The
+    helper's own handling is headless_ui_tests' host_view_state_sets_the_lighting_preset_and_studio_look."""
+
+    ui = editor.ui
+    mcp = connect(editor.window)
+    ui.standalone_rust_view_state_supported = True
+    ui.standalone_rust_view_look_supported = False
+    held = {"selection_shape": "click", "hidden_parts": [], "lighting_preset": "neutral_studio",
+            "wetness": 0.0, "exposure": 1.0, "light_rotation": 0.0, "look_applies": False}
+    sent, forward = [], ui._send_rust_message
+
+    def helper(message):
+        sent.append(message)
+        if message.get("event") != "set_view_state":
+            return forward(message)
+        if message.get("reset") == "look":
+            held.update(wetness=0.0, exposure=1.0, light_rotation=0.0)
+        for key in ("lighting_preset", "wetness", "exposure", "light_rotation"):
+            if key in message:
+                held[key] = message[key]
+        held["look_applies"] = held["lighting_preset"] == "studio_fixed"
+        ui.standalone_rust_view_state = dict(held)
+        return True
+
+    ui._send_rust_message = helper
+    for arguments in ({"wetness": 0.5}, {"lighting_preset": "studio_fixed"}, {"reset": "look"}):
+        assert "host_view_look_v1" in mcp.error("mesh_view", arguments)["message"]
+    assert sent == []
+    ui.standalone_rust_view_look_supported = True
+    for bad in ({"wetness": 1.5}, {"exposure": 0.1}, {"light_rotation": 270}, {"lighting_preset": "icon_studio"}):
+        assert mcp.error("mesh_view", bad)["code"] == "invalid_arguments"
+    assert sent == []
+    view = mcp.ok("mesh_view", {"lighting_preset": "studio_fixed", "wetness": 0.4, "exposure": 1.5,
+                                "light_rotation": -90})["view"]
+    assert sent[-1]["lighting_preset"] == "studio_fixed" and sent[-1]["light_rotation"] == -90
+    assert (view["wetness"], view["exposure"], view["light_rotation"]) == (0.4, 1.5, -90)
+    assert view["look_applies"] is True
+    reset = mcp.ok("mesh_view", {"reset": "look"})["view"]
+    assert (reset["wetness"], reset["exposure"], reset["light_rotation"]) == (0.0, 1.0, 0.0)
+    assert reset["lighting_preset"] == "studio_fixed"
+
+
 def test_export_pac_runs_the_button_and_reports_its_refusal(editor, connect, tmp_path) -> None:  # noqa: F811
     """Export PAC As before the edit is finished: the button's own warning comes back as 'asked'."""
 

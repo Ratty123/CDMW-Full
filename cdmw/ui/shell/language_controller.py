@@ -43,13 +43,15 @@ class LanguageControllerMixin:
         activate_tracking = getattr(self.ui_localizer, "activate_runtime_tracking", None)
         if callable(activate_tracking):
             activate_tracking(self)
-        self.settings_tab.set_language_options(
-            self.ui_localizer.available_languages(),
-            current_code=self.ui_localizer.language_code,
-        )
-        language_combo = getattr(self.settings_tab, "language_combo", None)
-        if language_combo is not None:
-            language_combo.setProperty("_i18n_skip_combo_items", True)
+        settings_tab = created_tool_widget(getattr(self, "settings_tab", None))
+        if settings_tab is not None:
+            settings_tab.set_language_options(
+                self.ui_localizer.available_languages(),
+                current_code=self.ui_localizer.language_code,
+            )
+            language_combo = getattr(settings_tab, "language_combo", None)
+            if language_combo is not None:
+                language_combo.setProperty("_i18n_skip_combo_items", True)
         texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
         if texture_editor_tab is not None:
             texture_editor_tab.set_ui_translator(self.ui_localizer.translate)
@@ -69,10 +71,10 @@ class LanguageControllerMixin:
             )
             if callable(mark_source_tree_current):
                 mark_source_tree_current(self)
-        refresh_settings_navigation = getattr(
-            self.settings_tab,
-            "_apply_section_nav_style",
-            None,
+        refresh_settings_navigation = (
+            getattr(settings_tab, "_apply_section_nav_style", None)
+            if settings_tab is not None
+            else None
         )
         if callable(refresh_settings_navigation):
             refresh_settings_navigation()

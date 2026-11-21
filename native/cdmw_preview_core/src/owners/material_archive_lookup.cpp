@@ -356,7 +356,7 @@ static std::vector<std::string> extract_prefab_model_paths(const std::vector<cha
     std::set<std::string> seen;
     if (bytes.empty()) return paths;
     const std::string text(bytes.begin(), bytes.end());
-    const std::regex model_path_pattern(
+    static const std::regex model_path_pattern(
         "((?:character|object|vehicle|environment|effect)/[A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))",
         std::regex_constants::icase);
     auto begin = std::sregex_iterator(text.begin(), text.end(), model_path_pattern);
@@ -388,28 +388,28 @@ static std::vector<std::string> prefab_candidate_basenames_for_model_stem(const 
     }
 
     std::smatch match;
-    const std::regex submesh_suffix_pattern(R"(^(.+)_sub[0-9]+$)", std::regex_constants::icase);
+    static const std::regex submesh_suffix_pattern(R"(^(.+)_sub[0-9]+$)", std::regex_constants::icase);
     if (std::regex_match(model_stem, match, submesh_suffix_pattern) && match.size() >= 2) {
         add_stem(match[1].str());
     }
 
-    const std::string part_token =
+    static const std::string part_token =
         R"(body|head|hair|chain|cloth|acc|belt|sho|shoulder|ub|lb|hel|hand|foot|blade|guard|handle|core|tail|wing|horn|fur)";
-    const std::regex part_before_number_pattern(
+    static const std::regex part_before_number_pattern(
         "^(.+)_(" + part_token + ")_([0-9].*)$",
         std::regex_constants::icase);
     if (std::regex_match(model_stem, match, part_before_number_pattern) && match.size() >= 4) {
         add_stem(match[1].str() + "_" + match[3].str());
     }
 
-    const std::regex part_after_number_pattern(
+    static const std::regex part_after_number_pattern(
         "^(.+_[0-9].*)_(" + part_token + ")$",
         std::regex_constants::icase);
     if (std::regex_match(model_stem, match, part_after_number_pattern) && match.size() >= 2) {
         add_stem(match[1].str());
     }
 
-    const std::regex compound_part_pattern(
+    static const std::regex compound_part_pattern(
         R"(^(.+)_(ub|lb|sho|hel|hand|foot|cloak)_(acc|belt|hair|cloth)_([0-9].*)$)",
         std::regex_constants::icase);
     if (std::regex_match(model_stem, match, compound_part_pattern) && match.size() >= 5) {

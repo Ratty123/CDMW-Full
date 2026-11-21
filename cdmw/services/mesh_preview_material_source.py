@@ -1,9 +1,11 @@
 """Keep a native layer graph only while its source material bindings are unchanged."""
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 def _binding_signature(part):
@@ -106,7 +108,7 @@ def unedited_preview_core_material_source(part):
     return None
 
 
-def bind_authoring_preview_core_materials(mesh, package_path):
+def bind_authoring_preview_core_materials(mesh, package_path, *, manifest=None):
     """Match original source file, section and material, never a name-only import."""
     from cdmw.services.mesh_rust_authoring import _mesh_lods
     from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
@@ -116,12 +118,13 @@ def bind_authoring_preview_core_materials(mesh, package_path):
     package = Path(package_path)
     if package.is_file():
         package = package.parent
-    path = package / "manifest.json"
-    if not path.is_file():
-        return
-    if path.stat().st_size > 16 * 1024 * 1024:
-        raise ValueError("Preview Core manifest exceeds the 16 MiB limit")
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest is None:
+        path = package / "manifest.json"
+        if not path.is_file():
+            return
+        if path.stat().st_size > 16 * 1024 * 1024:
+            raise ValueError("Preview Core manifest exceeds the 16 MiB limit")
+        manifest = json.loads(path.read_text(encoding="utf-8"))
     if manifest.get("schema_version", 0) < 8:
         return
     normalize = lambda value: str(value or "").replace("\\", "/").casefold()
@@ -144,6 +147,270 @@ def bind_authoring_preview_core_materials(mesh, package_path):
             rows = batches.get(original_index, ())
             if len(rows) == 1 and rows[0].get("material_name") == getattr(part, "material", ""):
                 bind_preview_core_material_source(part, package, rows[0], manifest["material_conservation"])
+
+
+_DEFAULT_BIND_AUTHORING_PREVIEW_CORE_MATERIALS = bind_authoring_preview_core_materials
+
+
+def _normalize_preview_model_path(value: object) -> str:
+    return str(value or "").replace("\\", "/").strip().strip("/").casefold()
+
+
+def _safe_batch_int(value: object, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+
+
+@dataclass(frozen=True, slots=True)
+class PreviewCoreSetPackage:
+    """Validated, leased Preview Core set package shared read-only across set pieces."""
+
+    package: Path
+    manifest: Mapping[str, object]
+    lease: object
+    extra_texture_roots: tuple[Path, ...]
+    batches_by_path: Mapping[str, tuple[Mapping[str, object], ...]]
+    batches_by_basename: Mapping[str, tuple[str, ...]]
+
+
+def _preview_core_extra_texture_roots(package: Path, cache_root: Path | str | None = None) -> tuple[Path, ...]:
+    candidates: list[Path] = []
+    if package.name == "package" and package.parent.parent.name == "packages":
+        candidates.append(package.parent.parent.parent / "dds")
+    if cache_root is not None:
+        candidates.append(Path(cache_root) / "dds")
+    seen: set[str] = set()
+    roots: list[Path] = []
+    for candidate in candidates:
+        key = str(candidate).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(candidate)
+    return tuple(roots)
+
+
+def load_preview_core_set_package(
+    package_path: Path | str | None,
+    *,
+    cache_root: Path | str | None = None,
+    stop_event: object = None,
+) -> PreviewCoreSetPackage | None:
+    """Lease and validate Browse's conserved Preview Core set package once for all pieces.
+
+    Caller owns ``result.lease`` and must release it once every piece has either
+    acquired its own piece lease or fallen back.
+    """
+    from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
+    from cdmw.rendering.native_preview_package_cache import acquire_native_preview_package_cache_lease_for_path
+    from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
+    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+
+    raise_if_cancelled(stop_event, "Item set loading cancelled")
+    if not package_path:
+        return None
+    try:
+        package = Path(package_path)
+        if package.is_file():
+            package = package.parent
+        package = native_material_package_for_rust_preview(package) or package
+        package = package.resolve(strict=True)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    lease = acquire_native_preview_package_cache_lease_for_path(package)
+    if lease is None:
+        return None
+    try:
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        manifest_path = package / "manifest.json"
+        if not manifest_path.is_file() or manifest_path.stat().st_size > 16 * 1024 * 1024:
+            lease.release()
+            return None
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        if not isinstance(manifest, Mapping) or _safe_batch_int(manifest.get("schema_version"), 0) < 8:
+            lease.release()
+            return None
+        _validated_preview_core_source(package, manifest)
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        source_path = _normalize_preview_model_path(manifest.get("source_path"))
+        by_path: dict[str, list[Mapping[str, object]]] = {}
+        by_basename: dict[str, list[str]] = {}
+        for batch in manifest.get("batches", ()):
+            if not isinstance(batch, Mapping):
+                continue
+            identity = batch.get("editor_identity")
+            if not isinstance(identity, Mapping):
+                continue
+            batch_path = _normalize_preview_model_path(
+                identity.get("source_model_path") or identity.get("source_asset_path") or ""
+            )
+            if (
+                not batch_path
+                and not bool(identity.get("prefab_component", False))
+                and not bool(identity.get("context_component", False))
+                and _safe_batch_int(identity.get("source_component_index", 0), 0) == 0
+            ):
+                batch_path = source_path
+            if not batch_path:
+                continue
+            if batch_path not in by_path:
+                basename = PurePosixPath(batch_path).name
+                if basename:
+                    by_basename.setdefault(basename, []).append(batch_path)
+            by_path.setdefault(batch_path, []).append(batch)
+        if not by_path:
+            lease.release()
+            return None
+        return PreviewCoreSetPackage(
+            package=package,
+            manifest=manifest,
+            lease=lease,
+            extra_texture_roots=_preview_core_extra_texture_roots(package, cache_root),
+            batches_by_path={key: tuple(value) for key, value in by_path.items()},
+            batches_by_basename={key: tuple(value) for key, value in by_basename.items()},
+        )
+    except RunCancelled:
+        lease.release()
+        raise
+    except Exception:
+        lease.release()
+        return None
+
+
+def bind_item_set_piece_from_preview_core_package(
+    mesh: object,
+    context: object,
+    set_package: PreviewCoreSetPackage | None,
+    stop_event: object,
+) -> object | None:
+    """Bind one item-set piece directly from Browse's already-built set package.
+
+    Matches piece ``entry.path`` (or unambiguous basename) against each batch's
+    ``editor_identity`` and local/source submesh index plus exact material name.
+    Returns an ``ArchiveRefitPreviewLease`` holding a fresh lease on the package,
+    or ``None`` when any submesh is missing or ambiguous so the caller falls back
+    to ``prepare_item_set_material_source`` for this piece only.
+    """
+    from types import SimpleNamespace
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.rendering.native_preview_package_cache import acquire_native_preview_package_cache_lease_for_path
+    from cdmw.services.mesh_archive_refit import ArchiveRefitPreviewLease
+    from cdmw.services.mesh_dotnet_material_bindings import (
+        _DOTNET_PREVIEW_MATERIAL_ATTRS,
+        apply_dotnet_native_material_batch_binding,
+    )
+    from cdmw.services.mesh_rust_authoring import _mesh_lods, _rebase_rust_preview_texture_paths
+
+    raise_if_cancelled(stop_event, "Item set loading cancelled")
+    if set_package is None:
+        return None
+    entry = context.selected_entry
+    entry_path = _normalize_preview_model_path(getattr(entry, "path", ""))
+    mesh_path = _normalize_preview_model_path(getattr(mesh, "path", ""))
+    if not entry_path or mesh_path != entry_path:
+        return None
+    piece_batches = set_package.batches_by_path.get(entry_path, ())
+    if not piece_batches:
+        basename = PurePosixPath(entry_path).name
+        matching_paths = set_package.batches_by_basename.get(basename, ())
+        if len(matching_paths) == 1:
+            piece_batches = set_package.batches_by_path.get(matching_paths[0], ())
+    if not piece_batches:
+        return None
+    by_component: dict[int, list[Mapping[str, object]]] = {}
+    for batch in piece_batches:
+        identity = batch.get("editor_identity")
+        component_index = (
+            _safe_batch_int(identity.get("source_component_index", 0), 0)
+            if isinstance(identity, Mapping)
+            else 0
+        )
+        by_component.setdefault(component_index, []).append(batch)
+    if len(by_component) > 1:
+        if 0 in by_component:
+            piece_batches = tuple(by_component[0])
+        else:
+            return None
+    batches_by_local: dict[int, list[Mapping[str, object]]] = {}
+    for batch in piece_batches:
+        identity = batch.get("editor_identity")
+        if not isinstance(identity, Mapping):
+            continue
+        if "source_local_submesh_index" in identity:
+            local_index = _safe_batch_int(identity.get("source_local_submesh_index"), -1)
+        else:
+            local_index = _safe_batch_int(identity.get("source_submesh_index"), -1)
+        if local_index >= 0:
+            batches_by_local.setdefault(local_index, []).append(batch)
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if not submeshes:
+        return None
+    matched_pairs: list[tuple[object, Mapping[str, object]]] = []
+    for index, part in enumerate(submeshes):
+        original_index = getattr(part, "cdmw_mesh_edit_topology_source_submesh_index", index)
+        rows = batches_by_local.get(original_index, ())
+        if len(rows) != 1:
+            return None
+        batch = rows[0]
+        if str(batch.get("material_name", "") or "") != str(getattr(part, "material", "") or ""):
+            return None
+        matched_pairs.append((part, batch))
+
+    lease = acquire_native_preview_package_cache_lease_for_path(set_package.package)
+    if lease is None:
+        return None
+
+    sentinel = object()
+    saved_attrs: list[tuple[object, dict[str, object]]] = []
+
+    def restore_parts() -> None:
+        for target_part, previous in saved_attrs:
+            for attr, value in previous.items():
+                if value is sentinel:
+                    if hasattr(target_part, attr):
+                        try:
+                            delattr(target_part, attr)
+                        except AttributeError:
+                            pass
+                else:
+                    setattr(target_part, attr, value)
+
+    try:
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        for part, batch in matched_pairs:
+            saved_attrs.append((
+                part,
+                {attr: getattr(part, attr, sentinel) for attr in _DOTNET_PREVIEW_MATERIAL_ATTRS},
+            ))
+            if not apply_dotnet_native_material_batch_binding(part, batch):
+                restore_parts()
+                lease.release()
+                return None
+        _rebased, unavailable_reason = _rebase_rust_preview_texture_paths(
+            mesh,
+            set_package.package,
+            stop_event=stop_event,
+            extra_texture_roots=set_package.extra_texture_roots,
+        )
+        if unavailable_reason:
+            restore_parts()
+            lease.release()
+            return None
+        conservation = set_package.manifest["material_conservation"]
+        for level in _mesh_lods(mesh):
+            for index, part in enumerate(level):
+                original_index = getattr(part, "cdmw_mesh_edit_topology_source_submesh_index", index)
+                rows = batches_by_local.get(original_index, ())
+                if len(rows) == 1 and str(rows[0].get("material_name", "") or "") == str(getattr(part, "material", "") or ""):
+                    bind_preview_core_material_source(part, set_package.package, rows[0], conservation)
+        raise_if_cancelled(stop_event, "Item set loading cancelled")
+        return ArchiveRefitPreviewLease(SimpleNamespace(material_package_lease=lease), context)
+    except BaseException:
+        restore_parts()
+        lease.release()
+        raise
 
 
 def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False):
@@ -188,7 +455,7 @@ def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False)
     return reference
 
 
-def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
+def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, require_existing_inputs: bool = True):
     """Resolve one original PAC's graph on the existing set preparation worker."""
     from types import SimpleNamespace
     from cdmw.domain.cancellation import raise_if_cancelled
@@ -204,7 +471,8 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
     )
 
     raise_if_cancelled(stop_event, "Item set loading cancelled")
-    if not any(_submesh_has_material_synthesis_inputs(part) for part in mesh.submeshes):
+    direct_native = bool(getattr(mesh, "_cdmw_item_set_direct_native_materials", False))
+    if require_existing_inputs and not direct_native and not any(_submesh_has_material_synthesis_inputs(part) for part in mesh.submeshes):
         return None
     entry = context.selected_entry
     normalize = lambda value: str(value or "").replace("\\", "/").casefold()
@@ -245,7 +513,10 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event):
         # native cache, which the package location alone does not reveal.
         _rebase_rust_preview_texture_paths(
             mesh, package, stop_event=stop_event, extra_texture_roots=(Path(cache_root) / "dds",))
-        bind_authoring_preview_core_materials(mesh, package)
+        if bind_authoring_preview_core_materials is _DEFAULT_BIND_AUTHORING_PREVIEW_CORE_MATERIALS:
+            bind_authoring_preview_core_materials(mesh, package, manifest=manifest)
+        else:
+            bind_authoring_preview_core_materials(mesh, package)
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         return ArchiveRefitPreviewLease(SimpleNamespace(material_package_lease=lease), context)
     except BaseException:

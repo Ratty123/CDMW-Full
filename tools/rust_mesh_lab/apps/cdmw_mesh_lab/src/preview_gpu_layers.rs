@@ -587,6 +587,8 @@ fn build(
     Ok(result)
 }
 
+// Owned-bytes form of `prepare_arc`, kept for the tests; the app passes shared bytes.
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn prepare<F>(
     graph: &PreviewCoreMaterialGraph,
@@ -600,6 +602,32 @@ pub fn prepare<F>(
 ) -> Result<(PreviewCoreMaterialCompositionMetrics, Vec<MaterialLayerSet>), SessionError>
 where
     F: FnMut(&FileReference) -> Result<Vec<u8>, SessionError>,
+{
+    prepare_arc(
+        graph,
+        presentations,
+        document,
+        resources,
+        gpu_supported,
+        draw_grime,
+        |reference| read(reference).map(Arc::from),
+        cancelled,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_arc<F>(
+    graph: &PreviewCoreMaterialGraph,
+    presentations: &[SessionMaterialPresentation],
+    document: &MeshDocument,
+    resources: &mut Vec<CdmwTextureResource>,
+    gpu_supported: bool,
+    draw_grime: bool,
+    mut read: F,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(PreviewCoreMaterialCompositionMetrics, Vec<MaterialLayerSet>), SessionError>
+where
+    F: FnMut(&FileReference) -> Result<Arc<[u8]>, SessionError>,
 {
     if graph.quality != "full" {
         return Ok((PreviewCoreMaterialCompositionMetrics::default(), Vec::new()));
@@ -632,7 +660,7 @@ where
                         "material sources exceed the 512 MiB limit".into(),
                     ));
                 }
-                entry.insert(Arc::from(read(reference)?));
+                entry.insert(read(reference)?);
             }
         }
     }
@@ -677,7 +705,7 @@ where
                     _ => &base.material,
                 };
                 if let Some(reference) = reference {
-                    let bytes = sources[&reference.sha256.to_ascii_uppercase()].to_vec();
+                    let bytes = Arc::clone(&sources[&reference.sha256.to_ascii_uppercase()]);
                     let metadata =
                         inspect_dds_with_verified_sha256(&bytes, role, &reference.sha256)
                             .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;

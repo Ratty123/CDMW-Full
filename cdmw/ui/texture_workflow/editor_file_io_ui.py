@@ -2,6 +2,8 @@ from __future__ import annotations
 """File, project, export, and handoff UI coordination for the Texture Editor."""
 
 import dataclasses
+import os
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 from PySide6.QtCore import QTimer
@@ -249,57 +251,201 @@ class TextureEditorFileIoUiMixin:
         self._last_open_dir = str(Path(project_path).expanduser().resolve().parent)
         self.load_project(Path(project_path))
 
-    def open_source_path(self, source_path: Path, *, binding: Optional[TextureEditorSourceBinding] = None, report_result=None) -> None:
-        resolved_source = source_path.expanduser().resolve()
+    @staticmethod
+    def _normalized_source_key(source_path: object) -> str:
+        raw = str(source_path or "").strip()
+        if not raw:
+            return ""
         try:
-            texture_binding = self._build_binding_for_source(
-                resolved_source,
-                launch_origin=binding.launch_origin if binding is not None else "file",
-                binding=binding,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, APP_TITLE, str(exc))
-            return
-        existing_index = texture_editor_existing_source_session_index(self._sessions, resolved_source)
-        if existing_index >= 0:
-            self._store_active_session()
-            session = self._sessions[existing_index]
+            return os.path.normcase(os.path.abspath(os.path.expanduser(raw)))
+        except Exception:
+            return ""
+
+    def _find_existing_source_session_fast(self, source_path: Path) -> int:
+        target_key = self._normalized_source_key(source_path)
+        if not target_key:
+            return -1
+        for index, session in enumerate(self._sessions):
             document = session.document
-            if document is not None:
-                # A mode/handoff may add missing context, but cannot replace the
-                # original DDS or an already matched game target.
-                texture_binding = dataclasses.replace(texture_binding, **{
+            if document is None or not document.source_binding.source_path:
+                continue
+            if self._normalized_source_key(document.source_binding.source_path) == target_key:
+                return int(index)
+        return -1
+
+    def _activate_existing_source_session(
+        self,
+        existing_index: int,
+        source_path: Path,
+        texture_binding: Optional[TextureEditorSourceBinding],
+    ) -> None:
+        self._store_active_session()
+        session = self._sessions[existing_index]
+        document = session.document
+        if document is not None and texture_binding is not None:
+            # A mode/handoff may add missing context, but cannot replace the
+            # original DDS or an already matched game target.
+            merged_binding = dataclasses.replace(
+                texture_binding,
+                **{
                     field.name: getattr(document.source_binding, field.name)
                     for field in dataclasses.fields(document.source_binding)
                     if getattr(document.source_binding, field.name)
-                })
-                session.document = dataclasses.replace(
-                    document,
-                    source_binding=texture_binding,
-                    technical_warning=texture_binding.technical_warning,
-                )
-            self._load_session_index(existing_index)
-            self._refresh_metadata()
-            self._refresh_canvas_status_strip()
-            self._set_status(texture_editor_existing_source_status_text(resolved_source), False)
+                },
+            )
+            session.document = dataclasses.replace(
+                document,
+                source_binding=merged_binding,
+                technical_warning=merged_binding.technical_warning,
+            )
+        self._load_session_index(existing_index)
+        self._refresh_metadata()
+        self._refresh_canvas_status_strip()
+        self._set_status(texture_editor_existing_source_status_text(source_path), False)
+
+    def open_source_path(
+        self,
+        source_path: Path,
+        *,
+        binding: Optional[TextureEditorSourceBinding] = None,
+        report_result=None,
+        _reuse_request_id: Optional[int] = None,
+    ) -> None:
+        from cdmw.ui.texture_workflow.editor_session_ui import TextureEditorSessionUiMixin
+
+        raw_source = Path(source_path)
+        if _reuse_request_id is None:
+            request_id = int(getattr(self, "_source_open_request_id", 0)) + 1
+            self._source_open_request_id = request_id
+            previous_pending = getattr(self, "_pending_open_source_request", None)
+            self._pending_open_source_request = None
+            if previous_pending is not None and previous_pending[3] is not None:
+                previous_pending[3](False, "")
+        else:
+            request_id = int(_reuse_request_id)
+            if request_id != int(getattr(self, "_source_open_request_id", 0)):
+                return
+
+        existing_index = self._find_existing_source_session_fast(raw_source)
+        if existing_index >= 0:
+            active_stop = getattr(self, "_active_open_source_stop_event", None)
+            if active_stop is not None:
+                active_stop.set()
+                worker = getattr(self, "_task_worker", None)
+                if worker is not None:
+                    worker.stop()
+            binding_snapshot = dataclasses.replace(binding) if binding is not None else None
+            self._activate_existing_source_session(existing_index, raw_source, binding_snapshot)
+            if report_result is not None:
+                report_result(True, "")
             return
+
+        binding_snapshot = dataclasses.replace(binding) if binding is not None else None
+        if self._busy():
+            active_stop = getattr(self, "_active_open_source_stop_event", None)
+            if active_stop is not None:
+                # Supersede an obsolete in-flight open cleanly before expensive decode/flatten work.
+                active_stop.set()
+                worker = getattr(self, "_task_worker", None)
+                if worker is not None:
+                    worker.stop()
+                self._pending_open_source_request = (request_id, raw_source, binding_snapshot, report_result)
+                self._set_status(texture_editor_open_source_task_label(raw_source), False)
+                return
+
+        launch_origin = binding_snapshot.launch_origin if binding_snapshot is not None else "file"
+        workspace_root = Path(self.workspace_root)
+        png_root_raw = self._read_configured_root_text(self.get_png_root)
+        original_root_raw = self._read_configured_root_text(self.get_original_dds_root)
+        existing_session_paths = tuple(
+            str(session.document.source_binding.source_path)
+            for session in self._sessions
+            if session.document is not None and session.document.source_binding.source_path
+        )
+        stop_event = threading.Event()
+        build_binding_fn = self._build_binding_for_source
+        uses_default_builder = (
+            getattr(build_binding_fn, "__func__", None)
+            is TextureEditorSessionUiMixin._build_binding_for_source
+        )
+
         def _task() -> object:
+            if stop_event.is_set():
+                return None
+            resolved_source = raw_source.expanduser().resolve()
+            if uses_default_builder:
+                texture_binding = build_binding_fn(
+                    resolved_source,
+                    launch_origin=launch_origin,
+                    binding=binding_snapshot,
+                    png_root_raw=png_root_raw,
+                    original_root_raw=original_root_raw,
+                )
+            else:
+                texture_binding = build_binding_fn(
+                    resolved_source,
+                    launch_origin=launch_origin,
+                    binding=binding_snapshot,
+                )
+            if stop_event.is_set():
+                return None
+            for existing_path in existing_session_paths:
+                try:
+                    if Path(existing_path).expanduser().resolve() == resolved_source:
+                        return ("existing", request_id, resolved_source, texture_binding)
+                except Exception:
+                    continue
+            if stop_event.is_set():
+                return None
             document, layer_pixels = create_texture_editor_source_document_task(
                 resolved_source,
-                workspace_root=self.workspace_root,
+                workspace_root=workspace_root,
                 binding=texture_binding,
             )
+            if stop_event.is_set():
+                return None
             # The session's flatten (a full composite of the texture) runs here, on the
             # worker, not in _handle_open on the window thread.
-            return document, layer_pixels, create_texture_editor_session(document, layer_pixels, label=document.title)
+            return (
+                "opened",
+                request_id,
+                resolved_source,
+                document,
+                layer_pixels,
+                create_texture_editor_session(document, layer_pixels, label=document.title),
+            )
 
         def _handle_open(result: object) -> None:
-            document, layer_pixels, session = result  # type: ignore[misc]
+            if result is None:
+                return
+            kind = result[0]  # type: ignore[index]
+            completed_request_id = int(result[1])  # type: ignore[index]
+            if completed_request_id != int(getattr(self, "_source_open_request_id", 0)):
+                return
+            if kind == "existing":
+                _kind, _req_id, resolved_source, texture_binding = result  # type: ignore[misc]
+                existing_idx = self._find_existing_source_session_fast(resolved_source)
+                if existing_idx < 0:
+                    existing_idx = texture_editor_existing_source_session_index(self._sessions, resolved_source)
+                if existing_idx >= 0:
+                    self._activate_existing_source_session(existing_idx, resolved_source, texture_binding)
+                return
+            _kind, _req_id, resolved_source, document, layer_pixels, session = result  # type: ignore[misc]
             self._create_session(document, layer_pixels, label=document.title, session=session)
             self._push_history(texture_editor_open_source_history_label())
             self._set_status(texture_editor_open_source_status_text(resolved_source), False)
 
-        self._run_async_task(report_result=report_result, label=texture_editor_open_source_task_label(resolved_source), task=_task, on_success=_handle_open)
+        self._active_open_source_stop_event = stop_event
+        self._active_open_source_request_id = request_id
+        started = self._run_async_task(
+            report_result=report_result,
+            label=texture_editor_open_source_task_label(raw_source),
+            task=_task,
+            on_success=_handle_open,
+        )
+        if not started:
+            self._active_open_source_stop_event = None
+            self._active_open_source_request_id = 0
 
     def load_project(self, project_path: Path, *, report_result=None) -> None:
         resolved_project = project_path.expanduser().resolve()

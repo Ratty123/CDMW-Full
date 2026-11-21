@@ -103,8 +103,19 @@ static std::vector<char> lz4_decompress_block(const std::vector<char>& input, si
         }
         match_len += 4;
         if (op + match_len > output.size()) throw std::runtime_error("LZ4 match run is outside output buffer");
-        for (size_t i = 0; i < match_len; ++i) {
-            output[op + i] = output[op - match_offset + i];
+        if (match_offset >= match_len) {
+            std::memcpy(output.data() + op, output.data() + (op - match_offset), match_len);
+        } else if (match_offset >= 8) {
+            size_t copied = 0;
+            while (copied < match_len) {
+                const size_t step = std::min(match_offset, match_len - copied);
+                std::memcpy(output.data() + op + copied, output.data() + (op - match_offset + copied), step);
+                copied += step;
+            }
+        } else {
+            for (size_t i = 0; i < match_len; ++i) {
+                output[op + i] = output[op - match_offset + i];
+            }
         }
         op += match_len;
     }
@@ -285,9 +296,7 @@ struct PathcCollectionNative {
 };
 
 static PathcCollectionNative load_pathc_collection_native(const fs::path& path) {
-    std::ifstream in(native_file_path(path), std::ios::binary);
-    if (!in) throw_file_error("open", path);
-    std::vector<char> raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::vector<char> raw = read_binary_file(path);
     if (raw.size() < 32) throw std::runtime_error("PATHC file is too small");
     PathcCollectionNative collection;
     collection.header_size = read_u32(raw, 8);
@@ -616,7 +625,7 @@ static constexpr size_t kDecodedEntryCacheMaxEntries = 512;
 static constexpr size_t kDecodedEntryCacheMaxBytes = 256ull * 1024ull * 1024ull;
 static constexpr size_t kDecodedEntryCacheMaxSingleBytes = 64ull * 1024ull * 1024ull;
 static constexpr size_t kDecodedEntryCacheRecycleBytes = 192ull * 1024ull * 1024ull;
-static constexpr std::uint64_t kServiceMaxJobs = 32;
+static constexpr std::uint64_t kServiceMaxJobs = 128;
 static constexpr unsigned long long kServicePrivateRecycleBytes = 512ull * 1024ull * 1024ull;
 
 static size_t decoded_entry_cache_entries() {
@@ -754,7 +763,8 @@ static void run_archive_decode_size_self_test() {
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
     record_preview_decoded_dependency(entry);
     const std::string key = archive_ref_identity(entry);
-    const bool cacheable = entry.prepared_path.empty() || !entry.prepared_sha256.empty();
+    const bool cacheable = (entry.prepared_path.empty() || !entry.prepared_sha256.empty())
+        && lower_copy(entry.extension) != ".dds";
     if (cacheable) {
         auto found = g_decoded_entry_cache.find(key);
         if (found != g_decoded_entry_cache.end()) {

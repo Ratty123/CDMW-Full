@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
@@ -43,7 +42,6 @@ from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
 from cdmw.ui.mesh_editor.tab_actions import MeshEditorActionsMixin
 from cdmw.ui.mesh_editor.tab_output_policy import MeshEditorOutputPolicyMixin
 from cdmw.ui.mesh_editor.character_context import MeshEditorCharacterContextMixin
-from cdmw.ui.character_context_panel import CharacterContextPanel
 
 
 _LAZY_EXPORT_GROUPS = (
@@ -83,6 +81,8 @@ _LAZY_EXPORT_GROUPS = (
     ("cdmw.services.mesh_dotnet_material_state", ("mesh_dotnet_material_input_signature", "mesh_dotnet_material_state_payload")),
     ("cdmw.services.mesh_service", ("MeshService",)),
     ("cdmw.ui.shell.settings_bridge", ("read_bool_setting",)),
+    ("cdmw.ui.character_context_panel", ("CharacterContextPanel",)),
+    ("cdmw.ui.mesh_editor.action_bar", ("MeshEditorActionBar",)),
     ("cdmw.ui.mesh_editor.actions", ("NATIVE_EDITOR_SESSION_COMMANDS", "mesh_editor_actions_by_key")),
     (
         "cdmw.ui.mesh_editor.controller",
@@ -232,6 +232,8 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
+
         self.action_bar = MeshEditorActionBar(parent=self)
         self.action_bar.action_requested.connect(self._handle_action_requested)
         root.addWidget(self.action_bar)
@@ -342,15 +344,16 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.character_context_splitter.setChildrenCollapsible(True)
         self.character_context_splitter.setHandleWidth(8)
         self.character_context_splitter.addWidget(self.workspace_stack)
-        self.character_context_panel = (
-            CharacterContextPanel(
+        if character_context_service is not None:
+            from cdmw.ui.character_context_panel import CharacterContextPanel
+
+            self.character_context_panel = CharacterContextPanel(
                 character_context_service,
                 surface_label="Mesh Editor",
                 parent=self.character_context_splitter,
             )
-            if character_context_service is not None
-            else QFrame(self.character_context_splitter)
-        )
+        else:
+            self.character_context_panel = QFrame(self.character_context_splitter)
         self.character_context_panel.setVisible(False)
         self.character_context_splitter.addWidget(self.character_context_panel)
         self.character_context_splitter.setCollapsible(0, False)

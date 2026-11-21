@@ -66,6 +66,7 @@ pub struct WorkingMesh {
     identity: u64,
     vertices: SlotMap<VertexHandle, Vertex>,
     shader_masks: SecondaryMap<VertexHandle, [f32; 3]>,
+    tangents: SecondaryMap<VertexHandle, [f32; 4]>,
     faces: SlotMap<FaceHandle, Face>,
     // Presentation only. Authored geometry, history and serialization retain all faces.
     viewport_hidden_faces: HashSet<FaceHandle>,
@@ -90,6 +91,7 @@ pub struct DrawSnapshot {
     pub normals: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
     pub shader_masks: Vec<[f32; 3]>,
+    pub tangents: Vec<[f32; 4]>,
     pub indices: Vec<u32>,
     pub triangle_materials: Vec<u32>,
     pub selected_vertices: Vec<u32>,
@@ -208,6 +210,10 @@ impl WorkingMesh {
         // All source attributes and topology have passed before the first write.
         let mut vertices = self.vertices.iter_mut();
         self.shader_masks.clear();
+        // An authored tangent belongs to the UVs it was loaded with. A refresh that moves
+        // a vertex's UVs (a UV edit) drops it, and it stays dropped: the renderer derives
+        // that vertex's tangent from the current UVs instead.
+        let previous_tangents = std::mem::take(&mut self.tangents);
         for source in &lod.submeshes {
             for (index, position) in source.positions.iter().enumerate() {
                 let (handle, vertex) = vertices.next().ok_or(MeshError::InvalidSource)?;
@@ -217,9 +223,17 @@ impl WorkingMesh {
                     .get(index)
                     .copied()
                     .unwrap_or([0.0, 1.0, 0.0]);
-                vertex.uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+                let uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+                let uv_unchanged = uv == vertex.uv;
+                vertex.uv = uv;
                 if let Some(mask) = source.shader_masks.get(index) {
                     self.shader_masks.insert(handle, *mask);
+                }
+                if let Some(tangent) = source.tangents.get(index)
+                    && uv_unchanged
+                    && previous_tangents.contains_key(handle)
+                {
+                    self.tangents.insert(handle, *tangent);
                 }
             }
         }
@@ -233,6 +247,7 @@ impl WorkingMesh {
             identity: NEXT_MESH_IDENTITY.fetch_add(1, Ordering::Relaxed),
             vertices: SlotMap::with_key(),
             shader_masks: SecondaryMap::new(),
+            tangents: SecondaryMap::new(),
             faces: SlotMap::with_key(),
             viewport_hidden_faces: HashSet::new(),
             edges: SlotMap::with_key(),
@@ -508,6 +523,9 @@ impl WorkingMesh {
             }));
             if let Some(mask) = source.shader_masks.get(index) {
                 self.shader_masks.insert(*handles.last().unwrap(), *mask);
+            }
+            if let Some(tangent) = source.tangents.get(index) {
+                self.tangents.insert(*handles.last().unwrap(), *tangent);
             }
         }
         for (face_index, triangle) in source.indices.chunks_exact(3).enumerate() {
@@ -1394,6 +1412,8 @@ impl WorkingMesh {
         let mut normals = Vec::with_capacity(vertex_capacity);
         let mut uvs = Vec::with_capacity(vertex_capacity);
         let mut shader_masks = Vec::with_capacity(vertex_capacity);
+        let mut tangents = Vec::with_capacity(vertex_capacity);
+        let mut has_tangents = false;
         let mut handles = HashMap::new();
         for (handle, vertex) in &self.vertices {
             if elements.is_some_and(|items| !items.vertices.contains(&handle)) {
@@ -1410,6 +1430,14 @@ impl WorkingMesh {
                     .copied()
                     .unwrap_or([1.0, 1.0, 0.0]),
             );
+            let tangent = self.tangents.get(handle).copied().unwrap_or([0.0; 4]);
+            if tangent[0] != 0.0 || tangent[1] != 0.0 || tangent[2] != 0.0 {
+                has_tangents = true;
+            }
+            tangents.push(tangent);
+        }
+        if !has_tangents {
+            tangents.clear();
         }
         let mut indices = Vec::with_capacity(face_capacity.saturating_mul(3));
         let mut triangle_materials = Vec::with_capacity(face_capacity);
@@ -1447,6 +1475,7 @@ impl WorkingMesh {
             normals,
             uvs,
             shader_masks,
+            tangents,
             indices,
             triangle_materials,
             selected_vertices,
@@ -2181,6 +2210,59 @@ mod tests {
                 .shader_masks,
             before
         );
+        Ok(())
+    }
+
+    #[test]
+    fn authored_tangents_follow_stable_vertices_and_visible_parts() -> Result<(), MeshError> {
+        let mut mesh = two_disconnected_triangles();
+        for (handle, vertex) in mesh.vertices.iter() {
+            if matches!(vertex.provenance, Provenance::Source { submesh: 1, .. }) {
+                mesh.tangents.insert(handle, [1.0, 0.0, 0.0, -1.0]);
+            }
+        }
+        assert!(
+            mesh.draw_snapshot_for_submeshes(&HashSet::from([0]))
+                .tangents
+                .is_empty()
+        );
+        let before = mesh
+            .draw_snapshot_for_submeshes(&HashSet::from([1]))
+            .tangents;
+        assert_eq!(before, vec![[1.0, 0.0, 0.0, -1.0]; 3]);
+        mesh.translate_vertices(&mesh.vertices.keys().collect(), Vec3::X)?;
+        assert_eq!(
+            mesh.draw_snapshot_for_submeshes(&HashSet::from([1]))
+                .tangents,
+            before
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_refresh_that_moves_uvs_drops_those_vertices_authored_tangents() -> Result<(), MeshError> {
+        let mut document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .map_err(|_| MeshError::InvalidSource)?;
+        for submesh in &mut document.lods[0].submeshes {
+            submesh.tangents = vec![[1.0, 0.0, 0.0, 1.0]; submesh.positions.len()];
+        }
+        let mut mesh = WorkingMesh::from_document(&document)?;
+        let all = mesh.submesh_indices();
+        assert!(!mesh.draw_snapshot_for_submeshes(&all).tangents.is_empty());
+        // The same document again: the tangents stay.
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        assert_eq!(mesh.draw_snapshot_for_submeshes(&all).tangents.len(), 3);
+        // A UV edit (the source still carries the old tangents): they go, and stay gone.
+        document.lods[0].submeshes[0].uvs[0] = [0.5, 0.5];
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        let snapshot = mesh.draw_snapshot_for_submeshes(&all);
+        assert!(snapshot.tangents.is_empty() || snapshot.tangents[0] == [0.0; 4]);
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        let snapshot = mesh.draw_snapshot_for_submeshes(&all);
+        assert!(snapshot.tangents.is_empty() || snapshot.tangents[0] == [0.0; 4]);
         Ok(())
     }
 

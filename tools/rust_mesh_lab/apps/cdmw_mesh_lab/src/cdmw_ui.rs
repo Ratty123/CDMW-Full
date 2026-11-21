@@ -3393,6 +3393,30 @@ impl LabApplication {
                     );
                 }
             });
+        if self.lighting_preset == cdmw_render_wgpu::LightingPreset::StudioFixed {
+            ui.add(
+                egui::Slider::new(&mut self.studio_look.wetness, 0.0..=1.0)
+                    .custom_formatter(|value, _| format!("{:.0}%", value * 100.0))
+                    .text(crate::localization::tr("Wetness")),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.studio_look.exposure, 0.5..=2.0)
+                    .text(crate::localization::tr("Exposure")),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.studio_look.env_rotation_degrees, -180.0..=180.0)
+                    .suffix("°")
+                    .text(crate::localization::tr("Light rotation")),
+            );
+            // Its own row: beside the slider it is cut off at large font sizes.
+            let is_default = self.studio_look == cdmw_render_wgpu::StudioLookSettings::default();
+            if ui
+                .add_enabled(!is_default, egui::Button::new(crate::localization::tr("Reset")))
+                .clicked()
+            {
+                self.studio_look = cdmw_render_wgpu::StudioLookSettings::default();
+            }
+        }
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.show_normals, crate::localization::tr("Normals"))
                 .on_hover_text(
@@ -6241,7 +6265,25 @@ impl LabApplication {
                 self.viewport_background_colour = Color32::from_rgb(6, 8, 10);
                 self.viewport_grid_colour = Color32::from_rgb(42, 48, 58);
             }
+            Some("look") => self.studio_look = cdmw_render_wgpu::StudioLookSettings::default(),
             _ => {}
+        }
+        // The View panel's Lighting menu and, under Studio (fixed lights), its Wetness,
+        // Exposure and Light rotation sliders.
+        if let Some(preset) = change
+            .lighting_preset
+            .and_then(cdmw_render_wgpu::LightingPreset::from_id)
+        {
+            self.lighting_preset = preset;
+        }
+        if let Some(wetness) = change.wetness {
+            self.studio_look.wetness = wetness;
+        }
+        if let Some(exposure) = change.exposure {
+            self.studio_look.exposure = exposure;
+        }
+        if let Some(rotation) = change.light_rotation {
+            self.studio_look.env_rotation_degrees = rotation;
         }
         if let Some(shape) = change.selection_shape {
             self.selection_tool = match shape {
@@ -6351,6 +6393,12 @@ impl LabApplication {
             "wire_width": self.overlay_wire_width,
             "vertex_size": self.overlay_vertex_size,
             "hidden_parts": hidden,
+            "lighting_preset": self.lighting_preset.id(),
+            "wetness": self.studio_look.wetness,
+            "exposure": self.studio_look.exposure,
+            "light_rotation": self.studio_look.env_rotation_degrees,
+            // The look sliders show, and the view uses them, only under this preset.
+            "look_applies": self.lighting_preset == cdmw_render_wgpu::LightingPreset::StudioFixed,
         })
     }
 

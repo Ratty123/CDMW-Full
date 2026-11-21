@@ -36,7 +36,6 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import (
 from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_state
 from cdmw.ui.archive_browser.item_set_preview import ItemSetScopeResolver
 from cdmw.domain.archives.item_sets import worn_set_members
-from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 from cdmw.ui.archive_browser.remote_window_identity import (
     base_index_identity_key as _base_index_identity_key,
     dto_identity_key as _dto_identity_key,
@@ -177,15 +176,16 @@ class ArchiveRemoteWindowBridge(QObject):
         force_refresh: bool,
         activate_tab: bool,
     ) -> None:
+        archive_owner = getattr(self._window, "archive", self._window)
         item_finder_warmup = getattr(
-            self._window,
+            archive_owner,
             "archive_item_finder_warmup_controller",
             None,
         )
         invalidate_item_finder = getattr(item_finder_warmup, "invalidate", None)
         if callable(invalidate_item_finder):
             invalidate_item_finder()
-        character_finder_warmup = getattr(self._window, "archive_character_finder_warmup_controller", None)
+        character_finder_warmup = getattr(archive_owner, "archive_character_finder_warmup_controller", None)
         if character_finder_warmup is not None:
             character_finder_warmup.invalidate()
         current_session = self.current_session
@@ -340,6 +340,8 @@ class ArchiveRemoteWindowBridge(QObject):
     def _clear_item_set_scope(self) -> None:
         self._item_set_scope.cancel()
         if self.item_set_members:
+            from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+
             primary = ArchiveCatalogueService.compatibility_entry(self.item_set_members[0])
             key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(primary)
             selections = getattr(self._window.archive, "archive_d3d11_prefab_component_selections", {})
@@ -370,6 +372,8 @@ class ArchiveRemoteWindowBridge(QObject):
         self.item_set_members = members
         self.item_set_active = len(members) > 1
         if members:
+            from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+
             primary = ArchiveCatalogueService.compatibility_entry(members[0])
             key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(primary)
             selections = getattr(self._window.archive, "archive_d3d11_prefab_component_selections", None)
@@ -436,6 +440,8 @@ class ArchiveRemoteWindowBridge(QObject):
         if entry is None:
             return
         self._clear_item_set_scope()
+        from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+
         key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(entry)
         getattr(self._window.archive, "archive_d3d11_prefab_component_selections", {}).pop(key, None)
         self._window.archive._render_archive_preview(entry, force=True)
@@ -718,20 +724,6 @@ class ArchiveRemoteWindowBridge(QObject):
             publish_consumers(self._controller.current_session, handle)
         current_session = self._controller.current_session
         if current_session is not None:
-            item_finder_warmup = getattr(
-                window.archive,
-                "archive_item_finder_warmup_controller",
-                None,
-            )
-            start_item_finder_warmup = getattr(item_finder_warmup, "start", None)
-            if callable(start_item_finder_warmup):
-                start_item_finder_warmup(
-                    current_session,
-                    ui_generation=self._controller.generation,
-                )
-            character_finder_warmup = getattr(window.archive, "archive_character_finder_warmup_controller", None)
-            if character_finder_warmup is not None:
-                character_finder_warmup.start(current_session, ui_generation=self._controller.generation)
             for warning in current_session.discovery_warnings:
                 window.shell.append_archive_log(f"Warning: {warning}")
         window.archive.archive_remote_query_pending = False
@@ -767,6 +759,21 @@ class ArchiveRemoteWindowBridge(QObject):
         self._activate_tab_on_publish = False
         self._set_remote_operation_busy(False)
         window.archive._mark_archive_browser_render_ready(reason="catalogue_view")
+        if current_session is not None:
+            item_finder_warmup = getattr(
+                window.archive,
+                "archive_item_finder_warmup_controller",
+                None,
+            )
+            start_item_finder_warmup = getattr(item_finder_warmup, "start", None)
+            if callable(start_item_finder_warmup):
+                start_item_finder_warmup(
+                    current_session,
+                    ui_generation=self._controller.generation,
+                )
+            character_finder_warmup = getattr(window.archive, "archive_character_finder_warmup_controller", None)
+            if character_finder_warmup is not None:
+                character_finder_warmup.start(current_session, ui_generation=self._controller.generation)
         superseded = self._superseded_session_id
         self._superseded_session_id = None
         if (

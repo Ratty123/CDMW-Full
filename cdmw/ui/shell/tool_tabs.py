@@ -76,6 +76,9 @@ _LAZY_TOOL_PRELOAD_MODULES: dict[str, tuple[str, ...]] = {
         "cdmw.models",
         "cdmw.ui.localization_catalogs_v2",
     ),
+    "settings": (
+        "cdmw.services.mesh_service",
+    ),
 }
 
 _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
@@ -92,6 +95,7 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "translation_studio": ("tools.translation_studio.tab",),
     "research": ("cdmw.ui.research",),
     "text_search": ("cdmw.ui.text_search",),
+    "settings": ("cdmw.ui.settings_tab",),
 }
 
 
@@ -743,43 +747,98 @@ class ShellToolTabsMixin:
     def _use_model_in_new_item_studio(self, import_path_text: str, _model_payload: object) -> None:
         self.open_new_item_studio(model_path=Path(import_path_text))
 
-    def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
+    def _create_settings_tab(self) -> QWidget:
         from cdmw.ui.settings_tab import SettingsTab
 
-        pump_startup_splash("Preparing settings...")
-        self.settings_tab = SettingsTab(
+        settings_tab = SettingsTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
             asset_authoring_service=lambda: self.app_context.services.asset_authoring,
         )
-        self.settings_tab.set_language_options(
+        settings_tab.set_language_options(
             self.ui_localizer.available_languages(),
             current_code=self.ui_localizer.language_code,
         )
-        self.settings_tab.add_setup_paths_sections(self.textures.setup_section, self.textures.paths_section)
-        self.settings_tab.add_archive_locations_section(self.archive.archive_locations_section)
-        self.settings_tab.archive_ignored_folders_group.get_package_root = self.archive.archive_package_root_edit.text
-        self.settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)
-        self.settings_tab.appearance_changed.connect(self._handle_appearance_changed)
-        self.settings_tab.language_changed.connect(self._handle_language_changed)
-        self.settings_tab.export_language_requested.connect(self._export_language_file)
-        self.settings_tab.import_language_requested.connect(self._import_language_file)
-        self.settings_tab.export_profile_requested.connect(self.export_profile_action.trigger)
-        self.settings_tab.import_profile_requested.connect(self.import_profile_action.trigger)
-        self.settings_tab.preview_settings_requested.connect(self.archive._open_model_preview_settings_dialog)
-        self.settings_tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
-        self.settings_tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
+        language_combo = getattr(settings_tab, "language_combo", None)
+        if language_combo is not None:
+            language_combo.setProperty("_i18n_skip_combo_items", True)
+        settings_tab.add_setup_paths_sections(self.textures.setup_section, self.textures.paths_section)
+        settings_tab.add_archive_locations_section(self.archive.archive_locations_section)
+        settings_tab.archive_ignored_folders_group.get_package_root = self.archive.archive_package_root_edit.text
+        settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)
+        settings_tab.appearance_changed.connect(self._handle_appearance_changed)
+        settings_tab.language_changed.connect(self._handle_language_changed)
+        settings_tab.export_language_requested.connect(self._export_language_file)
+        settings_tab.import_language_requested.connect(self._import_language_file)
+        settings_tab.export_profile_requested.connect(self.export_profile_action.trigger)
+        settings_tab.import_profile_requested.connect(self.import_profile_action.trigger)
+        settings_tab.preview_settings_requested.connect(self.archive._open_model_preview_settings_dialog)
+        settings_tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
+        settings_tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
         self.export_profile_action.changed.connect(
-            lambda: self.settings_tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
+            lambda tab=settings_tab: tab.export_profile_button.setEnabled(self.export_profile_action.isEnabled())
         )
         self.import_profile_action.changed.connect(
-            lambda: self.settings_tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
+            lambda tab=settings_tab: tab.import_profile_button.setEnabled(self.import_profile_action.isEnabled())
         )
-        self.settings_tab.crash_capture_changed.connect(self._set_crash_capture_enabled)
-        self.settings_tab.model_preview_settings_changed.connect(self.archive._handle_model_preview_settings_changed)
-        self.settings_tab.archive_performance_settings_changed.connect(
+        settings_tab.crash_capture_changed.connect(self._set_crash_capture_enabled)
+        settings_tab.model_preview_settings_changed.connect(self.archive._handle_model_preview_settings_changed)
+        settings_tab.archive_performance_settings_changed.connect(
             self.archive._handle_archive_performance_settings_changed
         )
+        holder = getattr(self, "_deferred_settings_sections_holder", None)
+        if holder is not None:
+            holder.deleteLater()
+            self._deferred_settings_sections_holder = None
+        return settings_tab
+
+    def _sync_published_settings_tab(self, settings_tab: QWidget) -> None:
+        """Show the values in use now on a Settings tab that has just been published.
+
+        The shell pushes Preview, archive, appearance and language changes only to a
+        Settings tab that exists; one built on first visit catches up here, after any
+        change made while it was still being built.
+        """
+
+        for sync in (
+            # First what is saved (a profile import while it was pending writes there),
+            # then the in-memory values the shell holds.
+            lambda: settings_tab._load_settings(self.current_theme_key),
+            lambda: settings_tab._apply_model_preview_controls(self.archive._current_model_preview_render_settings()),
+            lambda: settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings()),
+            lambda: settings_tab.sync_appearance_controls(self.current_theme_key),
+            lambda: settings_tab.set_language_options(
+                self.ui_localizer.available_languages(),
+                current_code=self.ui_localizer.language_code,
+            ),
+        ):
+            try:
+                sync()
+            except Exception:
+                pass
+
+    def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
+        pump_startup_splash("Preparing settings...")
+        self.settings_tab = self._add_lazy_shell_tool(
+            "Settings",
+            "settings",
+            self._create_settings_tab,
+        )
+        when_created = getattr(type(self.settings_tab), "when_created", None)
+        if callable(when_created):
+            self.settings_tab.when_created(self._sync_published_settings_tab)
+        # Keep the shared setup/paths/archive sections owned inside the window
+        # tree (and unshown) until SettingsTab is constructed on first visit.
+        holder = QWidget(self.settings_tab)
+        holder.setObjectName("DeferredSettingsSectionsHolder")
+        holder.hide()
+        self._deferred_settings_sections_holder = holder
+        for section in (
+            self.textures.setup_section,
+            self.textures.paths_section,
+            self.archive.archive_locations_section,
+        ):
+            section.setParent(holder)
 
         pump_startup_splash("Registering optional tools...")
         self.mesh_editor_tab = self._add_lazy_shell_tool(

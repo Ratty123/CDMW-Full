@@ -79,6 +79,22 @@ static size_t apply_presentation_geometry_bytes(
             }, Vec3{0.0f, 1.0f, 0.0f}));
             offset += 24;
         }
+        if (mesh.tangents.size() == vertex_count && mesh.bitangents.size() == vertex_count) {
+            for (size_t vi = 0; vi < vertex_count; ++vi) {
+                const Vec3 n = normals[vi];
+                const Vec3 old_n = vec_normalize(vi < mesh.normals.size() ? mesh.normals[vi] : n, n);
+                const float sign = vec_dot(vec_cross(old_n, mesh.tangents[vi]), mesh.bitangents[vi]) < 0.0f ? -1.0f : 1.0f;
+                const Vec3 t_proj = vec_sub(mesh.tangents[vi], vec_mul(n, vec_dot(mesh.tangents[vi], n)));
+                const Vec3 t = vec_normalize(t_proj, Vec3{});
+                if (vec_dot(t, t) > 1.0e-8f) {
+                    mesh.tangents[vi] = t;
+                    mesh.bitangents[vi] = vec_normalize(vec_mul(vec_cross(n, t), sign), Vec3{});
+                } else {
+                    mesh.tangents[vi] = Vec3{};
+                    mesh.bitangents[vi] = Vec3{};
+                }
+            }
+        }
         mesh.positions = std::move(positions);
         mesh.normals = std::move(normals);
         seen[submesh_index] = true;
@@ -181,8 +197,28 @@ static void write_geometry_blob(
             const Vec3 raw_position = mesh.positions[vi];
             const Vec3 position = vec_mul(vec_sub(raw_position, center), scale);
             const Vec3 normal = vec_normalize(vi < mesh.normals.size() ? mesh.normals[vi] : Vec3{0.0f, 1.0f, 0.0f});
-            Vec3 tangent = vec_normalize(vi < tangents.size() ? tangents[vi] : Vec3{}, Vec3{});
-            Vec3 bitangent = vec_normalize(vi < bitangents.size() ? bitangents[vi] : Vec3{}, Vec3{});
+            const bool has_authored_tangent = vi < mesh.tangents.size()
+                && std::isfinite(mesh.tangents[vi].x)
+                && std::isfinite(mesh.tangents[vi].y)
+                && std::isfinite(mesh.tangents[vi].z)
+                && vec_dot(mesh.tangents[vi], mesh.tangents[vi]) > 1.0e-8f;
+            const bool has_authored_bitangent = vi < mesh.bitangents.size()
+                && std::isfinite(mesh.bitangents[vi].x)
+                && std::isfinite(mesh.bitangents[vi].y)
+                && std::isfinite(mesh.bitangents[vi].z)
+                && vec_dot(mesh.bitangents[vi], mesh.bitangents[vi]) > 1.0e-8f;
+            Vec3 tangent = vec_normalize(
+                has_authored_tangent
+                    ? vec_sub(mesh.tangents[vi], vec_mul(normal, vec_dot(mesh.tangents[vi], normal)))
+                    : (vi < tangents.size() ? tangents[vi] : Vec3{}),
+                Vec3{}
+            );
+            Vec3 bitangent = vec_normalize(
+                has_authored_bitangent
+                    ? vec_sub(mesh.bitangents[vi], vec_mul(normal, vec_dot(mesh.bitangents[vi], normal)))
+                    : (vi < bitangents.size() ? bitangents[vi] : Vec3{}),
+                Vec3{}
+            );
             if (vec_dot(tangent, tangent) <= 1.0e-8f) {
                 const Vec3 up = std::abs(normal.y) < 0.9f ? Vec3{0.0f, 1.0f, 0.0f} : Vec3{1.0f, 0.0f, 0.0f};
                 tangent = vec_normalize(vec_cross(up, normal), Vec3{1.0f, 0.0f, 0.0f});
@@ -195,7 +231,7 @@ static void write_geometry_blob(
                 ? mesh.source_vertex_indices[vi]
                 : static_cast<std::int32_t>(vi);
             const float bary[3] = {corner == 0 ? 1.0f : 0.0f, corner == 1 ? 1.0f : 0.0f, corner == 2 ? 1.0f : 0.0f};
-            for (float value : {
+            const float vertex[23] = {
                 position.x, position.y, position.z,
                 normal.x, normal.y, normal.z,
                 color[0], color[1], color[2],
@@ -204,11 +240,17 @@ static void write_geometry_blob(
                 bitangent.x, bitangent.y, bitangent.z,
                 normal.x, normal.y, normal.z,
                 bary[0], bary[1], bary[2],
-            }) {
-                append_float(geometry, value);
-            }
-            append_int32(identity, static_cast<std::int32_t>(mesh.source_submesh_index));
-            append_int32(identity, source_vertex);
+            };
+            const size_t g_off = geometry.size();
+            geometry.resize(g_off + sizeof(vertex));
+            std::memcpy(geometry.data() + g_off, vertex, sizeof(vertex));
+            const std::int32_t ids[2] = {
+                static_cast<std::int32_t>(mesh.source_submesh_index),
+                source_vertex,
+            };
+            const size_t i_off = identity.size();
+            identity.resize(i_off + sizeof(ids));
+            std::memcpy(identity.data() + i_off, ids, sizeof(ids));
         }
     }
     write_binary(geometry_path, geometry);

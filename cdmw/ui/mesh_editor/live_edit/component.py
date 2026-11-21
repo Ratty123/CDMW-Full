@@ -67,6 +67,8 @@ STATE_NAMES = (
     "standalone_rust_helper_cancelled",
     "standalone_rust_camera", "standalone_rust_camera_supported", "standalone_rust_view_state",
     "standalone_rust_view_state_supported", "standalone_rust_host_output_commands_supported",
+    "standalone_rust_view_look_supported",
+    "_texture_open_request_id", "_texture_open_signals", "_texture_open_stop_event",
     "standalone_rust_process_generation", "standalone_rust_protocol_events", "standalone_rust_protocol_queue",
     "standalone_rust_protocol_request_id", "standalone_rust_protocol_status", "standalone_rust_protocol_thread",
     "standalone_rust_protocol_worker", "standalone_rust_ready", "standalone_rust_ready_timer",

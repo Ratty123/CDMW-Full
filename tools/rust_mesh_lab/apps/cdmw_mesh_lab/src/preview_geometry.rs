@@ -522,6 +522,10 @@ pub fn prepare_snapshot(
         for uv in &mut snapshot.uvs {
             uv[1] = 1.0 - uv[1];
         }
+        // Flipping V mirrors the bitangent, so authored tangents change handedness.
+        for tangent in &mut snapshot.tangents {
+            tangent[3] = -tangent[3];
+        }
     }
 
     let editable = editable_indices(scene);
@@ -575,6 +579,17 @@ pub fn prepare_snapshot(
                 *normal = (normal_matrix * Vec3::from_array(*normal))
                     .normalize_or(Vec3::Y)
                     .to_array();
+            }
+            // Authored tangents turn with the part, as the positions do.
+            if let Some(tangent) = snapshot.tangents.get_mut(snapshot_index) {
+                let turned = (Mat3::from_mat4(matrix) * Vec3::new(tangent[0], tangent[1], tangent[2]))
+                    .normalize_or_zero();
+                tangent[0] = turned.x;
+                tangent[1] = turned.y;
+                tangent[2] = turned.z;
+                if Mat3::from_mat4(matrix).determinant() < 0.0 {
+                    tangent[3] = -tangent[3];
+                }
             }
         }
         snapshot_index = snapshot_index.saturating_add(1);
@@ -815,6 +830,34 @@ mod tests {
         // triangle_pam spans [-1,1] in X/Y and lies at Z=-1.
         assert!(low.abs_diff_eq(Vec3::new(8., 17., 26.), 1.0e-5));
         assert!(high.abs_diff_eq(Vec3::new(12., 23., 26.), 1.0e-5));
+    }
+
+    #[test]
+    fn authored_tangents_turn_with_the_part_and_flip_handedness_with_v() {
+        let mut document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .unwrap();
+        for submesh in &mut document.lods[0].submeshes {
+            submesh.tangents = vec![[1.0, 0.0, 0.0, 1.0]; submesh.positions.len()];
+        }
+        let mesh = WorkingMesh::from_document(&document).unwrap();
+        let geometry = PreviewGeometry::from_mesh(&mesh);
+        let scene = serde_json::json!({});
+        let (plain, _) = prepare_snapshot(&mesh, &geometry, &scene, &serde_json::json!({}), "read_only", 1);
+        assert!(!plain.tangents.is_empty());
+        assert!(plain.tangents.iter().all(|t| (t[0] - 1.0).abs() < 1.0e-5 && t[3] > 0.0));
+        // A quarter turn about Z takes +X to +Y.
+        let turned = serde_json::json!({"part_transforms":{"0":{"rotation_degrees":[0,0,90]}}});
+        let (snapshot, _) = prepare_snapshot(&mesh, &geometry, &scene, &turned, "read_only", 2);
+        for tangent in &snapshot.tangents {
+            assert!(Vec3::new(tangent[0], tangent[1], tangent[2]).abs_diff_eq(Vec3::Y, 1.0e-4), "{tangent:?}");
+            assert!(tangent[3] > 0.0);
+        }
+        let flipped = serde_json::json!({"uv":{"flip_v":true}});
+        let (snapshot, _) = prepare_snapshot(&mesh, &geometry, &scene, &flipped, "read_only", 3);
+        assert!(snapshot.tangents.iter().all(|t| t[3] < 0.0));
     }
 
     #[test]

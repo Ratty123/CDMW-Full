@@ -14,12 +14,10 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QThread, QTimer
 
-from cdmw.services.mesh_dotnet_material_compiler import (
-    MeshDotNetMaterialCompileRequest,
-)
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.services.mesh_material_publication import (
     MaterialPublicationRequest,
@@ -34,6 +32,11 @@ from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
     MeshEditorDotNetSessionEventMixin,
 )
 
+if TYPE_CHECKING:
+    from cdmw.services.mesh_dotnet_material_compiler import (
+        MeshDotNetMaterialCompileRequest,
+    )
+
 
 def _publication_payload(
     publication: MaterialPublicationRequest | None,
@@ -41,6 +44,8 @@ def _publication_payload(
     payload = getattr(publication, "payload", None)
     if not isinstance(payload, tuple) or len(payload) != 2:
         return None
+    from cdmw.services.mesh_dotnet_material_compiler import MeshDotNetMaterialCompileRequest
+
     request, resources = payload
     if not isinstance(request, MeshDotNetMaterialCompileRequest):
         return None

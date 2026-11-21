@@ -91,8 +91,12 @@ class ShellSignalWiringMixin:
         self.archive.archive_model_preview_reset_overrides_button.clicked.connect(
             self.archive._handle_archive_model_preview_reset_overrides
         )
-        self.archive.archive_model_preview_settings_button.clicked.connect(self.archive._open_model_preview_settings_dialog)
-        self.archive.archive_asset_family_button.toggled.connect(self.archive._open_archive_asset_family_workspace_dialog)
+        self.archive.archive_model_preview_settings_button.clicked.connect(
+            lambda _checked=False: self.archive._open_model_preview_settings_dialog()
+        )
+        self.archive.archive_asset_family_button.toggled.connect(
+            lambda checked=False: self.archive._open_archive_asset_family_workspace_dialog(checked)
+        )
         self.archive.archive_action_preview_button.clicked.connect(self.archive._preview_current_archive_entry)
         self.archive.archive_action_open_preview_window_button.clicked.connect(self.archive._open_current_archive_preview_window)
         self.archive.archive_action_copy_filename_button.clicked.connect(self.archive._copy_current_archive_filename)
@@ -109,49 +113,91 @@ class ShellSignalWiringMixin:
         self.archive.archive_action_character_dependency_button.clicked.connect(
             self.archive._export_current_archive_character_dependency_package
         )
-        self.archive.archive_model_export_obj_button.clicked.connect(self.archive._export_current_archive_model)
+        self.archive.archive_model_export_obj_button.clicked.connect(
+            lambda _checked=False: self.archive._export_current_archive_model()
+        )
         self.archive.archive_model_export_glb_button.clicked.connect(
             lambda: self._export_current_archive_mesh("glb")
         )
         self.archive.archive_model_export_fbx_button.clicked.connect(
             lambda: self._export_current_archive_mesh("fbx")
         )
-        self.archive.archive_model_open_mesh_editor_button.clicked.connect(self._open_current_archive_mesh_editor)
-        self.archive.archive_model_import_mesh_button.clicked.connect(self.archive._patch_current_archive_mesh_from_obj)
-        self.archive.archive_appearance_composite_button.clicked.connect(self.archive._open_current_archive_appearance_composite_preview)
-        self.archive.archive_hkx_export_json_button.clicked.connect(self.archive._export_current_archive_hkx_json)
-        self.archive.archive_hkx_import_json_button.clicked.connect(self.archive._import_current_archive_hkx_json)
-        self.archive.archive_hkx_export_xml_button.clicked.connect(self.archive._export_current_archive_hkx_xml)
-        self.archive.archive_hkx_export_havok_xml_view_button.clicked.connect(self.archive._export_current_archive_hkx_havok_xml_view)
-        self.archive.archive_hkx_import_xml_button.clicked.connect(self.archive._import_current_archive_hkx_xml)
-        self.archive.archive_hkx_edit_button.clicked.connect(self.archive._edit_current_archive_hkx)
-        self.archive.archive_hkx_placement_button.clicked.connect(self.archive._open_current_archive_hkx_placement)
-        self.archive.archive_hkx_physics_editor_button.clicked.connect(self.archive._open_current_hkx_physics_editor)
-        self.archive.archive_hkx_corpus_button.clicked.connect(self.archive._export_hkx_converter_corpus_report)
-        self.archive.archive_sidecar_export_json_button.clicked.connect(self.archive._export_current_archive_binary_sidecar_json)
-        self.archive.archive_sidecar_inspect_button.clicked.connect(self.archive._inspect_current_archive_binary_sidecar)
-        self.archive.archive_sidecar_corpus_button.clicked.connect(self.archive._export_binary_sidecar_corpus_report)
-        self.archive.archive_import_loose_mod_button.clicked.connect(self.archive._open_archive_loose_mod_overlay_dialog)
-        self.archive.archive_restore_patch_backup_button.clicked.connect(self.archive._restore_archive_patch_backup_from_ui)
-        self.archive.archive_texture_refs_tree.itemSelectionChanged.connect(self.archive._update_archive_texture_reference_action_controls)
+        self.archive.archive_model_open_mesh_editor_button.clicked.connect(
+            lambda _checked=False: self._open_current_archive_mesh_editor()
+        )
+        self.archive.archive_model_import_mesh_button.clicked.connect(
+            lambda _checked=False: self.archive._patch_current_archive_mesh_from_obj()
+        )
+        self.archive.archive_appearance_composite_button.clicked.connect(
+            lambda _checked=False: self.archive._open_current_archive_appearance_composite_preview()
+        )
+        self.archive.archive_hkx_export_json_button.clicked.connect(
+            lambda _checked=False: self.archive._export_current_archive_hkx_json()
+        )
+        self.archive.archive_hkx_import_json_button.clicked.connect(
+            lambda _checked=False: self.archive._import_current_archive_hkx_json()
+        )
+        self.archive.archive_hkx_export_xml_button.clicked.connect(
+            lambda _checked=False: self.archive._export_current_archive_hkx_xml()
+        )
+        self.archive.archive_hkx_export_havok_xml_view_button.clicked.connect(
+            lambda _checked=False: self.archive._export_current_archive_hkx_havok_xml_view()
+        )
+        self.archive.archive_hkx_import_xml_button.clicked.connect(
+            lambda _checked=False: self.archive._import_current_archive_hkx_xml()
+        )
+        self.archive.archive_hkx_edit_button.clicked.connect(
+            lambda _checked=False: self.archive._edit_current_archive_hkx()
+        )
+        self.archive.archive_hkx_placement_button.clicked.connect(
+            lambda _checked=False: self.archive._open_current_archive_hkx_placement()
+        )
+        self.archive.archive_hkx_physics_editor_button.clicked.connect(
+            lambda _checked=False: self.archive._open_current_hkx_physics_editor()
+        )
+        self.archive.archive_hkx_corpus_button.clicked.connect(
+            lambda _checked=False: self.archive._export_hkx_converter_corpus_report()
+        )
+        self.archive.archive_sidecar_export_json_button.clicked.connect(
+            lambda _checked=False: self.archive._export_current_archive_binary_sidecar_json()
+        )
+        self.archive.archive_sidecar_inspect_button.clicked.connect(
+            lambda _checked=False: self.archive._inspect_current_archive_binary_sidecar()
+        )
+        self.archive.archive_sidecar_corpus_button.clicked.connect(
+            lambda _checked=False: self.archive._export_binary_sidecar_corpus_report()
+        )
+        self.archive.archive_import_loose_mod_button.clicked.connect(
+            lambda _checked=False: self.archive._open_archive_loose_mod_overlay_dialog()
+        )
+        self.archive.archive_restore_patch_backup_button.clicked.connect(
+            lambda _checked=False: self.archive._restore_archive_patch_backup_from_ui()
+        )
+        self.archive.archive_texture_refs_tree.itemSelectionChanged.connect(
+            lambda: self.archive._update_archive_texture_reference_action_controls()
+        )
         self.archive.archive_texture_refs_tree.itemDoubleClicked.connect(
             lambda _item, _column: self.archive._open_selected_archive_texture_reference()
         )
         self.archive.archive_texture_refs_tree.customContextMenuRequested.connect(
-            self.archive._show_archive_texture_reference_context_menu
+            lambda pos: self.archive._show_archive_texture_reference_context_menu(pos)
         )
         for relation_tree in (
             self.archive.archive_asset_map_tree,
             self.archive.archive_asset_uses_tree,
             self.archive.archive_asset_used_by_tree,
         ):
-            relation_tree.itemSelectionChanged.connect(self.archive._update_archive_texture_reference_action_controls)
+            relation_tree.itemSelectionChanged.connect(
+                lambda: self.archive._update_archive_texture_reference_action_controls()
+            )
             relation_tree.itemDoubleClicked.connect(
                 lambda _item, _column: self.archive._open_selected_archive_texture_reference()
             )
             relation_tree.customContextMenuRequested.connect(
-                self.archive._show_archive_texture_reference_context_menu
+                lambda pos: self.archive._show_archive_texture_reference_context_menu(pos)
             )
         self.archive.archive_preview_content_splitter.splitterMoved.connect(self.archive._handle_archive_preview_content_splitter_moved)
-        self.archive.archive_preview_loose_toggle_button.clicked.connect(self.archive._toggle_archive_loose_preview)
+        self.archive.archive_preview_loose_toggle_button.clicked.connect(
+            lambda _checked=False: self.archive._toggle_archive_loose_preview()
+        )
         self._connect_auto_save()

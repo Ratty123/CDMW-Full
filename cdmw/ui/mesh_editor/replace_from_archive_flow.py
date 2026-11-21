@@ -2,33 +2,58 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QProgressDialog
 
-from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
-from cdmw.domain.archives.replace_from_archive import (
-    ReplaceFromArchivePlan,
-    ReplaceFromArchiveRequest,
-)
-from cdmw.models import ArchiveEntry
-from cdmw.services.diagnostics_service import is_expected_cancellation_message
-from cdmw.services.replace_from_archive_service import (
-    build_replace_from_archive_plan,
-    export_replace_from_archive_plan,
-)
-from cdmw.ui.archive_browser.workflow_dependencies import (
-    ArchiveWorkflowDependenciesUnavailable,
-    archive_workflow_dependency_context,
-    merge_archive_workflow_dependency_contexts,
-)
-from cdmw.ui.mesh_editor.replace_from_archive_dialog import (
-    ReplaceFromArchivePickerDialog,
-    ReplaceFromArchiveReviewDialog,
-    replacement_package_title,
-)
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
+
+if TYPE_CHECKING:
+    from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+    from cdmw.domain.archives.replace_from_archive import (
+        ReplaceFromArchivePlan,
+        ReplaceFromArchiveRequest,
+    )
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.mesh_editor.replace_from_archive_dialog import (
+        ReplaceFromArchivePickerDialog,
+    )
+
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    "ArchiveLooseExportResult": ("cdmw.domain.archives.mesh_contracts", "ArchiveLooseExportResult"),
+    "ReplaceFromArchivePlan": ("cdmw.domain.archives.replace_from_archive", "ReplaceFromArchivePlan"),
+    "ReplaceFromArchiveRequest": ("cdmw.domain.archives.replace_from_archive", "ReplaceFromArchiveRequest"),
+    "ArchiveEntry": ("cdmw.models", "ArchiveEntry"),
+    "is_expected_cancellation_message": ("cdmw.services.diagnostics_service", "is_expected_cancellation_message"),
+    "build_replace_from_archive_plan": ("cdmw.services.replace_from_archive_service", "build_replace_from_archive_plan"),
+    "export_replace_from_archive_plan": ("cdmw.services.replace_from_archive_service", "export_replace_from_archive_plan"),
+    "ArchiveWorkflowDependenciesUnavailable": ("cdmw.ui.archive_browser.workflow_dependencies", "ArchiveWorkflowDependenciesUnavailable"),
+    "archive_workflow_dependency_context": ("cdmw.ui.archive_browser.workflow_dependencies", "archive_workflow_dependency_context"),
+    "merge_archive_workflow_dependency_contexts": ("cdmw.ui.archive_browser.workflow_dependencies", "merge_archive_workflow_dependency_contexts"),
+    "ReplaceFromArchivePickerDialog": ("cdmw.ui.mesh_editor.replace_from_archive_dialog", "ReplaceFromArchivePickerDialog"),
+    "ReplaceFromArchiveReviewDialog": ("cdmw.ui.mesh_editor.replace_from_archive_dialog", "ReplaceFromArchiveReviewDialog"),
+    "replacement_package_title": ("cdmw.ui.mesh_editor.replace_from_archive_dialog", "replacement_package_title"),
+}
+
+
+def __getattr__(name: str) -> object:
+    target = _LAZY_IMPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = target
+    value = getattr(importlib.import_module(module_name), attr_name)
+    globals()[name] = value
+    return value
+
+
+def _sym(name: str) -> object:
+    existing = globals().get(name)
+    if existing is not None:
+        return existing
+    return __getattr__(name)
 
 
 class ReplaceFromArchiveFlowController(QObject):
@@ -46,8 +71,17 @@ class ReplaceFromArchiveFlowController(QObject):
     def start(
         self, target_entry: ArchiveEntry, *, show_edit_notice: bool = True
     ) -> None:
+        archive_entry_cls = _sym("ArchiveEntry")
+        deps_unavailable_cls = _sym("ArchiveWorkflowDependenciesUnavailable")
+        archive_workflow_dependency_context = _sym("archive_workflow_dependency_context")
+        merge_archive_workflow_dependency_contexts = _sym("merge_archive_workflow_dependency_contexts")
+        picker_dialog_cls = _sym("ReplaceFromArchivePickerDialog")
+        review_dialog_cls = _sym("ReplaceFromArchiveReviewDialog")
+        request_cls = _sym("ReplaceFromArchiveRequest")
+        plan_cls = _sym("ReplaceFromArchivePlan")
+        build_replace_from_archive_plan = _sym("build_replace_from_archive_plan")
         owner = self._owner
-        if not isinstance(target_entry, ArchiveEntry):
+        if not isinstance(target_entry, archive_entry_cls):
             owner.set_status_message(
                 "Mesh Editor has no valid archive-backed target mesh.", error=True
             )
@@ -71,7 +105,7 @@ class ReplaceFromArchiveFlowController(QObject):
             target_dependencies = archive_workflow_dependency_context(
                 owner, target_entry
             )
-        except ArchiveWorkflowDependenciesUnavailable as exc:
+        except deps_unavailable_cls as exc:
             owner.set_status_message(str(exc), error=True)
             return
         target_entry = target_dependencies.selected_entry
@@ -84,7 +118,7 @@ class ReplaceFromArchiveFlowController(QObject):
                 "from exact archive payloads, so those edits are not included. The open session is not changed or discarded.",
             )
 
-        picker = ReplaceFromArchivePickerDialog(
+        picker = picker_dialog_cls(
             service,
             session,
             target_entry=target_entry,
@@ -102,7 +136,7 @@ class ReplaceFromArchiveFlowController(QObject):
         self._retain_picker_until_idle(picker)
         if (
             result != QDialog.Accepted
-            or not isinstance(source_entry, ArchiveEntry)
+            or not isinstance(source_entry, archive_entry_cls)
             or source_dependencies is None
         ):
             return
@@ -112,7 +146,7 @@ class ReplaceFromArchiveFlowController(QObject):
                 target_dependencies,
                 source_dependencies,
             )
-        except ArchiveWorkflowDependenciesUnavailable as exc:
+        except deps_unavailable_cls as exc:
             owner.set_status_message(str(exc), error=True)
             return
         prepared_target = dependencies.entry_matching(target_entry)
@@ -125,7 +159,7 @@ class ReplaceFromArchiveFlowController(QObject):
 
         self._generation += 1
         generation = self._generation
-        request = ReplaceFromArchiveRequest(
+        request = request_cls(
             prepared_target,
             prepared_source,
             character_mode,
@@ -147,7 +181,7 @@ class ReplaceFromArchiveFlowController(QObject):
         def _plan_ready(payload: object) -> None:
             self._close_progress()
             if generation != self._generation or not isinstance(
-                payload, ReplaceFromArchivePlan
+                payload, plan_cls
             ):
                 return
             current = getattr(
@@ -156,11 +190,11 @@ class ReplaceFromArchiveFlowController(QObject):
                 lambda: None,
             )()
             if (
-                not isinstance(current, ArchiveEntry)
+                not isinstance(current, archive_entry_cls)
                 or current.identity != target_entry.identity
             ):
                 return
-            review = ReplaceFromArchiveReviewDialog(
+            review = review_dialog_cls(
                 payload,
                 target_preview=target_preview,
                 source_preview=source_preview,
@@ -195,6 +229,9 @@ class ReplaceFromArchiveFlowController(QObject):
         )
 
     def _start_export(self, plan: ReplaceFromArchivePlan, generation: int) -> None:
+        replacement_package_title = _sym("replacement_package_title")
+        export_replace_from_archive_plan = _sym("export_replace_from_archive_plan")
+        loose_export_result_cls = _sym("ArchiveLooseExportResult")
         owner = self._owner
         target = owner._collect_archive_mod_ready_export_target(
             browse_title="Choose Replace from Archive output folder",
@@ -237,7 +274,7 @@ class ReplaceFromArchiveFlowController(QObject):
         def _export_ready(payload: object) -> None:
             self._close_progress()
             if generation != self._generation or not isinstance(
-                payload, ArchiveLooseExportResult
+                payload, loose_export_result_cls
             ):
                 return
             roots = tuple(payload.package_roots or (payload.package_root,))
@@ -290,10 +327,13 @@ class ReplaceFromArchiveFlowController(QObject):
             return False
 
     def iter_shutdown_workers(self) -> tuple[tuple[str, object, object], ...]:
+        if self._active_picker is None and not self._retired_pickers:
+            return ()
+        picker_dialog_cls = _sym("ReplaceFromArchivePickerDialog")
         pickers = tuple(
             picker
             for picker in (self._active_picker, *self._retired_pickers)
-            if isinstance(picker, ReplaceFromArchivePickerDialog)
+            if isinstance(picker, picker_dialog_cls)
         )
         return tuple(
             (f"replace_from_archive_{index}_{name}", thread, worker)
@@ -304,10 +344,13 @@ class ReplaceFromArchiveFlowController(QObject):
     def request_shutdown(self) -> None:
         self._generation += 1
         self._close_progress()
+        if self._active_picker is None and not self._retired_pickers:
+            return
+        picker_dialog_cls = _sym("ReplaceFromArchivePickerDialog")
         pickers = tuple(
             picker
             for picker in (self._active_picker, *self._retired_pickers)
-            if isinstance(picker, ReplaceFromArchivePickerDialog)
+            if isinstance(picker, picker_dialog_cls)
         )
         for picker in pickers:
             picker.request_shutdown()
@@ -362,7 +405,7 @@ class ReplaceFromArchiveFlowController(QObject):
     @staticmethod
     def _expected_cancel(message: str) -> bool:
         text = str(message or "")
-        return is_expected_cancellation_message(text) or "cancel" in text.casefold()
+        return _sym("is_expected_cancellation_message")(text) or "cancel" in text.casefold()
 
 
 __all__ = ["ReplaceFromArchiveFlowController"]

@@ -10,8 +10,8 @@ from PySide6.QtCore import QThread, QTimer, Qt
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
-ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS = 1_500
-ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS = 120
+ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS = 150
+ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS = 1_200
 
 
 class MeshEditorArchiveMaterialContextMixin:

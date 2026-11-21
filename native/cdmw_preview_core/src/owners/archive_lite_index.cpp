@@ -159,13 +159,20 @@ private:
         input.seekg(static_cast<std::streamoff>(records_offset), std::ios::beg);
         if (!input) throw std::runtime_error("could not seek Archive Lite basename index records");
         records_.resize(static_cast<size_t>(record_count));
-        std::array<unsigned char, 16> row{};
-        for (ArchiveLiteBasenameRecord& record : records_) {
-            read_exact(input, reinterpret_cast<char*>(row.data()), row.size(), "Archive Lite basename index record");
-            record.hash = archive_lite_read_u64(row.data());
-            record.entry_id = archive_lite_read_u64(row.data() + 8);
-            if (record.entry_id >= record_count) {
-                throw std::runtime_error("Archive Lite basename index entry id is out of range");
+        if (record_count > 0) {
+            std::vector<unsigned char> raw_records(static_cast<size_t>(record_count) * 16u);
+            read_exact(
+                input,
+                reinterpret_cast<char*>(raw_records.data()),
+                raw_records.size(),
+                "Archive Lite basename index records");
+            for (size_t i = 0; i < records_.size(); ++i) {
+                const unsigned char* row = raw_records.data() + i * 16u;
+                records_[i].hash = archive_lite_read_u64(row);
+                records_[i].entry_id = archive_lite_read_u64(row + 8);
+                if (records_[i].entry_id >= record_count) {
+                    throw std::runtime_error("Archive Lite basename index entry id is out of range");
+                }
             }
         }
         if (!std::is_sorted(records_.begin(), records_.end(), [](const auto& left, const auto& right) {

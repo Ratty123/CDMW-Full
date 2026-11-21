@@ -86,8 +86,9 @@ def promote_rust_preview_package_from_preview_core(
             os.link(direct_root / name, target)
         except OSError:
             shutil.copyfile(direct_root / name, target)
-    # Verify the resulting files too, including a source changed during transfer.
-    validate_preview_files(package_dir, manifest)
+    # Verify structure, containment, and sizes on the linked copy without
+    # re-hashing the exact inodes that were just verified at line 77.
+    validate_preview_files(package_dir, manifest, hash_unverified=False)
     manifest["preview_core_material_graph"] = _build_preview_core_material_graph(
         source_package,
         package_dir,

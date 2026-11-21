@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QImage
@@ -18,7 +19,9 @@ from cdmw.domain.archives.item_catalogue import (
     ItemIconBatchResult,
     migrate_legacy_item_catalogue_filter,
 )
-from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
+
+if TYPE_CHECKING:
+    from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 
 
 _INITIAL_PAGE_SIZE = 72
@@ -97,12 +100,24 @@ class RemoteItemFinderWarmupController(QObject):
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
         service.request_cancelled.connect(self._handle_cancelled)
+        if hasattr(service, "session_published"):
+            service.session_published.connect(self._handle_session_published)
         if hasattr(service, "operation_delayed"):
             service.operation_delayed.connect(self._handle_delay_notice)
 
     @property
     def session_id(self) -> str:
         return self._session_id
+
+    @Slot(object)
+    def _handle_session_published(self, session: object) -> None:
+        if self._closing or not isinstance(session, ArchiveSessionHandle):
+            return
+        parent = self.parent()
+        bridge = getattr(parent, "archive_remote_bridge", None)
+        controller = getattr(bridge, "controller", None)
+        ui_generation = int(getattr(controller, "generation", self._ui_generation) or self._ui_generation)
+        self.start(session, ui_generation=ui_generation)
 
     def start(self, session: ArchiveSessionHandle, *, ui_generation: int) -> None:
         if self._closing:
@@ -115,10 +130,16 @@ class RemoteItemFinderWarmupController(QObject):
         resolver = getattr(self._service, "session", None)
         previous = resolver(self._session_id) if callable(resolver) and self._session_id else None
         recovered_session = previous is not None and previous.session_id == session.session_id
-        if (same_session or recovered_session) and self._fingerprint == session.fingerprint and self._state != "idle":
+        if (
+            (same_session or recovered_session)
+            and self._fingerprint == session.fingerprint
+            and self._state not in {"idle", "failed"}
+        ):
             self._session_id = session.session_id
             if self._initial_request is not None:
                 self._initial_request = replace(self._initial_request, session_id=session.session_id)
+            if self._state == "scheduled" and not self._requests and not self._threads:
+                self._schedule_continue(0)
             return
         self.invalidate()
         self._session_id = session.session_id
@@ -288,14 +309,14 @@ class RemoteItemFinderWarmupController(QObject):
             return
         if self._state == "scheduled":
             if not self._background_work_allowed():
-                self._schedule_continue(600)
+                self._schedule_continue(250)
                 return
             self._start_catalogue_build()
             return
         priority_pending = any(item_id in self._priority_icon_ids for item_id in self._pending_icons)
         if self._pending_icons:
             if not priority_pending and not self._background_work_allowed():
-                self._schedule_continue(600)
+                self._schedule_continue(250)
                 return
             self._start_icon_batch(priority=priority_pending)
             return
@@ -303,7 +324,7 @@ class RemoteItemFinderWarmupController(QObject):
             if self._failed_operation is not None or self._state in {"failed", "idle"}:
                 return
             if not self._background_work_allowed():
-                self._schedule_continue(600)
+                self._schedule_continue(250)
                 return
             self._start_initial_search()
             return
@@ -312,7 +333,7 @@ class RemoteItemFinderWarmupController(QObject):
                 self._state = "ready"
             return
         if not self._background_work_allowed():
-            self._schedule_continue(600)
+            self._schedule_continue(250)
             return
         self._start_catalogue_page()
 
@@ -322,9 +343,19 @@ class RemoteItemFinderWarmupController(QObject):
         if self._background_allowed is None:
             return True
         try:
-            return bool(self._background_allowed())
+            if bool(self._background_allowed()):
+                return True
         except Exception:
             return True
+        parent = self.parent()
+        fallback = getattr(parent, "_archive_finder_warmup_allowed", None)
+        default_gate = getattr(parent, "_archive_browser_background_work_allowed", None)
+        if callable(fallback) and self._background_allowed == default_gate:
+            try:
+                return bool(fallback())
+            except Exception:
+                return False
+        return False
 
     def _start_catalogue_build(self) -> None:
         try:
@@ -556,6 +587,8 @@ class RemoteItemFinderWarmupController(QObject):
         self._start_decode_worker(sources, requested_ids=tuple(sources))
 
     def _start_decode_worker(self, sources: dict[int, str], *, requested_ids: tuple[int, ...]) -> None:
+        from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
+
         thread = QThread(self)
         thread.setObjectName("remote_item_finder_icon_warmup")
         worker = ArchiveItemThumbnailWorker(

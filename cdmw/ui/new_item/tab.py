@@ -248,25 +248,28 @@ class NewItemStudioTab(QWidget):
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
         self.controller.busy_changed.connect(self._apply_placement_after_model_part_edit)
         self.controller.log_message.connect(self._status.setText)
-        preview_settings_signal = getattr(
-            getattr(getattr(window, "shell", None), "settings_tab", None),
-            "model_preview_settings_changed",
-            None,
-        )
-        if preview_settings_signal is not None:
-            preview_settings_signal.connect(self.set_preview_render_settings)
-        archive_settings_signal = getattr(
-            getattr(getattr(window, "shell", None), "settings_tab", None),
-            "archive_performance_settings_changed",
-            None,
-        )
-        if archive_settings_signal is not None:
-            archive_settings_signal.connect(self.set_archive_performance_settings)
+        # Settings may not be built yet (it loads on first visit): connect once it is,
+        # instead of building it here.
+        settings_tab = getattr(getattr(window, "shell", None), "settings_tab", None)
+        when_created = getattr(type(settings_tab), "when_created", None)
+        if callable(when_created):
+            settings_tab.when_created(self._follow_settings_tab)
+        elif settings_tab is not None:
+            self._follow_settings_tab(settings_tab)
         # Data-only startup preloading may have finished before this tool exists.
         # Resume on the next GUI turn, after the presentation owns the workflow.
         QTimer.singleShot(0, self, self._resume_preloaded_snapshot)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def _follow_settings_tab(self, settings_tab) -> None:
+        for name, slot in (
+            ("model_preview_settings_changed", self.set_preview_render_settings),
+            ("archive_performance_settings_changed", self.set_archive_performance_settings),
+        ):
+            signal = getattr(settings_tab, name, None)
+            if signal is not None:
+                signal.connect(slot)
 
     def _resume_preloaded_snapshot(self) -> None:
         if self.controller._shutdown_requested or self._panels_built or self._panel_mount_steps is not None:

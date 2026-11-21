@@ -295,7 +295,7 @@ static void release_resident_material_graph_metadata() {
 // resident between jobs is cheap; the bounds below are safety valves for
 // sessions that hop across many package roots.
 static constexpr size_t kResidentTechniqueIndexMaxCount = 16;
-static constexpr size_t kResidentPackageTechniqueIndexMaxCount = 4;
+static constexpr size_t kResidentPackageTechniqueIndexMaxCount = 64;
 static constexpr size_t kResidentMaterialGraphMaxCount = 16;
 
 static void trim_resident_material_graph_metadata() {

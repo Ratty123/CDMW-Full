@@ -1,16 +1,8 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
-from cdmw.domain.mesh import MeshEditorUiEvent
-from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
-from cdmw.ui.mesh_editor.actions import (
-    MESH_EDITOR_SESSION_ACTIONS,
-    NATIVE_EDITOR_SESSION_COMMANDS,
-    mesh_editor_action_authoring_blocker,
-    visible_actions_for_session,
-)
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_material_parameters import (
     MeshEditorDotNetMaterialParameterMixin,
@@ -19,6 +11,9 @@ from cdmw.ui.mesh_editor.tab_dotnet_material_parameters import (
 from cdmw.ui.mesh_editor.tab_selection_payloads import (
     MeshEditorSelectionPayloadMixin,
 )
+
+if TYPE_CHECKING:
+    from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
 
 
 
@@ -110,6 +105,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin, MeshE
         ui_state = getattr(self, "mesh_editor_ui_state", None)
         if callable(transition) and callable(observe) and ui_state is not None:
             if ui_state.session_id != session_id:
+                from cdmw.domain.mesh.ui_state import MeshEditorUiEvent
+
                 transition(
                     MeshEditorUiEvent.session_opened(
                         session_id,
@@ -119,6 +116,13 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin, MeshE
                 )
             observe(view, session_id=session_id)
             return self.mesh_editor_ui_state
+        from cdmw.ui.mesh_editor.actions import (
+            MESH_EDITOR_SESSION_ACTIONS,
+            NATIVE_EDITOR_SESSION_COMMANDS,
+            mesh_editor_action_authoring_blocker,
+            visible_actions_for_session,
+        )
+
         mesh_format = str(getattr(view, "mesh_format", "") or "")
         lod_index = int(getattr(view, "lod_index", 0) or 0)
         output_policy = str(getattr(view, "output_policy", "read_only") or "read_only")
@@ -430,6 +434,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin, MeshE
             action = str(
                 request_payload.get("command", request_payload.get("event", "")) or ""
             ).strip()
+        from cdmw.domain.mesh.resident_mutation import ResidentMutationBatch
+
         return ResidentMutationBatch(
             session_id=session_id,
             process_generation=process_generation,

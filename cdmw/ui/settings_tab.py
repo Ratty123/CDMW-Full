@@ -167,6 +167,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             self.theme_combo.addItem(theme["label"], key)
         appearance_layout.addRow("Theme", self.theme_combo)
         appearance_layout.addRow("", self.application_layout_restart_label)
+        self._show_compact_workspace_settings_notice()
         self.remember_splitters_checkbox = QCheckBox("Remember pane sizes and splitters")
         appearance_layout.addRow("", self.remember_splitters_checkbox)
         language_controls = QWidget()

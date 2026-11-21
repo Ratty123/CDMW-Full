@@ -6,9 +6,6 @@ from collections import Counter, OrderedDict, deque
 
 from PySide6.QtCore import QProcess, Qt, QTimer
 
-from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
-from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
-
 
 class ShellWindowRuntimeStateMixin:
     """Initialize runtime state that must exist before tab construction."""
@@ -49,7 +46,9 @@ class ShellWindowRuntimeStateMixin:
         self.archive.pending_in_game_mesh_swap_target: Optional[ArchiveEntry] = None
         self.archive._archive_sidecar_status_timer = QTimer(self)
         self.archive._archive_sidecar_status_timer.setInterval(1000)
-        self.archive._archive_sidecar_status_timer.timeout.connect(self.archive._refresh_archive_sidecar_status_elapsed)
+        self.archive._archive_sidecar_status_timer.timeout.connect(
+            lambda: self.archive._refresh_archive_sidecar_status_elapsed()
+        )
         self.archive._archive_scan_progress_pending: Optional[Tuple[int, int, str]] = None
         self.archive._archive_scan_progress_last_flush = 0.0
         self.archive._archive_scan_progress_min_interval_s = 1.0 / 30.0

@@ -81,7 +81,9 @@ class ArchiveScanLifecycleMixin:
                 dialog.panel.guidance_label.setText(f"Could not save the folder exclusion: {exc}")
                 dialog.panel.exclude_button.setEnabled(True)
                 return
-            settings_tab = getattr(self.shell, "settings_tab", None)
+            from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+
+            settings_tab = created_tool_widget(getattr(self.shell, "settings_tab", None))
             if settings_tab is not None:
                 settings_tab.archive_ignored_folders_group.reload()
             dialog.close()

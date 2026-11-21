@@ -467,6 +467,9 @@ class CloseControllerMixin:
         self._settings_save_timer.stop()
         self._external_activation_timer.stop()
         self._chainner_analysis_timer.stop()
+        stop_preimport = getattr(self, "_stop_idle_module_preimport", None)
+        if callable(stop_preimport):
+            stop_preimport()
         self.archive.archive_preview_debounce_timer.stop()
         self.archive.archive_preview_loading_timer.stop()
         self.archive.archive_selection_state_timer.stop()
@@ -508,6 +511,9 @@ class CloseControllerMixin:
             return
         self._close_finalized = True
         self._record_close_event("close_finalize", close_phase="finalize")
+        stop_preimport = getattr(self, "_stop_idle_module_preimport", None)
+        if callable(stop_preimport):
+            stop_preimport()
         self._request_tab_shutdowns()
         item_finder_warmup = getattr(self.archive, "archive_item_finder_warmup_controller", None)
         request_item_finder_shutdown = getattr(item_finder_warmup, "request_shutdown", None)
@@ -553,6 +559,9 @@ class CloseControllerMixin:
             clear_active_main_window(self)
         self._settings_save_timer.stop()
         self._chainner_analysis_timer.stop()
+        stop_preimport = getattr(self, "_stop_idle_module_preimport", None)
+        if callable(stop_preimport):
+            stop_preimport()
         self.archive.archive_preview_debounce_timer.stop()
         self.archive.archive_preview_loading_timer.stop()
         self.archive.archive_selection_state_timer.stop()

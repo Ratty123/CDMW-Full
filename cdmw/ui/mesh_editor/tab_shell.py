@@ -16,8 +16,6 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     untextured_fallback_display_mode,
 )
 from cdmw.ui.shell.settings_bridge import read_bool_setting
-from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
-from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -175,6 +173,8 @@ class MeshEditorTabShellMixin(
         return getattr(getattr(self, "standalone_workspace", None), "texture_tools_dock", None)
 
     def _build_standalone_workspace(self) -> QWidget:
+        from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
+
         page = MeshEditorWorkspace(theme_key=self.theme_key, defer_legacy_panels=True, parent=self)
         page.action_requested.connect(self._handle_action_requested)
         page.native_preview_requested.connect(self._start_standalone_native_preview_requested)
@@ -395,6 +395,8 @@ class MeshEditorTabShellMixin(
         classic_index = _mesh_editor_tab_index(control_tabs, "Mesh Editing")
         if classic_index < 0:
             return
+        from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
+
         workspace = MeshEditorWorkspace(
             theme_key=self.theme_key,
             embedded_controls_only=True,

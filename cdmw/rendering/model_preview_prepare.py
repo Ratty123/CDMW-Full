@@ -1673,6 +1673,7 @@ def prepare_model_preview(
     render_settings: Optional[ModelPreviewRenderSettings] = None,
     stop_event=None,
     enable_material_combiner: bool = True,
+    build_geometry_blob: bool = True,
 ) -> Tuple[object, Optional[PreparedModelPreviewData]]:
     prepare_started = time.perf_counter()
     trace_enabled = mesh_editor_load_trace_enabled()
@@ -1692,6 +1693,8 @@ def prepare_model_preview(
         apply_material_combiner(cloned_model, render_settings=render_settings, stop_event=stop_event)
         if trace_enabled:
             load_trace["material_apply_ms"] = trace_elapsed_ms(material_started)
+    if not bool(build_geometry_blob):
+        return cloned_model, None
     geometry_started = time.perf_counter()
     vertex_blob, vertex_count, mesh_batches = build_vertex_blob(cloned_model)
     if trace_enabled:

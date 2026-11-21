@@ -56,6 +56,9 @@ RUST_HOST_CAMERA_CAPABILITY = "host_camera_v1"
 # and X-ray, brush, overlay colours and sizes, part visibility) and answers with a
 # "view_state" event.
 RUST_HOST_VIEW_STATE_CAPABILITY = "host_view_state_v1"
+# Optional hello capability: set_view_state also takes the lighting preset and the Studio
+# look (wetness, exposure, light_rotation, reset "look"), and view_state reports them.
+RUST_HOST_VIEW_LOOK_CAPABILITY = "host_view_look_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",
@@ -271,6 +274,36 @@ def _executable_hash_signature(path: Path) -> tuple[int, ...]:
     return stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_dev, stat.st_ino
 
 
+_VALIDATION_CACHE: dict[tuple[str, tuple[tuple[str, tuple[int, ...]], ...]], str] = {}
+
+
+def _package_validation_cache_key(
+    executable: Path,
+) -> tuple[str, tuple[tuple[str, tuple[int, ...]], ...]] | None:
+    import time as _time
+
+    paths = [
+        executable,
+        executable.with_name(RUST_MESH_PROVENANCE_FILE),
+        executable.with_name(RUST_MESH_CONTROL_CONTRACT_FILE),
+        *(executable.with_name(name) for name in RUST_SHADER_COMPILER_FILES),
+    ]
+    now_ns = _time.time_ns()
+    sigs: list[tuple[str, tuple[int, ...]]] = []
+    for path in paths:
+        try:
+            sig = _executable_hash_signature(path)
+        except OSError:
+            if path.name in RUST_SHADER_COMPILER_FILES:
+                sigs.append((path.name, ()))
+                continue
+            return None
+        if now_ns - sig[1] < 2_000_000_000:
+            return None
+        sigs.append((path.name, sig))
+    return (str(executable.resolve()), tuple(sigs))
+
+
 def validate_rust_mesh_editor_package(
     resolution: RustMeshExecutableResolution,
 ) -> str:
@@ -281,6 +314,18 @@ def validate_rust_mesh_editor_package(
     executable = Path(resolution.resolved_path)
     if not executable.is_file():
         return "cdmw_mesh_lab.exe was not found"
+    cache_key = _package_validation_cache_key(executable)
+    if cache_key is not None and cache_key in _VALIDATION_CACHE:
+        return _VALIDATION_CACHE[cache_key]
+    reason = _validate_rust_mesh_editor_package_uncached(executable)
+    if cache_key is not None and reason == "":
+        if len(_VALIDATION_CACHE) >= 16:
+            _VALIDATION_CACHE.clear()
+        _VALIDATION_CACHE[cache_key] = ""
+    return reason
+
+
+def _validate_rust_mesh_editor_package_uncached(executable: Path) -> str:
     manifest_path = executable.with_name(RUST_MESH_PROVENANCE_FILE)
     if not manifest_path.is_file():
         return "provenance manifest is missing"

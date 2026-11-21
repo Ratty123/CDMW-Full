@@ -260,6 +260,8 @@ pub(super) fn prepare(
             part.normals = geometry.normals;
             part.uvs = geometry.uvs;
             part.shader_masks.clear();
+            // Generated hair has no authored tangents; they are derived from its UVs.
+            part.tangents.clear();
             part.indices = geometry.indices;
             part.source_vertex_indices = vec![-1; part.positions.len()];
             state.bindings.extend(geometry.bindings);
@@ -344,6 +346,12 @@ fn compact_part_indices(
     part.positions = used.iter().map(|i| part.positions[*i as usize]).collect();
     part.normals = used.iter().map(|i| part.normals[*i as usize]).collect();
     part.uvs = used.iter().map(|i| part.uvs[*i as usize]).collect();
+    if !part.tangents.is_empty() {
+        part.tangents = used
+            .iter()
+            .map(|i| part.tangents.get(*i as usize).copied().unwrap_or([0.0; 4]))
+            .collect();
+    }
     if !part.shader_masks.is_empty() {
         part.shader_masks = used
             .iter()

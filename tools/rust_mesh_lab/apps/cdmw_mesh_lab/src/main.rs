@@ -852,7 +852,7 @@ pub(crate) fn capture_cdmw_session_lit(
         .unwrap_or_default()
         .to_owned();
     let mut textures = package.take_textures();
-    let layers = package.take_layers();
+    let mut layers = package.take_layers();
     let presentations = package.take_material_presentations();
     let mut owned_factors = presentations
         .iter()
@@ -888,6 +888,14 @@ pub(crate) fn capture_cdmw_session_lit(
                 cdmw_material_preview_factors(presentation),
                 vec![vec![presentation.material_index + reference_offset]; lod_count],
             ));
+        }
+        for layer in piece.layers.iter().filter(|layer| layer.lod_index == 0) {
+            for lod_index in 0..lod_count {
+                let mut shifted = layer.clone();
+                shifted.lod_index = lod_index;
+                shifted.material_index += reference_offset;
+                layers.push(shifted);
+            }
         }
         reference_offset += piece.part_count;
     }
@@ -2537,6 +2545,56 @@ fn render_pending_egui_textures<E>(
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct CdmwLayerSignature {
+    lod_index: usize,
+    material_index: u32,
+    uniform_bits: Vec<u32>,
+    textures: Vec<Option<(cdmw_texture::TextureRole, String)>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CdmwConfiguredMaterialsSignature {
+    lod_index: usize,
+    textures: Vec<(cdmw_texture::TextureRole, Vec<Vec<u32>>, String)>,
+    presentations: Vec<SessionMaterialPresentation>,
+    layers: Vec<CdmwLayerSignature>,
+}
+
+fn push_f32_array_bits(target: &mut Vec<u32>, values: &[f32; 4]) {
+    for value in values {
+        target.push(value.to_bits());
+    }
+}
+
+fn layer_uniform_bits(uniform: &cdmw_render_wgpu::LayerUniform) -> Vec<u32> {
+    let mut bits = Vec::with_capacity(144);
+    for entry in &uniform.layers {
+        push_f32_array_bits(&mut bits, &entry.dye);
+        push_f32_array_bits(&mut bits, &entry.affine);
+        push_f32_array_bits(&mut bits, &entry.offset);
+        push_f32_array_bits(&mut bits, &entry.properties);
+        push_f32_array_bits(&mut bits, &entry.grime_affine);
+        push_f32_array_bits(&mut bits, &entry.grime_offset);
+        push_f32_array_bits(&mut bits, &entry.grime_tint);
+        push_f32_array_bits(&mut bits, &entry.grime);
+        push_f32_array_bits(&mut bits, &entry.scratch);
+        push_f32_array_bits(&mut bits, &entry.scratch_tint);
+    }
+    for seed in &uniform.seeds {
+        push_f32_array_bits(&mut bits, seed);
+    }
+    push_f32_array_bits(&mut bits, &uniform.base_color);
+    bits.extend_from_slice(&uniform.control);
+    push_f32_array_bits(&mut bits, &uniform.blend_dye);
+    push_f32_array_bits(&mut bits, &uniform.blend_affine);
+    push_f32_array_bits(&mut bits, &uniform.blend_offset);
+    push_f32_array_bits(&mut bits, &uniform.blend_surface);
+    push_f32_array_bits(&mut bits, &uniform.blend_switches);
+    push_f32_array_bits(&mut bits, &uniform.blend_height);
+    bits
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
     embedded_parent_hwnd: Option<u64>,
@@ -2583,6 +2641,8 @@ struct LabApplication {
     cdmw_shader_panel_epoch: u64,
     cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
+    cdmw_bound_material_count: usize,
+    cdmw_configured_materials_sig: Option<CdmwConfiguredMaterialsSignature>,
     /// The source hash of each material texture the renderer holds, in its order (step 8).
     cdmw_texture_sources: Vec<String>,
     /// Texture edits CDMW sent before the textures were loaded: source hash -> (file, revision).
@@ -2625,6 +2685,7 @@ struct LabApplication {
     /// change is published once and becomes the new agreed value.
     shared_preview_settings: Option<serde_json::Value>,
     lighting_preset: cdmw_render_wgpu::LightingPreset,
+    studio_look: cdmw_render_wgpu::StudioLookSettings,
     show_bones: bool,
     deformation_heatmap_enabled: bool,
     deformation_heatmap_applied: bool,
@@ -2858,6 +2919,8 @@ impl LabApplication {
             cdmw_shader_panel_epoch: 0,
             cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
+            cdmw_bound_material_count: 0,
+            cdmw_configured_materials_sig: None,
             cdmw_texture_sources: Vec::new(),
             cdmw_pending_texture_updates: std::collections::BTreeMap::new(),
             cdmw_layer_texture_edits: cdmw_live_textures::LayerTextureEdits::default(),
@@ -2895,6 +2958,7 @@ impl LabApplication {
             ground_grid: true,
             shared_preview_settings: None,
             lighting_preset: cdmw_render_wgpu::LightingPreset::StudioFixed,
+            studio_look: cdmw_render_wgpu::StudioLookSettings::default(),
             show_bones: false,
             deformation_heatmap_enabled: true,
             deformation_heatmap_applied: true,
@@ -3213,6 +3277,7 @@ impl LabApplication {
         String,
     > {
         self.preview_scene_set_aside = true; // this renderer is the edit's own
+        self.cdmw_configured_materials_sig = None;
         self.configure_renderer(&mut renderer)?;
         let lent = self.renderer.replace(renderer);
         self.egui_state = Some(egui_winit::State::new(
@@ -3290,6 +3355,7 @@ impl LabApplication {
     ) {
         self.egui_state = None;
         self.window = None;
+        self.cdmw_configured_materials_sig = None;
         (
             self.renderer.take(),
             self.camera.clone(),
@@ -3410,6 +3476,88 @@ impl LabApplication {
         })
     }
 
+    fn collect_resident_texture_bytes(&self) -> HashMap<String, Arc<[u8]>> {
+        let mut resident = HashMap::new();
+        for texture in &self.cdmw_texture_resources {
+            let key = texture.metadata.source_sha256.trim().to_ascii_uppercase();
+            if !key.is_empty() {
+                resident
+                    .entry(key)
+                    .or_insert_with(|| Arc::clone(&texture.bytes));
+            }
+        }
+        for layer_set in &self.cdmw_material_layers {
+            for texture in layer_set.textures.iter().flatten() {
+                let key = texture.source_sha256.trim().to_ascii_uppercase();
+                if !key.is_empty() {
+                    resident
+                        .entry(key)
+                        .or_insert_with(|| Arc::clone(&texture.bytes));
+                }
+            }
+        }
+        for piece in &self.cdmw_reference_pieces {
+            for texture in &piece.textures {
+                let key = texture.metadata.source_sha256.trim().to_ascii_uppercase();
+                if !key.is_empty() {
+                    resident
+                        .entry(key)
+                        .or_insert_with(|| Arc::clone(&texture.bytes));
+                }
+            }
+            for layer_set in &piece.layers {
+                for texture in layer_set.textures.iter().flatten() {
+                    let key = texture.source_sha256.trim().to_ascii_uppercase();
+                    if !key.is_empty() {
+                        resident
+                            .entry(key)
+                            .or_insert_with(|| Arc::clone(&texture.bytes));
+                    }
+                }
+            }
+        }
+        resident
+    }
+
+    fn cdmw_configured_materials_signature(&self) -> CdmwConfiguredMaterialsSignature {
+        CdmwConfiguredMaterialsSignature {
+            lod_index: self.active_lod_index,
+            textures: self
+                .cdmw_texture_resources
+                .iter()
+                .map(|texture| {
+                    (
+                        texture.role,
+                        texture.material_indices_by_lod.clone(),
+                        texture.metadata.source_sha256.trim().to_ascii_lowercase(),
+                    )
+                })
+                .collect(),
+            presentations: self.cdmw_material_presentations.clone(),
+            layers: self
+                .cdmw_material_layers
+                .iter()
+                .map(|layer| CdmwLayerSignature {
+                    lod_index: layer.lod_index,
+                    material_index: layer.material_index,
+                    uniform_bits: layer_uniform_bits(&layer.uniform),
+                    textures: layer
+                        .textures
+                        .iter()
+                        .map(|slot| {
+                            slot.as_ref().map(|texture| {
+                                (
+                                    texture.role,
+                                    texture.source_sha256.trim().to_ascii_uppercase(),
+                                )
+                            })
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
     /// Answer the pending helper's one request: open the session into the window and
     /// renderer that already exist, then say hello and ready as a fresh launch does.
     fn poll_pending_session(&mut self, event_loop: &ActiveEventLoop) {
@@ -3439,7 +3587,12 @@ impl LabApplication {
         };
         let child_hwnd = cdmw_win32_embed::window_hwnd(window.as_ref()).unwrap_or(0);
         let parent_hwnd = self.embedded_parent_hwnd.unwrap_or(0);
-        let opened = CdmwBridge::open_pending(&manifest_path, input)
+        let resident_textures = self.collect_resident_texture_bytes();
+        let opened = CdmwBridge::open_pending_with_resident_textures(
+            &manifest_path,
+            input,
+            &resident_textures,
+        )
             .map_err(|error| {
                 format!(
                     "failed to open CDMW session {}: {error}",
@@ -3979,6 +4132,7 @@ impl LabApplication {
             return;
         }
         // A material texture, or a layer the shader combines (B item 6); one answer each.
+        self.cdmw_configured_materials_sig = None;
         let error = cdmw_live_textures::apply_texture_update(
             renderer,
             &self.cdmw_texture_sources,
@@ -5222,6 +5376,7 @@ impl LabApplication {
         let identity_colours_active = self.cdmw_identity_colours_active();
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
+                self.cdmw_configured_materials_sig = None;
                 renderer.reset_texture();
                 self.cdmw_texture_sources.clear();
                 #[cfg(test)]
@@ -5234,10 +5389,11 @@ impl LabApplication {
                 renderer.set_camera(self.camera.view_projection(rectangle));
             }
             for texture in textures.iter().filter(|_| !reuse_materials) {
-                match renderer.add_dds_texture(
+                match renderer.add_verified_dds_texture(
                     &texture.bytes,
                     texture.role,
                     &texture.material_indices_by_lod,
+                    &texture.metadata.source_sha256,
                 ) {
                     Ok(()) => {
                         texture_upload_count = texture_upload_count.saturating_add(1);
@@ -8417,12 +8573,14 @@ impl LabApplication {
             // The first scene this edit draws on Browse's renderer: Browse's own goes
             // aside, so returning shows it without uploading it again (8.7 C1).
             self.preview_scene_set_aside = true;
+            self.cdmw_configured_materials_sig = None;
             self.kept_preview_scene = Some(renderer.set_scene_aside());
         }
         let configured = self.configure_renderer_scene(renderer);
         if self.texture_upload_failed_with_kept_scene() {
             // Under memory pressure the kept scene goes first; it can be loaded again.
             self.kept_preview_scene = None;
+            self.cdmw_configured_materials_sig = None;
             return self.configure_renderer_scene(renderer);
         }
         configured
@@ -8442,17 +8600,26 @@ impl LabApplication {
         let mut texture_upload_count = 0_usize;
         let mut bound_material_count = 0_usize;
         let mut texture_warning = None;
-        if !self.cdmw_texture_resources.is_empty()
+        let next_materials_sig = self.cdmw_configured_materials_signature();
+        let reuse_configured_materials = self.cdmw_configured_materials_sig.as_ref()
+            == Some(&next_materials_sig)
+            && !self.cdmw_texture_upload_failed
+            && self.cdmw_pending_texture_updates.is_empty();
+        if reuse_configured_materials {
+            texture_upload_count = self.cdmw_texture_resources.len();
+            bound_material_count = self.cdmw_bound_material_count;
+        } else if !self.cdmw_texture_resources.is_empty()
             || !self.cdmw_material_presentations.is_empty()
             || !self.cdmw_material_layers.is_empty()
         {
             renderer.reset_texture();
             self.cdmw_texture_sources.clear();
             for texture in &self.cdmw_texture_resources {
-                match renderer.add_dds_texture(
+                match renderer.add_verified_dds_texture(
                     &texture.bytes,
                     texture.role,
                     &texture.material_indices_by_lod,
+                    &texture.metadata.source_sha256,
                 ) {
                     Ok(()) => {
                         texture_upload_count = texture_upload_count.saturating_add(1);
@@ -8485,6 +8652,7 @@ impl LabApplication {
                     texture_warning.get_or_insert_with(|| error.to_string());
                 }
             }
+            let had_pending_updates = !self.cdmw_pending_texture_updates.is_empty();
             apply_pending_cdmw_texture_updates(
                 renderer,
                 &self.cdmw_texture_sources,
@@ -8493,8 +8661,17 @@ impl LabApplication {
                 &mut self.cdmw_pending_texture_updates,
                 self.cdmw_bridge.as_ref(),
             );
+            if texture_warning.is_none() && !had_pending_updates {
+                self.cdmw_configured_materials_sig = Some(next_materials_sig);
+                self.cdmw_bound_material_count = bound_material_count;
+            } else {
+                self.cdmw_configured_materials_sig = None;
+                self.cdmw_bound_material_count = 0;
+            }
         } else {
             self.cdmw_texture_sources.clear();
+            self.cdmw_configured_materials_sig = None;
+            self.cdmw_bound_material_count = 0;
         }
         let shown = self.cdmw_live_texture_report(renderer);
         self.send_cdmw_live_textures(shown);
@@ -8512,7 +8689,17 @@ impl LabApplication {
             renderer,
             &self.cdmw_reference_pieces,
             self.document.as_deref(),
-        ) {
+        )
+        .and_then(|()| {
+            if self.cdmw_reference_pieces.is_empty() {
+                Ok(())
+            } else {
+                renderer
+                    .set_material_lod(self.active_lod_index)
+                    .map(|_| ())
+                    .map_err(anyhow::Error::from)
+            }
+        }) {
             self.status = format!("Reference materials failed: {error}");
         }
         if let Some(mesh) = &self.mesh {
@@ -8577,6 +8764,7 @@ impl LabApplication {
     fn renderer_failed(&mut self, reason: String) {
         self.gpu_recovery.cancel_pending();
         self.renderer = None;
+        self.cdmw_configured_materials_sig = None;
         self.status = format!(
             "GPU rendering paused: {reason}. Retry from the host to resume; editing state was retained."
         );
@@ -8658,6 +8846,7 @@ impl LabApplication {
             renderer.set_overlays(show_normals, show_bounds);
             renderer.set_lighting_depth_settings(self.lighting_depth);
             renderer.set_lighting_preset(self.lighting_preset);
+            renderer.set_studio_look_settings(self.studio_look);
             renderer.set_ground(self.ground_visible, self.ground_grid);
             renderer.set_overlay_colours(wire_colour, point_colour);
             renderer.set_bone_overlay(show_bones);
@@ -8692,6 +8881,7 @@ impl LabApplication {
             error!("frame failed: {error}");
             if matches!(error, cdmw_render_wgpu::RenderError::GpuFault(_)) {
                 self.renderer = None;
+                self.cdmw_configured_materials_sig = None;
                 if !self.gpu_recovery.schedule(Instant::now()) {
                     self.renderer_failed(error.to_string());
                 }
@@ -9302,6 +9492,7 @@ mod tests {
                     normals: vec![[0.0, 0.0, 1.0]; positions.len()],
                     uvs: vec![[0.0, 0.0]; positions.len()],
                     shader_masks: Vec::new(),
+                    tangents: Vec::new(),
                     source_vertex_indices: vec![0, 1, 2],
                     positions,
                     indices: vec![0, 1, 2],
@@ -9753,7 +9944,7 @@ mod tests {
         let resource = |role| CdmwTextureResource {
             label: format!("{role:?}"),
             metadata: cdmw_texture::inspect_dds(&bytes, role).expect("DDS metadata"),
-            bytes: bytes.clone(),
+            bytes: bytes.clone().into(),
             role,
             material_indices_by_lod: vec![vec![0]],
         };
@@ -9779,5 +9970,44 @@ mod tests {
             material_audit_runtime_dds_metrics(&duplicate, &[]).expect("shared physical upload");
         assert_eq!(duplicate_metrics["resource_count"], 1);
         assert_eq!(duplicate_metrics["logical_duplicate_binding_count"], 1);
+    }
+
+    #[test]
+    fn configured_materials_signature_matches_identical_state_and_detects_changes() {
+        let root = tempfile::tempdir().unwrap_or_else(|error| panic!("tempdir failed: {error}"));
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "sig-test", 1, 0);
+        let mut application = LabApplication::new_cdmw(bridge, z_elongated_document(), None)
+            .unwrap_or_else(|error| panic!("integrated application failed: {error}"));
+
+        let bytes: Arc<[u8]> = cdmw_texture::synthetic::rgba8_checker_dds().into();
+        let metadata = cdmw_texture::inspect_dds(&bytes, cdmw_texture::TextureRole::BaseColor)
+            .expect("DDS metadata");
+        let sha_upper = metadata.source_sha256.trim().to_ascii_uppercase();
+        application.cdmw_texture_resources = vec![loaded_cdmw_texture(CdmwTextureResource {
+            label: "base".to_owned(),
+            metadata,
+            bytes: Arc::clone(&bytes),
+            role: cdmw_texture::TextureRole::BaseColor,
+            material_indices_by_lod: vec![vec![0]],
+        })];
+
+        let resident = application.collect_resident_texture_bytes();
+        assert!(
+            resident
+                .get(&sha_upper)
+                .is_some_and(|resident_bytes| Arc::ptr_eq(resident_bytes, &bytes)),
+            "collect_resident_texture_bytes must share resident Arc<[u8]> by uppercase SHA-256"
+        );
+
+        let sig_a = application.cdmw_configured_materials_signature();
+        let sig_b = application.cdmw_configured_materials_signature();
+        assert_eq!(sig_a, sig_b);
+
+        application.active_lod_index = 1;
+        assert_ne!(sig_a, application.cdmw_configured_materials_signature());
+
+        application.active_lod_index = 0;
+        application.cdmw_texture_resources[0].role = cdmw_texture::TextureRole::Normal;
+        assert_ne!(sig_a, application.cdmw_configured_materials_signature());
     }
 }
