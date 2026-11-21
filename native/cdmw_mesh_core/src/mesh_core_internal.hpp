@@ -47,6 +47,27 @@ inline std::filesystem::path cdmw_native_path(const std::string& utf8_path) {
     return cdmw::long_path(std::filesystem::u8path(utf8_path));
 }
 
+// An environment variable as UTF-8, like every path the core is given. On
+// Windows the narrow getenv answers in the ANSI code page, so a TEMP under a
+// folder with letters outside ASCII never matched the UTF-8 job paths. Empty
+// when the variable is unset or cannot be converted.
+inline std::string cdmw_env_utf8(const char* name) {
+#ifdef _WIN32
+    const std::wstring wide_name(name, name + std::strlen(name));
+    const wchar_t* value = _wgetenv(wide_name.c_str());
+    if (value == nullptr || *value == L'\0') return {};
+    try {
+        const auto utf8 = std::filesystem::path(value).u8string();
+        return std::string(utf8.begin(), utf8.end());
+    } catch (const std::exception&) {
+        return {};
+    }
+#else
+    const char* value = std::getenv(name);
+    return value == nullptr ? std::string() : std::string(value);
+#endif
+}
+
 // `out << std::setprecision(17) << value` with no float flags set is printf's
 // "%.17g" text, and std::to_chars(general, 17) is specified to write exactly that
 // for a finite value. It skips the locale-aware stream path, which dominated large

@@ -53,6 +53,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Mesh Editor:** with a letter outside plain English in the path of the CDMW folder, such as a Chinese, Cyrillic or accented Windows user name, every mesh failed to open with "native edit-session clone failed and Python fallback was blocked ... native mesh-core service returned an error". The mesh core read those letters as `?` and looked for a folder that does not exist. Morph snapshots under such a folder are fixed too, and so is the archive helper, which made building a mod fail with "The archive checksum helper is unavailable" and made other archive jobs fall back to slower Python code.
 - **Browse Archives** no longer refuses to preview some files with "Preview dependencies could not be resolved": large uncompressed textures such as the world map fog bitmaps, the ICU `.dat` files, some tree impostors, and files named by an extension alone such as `.vce_meta`. Only a model still needs its complete set of related files before it is shown.
 - World models that name glow maps the game does not include now show with their textures in the 3D preview instead of as bare geometry with "Textures unavailable". This is common: houses, lamps, gates and many other world models were affected. Those materials are shown without glow.
 - **Browse Archives** no longer reports "Texture loading failed" for world models that are shown with their textures, such as beacons and other layered-material statics, and no longer loads such a model again in the background.
