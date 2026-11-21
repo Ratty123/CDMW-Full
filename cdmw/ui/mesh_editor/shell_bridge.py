@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Optional, Sequence
 
-from PySide6.QtCore import QObject, QThread, QTimer, Qt
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from cdmw.domain.archives.filters import archive_entry_identity_key
@@ -166,6 +166,33 @@ def _open_target_files(entry: object, item_set_contexts: Sequence[object] = ()) 
     if len(identities) > 1 and None not in identities:
         return identities
     return (getattr(entry, "identity", None),)
+
+
+class _UiThreadRelay(QObject):
+    """Runs callables on the thread this object lives on (the UI thread).
+
+    A plain function connected to a worker's signal runs on the worker's thread;
+    emitting ``call`` from there queues the callable for this object's thread.
+    """
+
+    call = Signal(object)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.call.connect(self._run)
+
+    @Slot(object)
+    def _run(self, callback: object) -> None:
+        if callable(callback):
+            callback()
+
+
+def _ui_thread_relay(owner: object) -> _UiThreadRelay:
+    relay = getattr(owner, "_mesh_editor_ui_thread_relay", None)
+    if not isinstance(relay, _UiThreadRelay):
+        relay = _UiThreadRelay(owner if isinstance(owner, QObject) else None)
+        setattr(owner, "_mesh_editor_ui_thread_relay", relay)
+    return relay
 
 
 class MeshEditorShellBridgeMixin:
@@ -633,6 +660,9 @@ class MeshEditorShellBridgeMixin:
         token = int(wait.get("token", 0) or 0)
         connections: list[tuple[object, object]] = []
         worker = getattr(self.archive, "archive_preview_worker", None)
+        # The worker emits on its own thread; the handlers below touch widgets and may
+        # open the Mesh Editor, so they run on the UI thread.
+        relay = _ui_thread_relay(self)
 
         def attach(signal: object, *, terminal: bool = False) -> None:
             connect = getattr(signal, "connect", None)
@@ -640,7 +670,9 @@ class MeshEditorShellBridgeMixin:
                 return
 
             def on_signal(*_args: object, wait_token: int = token, is_terminal: bool = terminal) -> None:
-                self._handle_full_archive_preview_signal(wait_token, terminal=is_terminal)
+                relay.call.emit(
+                    lambda: self._handle_full_archive_preview_signal(wait_token, terminal=is_terminal)
+                )
 
             try:
                 connect(on_signal)
@@ -804,16 +836,23 @@ class MeshEditorShellBridgeMixin:
         thread = QThread(owner)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
+        # These run on the worker's thread; the relay hands them to the UI thread so the
+        # request-id check and the stored result cannot race a take or cancel there.
+        relay = _ui_thread_relay(owner)
         worker.loaded.connect(
-            lambda rid, result, key=target_key: self._handle_preloaded_mesh_editor_session_loaded(
-                rid, result, key,
+            lambda rid, result, key=target_key: relay.call.emit(
+                lambda: self._handle_preloaded_mesh_editor_session_loaded(rid, result, key)
             )
         )
         worker.drafts_found.connect(
-            lambda rid, _drafts: self._handle_preloaded_mesh_editor_session_aborted(rid)
+            lambda rid, _drafts: relay.call.emit(
+                lambda: self._handle_preloaded_mesh_editor_session_aborted(rid)
+            )
         )
         worker.error.connect(
-            lambda rid, _message: self._handle_preloaded_mesh_editor_session_aborted(rid)
+            lambda rid, _message: relay.call.emit(
+                lambda: self._handle_preloaded_mesh_editor_session_aborted(rid)
+            )
         )
 
         def finish_worker_thread(target_worker: object = worker, owner_obj: QObject = owner) -> None:

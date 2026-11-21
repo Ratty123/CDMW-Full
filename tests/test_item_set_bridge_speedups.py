@@ -775,3 +775,50 @@ def test_selection_change_during_preview_wait_discards_preloaded_session(tmp_pat
     assert closed_sessions == ["preloaded-sid"]
     worker.deleteLater()
     app.processEvents()
+
+
+def test_full_preview_wait_handles_worker_signals_on_the_ui_thread() -> None:
+    """The preview worker emits on its own QThread; the wait's handler (which may open
+    the Mesh Editor) must still run on the UI thread."""
+
+    import time as _time
+
+    from PySide6.QtCore import QThread
+    from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
+
+    app = _app()
+    ui_thread = QThread.currentThread()
+
+    class _Harness(QObject, MeshEditorShellBridgeMixin):
+        def __init__(self) -> None:
+            QObject.__init__(self)
+            self.archive = SimpleNamespace(archive_preview_worker=_SignalPreviewWorker())
+            self.handled: list[tuple[bool, object]] = []
+
+        def _handle_full_archive_preview_signal(self, wait_token: int, *, terminal: bool = False) -> None:
+            self.handled.append((terminal, QThread.currentThread()))
+
+        def _check_full_archive_preview_wait(self) -> None:
+            pass
+
+    harness = _Harness()
+    worker = harness.archive.archive_preview_worker
+    wait = {"token": 1, "deadline": _time.monotonic() + 30}
+    assert harness._connect_full_archive_preview_signals(wait)
+    thread = QThread()
+    worker.moveToThread(thread)
+    thread.started.connect(lambda: (worker.completed.emit(1, None), worker.finished.emit()))
+    thread.start()
+    deadline = _time.monotonic() + 5
+    while len(harness.handled) < 2 and _time.monotonic() < deadline:
+        app.processEvents()
+        _time.sleep(0.005)
+    thread.quit()
+    thread.wait(2000)
+    harness._mesh_editor_full_preview_wait = wait
+    harness._disconnect_full_archive_preview_wait()
+    timer = getattr(harness, "_mesh_editor_full_preview_deadline_timer", None)
+    if timer is not None:
+        timer.stop()
+    assert [terminal for terminal, _thread in harness.handled] == [False, True]
+    assert all(handled_thread is ui_thread for _terminal, handled_thread in harness.handled)
