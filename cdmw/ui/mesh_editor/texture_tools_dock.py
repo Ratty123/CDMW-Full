@@ -581,13 +581,9 @@ class MeshEditorTextureTools(QDockWidget):
     def _default_editor(self) -> QWidget:
         from cdmw.ui.texture_editor_tab import TextureEditorTab
 
-        return TextureEditorTab(
-            settings=self.settings,
-            base_dir=self.base_dir,
-            get_png_root=lambda: "",
-            parent=self,
-            embedded_tools_only=True,
-        )
+        # The whole editor, not only the panels the dock shows: the AI texture tools and the
+        # editor's own commands work the controls of its other panels for the docked editor too.
+        return TextureEditorTab(settings=self.settings, base_dir=self.base_dir, get_png_root=lambda: "", parent=self)
 
     def _lay_out(self, editor: QWidget) -> None:
         # The editor's canvas, tool buttons and sections move out of the editor's own

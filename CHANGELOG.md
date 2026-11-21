@@ -55,7 +55,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
   - CDMW opens sooner: the Settings tab, the Help window and several Browse Archives and Textures features load the first time they are used instead of at startup, and the Mesh Editor's and Texture Editor's own modules load in the background once the window is shown.
   - Item Finder, Body & Face Finder and NPC Finder start building their lists once the archive is open and CDMW is idle, even when another tab is in front, and a list that is still being built is kept when you open a Finder instead of being started again.
   - Opening a full item set from Browse Archives in the Mesh Editor reuses the materials and textures Browse already prepared for the set, prepares the pieces side by side and skips copies it does not need.
-  - The docked Texture Editor in the Mesh Editor builds only the editing panels it shows, and opening a texture checks it in the background; opening another texture first cancels the earlier one.
+  - Opening a texture in the Mesh Editor's docked Texture Editor checks it in the background, so the window stays responsive; opening another texture first cancels the earlier one.
 
 ### Fixed
 
