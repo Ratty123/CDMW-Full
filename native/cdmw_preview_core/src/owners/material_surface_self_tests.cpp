@@ -1142,7 +1142,9 @@ static void run_batch_shader_family_owner_contract_self_test() {
 
 // A DDS header can claim any size; the channel statistics read only what the file holds.
 static void run_dds_channel_statistics_bound_self_test() {
-    const fs::path path = fs::temp_directory_path() / "cdmw_preview_core_self_test_huge_header.dds";
+    // Unique per run: self-test and self-test-materials may run at the same time.
+    const fs::path path = fs::temp_directory_path() / ("cdmw_preview_core_self_test_huge_header_"
+        + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".dds");
     {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         std::string header(128, static_cast<char>(0));
@@ -1151,8 +1153,9 @@ static void run_dds_channel_statistics_bound_self_test() {
             for (int i = 0; i < 4; ++i) header[offset + i] = static_cast<char>((value >> (8 * i)) & 0xFF);
         };
         put_u32(4, 124);
-        put_u32(12, 65535);  // height
-        put_u32(16, 65535);  // width: about 2 GiB of BC1 blocks
+        // A claimed size no allocation can hold: reading it whole would throw.
+        put_u32(12, 0x7FFFFFF0u);  // height
+        put_u32(16, 0x7FFFFFF0u);  // width
         put_u32(76, 32);
         put_u32(80, 4);
         header.replace(84, 4, "DXT1");

@@ -210,7 +210,10 @@ impl WorkingMesh {
         // All source attributes and topology have passed before the first write.
         let mut vertices = self.vertices.iter_mut();
         self.shader_masks.clear();
-        self.tangents.clear();
+        // An authored tangent belongs to the UVs it was loaded with. A refresh that moves
+        // a vertex's UVs (a UV edit) drops it, and it stays dropped: the renderer derives
+        // that vertex's tangent from the current UVs instead.
+        let previous_tangents = std::mem::take(&mut self.tangents);
         for source in &lod.submeshes {
             for (index, position) in source.positions.iter().enumerate() {
                 let (handle, vertex) = vertices.next().ok_or(MeshError::InvalidSource)?;
@@ -220,11 +223,16 @@ impl WorkingMesh {
                     .get(index)
                     .copied()
                     .unwrap_or([0.0, 1.0, 0.0]);
-                vertex.uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+                let uv = source.uvs.get(index).copied().unwrap_or([0.0, 0.0]);
+                let uv_unchanged = uv == vertex.uv;
+                vertex.uv = uv;
                 if let Some(mask) = source.shader_masks.get(index) {
                     self.shader_masks.insert(handle, *mask);
                 }
-                if let Some(tangent) = source.tangents.get(index) {
+                if let Some(tangent) = source.tangents.get(index)
+                    && uv_unchanged
+                    && previous_tangents.contains_key(handle)
+                {
                     self.tangents.insert(handle, *tangent);
                 }
             }
@@ -2228,6 +2236,33 @@ mod tests {
                 .tangents,
             before
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_refresh_that_moves_uvs_drops_those_vertices_authored_tangents() -> Result<(), MeshError> {
+        let mut document = cdmw_formats::decode_mesh(
+            &cdmw_formats::synthetic::triangle_pam("test.dds"),
+            cdmw_formats::MeshFormat::Pam,
+        )
+        .map_err(|_| MeshError::InvalidSource)?;
+        for submesh in &mut document.lods[0].submeshes {
+            submesh.tangents = vec![[1.0, 0.0, 0.0, 1.0]; submesh.positions.len()];
+        }
+        let mut mesh = WorkingMesh::from_document(&document)?;
+        let all = mesh.submesh_indices();
+        assert!(!mesh.draw_snapshot_for_submeshes(&all).tangents.is_empty());
+        // The same document again: the tangents stay.
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        assert_eq!(mesh.draw_snapshot_for_submeshes(&all).tangents.len(), 3);
+        // A UV edit (the source still carries the old tangents): they go, and stay gone.
+        document.lods[0].submeshes[0].uvs[0] = [0.5, 0.5];
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        let snapshot = mesh.draw_snapshot_for_submeshes(&all);
+        assert!(snapshot.tangents.is_empty() || snapshot.tangents[0] == [0.0; 4]);
+        assert!(mesh.refresh_from_document_lod(&document, 0)?);
+        let snapshot = mesh.draw_snapshot_for_submeshes(&all);
+        assert!(snapshot.tangents.is_empty() || snapshot.tangents[0] == [0.0; 4]);
         Ok(())
     }
 
