@@ -108,25 +108,37 @@ fn laid_out_right(ui: &HeadlessUi, label: &str, rect: Rect) -> f32 {
         .max(rect.right())
 }
 
-/// Where the widest tool button would end in the left panel: the panel's left
-/// margin, then the translated name in the button font with its padding.
+/// Where the rail's tool buttons would end in the left panel: two buttons
+/// side by side, each as wide as the longest word of any tool name, or Move,
+/// Rotate or Scale on one line, after the panel's left margin.
 fn widest_tool_button_end(ui: &HeadlessUi, translate: &dyn Fn(&str) -> String) -> f32 {
     let context = &ui.application.egui_context;
     let style = context.global_style();
     let font = egui::TextStyle::Button.resolve(&style);
     let margin = egui::Frame::side_top_panel(&style).total_margin().left;
-    LEFT_TOOLS
-        .iter()
-        .map(|tool| {
-            context.fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap(translate(tool), font.clone(), Color32::WHITE)
-                    .size()
-                    .x
-            }) + style.spacing.button_padding.x * 2.0
-                + margin
+    let padding = style.spacing.button_padding.x * 2.0;
+    let width = |text: &str| {
+        context.fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(text.to_owned(), font.clone(), Color32::WHITE)
+                .size()
+                .x
         })
-        .fold(0.0, f32::max)
+    };
+    let word = LEFT_TOOLS
+        .iter()
+        .flat_map(|tool| {
+            translate(tool)
+                .split_whitespace()
+                .map(|word| width(word))
+                .collect::<Vec<_>>()
+        })
+        .fold(0.0, f32::max);
+    let transform = LEFT_TOOLS[..3]
+        .iter()
+        .map(|tool| width(&translate(tool)) + padding)
+        .fold(0.0, f32::max);
+    margin + ((word + padding) * 2.0 + style.spacing.item_spacing.x).max(transform)
 }
 
 /// Checks that every collapsed header is whole and that each panel is no wider

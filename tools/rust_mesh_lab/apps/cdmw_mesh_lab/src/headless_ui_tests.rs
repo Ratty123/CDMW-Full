@@ -1018,15 +1018,17 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
                 button.width() >= text.width() && button.right() <= rail,
                 "{label} does not fit its column in the rail: {button:?} vs {text:?}, rail {rail}"
             );
+            // In the narrow rail a long name wraps between its words onto a
+            // second line, never more.
             assert!(
                 button.height()
                     <= style
                         .spacing
                         .interact_size
                         .y
-                        .max(line_height + style.spacing.button_padding.y * 2.0)
+                        .max(line_height * 2.0 + style.spacing.button_padding.y * 2.0)
                         + 2.0,
-                "{label} should remain a compact single-line tab: {button:?}"
+                "{label} should stay a compact tab of at most two lines: {button:?}"
             );
         }
         ui.click_tool_button("Topology")?;
