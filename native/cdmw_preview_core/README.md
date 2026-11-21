@@ -153,6 +153,20 @@ legacy implementation has translation-unit-private types and helpers. There
 are no source-level `.cpp` includes; each owner uses the shared 1,000-line
 default ceiling, and each real function stays at or below 150 lines.
 
+A static model's companion (`.pam` or `.pamlod`) is read as a material sidecar
+for the texture names it holds, and it is megabytes of binary mesh data. The
+scans over sidecar text in `material_text_scan.cpp` are therefore linear passes,
+each with exactly the result of the regular expression named beside it; the
+self test compares every scan with that expression on fixtures and on generated
+text. A new scan over whole sidecar text belongs there, with its expression in
+the self test, not as a `std::regex` over the text.
+
+Besides the four phase times, a report gives where material binding spent its
+time: `native_material_graph_ms`, `native_material_sidecar_lookup_ms`,
+`native_material_sidecar_parse_ms`, `native_material_declaration_ms`,
+`native_material_texture_ms`, `native_material_finish_ms` and
+`native_material_mesh_reference_ms`.
+
 ## Build
 
 ```powershell

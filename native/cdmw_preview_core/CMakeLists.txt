@@ -27,6 +27,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/material_selection_cache.cpp
     src/owners/material_archive_lookup.cpp
     src/owners/material_binding_build.cpp
+    src/owners/material_binding_finish.cpp
     src/owners/material_bindings.cpp
     src/owners/geometry_package.cpp
     src/owners/package_material_classification.cpp
