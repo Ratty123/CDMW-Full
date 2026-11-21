@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from cdmw.models import ModPackageInfo
 
 
+def __getattr__(name: str):
+    # MeshModExportDialog loads on first use, not with the Mesh Editor.
+    if name == "MeshModExportDialog":
+        from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+
+        globals()["MeshModExportDialog"] = MeshModExportDialog
+        return MeshModExportDialog
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _mod_export_dialog_class():
+    return globals().get("MeshModExportDialog") or __getattr__("MeshModExportDialog")
+
+
 def _restored_refit_source(asset):
     from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
@@ -165,8 +179,9 @@ class MeshEditorDirectOutputMixin:
             return
         stem = Path(str(named.basename or "mesh")).stem or "mesh"
         from cdmw.services.archive_extraction_service import find_available_output_path
-        from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
-
+        # Read through the module so a replaced MeshModExportDialog (AI tools and
+        # automation answer the dialog that way) is the one shown.
+        MeshModExportDialog = _mod_export_dialog_class()
         dialog = MeshModExportDialog(
             self,
             title=f"{stem} Mesh Mod",
