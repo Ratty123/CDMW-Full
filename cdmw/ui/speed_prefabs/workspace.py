@@ -2,9 +2,10 @@
 
 Animation speed works on action charts: pick a character and a set (one chart), set a
 factor for the whole set, per kind of move or per move, review what changes and export.
-Prefabs lists prefabs that carry speed values (effects, cameras, moving objects, NPC
-routes, weather) and shows the chosen one in the Prefab Inspector beside the list. Game
-tables holds Edit Game Table Values for the two speed tables.
+Prefabs lists prefabs that carry speed values (scene cameras, spinning and wind-driven
+objects, clouds), shows the chosen one in the Prefab Inspector beside the list, and scales
+every listed prefab into one item package. Game tables holds Edit Game Table Values for
+the two speed tables.
 
 The tab does no archive work itself: the Archive Browser passes the calls in, so it can
 be tested with fakes. Writing speeds into the running game stays in Crimson Live Edit.
@@ -58,6 +59,7 @@ from cdmw.services.animation_speed_service import (
     named_texts,
     speed_preset,
 )
+from cdmw.services.prefab_speed_service import MAX_SCALE, MIN_SCALE
 
 TOOL_TITLE = "Speed & Prefabs"
 _PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -197,6 +199,7 @@ class SpeedPrefabsWorkspace(QWidget):
         open_chart: Optional[Callable[[str], None]] = None,
         prefab_search: Optional[Callable[[str], None]] = None,
         open_prefab: Optional[Callable[[str], None]] = None,
+        scale_prefabs: Optional[Callable[[Sequence[str], float, str], None]] = None,
         prefab_categories: Sequence[tuple[str, str]] = (),
         open_game_table: Optional[Callable[[str], None]] = None,
         game_table_panel: Optional[QWidget] = None,
@@ -222,6 +225,11 @@ class SpeedPrefabsWorkspace(QWidget):
         self._open_chart = open_chart
         self._prefab_search = prefab_search
         self._open_prefab = open_prefab
+        self._scale_prefabs = scale_prefabs
+        self._prefab_listed_category = ""
+        self._prefab_scalable: tuple[str, ...] = ()
+        self._prefab_scaling = False
+        self._prefab_note = ""
         self._open_game_table = open_game_table
         self._retry_load = retry_load
         self._on_show = on_show
@@ -413,6 +421,9 @@ class SpeedPrefabsWorkspace(QWidget):
         self.review_text.setPlainText("")
         self.linked_label.setText("")
         self.prefab_table.setRowCount(0)
+        self._prefab_scalable = ()
+        self._prefab_scaling = False
+        self.prefab_progress.setVisible(False)
         self.prefab_status_label.setText("Choose a category and search.")
         self.show_prefab_inspector("", None)
         self._sync_buttons()
@@ -651,8 +662,8 @@ class SpeedPrefabsWorkspace(QWidget):
         row.addWidget(splitter)
 
         left = QGroupBox("Find prefabs")
-        left.setToolTip("Speeds for effects, scene cameras, moving objects, NPC routes and weather. Not the player's "
-                        "moves. Prefab speed edits have not been tested in game.")
+        left.setToolTip("Speeds of scene cameras, spinning and wind-driven objects and clouds. Not the player's "
+                        "moves, and not effects. Prefab speed edits have not been tested in game.")
         layout = QVBoxLayout(left)
         layout.setContentsMargins(*_BOX_MARGINS)
         layout.setSpacing(8)
@@ -699,6 +710,21 @@ class SpeedPrefabsWorkspace(QWidget):
         self.prefab_table.setWordWrap(False)
         self.prefab_table.itemSelectionChanged.connect(self._prefab_selected)
         layout.addWidget(self.prefab_table, 1)
+        batch = QHBoxLayout()
+        batch.setSpacing(8)
+        batch.addWidget(QLabel("Scale the listed prefabs by"))
+        self.prefab_batch_spin = _spin("speedPrefabBatchFactorSpin")
+        self.prefab_batch_spin.setRange(MIN_SCALE, MAX_SCALE)
+        self.prefab_batch_spin.setFixedWidth(84)
+        self.prefab_batch_spin.setToolTip("2x doubles every speed value, 0.5x halves it.")
+        self.prefab_batch_spin.valueChanged.connect(lambda _value: self._sync_buttons())
+        batch.addWidget(self.prefab_batch_spin)
+        batch.addStretch(1)
+        self.prefab_batch_button = QPushButton("Scale Listed Prefabs…")
+        self.prefab_batch_button.setObjectName("speedPrefabBatchButton")
+        self.prefab_batch_button.clicked.connect(self._scale_prefabs_clicked)
+        batch.addWidget(self.prefab_batch_button)
+        layout.addLayout(batch)
         left.setMinimumWidth(320)
         splitter.addWidget(left)
 
@@ -1240,12 +1266,23 @@ class SpeedPrefabsWorkspace(QWidget):
         self.reset_button.setEnabled(chart_open)
         self.open_chart_button.setEnabled(chart_open and self._open_chart is not None)
         if hasattr(self, "prefab_search_button"):
-            ready = self._prefab_search is not None and not self.loading and not self._prefab_searching
+            ready = (self._prefab_search is not None and not self.loading and not self._prefab_searching
+                     and not self._prefab_scaling)
             self.prefab_search_button.setEnabled(ready)
             self.prefab_search_button.setToolTip(
                 self.loading_detail.text() if self.load_failed
                 else "Waiting for the game's file index." if self.loading
                 else "The first search reads every prefab and takes a few minutes; later searches are quick.")
+            idle = not self._prefab_searching and not self._prefab_scaling
+            changes = abs(self.prefab_batch_spin.value() - 1.0) > 1e-9
+            self.prefab_batch_button.setEnabled(self._scale_prefabs is not None and idle and changes
+                                                and bool(self._prefab_scalable))
+            self.prefab_batch_button.setToolTip(
+                "The listed prefabs are being read." if self._prefab_scaling
+                else "No listed prefab holds a speed value that can be scaled." if not self._prefab_scalable
+                else "Set a factor other than 1x first." if not changes
+                else "Scales every speed value of the listed prefabs that is fully read and saves them as one "
+                     "item package. Prefab speed edits have not been tested in game.")
 
     def _export_clicked(self) -> None:
         if self.scope() == "listed":
@@ -1282,6 +1319,7 @@ class SpeedPrefabsWorkspace(QWidget):
         if self._prefab_search is None:
             return
         self._prefab_searching = True
+        self._prefab_listed_category = self.prefab_category()
         self.prefab_status_label.setText("Searching the game's prefabs…")
         self.prefab_progress.setRange(0, 0)
         self.prefab_progress.setVisible(True)
@@ -1300,25 +1338,99 @@ class SpeedPrefabsWorkspace(QWidget):
         self.prefab_progress.setVisible(True)
 
     def show_prefab_results(self, rows: Sequence[Mapping[str, object]], *, note: str = "") -> None:
-        """Rows with path, category label and members; called by the caller's search worker."""
+        """Rows with path, category label and what was reached; called by the caller's search worker.
+
+        A row with ``values`` shows how many speed values were reached and their names, or why
+        the prefab cannot be scaled (``state``); a row without it shows its ``members``.
+        """
 
         self._prefab_searching = False
+        self._prefab_scaling = False
         self.prefab_progress.setVisible(False)
         self.prefab_table.setRowCount(len(rows))
+        scalable: list[str] = []
+        counted = 0
         for number, row in enumerate(rows):
             full = str(row.get("path", ""))
             path = QTableWidgetItem(full.rsplit("/", 1)[-1])
             path.setData(_PATH_ROLE, full)
             path.setToolTip(full)
             self.prefab_table.setItem(number, 0, path)
-            self.prefab_table.setItem(number, 1, QTableWidgetItem(str(row.get("category_label", row.get("category", "")))))
-            members = [str(m) for m in row.get("members", ())]
-            cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
-            cell.setToolTip("\n".join(members))
+            category = QTableWidgetItem(str(row.get("category_label", row.get("category", ""))))
+            self.prefab_table.setItem(number, 1, category)
+            if "values" not in row:
+                members = [str(m) for m in row.get("members", ())]
+                cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
+                cell.setToolTip("\n".join(members))
+                self.prefab_table.setItem(number, 2, cell)
+                continue
+            counted += 1
+            count, state = int(row.get("values") or 0), str(row.get("state") or "")
+            labels = [str(label) for label in row.get("labels", ())]
+            if count and not state:
+                scalable.append(full)
+                cell = QTableWidgetItem(f"{count}: {', '.join(labels)}")
+                cell.setToolTip("\n".join(labels))
+            else:
+                cell = QTableWidgetItem(state or "none reached")
+                cell.setToolTip(f"Cannot be scaled: {state}." if state
+                                else "The prefab names a speed type and holds no value of it.")
+                for item in (path, category, cell):
+                    item.setForeground(Qt.GlobalColor.gray)  # readable in the light and the dark themes
             self.prefab_table.setItem(number, 2, cell)
-        self.prefab_status_label.setText(note or f"{len(rows):,} prefab(s) found.")
+        self._prefab_scalable = tuple(scalable)
+        if note:
+            text = note
+        elif not counted:
+            text = f"{len(rows):,} prefab(s) found."
+        elif counted == len(scalable):
+            text = f"{len(scalable):,} prefab(s) hold speed values."
+        else:
+            text = (f"{len(scalable):,} prefab(s) hold speed values; "
+                    f"{counted - len(scalable):,} hold none that can be scaled.")
+        self.prefab_status_label.setText(text)
         self._fit_prefab_columns()
         self._select_prefab_row(self._prefab_path)  # the open prefab stays marked when it is listed again
+        self._sync_buttons()
+
+    def scalable_prefabs(self) -> tuple[str, ...]:
+        """The listed prefabs that hold a speed value that can be scaled."""
+
+        return self._prefab_scalable
+
+    def scale_listed_prefabs(self, factor: Optional[float] = None) -> bool:
+        """Press Scale Listed Prefabs, with ``factor`` when one is given; False when it cannot be pressed."""
+
+        if factor is not None:
+            if not MIN_SCALE <= float(factor) <= MAX_SCALE:
+                return False
+            self.prefab_batch_spin.setValue(float(factor))
+        if not self.prefab_batch_button.isEnabled():
+            return False
+        self.prefab_batch_button.click()
+        return True
+
+    def _scale_prefabs_clicked(self) -> None:
+        if self._scale_prefabs is None or not self._prefab_scalable:
+            return
+        self._scale_prefabs(self._prefab_scalable, float(self.prefab_batch_spin.value()), self._prefab_listed_category)
+
+    def begin_prefab_scaling(self) -> None:
+        """The caller's worker reads the listed prefabs: the bar moves and the buttons wait."""
+
+        if not self._prefab_scaling:
+            self._prefab_note = self.prefab_status_label.text()
+        self._prefab_scaling = True
+        self.prefab_progress.setRange(0, 0)
+        self.prefab_progress.setVisible(True)
+        self.prefab_status_label.setText("Reading the listed prefabs…")
+        self._sync_buttons()
+
+    def end_prefab_scaling(self) -> None:
+        if self._prefab_scaling:
+            self._prefab_scaling = False
+            self.prefab_progress.setVisible(False)
+            self.prefab_status_label.setText(self._prefab_note)
         self._sync_buttons()
 
     def eventFilter(self, watched, event):  # noqa: N802 - Qt override
@@ -1440,6 +1552,9 @@ class SpeedPrefabsWorkspace(QWidget):
             "review": self.review_text.toPlainText(),
             "prefab_category": self.prefab_category(),
             "prefab_searching": self._prefab_searching,
+            "prefab_values": len(self._prefab_scalable),
+            "prefab_scaling": self._prefab_scaling,
+            "prefab_factor": float(self.prefab_batch_spin.value()),
             "prefab_status": self.prefab_status_label.text(),
             "prefabs": [str(self.prefab_table.item(row, 0).data(_PATH_ROLE))
                         for row in range(self.prefab_table.rowCount())],

@@ -119,6 +119,50 @@ def prepare_prefab_package(root, target_path, replacement, *, edited_from=None, 
     return review
 
 
+def prepare_prefab_packages(root, edits, *, title='Prefab edits', release='1', identity=None, service=None,
+                            read_entry=None, stop_event=None, on_log=None):
+    """One package for several prefabs: `edits` maps a target path to (edited_from, replacement).
+
+    Each prefab gets the guard `prepare_prefab_package` applies to one: an edit made on a
+    copy that differs from the game's own is refused and named.
+    """
+    from cdmw.services.independent_prefab_package import MAX_PREFAB_REPLACEMENTS
+
+    if not edits:
+        raise IndependentItemError('There is no prefab edit to package.')
+    if len(edits) > MAX_PREFAB_REPLACEMENTS:
+        raise IndependentItemError(f'A package holds at most {MAX_PREFAB_REPLACEMENTS} prefabs; '
+                                   f'{len(edits)} were given.')
+    root = Path(root).expanduser().resolve()
+    snapshot = stock_snapshot(root, service=service, read_entry=read_entry, stop_event=stop_event, on_log=on_log)
+    replacements = {}
+    for target, (edited_from, replacement) in edits.items():
+        raise_if_cancelled(stop_event)
+        target = virtual_path(str(target).replace('\\', '/').lower())
+        if target in replacements:
+            raise IndependentItemError(f'{target} is given twice.')
+        if edited_from is not None and snapshot.has_entry(target) and snapshot.payload(target) != bytes(edited_from):
+            raise IndependentItemError(f'The prefab you edited differs from the game\'s own copy of {target}, '
+                                       'probably because another mod changes it. Disable that mod and edit the '
+                                       'prefab again.')
+        replacements[target] = bytes(replacement)
+    package = from_prefab_replacements(snapshot, identity or uuid4().hex, replacements,
+                                       title=str(title).strip() or 'Prefab edits', release=str(release).strip() or '1',
+                                       stop_event=stop_event)
+    review = PrefabPackageReview(package, snapshot.provenance.capture(), root, next(iter(replacements)), (
+        *(f'Target prefab: {target}' for target in replacements),
+        f'Package: {package.title}',
+        f'Package UUID: {package.identity}',
+        f'Release: {package.manifest["release"]}',
+        'Every edited prefab decodes as completely as the game copy, and every file it newly points at exists '
+        'in this game or is added by the package.',
+        'Add this package on the Mods page and send it to DMM (again, if it is already there). '
+        'Game behavior requires separate testing.',
+    ))
+    review.validate(stop_event)
+    return review
+
+
 def write_prefab_package(review, destination=None, *, stop_event=None, on_log=None):
     """Write a new package, or replace the item package the edit was added to."""
     if review.update is not None:

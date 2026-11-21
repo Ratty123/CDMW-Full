@@ -353,6 +353,11 @@ class PrefabEditingMixin:
     def _ask_scale_selected(self) -> None:
         from PySide6.QtWidgets import QInputDialog, QMessageBox
 
+        if not self._can_edit():
+            # The scaled values would be dropped when the changes are applied, without a word.
+            QMessageBox.information(self, "Scale by factor (experimental)",
+                                    "This prefab is only partly read, so its values cannot be changed.")
+            return
         rows = self.scalable_rows()
         if not rows:
             QMessageBox.information(self, "Scale by factor (experimental)", "Select one or more number rows first.")

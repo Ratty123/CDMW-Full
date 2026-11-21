@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -41,7 +42,8 @@ def _chart(path=PATH, factors=SpeedFactors(), mod="", served=""):
 
 
 def _dialog(**kwargs):
-    calls = SimpleNamespace(plans=[], exports=[], opened=[], searches=[], prefabs=[], batches=[], mods=[])
+    calls = SimpleNamespace(plans=[], exports=[], opened=[], searches=[], prefabs=[], batches=[], mods=[],
+                            scaled=[])
     characters = (SpeedCharacter("Kliff", (SpeedSet(PATH, "Sword"), SpeedSet(SECOND, "Dagger"))),
                   SpeedCharacter("Damiane", (SpeedSet(SECOND, "Dagger"),)))
 
@@ -63,6 +65,7 @@ def _dialog(**kwargs):
         open_chart=calls.opened.append,
         prefab_search=calls.searches.append,
         open_prefab=calls.prefabs.append,
+        scale_prefabs=lambda paths, factor, category: calls.scaled.append((tuple(paths), factor, category)),
         prefab_categories=(("cameras", "Scene cameras"), ("moving", "Moving objects")),
     )
     options.update(kwargs)
@@ -162,6 +165,63 @@ def test_prefab_search_shows_progress_lists_results_and_opens_one_beside_them(qt
     assert dialog.prefab_host.currentWidget() is inspector and dialog.state()["prefab_open"].endswith("cam.prefab")
     dialog.show_prefab_inspector("object/prefab/gone.prefab", None, note="Could not read it")
     assert dialog.prefab_host.currentIndex() == 0 and "Could not read" in dialog.prefab_empty_detail.text()
+
+
+def test_prefab_list_shows_what_each_prefab_holds_and_scales_the_ones_with_values(qt_app):
+    dialog, calls = _dialog()
+    dialog.show_page("prefabs")
+    assert not dialog.prefab_batch_button.isEnabled() and "No listed prefab" in dialog.prefab_batch_button.toolTip()
+    dialog.search_prefabs("moving")
+    rows = [{"path": "object/prefab/fan.prefab", "category_label": "Moving objects", "members": ["Rotate"],
+             "values": 2, "labels": ["Spin speed", "Spin axis speed"], "state": ""},
+            {"path": "object/prefab/declares.prefab", "category_label": "Moving objects", "members": ["Rotate"],
+             "values": 0, "labels": [], "state": ""},
+            {"path": "object/prefab/broken.prefab", "category_label": "Moving objects", "members": ["Rotate"],
+             "values": 1, "labels": ["Spin speed"], "state": "partly read"}]
+    dialog.show_prefab_results(rows)
+    column = [dialog.prefab_table.item(row, 2).text() for row in range(3)]
+    assert column == ["2: Spin speed, Spin axis speed", "none reached", "partly read"]
+    assert dialog.prefab_status_label.text() == "1 prefab(s) hold speed values; 2 hold none that can be scaled."
+    assert dialog.scalable_prefabs() == ("object/prefab/fan.prefab",) and dialog.state()["prefab_values"] == 1
+    # At 1x nothing would change, so the button waits for a factor.
+    assert not dialog.prefab_batch_button.isEnabled() and "1x" in dialog.prefab_batch_button.toolTip()
+    assert dialog.scale_listed_prefabs(0.5)
+    assert calls.scaled == [(("object/prefab/fan.prefab",), 0.5, "moving")]
+    # While the caller reads the prefabs, neither button can be pressed; the note comes back afterwards.
+    dialog.begin_prefab_scaling()
+    assert not dialog.prefab_batch_button.isEnabled() and not dialog.prefab_search_button.isEnabled()
+    assert dialog.state()["prefab_scaling"] and "Reading" in dialog.prefab_status_label.text()
+    dialog.end_prefab_scaling()
+    assert dialog.prefab_batch_button.isEnabled() and "hold speed values" in dialog.prefab_status_label.text()
+    assert not dialog.scale_listed_prefabs(1000.0)
+    # Rows without the new keys (an older caller) still show their members and cannot be scaled.
+    dialog.show_prefab_results(_prefab_rows("crate"))
+    assert dialog.prefab_status_label.text() == "1 prefab(s) found." and not dialog.prefab_batch_button.isEnabled()
+
+
+def test_prefab_batch_summary_counts_what_changes_and_what_is_left_out():
+    from cdmw.services.prefab_speed_service import NO_VALUE, PARTLY_READ, ZERO_VALUES, PrefabScaleOutcome
+    from cdmw.ui.archive_browser.speed_tuning_actions import prefab_batch_summary
+
+    outcomes = (
+        PrefabScaleOutcome("a.prefab", b"s", b"p", 3, (1.0, 4.0), (0.5, 2.0), ""),
+        PrefabScaleOutcome("b.prefab", b"s", b"p", 5, (2.0, 2.0), (1.0, 1.0), ""),
+        PrefabScaleOutcome("c.prefab", b"s", None, 0, None, None, PARTLY_READ),
+        PrefabScaleOutcome("d.prefab", b"s", None, 0, None, None, NO_VALUE),
+        PrefabScaleOutcome("e.prefab", b"s", None, 1, (0.0, 0.0), (0.0, 0.0), ZERO_VALUES),
+    )
+    text, details, count = prefab_batch_summary(outcomes, 0.5, ("gone.prefab",))
+    assert count == 2
+    assert text.splitlines()[0] == "Scale 8 value(s) in 2 prefab(s) by 0.5x and save them as one item package?"
+    assert "Left out: 1 partly read, 1 no speed value reached, 1 the values are 0, 1 not in the game archives." in text
+    assert "not been tested in game" in text
+    assert "a.prefab: 3 value(s), 1 to 4 -> 0.5 to 2" in details and "b.prefab: 5 value(s), 2 -> 1" in details
+    assert "c.prefab: left out, partly read" in details and "gone.prefab: left out, not in the game archives" in details
+    text, _details, count = prefab_batch_summary(outcomes[2:], 0.5)
+    assert count == 0 and text.startswith("None of the listed prefabs")
+    many = tuple(PrefabScaleOutcome(f"{n}.prefab", b"s", b"p", 1, (1.0, 1.0), (2.0, 2.0), "") for n in range(129))
+    text, _details, count = prefab_batch_summary(many, 2.0)
+    assert count == 129 and text.startswith("A package holds at most 128 prefabs")
 
 
 def _prefab_rows(*names):
@@ -293,6 +353,7 @@ class _Shell:
         self.worker_thread = None
         self.other_task = False  # Text Search or a texture export
         self.busy_once_started = False  # a started task keeps the worker until the test frees it
+        self.settings_file_path = Path("C:/settings/settings.json")
 
     def set_status_message(self, message, error=False):
         self.status.append((message, error))
@@ -750,3 +811,61 @@ def test_a_speed_mod_is_read_on_a_worker_and_closed_again(qt_app, monkeypatch, t
     browser._open_speed_mod(workspace, holder, tmp_path / "missing")
     shell.tasks[-1]["on_error"]("missing is not an action chart mod CDMW wrote.")
     assert boxes[-1] == "warning: missing is not an action chart mod CDMW wrote."
+
+
+def test_scaling_the_listed_prefabs_reads_them_asks_and_writes_one_package(qt_app, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QFileDialog
+
+    from cdmw.services import independent_prefab_authoring as authoring
+    from cdmw.services.prefab_speed_service import speed_values
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.ui.archive_browser import speed_tuning_actions as actions
+    from tests.prefab_speed_builder import build_speed_prefab
+
+    browser, workspace, boxes = _ready_browser(qt_app, monkeypatch, tmp_path, PATH)
+    shell = browser.shell
+    fan = build_speed_prefab([("WindComponent", [("_windSpeedAccelerationScale", "float", 2.0)])])
+    still = build_speed_prefab([("WindComponent", [("_windSpeedAccelerationScale", "float", 0.0)])])
+    files = {"object/prefab/fan.prefab": fan, "object/prefab/still.prefab": still}
+    index = SimpleNamespace(entry_for_path=lambda path: SimpleNamespace(path=path) if path in files else None)
+    monkeypatch.setattr(actions, "_read", lambda entry: files[entry.path])
+    asked = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *args: asked.append(args[2]) or (str(tmp_path / "calm wind"), ""))
+    workspace.show_prefab_results([{"path": path, "values": 1, "labels": ["Wind speed-up"], "state": ""}
+                                   for path in (*files, "object/prefab/gone.prefab")])
+    seen = {}
+    monkeypatch.setattr(authoring, "prepare_prefab_packages",
+                        lambda root, edits, **kw: seen.update(root=root, edits=edits, title=kw["title"])
+                        or SimpleNamespace(lines=("Target prefab: object/prefab/fan.prefab",)))
+    monkeypatch.setattr(authoring, "write_prefab_package",
+                        lambda review, destination, **kw: seen.update(destination=destination))
+    browser._scale_speed_prefabs(workspace, index, workspace.scalable_prefabs(), 0.5, "moving")
+    assert shell.tasks[-1]["status_message"] == "Scaling the listed prefabs..." and shell.tasks[-1]["task_accepts_cancel"]
+    assert workspace.state()["prefab_scaling"]
+    scaled = shell.tasks[-1]["task"](lambda _text: None, None)
+    assert [item.reason for item in scaled.outcomes] == ["", "the values are 0"] and scaled.missing == (
+        "object/prefab/gone.prefab",)
+    count = len(shell.tasks)
+    shell.tasks[-1]["on_complete"](scaled)
+    assert boxes[-1].startswith("Scale 1 value(s) in 1 prefab(s) by 0.5x")
+    assert asked[-1].replace("\\", "/").endswith("prefab_packages/moving_speed_0_5x.cdmw")
+    assert len(shell.tasks) == count + 1 and shell.tasks[-1]["status_message"] == "Building the prefab item package..."
+    result = shell.tasks[-1]["task"](lambda _text: None, None)
+    assert seen["root"] == "C:/game" and seen["title"] == "calm wind" and list(seen["edits"]) == ["object/prefab/fan.prefab"]
+    assert seen["destination"] == tmp_path / "calm wind.cdmw"  # the extension is added when it was left off
+    source, patched = seen["edits"]["object/prefab/fan.prefab"]
+    assert source == fan and speed_values(decode_prefab_binary(patched))[0].value == 1.0
+    shell.tasks[-1]["on_complete"](result)
+    assert boxes[-1].startswith("done: Wrote prefab item package:") and not workspace.state()["prefab_scaling"]
+
+    # Nothing to write: the box only informs, and no file is asked for.
+    asked.clear()
+    browser._scale_speed_prefabs(workspace, index, ("object/prefab/still.prefab",), 0.5, "")
+    shell.tasks[-1]["on_complete"](shell.tasks[-1]["task"](lambda _text: None, None))
+    assert boxes[-1].startswith("None of the listed prefabs") and not asked
+    assert not workspace.state()["prefab_scaling"]
+    # A failure is shown and the page is given back.
+    browser._scale_speed_prefabs(workspace, index, ("object/prefab/fan.prefab",), 0.5, "")
+    shell.tasks[-1]["on_error"]("Scaling the prefabs was cancelled.")
+    assert boxes[-1] == "warning: Scaling the prefabs was cancelled." and not workspace.state()["prefab_scaling"]

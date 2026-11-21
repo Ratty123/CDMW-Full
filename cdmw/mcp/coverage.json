@@ -2237,7 +2237,7 @@
     {
       "id": "speed.prefab_search",
       "area": "Speed Tuning",
-      "what": "Search prefabs that declare speed values, by category (experimental)",
+      "what": "Search prefabs that declare speed values, by category, with the values each one really holds (experimental)",
       "class": "read",
       "tool": "speed.prefab_search"
     },
@@ -2254,6 +2254,20 @@
       "what": "Scale or set prefab speed values and save an item package (experimental)",
       "class": "output",
       "tool": "speed.prefab_export"
+    },
+    {
+      "id": "speed.prefabs_preview",
+      "area": "Speed Tuning",
+      "what": "Preview one factor on many prefabs: values before and after, and what is left out (experimental)",
+      "class": "read",
+      "tool": "speed.prefabs_preview"
+    },
+    {
+      "id": "speed.prefabs_export",
+      "area": "Speed Tuning",
+      "what": "Scale the speed values of many prefabs and save them as one item package (experimental)",
+      "class": "output",
+      "tool": "speed.prefabs_export"
     },
     {
       "id": "speed.table_rows",
@@ -2286,7 +2300,7 @@
     {
       "id": "speed.workspace_edit",
       "area": "Speed & Prefabs",
-      "what": "Work the Speed & Prefabs tab: factors, Moves named, starting points, all listed sets, the open speed mod, and its prefab search (experimental)",
+      "what": "Work the Speed & Prefabs tab: factors, Moves named, starting points, all listed sets, the open speed mod, its prefab search and the factor for the listed prefabs (experimental)",
       "class": "edit",
       "tool": "speed.workspace_edit"
     }

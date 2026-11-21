@@ -984,6 +984,22 @@ def test_scale_by_two_yields_the_doubled_pending_value_and_revert_restores_it(qt
     assert values[0].value == 2.0
 
 
+def test_scaling_a_partly_read_prefab_says_why_it_cannot(qt_app: QApplication, monkeypatch) -> None:
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog
+    from tests.test_prefab_speed_service import _partly_read
+
+    said, asked = [], []
+    monkeypatch.setattr(QMessageBox, "information", lambda *args: said.append(args[2]))
+    monkeypatch.setattr(QInputDialog, "getDouble", lambda *args: asked.append(args) or (2.0, True))
+    dialog = PrefabInspectorDialog(_partly_read(), title="damaged")
+    dialog._ask_scale_selected()
+    # The scaled values used to be dropped when the changes were applied, without a word.
+    assert said == ["This prefab is only partly read, so its values cannot be changed."]
+    assert not asked and not dialog._value_edits
+
+
 def _embedded_inspector(qt_app: QApplication):
     """The inspector as Speed & Prefabs shows it: inside a page, with its own Save button."""
     from PySide6.QtWidgets import QVBoxLayout, QWidget

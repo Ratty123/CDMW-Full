@@ -11,13 +11,18 @@ from cdmw.core.prefab_binary import decode_prefab_binary
 from cdmw.domain.archives.prefab_glossary import describe_field
 from cdmw.domain.archives.prefab_speed import CATEGORIES, SPEED_MEMBERS
 from cdmw.services.prefab_speed_service import (
+    NO_VALUE,
+    PARTLY_READ,
+    ZERO_VALUES,
     PrefabSpeedEdit,
     PrefabSpeedError,
     apply_speed_edits,
     prefab_speed_hit,
+    scale_speed_prefabs,
     scale_speed_values,
     search_speed_prefabs,
     speed_values,
+    write_state,
 )
 from tests.prefab_speed_builder import build_speed_prefab
 
@@ -111,3 +116,92 @@ def test_search_reads_only_type_tables_and_lists_by_category():
     assert [hit.path for hit in search_speed_prefabs(entries, read, category="cameras", key=key)] == [
         "object/prefab/cam.prefab"]
     assert hits[0].to_data()["category_label"] == "Scene cameras"
+
+
+# --- which prefabs may be written, what a search really finds, and many prefabs at once ----------
+
+TWO = [("WindComponent", [("_windSpeedAccelerationScale", "float", 2.0)]),
+       ("CameraComponent", [("_speed", "float", 6.0)])]
+
+
+def _partly_read() -> bytes:
+    """A two-value prefab damaged so that reading stops after the first value."""
+
+    data = build_speed_prefab(TWO)
+    for position in range(len(data) - 1, 0, -1):
+        damaged = bytearray(data)
+        damaged[position] ^= 0xFF
+        try:
+            document = decode_prefab_binary(bytes(damaged))
+        except Exception:  # noqa: BLE001 - this damage is not the case wanted
+            continue
+        if not document.walk_complete and len(speed_values(document, stated_only=True)) == 1:
+            return bytes(damaged)
+    raise AssertionError("no partly read prefab could be made")
+
+
+def test_a_partly_read_prefab_is_never_written():
+    whole, damaged = build_speed_prefab(TWO), _partly_read()
+    assert write_state(whole) == "" and write_state(damaged) == PARTLY_READ
+    assert write_state(b"not a prefab") == "could not be read"
+    # It used to scale the one value before the stop and report success.
+    with pytest.raises(PrefabSpeedError, match="partly read"):
+        scale_speed_values(damaged, 2.0)
+    offset = speed_values(decode_prefab_binary(damaged), stated_only=True)[0].offset
+    with pytest.raises(PrefabSpeedError, match="partly read"):
+        apply_speed_edits(damaged, [PrefabSpeedEdit(offset, 4.0)])
+    patched, edits = scale_speed_values(whole, 2.0)
+    assert len(edits) == 2 and [value.value for value in speed_values(decode_prefab_binary(patched))] == [4.0, 12.0]
+
+
+def test_a_value_too_large_for_its_field_is_refused_by_name():
+    huge = build_speed_prefab([("CameraComponent", [("_speed", "float", 1e37)])])
+    with pytest.raises(PrefabSpeedError, match="too large for this field"):
+        scale_speed_values(huge, 100.0)
+
+
+def test_a_search_says_what_each_prefab_really_holds_and_lists_values_first():
+    declared = build_speed_prefab([("CameraComponent", [("_speed", "float", 6.0), ("_fov", "float", 1.0)])],
+                                  absent={"_speed"})  # the type is declared; the object holds no speed
+    entries = [SimpleNamespace(path="object/prefab/a_declared.prefab", data=declared),
+               SimpleNamespace(path="object/prefab/b_damaged.prefab", data=_partly_read()),
+               SimpleNamespace(path="object/prefab/c_two.prefab", data=build_speed_prefab(TWO))]
+    hits = search_speed_prefabs(entries, lambda entry: entry.data)
+    assert [hit.path.rsplit("/", 1)[-1] for hit in hits] == ["c_two.prefab", "a_declared.prefab", "b_damaged.prefab"]
+    two, only_declared, damaged = hits
+    assert two.value_count() == 2 and two.value_count("cameras") == 1 and two.state == ""
+    assert two.to_data("cameras")["values"] == 1 and len(two.to_data()["labels"]) == 2
+    assert only_declared.value_count() == 0 and only_declared.state == "" and only_declared.to_data()["labels"] == []
+    assert damaged.state == PARTLY_READ and damaged.to_data()["state"] == PARTLY_READ
+    # For one category, a prefab that holds no value of it goes after the ones that do.
+    cameras = search_speed_prefabs(entries, lambda entry: entry.data, category="cameras")
+    assert [hit.path.rsplit("/", 1)[-1] for hit in cameras][0] == "c_two.prefab"
+    key = object()
+    assert search_speed_prefabs(entries, lambda entry: entry.data, key=key) == hits
+    assert search_speed_prefabs(entries, lambda entry: 1 / 0, key=key) == hits  # kept for the session
+
+
+def test_many_prefabs_are_scaled_or_left_out_with_a_reason():
+    import threading
+
+    zero = build_speed_prefab([("CameraComponent", [("_speed", "float", 0.0)])])
+    entries = [SimpleNamespace(path="object/prefab/two.prefab", data=build_speed_prefab(TWO)),
+               SimpleNamespace(path="object/prefab/zero.prefab", data=zero),
+               SimpleNamespace(path="object/prefab/damaged.prefab", data=_partly_read()),
+               SimpleNamespace(path="object/prefab/wind.prefab", data=_prefab())]
+    seen = []
+    outcomes = scale_speed_prefabs(entries, lambda entry: entry.data, 0.5, category="cameras",
+                                   on_progress=lambda done, total: seen.append((done, total)))
+    two, zeros, damaged, wind = outcomes
+    assert two.reason == "" and two.values == 1 and two.before == (6.0, 6.0) and two.after == (3.0, 3.0)
+    values = {value.member: value.value for value in speed_values(decode_prefab_binary(two.patched))}
+    assert values == {"_windSpeedAccelerationScale": 2.0, "_speed": 3.0}  # only the chosen category
+    assert (zeros.reason, zeros.patched) == (ZERO_VALUES, None) and damaged.reason == PARTLY_READ
+    assert wind.reason == NO_VALUE and wind.to_data()["after"] is None
+    assert seen[0] == (0, 4) and seen[-1] == (4, 4)
+    with pytest.raises(PrefabSpeedError, match="factor"):
+        scale_speed_prefabs(entries, lambda entry: entry.data, 0.0)
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(Exception, match="cancelled"):
+        scale_speed_prefabs(entries, lambda entry: entry.data, 2.0, stop_event=stop)

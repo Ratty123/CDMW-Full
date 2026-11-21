@@ -41,6 +41,7 @@ from cdmw.services.animation_speed_service import (
     speed_profile_outcome,
 )
 from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.services.independent_prefab_package import MAX_PREFAB_REPLACEMENTS
 from cdmw.ui.archive_browser.shell_idle import run_task_when_shell_idle
 
 COMMAND_ID = "browse.speed_tuning"
@@ -151,6 +152,8 @@ class ArchiveSpeedTuningActionsMixin:
             open_chart=self._open_action_chart_editor,
             prefab_search=lambda category: self._search_speed_prefabs(workspace, index(), category),
             open_prefab=lambda path: self._open_speed_prefab(workspace, index(), path),
+            scale_prefabs=lambda paths, factor, category: self._scale_speed_prefabs(
+                workspace, index(), paths, factor, category),
             prefab_categories=tuple(CATEGORIES.items()),
             open_game_table=lambda table: self._show_game_table(panel, table),
             game_table_panel=panel,
@@ -475,7 +478,7 @@ class ArchiveSpeedTuningActionsMixin:
         relay.progress.connect(lambda done, total, text: isValid(workspace)
                                and workspace.show_prefab_progress(done, total, text))
 
-        def _task(log: Callable[[str], None]):
+        def _task(log: Callable[[str], None], stop=None):
             entries = [entry for path in index.paths_by_extension.get(".prefab", ())
                        if (entry := index.entry_for_path(path)) is not None]
             first = f"Reading the type tables of {len(entries):,} prefabs (the first search takes a few minutes)"
@@ -486,7 +489,8 @@ class ArchiveSpeedTuningActionsMixin:
                 log(f"{done:,} of {total:,} prefabs read")
                 relay.progress.emit(done, total, f"{done:,} of {total:,} prefabs read…")
 
-            return search_speed_prefabs(entries, _read, category=category, key=index, on_progress=_progress)
+            return search_speed_prefabs(entries, _read, category=category, key=index, on_progress=_progress,
+                                        stop_event=stop)
 
         def _done(result: object) -> None:
             relay.deleteLater()
@@ -495,7 +499,7 @@ class ArchiveSpeedTuningActionsMixin:
             if not isinstance(result, tuple):
                 workspace.show_prefab_results((), note=f"The search failed: {result!r}")
                 return
-            workspace.show_prefab_results([hit.to_data() for hit in result])
+            workspace.show_prefab_results([hit.to_data(category) for hit in result])
 
         def _failed(message: str) -> None:
             relay.deleteLater()
@@ -511,6 +515,121 @@ class ArchiveSpeedTuningActionsMixin:
             on_waiting=lambda: workspace.show_prefab_progress(
                 0, 0, "Waiting for the current background task to finish…"),
             show_archive_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    def _scale_speed_prefabs(self, workspace, index: ChartArchiveIndex, paths: Sequence[str], factor: float,
+                             category: str) -> None:
+        """One item package for every listed prefab: scale them on a worker, ask, then write once."""
+
+        from cdmw.constants import PACKAGE_EXTENSION, PACKAGE_EXTENSIONS
+        from cdmw.services.independent_prefab_authoring import prepare_prefab_packages, write_prefab_package
+        from cdmw.services.prefab_speed_service import scale_speed_prefabs
+
+        title = "Scale Listed Prefabs (Experimental)"
+        package_root = self._action_chart_root()
+        if not package_root:
+            self.shell.set_status_message("Set the game package root before saving an item package.", error=True)
+            return
+        paths = tuple(paths)
+        relay = _ProgressRelay(self)
+        relay.progress.connect(lambda done, total, text: isValid(workspace)
+                               and workspace.show_prefab_progress(done, total, text))
+
+        def _ended() -> None:
+            relay.deleteLater()
+            if isValid(workspace):
+                workspace.end_prefab_scaling()
+
+        def _failed(message: str) -> None:
+            _ended()
+            self.shell.set_status_message(f"Scaling the listed prefabs failed: {message}", error=True)
+            if isValid(workspace):
+                QMessageBox.warning(workspace, title, str(message))
+
+        def _scale(log: Callable[[str], None], stop=None) -> "_ScaledPrefabs":
+            log(f"Speed & Prefabs (experimental): scaling {len(paths)} listed prefab(s) by {factor:g}x")
+            missing = tuple(path for path in paths if index.entry_for_path(path) is None)
+            entries = [entry for path in paths if (entry := index.entry_for_path(path)) is not None]
+            outcomes = scale_speed_prefabs(
+                entries, _read, factor, category=category, stop_event=stop,
+                on_progress=lambda done, total: relay.progress.emit(
+                    done, total, f"{done:,} of {total:,} listed prefabs read…"))
+            return _ScaledPrefabs(outcomes, missing)
+
+        def _write(scaled: "_ScaledPrefabs", destination: Path) -> None:
+            edits = {item.path: (item.source, item.patched) for item in scaled.outcomes if item.patched is not None}
+
+            def _task(log: Callable[[str], None], stop=None) -> tuple[Path, tuple[str, ...]]:
+                log(f"Checking {len(edits)} prefab(s) against the game's own copies...")
+                review = prepare_prefab_packages(package_root, edits, title=destination.stem, stop_event=stop,
+                                                 on_log=log)
+                write_prefab_package(review, destination, stop_event=stop, on_log=log)
+                return destination, review.lines
+
+            def _done(result: object) -> None:
+                if not isinstance(result, tuple) or len(result) != 2:
+                    _failed(repr(result))
+                    return
+                _ended()
+                written, lines = result
+                self.shell.set_status_message(f"Wrote prefab item package: {written}")
+                if isValid(workspace):
+                    QMessageBox.information(workspace, title,
+                                            f"Wrote prefab item package:\n{written}\n\n" + "\n".join(lines))
+
+            run_task_when_shell_idle(
+                self.shell, workspace,
+                status_message="Building the prefab item package...",
+                task=_task,
+                on_complete=_done,
+                on_error=_failed,
+                show_archive_progress=True,
+                task_accepts_cancel=True,
+            )
+
+        def _scaled(result: object) -> None:
+            if not isinstance(result, _ScaledPrefabs):
+                _failed(repr(result))
+                return
+            if not isValid(workspace):
+                relay.deleteLater()
+                return
+            text, details, count = prefab_batch_summary(result.outcomes, factor, result.missing)
+            if not count or count > MAX_PREFAB_REPLACEMENTS:
+                _ended()
+                box = QMessageBox(QMessageBox.Icon.Information, title, text, QMessageBox.StandardButton.Ok, workspace)
+                box.setDetailedText(details)
+                box.exec()
+                return
+            box = QMessageBox(QMessageBox.Icon.Question, title, text,
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, workspace)
+            box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            box.setDetailedText(details)
+            if box.exec() != QMessageBox.StandardButton.Yes:
+                _ended()
+                return
+            name = f"{category or 'prefab'}_speed_{factor:g}x".replace(".", "_")
+            default = self.shell.settings_file_path.parent / "prefab_packages" / f"{name}{PACKAGE_EXTENSION}"
+            selected, _filter = QFileDialog.getSaveFileName(workspace, "Save Prefab Package", str(default),
+                                                            "Independent items (*.cdmw)")
+            if not selected:
+                _ended()
+                return
+            destination = Path(selected)
+            if destination.suffix.lower() not in PACKAGE_EXTENSIONS:
+                destination = destination.with_name(f"{destination.name}{PACKAGE_EXTENSION}")
+            _write(result, destination)
+
+        workspace.begin_prefab_scaling()
+        run_task_when_shell_idle(
+            self.shell, workspace,
+            status_message="Scaling the listed prefabs...",
+            task=_scale,
+            on_complete=_scaled,
+            on_error=_failed,
+            show_archive_progress=True,
+            task_accepts_cancel=True,
         )
 
     def _open_speed_game_table(self, table: str) -> None:
@@ -602,6 +721,55 @@ class _CheckedSets:
     served: tuple[tuple[str, str], ...]  # (chart, the mounted DMM mod that already serves it)
 
 
+@dataclass(frozen=True)
+class _ScaledPrefabs:
+    """What the scaling worker hands back: an outcome per prefab, and listed paths the archives lack."""
+
+    outcomes: tuple
+    missing: tuple[str, ...] = ()
+
+
+def _range(pair: Optional[tuple[float, float]]) -> str:
+    if not pair:
+        return ""
+    low, high = pair
+    return f"{low:g}" if low == high else f"{low:g} to {high:g}"
+
+
+def prefab_batch_summary(outcomes: Sequence, factor: float, missing: Sequence[str] = ()) -> tuple[str, str, int]:
+    """The question asked before the listed prefabs become one package, the list behind Show
+    Details, and how many prefabs would be written."""
+
+    changed = [item for item in outcomes if item.patched is not None]
+    left: dict[str, int] = {}
+    for item in outcomes:
+        if item.patched is None:
+            reason = item.reason.split(":", 1)[0]
+            left[reason] = left.get(reason, 0) + 1
+    if missing:
+        left["not in the game archives"] = len(missing)
+    values = sum(item.values for item in changed)
+    lines = []
+    if len(changed) > MAX_PREFAB_REPLACEMENTS:
+        lines.append(f"A package holds at most {MAX_PREFAB_REPLACEMENTS} prefabs, and {len(changed)} would change. "
+                     "Choose a category or search again.")
+    elif changed:
+        lines.append(f"Scale {values:,} value(s) in {len(changed):,} prefab(s) by {factor:g}x "
+                     "and save them as one item package?")
+    else:
+        lines.append("None of the listed prefabs holds a speed value that can be scaled.")
+    if left:
+        lines.append("Left out: " + ", ".join(f"{count:,} {reason}" for reason, count in left.items()) + ".")
+    if changed:
+        lines.append("")
+        lines.append("Prefab speed edits have not been tested in game.")
+    details = [f"{item.path}: {item.values} value(s), {_range(item.before)} -> {_range(item.after)}"
+               for item in changed]
+    details += [f"{item.path}: left out, {item.reason}" for item in outcomes if item.patched is None]
+    details += [f"{path}: left out, not in the game archives" for path in missing]
+    return "\n".join(lines), "\n".join(details), len(changed)
+
+
 def profile_summary(plan: SpeedProfilePlan, outcome: SpeedProfileOutcome, served: Sequence[tuple[str, str]],
                     title: str) -> tuple[str, str]:
     """The question asked before a many-set export, and the per-chart list behind Show Details."""
@@ -682,6 +850,7 @@ __all__ = [
     "TOOL_KEY",
     "PreparedSpeedTuning",
     "install_speed_tuning_command",
+    "prefab_batch_summary",
     "prepare_speed_tuning",
     "profile_summary",
     "speed_export_message",

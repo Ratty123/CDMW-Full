@@ -45,7 +45,7 @@ def test_every_tool_is_experimental_in_the_speed_family_with_the_right_class():
     assert set(TOOLS) == {"speed.sets", "speed.set", "speed.preview", "speed.export", "speed.prefab_search",
                           "speed.prefab_values", "speed.prefab_export", "speed.table_rows", "speed.table_export",
                           "speed.workspace", "speed.workspace_edit", "speed.sets_preview", "speed.sets_export",
-                          "speed.mod"}
+                          "speed.mod", "speed.prefabs_preview", "speed.prefabs_export"}
     for tool in TOOLS.values():
         assert tool.family == "speed" and "Experimental" in tool.description
         assert tool.input_schema["type"] == "object" and tool.input_schema["additionalProperties"] is False
@@ -54,6 +54,7 @@ def test_every_tool_is_experimental_in_the_speed_family_with_the_right_class():
     assert TOOLS["speed.export"].output_folders == ("folder",)
     assert TOOLS["speed.sets_export"].output_folders == ("folder",)
     assert TOOLS["speed.prefab_export"].output_paths == ("package",)
+    assert TOOLS["speed.prefabs_export"].output_paths == ("package",)
 
 
 def test_sets_and_one_set(speed):
@@ -93,9 +94,42 @@ def test_export_writes_the_mod_and_set_reads_its_factors_back(speed, tmp_path, a
     assert again["mod"] == "Fast" and again["moves"][0]["factor"] == 2.0
 
 
+def test_many_prefabs_scale_into_one_package(speed, tmp_path, monkeypatch):
+    preview = speed("speed.prefabs_preview", factor=0.5)
+    assert preview["changed"] == 1 and preview["values"] == 1 and preview["written"] is False
+    assert preview["prefabs"] == [{"path": PREFAB, "values": 1, "before": [2.0, 2.0], "after": [1.0, 1.0],
+                                   "reason": ""}]
+    assert speed("speed.prefabs_preview", factor=0.5, category="cameras")["prefabs"] == []
+    rows = speed("speed.prefabs_preview", factor=0.5, paths=[PREFAB, "object/prefab/gone.prefab"])["prefabs"]
+    assert [row["reason"] for row in rows] == ["", "not in the game archives"]
+
+    written = {}
+    monkeypatch.setattr("cdmw.services.independent_prefab_authoring.prepare_prefab_packages",
+                        lambda root, edits, **kw: written.update(edits=edits, title=kw["title"])
+                        or SimpleNamespace(lines=("ok",)))
+    monkeypatch.setattr("cdmw.services.independent_prefab_authoring.write_prefab_package",
+                        lambda review, destination, **kw: written.update(destination=destination))
+    result = speed("speed.prefabs_export", factor=0.5, category="moving", package=str(tmp_path / "calm.cdmw"))
+    assert result["changed"] == 1 and result["written"] and written["title"] == "calm"
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.services.prefab_speed_service import speed_values
+
+    source, patched = written["edits"][PREFAB]
+    assert speed_values(decode_prefab_binary(source))[0].value == 2.0
+    assert speed_values(decode_prefab_binary(patched))[0].value == 1.0
+    with pytest.raises(ToolError, match="must end in"):
+        speed("speed.prefabs_export", factor=0.5, package=str(tmp_path / "calm.zip"))
+    with pytest.raises(ToolError, match="can be scaled"):
+        speed("speed.prefabs_export", factor=0.5, category="cameras", package=str(tmp_path / "none.cdmw"))
+    (tmp_path / "taken.cdmw").write_bytes(b"x")
+    with pytest.raises(ToolError, match="already exists"):
+        speed("speed.prefabs_export", factor=0.5, package=str(tmp_path / "taken.cdmw"))
+
+
 def test_prefab_tools_find_read_and_package(speed, tmp_path, monkeypatch):
     hits = speed("speed.prefab_search")["prefabs"]
     assert [hit["path"] for hit in hits] == [PREFAB] and hits[0]["categories"] == ["moving"]
+    assert hits[0]["values"] == 1 and hits[0]["labels"] and hits[0]["state"] == ""
     assert speed("speed.prefab_search", category="cameras")["prefabs"] == []
     values = speed("speed.prefab_values", path=PREFAB)["values"]
     assert [(v["member"], v["value"]) for v in values] == [("_windSpeedAccelerationScale", 2.0)]
@@ -240,6 +274,8 @@ def test_workspace_edit_works_the_tabs_own_controls():
     assert seen.searches == ["cameras"] and state["page"] == "prefabs" and state["prefab_searching"]
     with pytest.raises(ToolError):  # a search is running: the tab's Search button is off
         run("speed.workspace_edit", action="search", category="weather")
+    state = run("speed.workspace_edit", action="prefab_factor", prefab_factor=0.5)
+    assert state["prefab_factor"] == 0.5 and workspace.prefab_batch_spin.value() == 0.5
     assert TOOLS["speed.workspace_edit"].effect == EDIT
 
 

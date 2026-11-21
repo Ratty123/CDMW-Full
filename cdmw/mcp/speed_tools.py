@@ -1,9 +1,10 @@
 """The `speed.` tools (experimental): Speed & Prefabs' services, and its tab.
 
 Animation speed works on action charts: list sets, read one as moves, preview factors,
-export a DMM mod for one set or for many sets at once, and read a speed mod back. Prefab speed lists prefabs that declare speed values, reads one
-prefab's values, and saves scaled values as an item package. Game table speed reads the
-AI movement and pushed-object speed rows; their edits go through Edit Game Table Values.
+export a DMM mod for one set or for many sets at once, and read a speed mod back. Prefab
+speed lists prefabs that declare speed values, reads one prefab's values, and saves scaled
+values of one prefab or of many as an item package. Game table speed reads the AI movement
+and pushed-object speed rows; their edits go through Edit Game Table Values.
 
 `speed.workspace` shows the Speed & Prefabs tab and reports what it shows, and
 `speed.workspace_edit` works its controls (factors, the linked charts box, the prefab
@@ -51,6 +52,8 @@ _SET_PATHS = {"type": "array", "minItems": 1, "maxItems": 512, "items": _PATH,
               "description": "Chart paths of the sets, as speed.sets lists them."}
 _INCLUDED = {"type": "boolean", "default": False,
              "description": "Also give these factors to the charts the sets include."}
+_PREFAB_PATHS = {"type": "array", "minItems": 1, "maxItems": 512, "items": _PATH,
+                 "description": "Prefab paths, as speed.prefab_search lists them."}
 
 
 def _read(entry):
@@ -77,11 +80,12 @@ def _service_errors(function):
         from cdmw.core.action_chart_binary import ActionChartError
         from cdmw.core.static_table_records import StaticTableError
         from cdmw.services.game_table_edits import TableEditError
+        from cdmw.services.independent_item_package import IndependentItemError
         from cdmw.services.prefab_speed_service import PrefabSpeedError
 
         try:
             return function(call)
-        except (ActionChartError, PrefabSpeedError, TableEditError, StaticTableError) as exc:
+        except (ActionChartError, PrefabSpeedError, TableEditError, StaticTableError, IndependentItemError) as exc:
             message = str(exc)
             code = NOT_FOUND if "not in the game archives" in message else INVALID_ARGUMENTS
             raise ToolError(code, message) from None
@@ -277,7 +281,7 @@ def _prefab_search(call):
 
     hits = search_speed_prefabs(entries, _read, category=category, key=index, on_progress=progress,
                                 stop_event=call.cancel_event)
-    return {"prefabs": [hit.to_data() for hit in hits]}
+    return {"prefabs": [hit.to_data(category) for hit in hits]}
 
 
 def _prefab(context, path):
@@ -332,6 +336,96 @@ def _prefab_export(call):
                                     stop_event=call.cancel_event, on_log=log.append)
     write_prefab_package(review, destination, stop_event=call.cancel_event, on_log=log.append)
     return {"package": str(destination), "edits": len(edits), "lines": list(review.lines),
+            "note": "Experimental: add the package on the Mods page. Prefab speed edits are untested in game."}
+
+
+def _scaled_prefabs(call):
+    """Outcomes for `paths`, or for every prefab of `category` that holds a value, and the paths not found."""
+
+    from cdmw.domain.archives.prefab_speed import CATEGORIES
+    from cdmw.services.prefab_speed_service import scale_speed_prefabs, search_speed_prefabs
+
+    args = call.arguments
+    category = str(args.get("category") or "")
+    if category and category not in CATEGORIES:
+        raise ToolError(INVALID_ARGUMENTS, f"Unknown category {category!r}; use one of {', '.join(CATEGORIES)}.")
+    index = _index(call.context)
+    missing: list[str] = []
+    if args.get("paths"):
+        entries = []
+        for path in dict.fromkeys(str(item) for item in args["paths"]):
+            entry = index.entry_for_path(path)
+            if entry is None:
+                missing.append(path)
+            else:
+                entries.append(entry)
+    else:
+        every = [entry for path in index.paths_by_extension.get(".prefab", ())
+                 if (entry := index.entry_for_path(path)) is not None]
+
+        def searching(done, total):
+            call.check_cancelled()
+            call.progress(done, total, "Reading prefab type tables")
+
+        hits = search_speed_prefabs(every, _read, category=category, key=index, on_progress=searching,
+                                    stop_event=call.cancel_event)
+        entries = [entry for hit in hits if not hit.state and hit.value_count(category)
+                   and (entry := index.entry_for_path(hit.path)) is not None]
+
+    def scaling(done, total):
+        call.check_cancelled()
+        call.progress(done, total, "Scaling prefab speed values")
+
+    outcomes = scale_speed_prefabs(entries, _read, float(args["factor"]), category=category, on_progress=scaling,
+                                   stop_event=call.cancel_event)
+    return outcomes, tuple(missing)
+
+
+def _prefab_rows(outcomes, missing):
+    rows = [item.to_data() for item in outcomes]
+    rows += [{"path": path, "values": 0, "before": None, "after": None, "reason": "not in the game archives"}
+             for path in missing]
+    return rows
+
+
+@_service_errors
+def _prefabs_preview(call):
+    outcomes, missing = _scaled_prefabs(call)
+    changed = [item for item in outcomes if item.patched is not None]
+    return {"prefabs": _prefab_rows(outcomes, missing), "changed": len(changed),
+            "values": sum(item.values for item in changed), "written": False,
+            "note": "Experimental: prefab speed edits have not been tested in game."}
+
+
+@_service_errors
+def _prefabs_export(call):
+    from cdmw.constants import PACKAGE_EXTENSION
+    from cdmw.mcp.rail_actions import output
+    from cdmw.services.independent_prefab_authoring import prepare_prefab_packages, write_prefab_package
+    from cdmw.services.independent_prefab_package import MAX_PREFAB_REPLACEMENTS
+
+    args = call.arguments
+    destination = output(call, args["package"])
+    if destination.suffix.lower() != PACKAGE_EXTENSION:
+        raise ToolError(INVALID_ARGUMENTS, f"The package path must end in {PACKAGE_EXTENSION}.")
+    if destination.exists():
+        raise ToolError(REFUSED, f"{destination} already exists; name a new package.")
+    outcomes, missing = _scaled_prefabs(call)
+    edits = {item.path: (item.source, item.patched) for item in outcomes if item.patched is not None}
+    if not edits:
+        raise ToolError(INVALID_ARGUMENTS, "None of these prefabs holds a speed value that can be scaled; "
+                                           "speed_prefabs_preview gives the reason for each.")
+    if len(edits) > MAX_PREFAB_REPLACEMENTS:
+        raise ToolError(INVALID_ARGUMENTS, f"A package holds at most {MAX_PREFAB_REPLACEMENTS} prefabs and "
+                                           f"{len(edits)} would change; give a category or fewer paths.")
+    log: list[str] = []
+    review = prepare_prefab_packages(call.context.game_folder(), edits,
+                                     title=args.get("title") or Path(destination).stem,
+                                     stop_event=call.cancel_event, on_log=log.append)
+    write_prefab_package(review, destination, stop_event=call.cancel_event, on_log=log.append)
+    return {"package": str(destination), "prefabs": _prefab_rows(outcomes, missing), "changed": len(edits),
+            "values": sum(item.values for item in outcomes if item.patched is not None),
+            "lines": list(review.lines), "written": True,
             "note": "Experimental: add the package on the Mods page. Prefab speed edits are untested in game."}
 
 
@@ -437,6 +531,13 @@ def _workspace_edit(call):
         call.context.window.shell._activate_tool_key("speed_prefabs")
         if workspace.loading:
             raise ToolError(UNAVAILABLE, _not_ready(workspace))
+        if action == "prefab_factor":
+            workspace.show_page("prefabs")
+            factor = arguments.get("prefab_factor")
+            if factor is None:
+                raise ToolError(INVALID_ARGUMENTS, "Give prefab_factor.")
+            workspace.prefab_batch_spin.setValue(float(factor))
+            return workspace.state()
         if action == "search":
             workspace.show_page("prefabs")
             if not workspace.search_prefabs(arguments.get("category")):
@@ -527,10 +628,13 @@ def speed_tools() -> list[Tool]:
              "list shows (narrow it with set_filter), scope set to the open set only; open_mod shows a speed mod "
              "CDMW wrote (mod_folder) so its sets open with its factors, close_mod closes it; search presses the "
              "Prefabs page's Search for a category (the first search takes minutes; read the results with "
-             "speed_workspace). Nothing is written: the user reviews and presses Export, or speed_export and "
-             "speed_sets_export write the mod.",
+             "speed_workspace); prefab_factor fills the factor beside Scale Listed Prefabs (prefab_factor), which "
+             "the user presses, or speed_prefabs_export writes the package. Nothing is written: the user reviews "
+             "and presses Export, or speed_export and speed_sets_export write the mod.",
              "ui:SpeedPrefabsWorkspace.factors", _workspace_edit,
-             {"action": {"type": "string", "enum": ["factors", "reset", "preset", "open_mod", "close_mod", "search"]},
+             {"action": {"type": "string", "enum": ["factors", "reset", "preset", "open_mod", "close_mod", "search",
+                                                    "prefab_factor"]},
+              "prefab_factor": {"type": "number", "minimum": 0.01, "maximum": 100},
               "set": _TEXT, "factors": _FACTORS,
               "linked": {"type": "boolean", "description": "Tick or untick Also change linked charts."},
               "scope": {"type": "string", "enum": ["set", "listed"]},
@@ -580,8 +684,9 @@ def speed_tools() -> list[Tool]:
               "many-set export. Needs no game files.", _mod,
               {"folder": _PATH}, ("folder",), service="animation_speed_service.speed_mod_summary", paged="charts"),
         _tool("speed.prefab_search", READ, "Prefabs whose type table declares a speed value (scene cameras, moving "
-              "and wind-driven objects, weather and clouds), by category. The first search reads every prefab and "
-              "takes minutes.", _prefab_search,
+              "and wind-driven objects, weather and clouds), by category. Each row says how many speed values "
+              "the decoder reaches (values, labels) and, in state, why a prefab cannot be written; prefabs with "
+              "values come first. The first search reads every prefab and takes minutes.", _prefab_search,
               {"category": {"type": "string", "enum": ["", "cameras", "moving", "weather"]}},
               service="prefab_speed_service.search_speed_prefabs", paged="prefabs"),
         _tool("speed.prefab_values", READ, "One prefab's speed values the decoder reaches: object, member, plain "
@@ -601,6 +706,22 @@ def speed_tools() -> list[Tool]:
                                             "maxItems": 4,
                                             "description": "A number, or [x, y, z] for a vector."}}}}},
               ("path", "package"), service="prefab_speed_service.apply_speed_edits", output_paths=("package",)),
+        _tool("speed.prefabs_preview", READ, "For one factor on many prefabs (paths, or every prefab of a "
+              "category that holds a value): per prefab the number of speed values and their lowest and highest "
+              "value before and after, or the reason it is left out (partly read, no speed value reached, the "
+              "values are 0). Without paths the first call reads every prefab and takes minutes. Writes nothing.",
+              _prefabs_preview,
+              {"paths": _PREFAB_PATHS, "category": {"type": "string", "enum": ["", "cameras", "moving", "weather"]},
+               "factor": {"type": "number", "minimum": 0.01, "maximum": 100}}, ("factor",),
+              service="prefab_speed_service.scale_speed_prefabs", paged="prefabs"),
+        _tool("speed.prefabs_export", OUTPUT, "Scale every speed value of many prefabs (paths, or every prefab of "
+              "a category that holds a value) by one factor and save them as one new item package (.cdmw) at "
+              "'package', at most 128 prefabs. Prefabs that cannot be scaled are left out and named. Prefab "
+              "speed edits have not been tested in game.", _prefabs_export,
+              {"paths": _PREFAB_PATHS, "category": {"type": "string", "enum": ["", "cameras", "moving", "weather"]},
+               "factor": {"type": "number", "minimum": 0.01, "maximum": 100}, "package": _PATH, "title": _TEXT},
+              ("factor", "package"), service="prefab_speed_service.scale_speed_prefabs",
+              output_paths=("package",)),
         _tool("speed.table_rows", READ, "Game table speed rows: AI movement speeds (aimovespeedinfo) and pushed "
               "object speed (gimmickinfo), with the values each row holds now.", _table_rows,
               {"table": {"type": "string", "enum": ["", "aimovespeedinfo", "gimmickinfo"]}},
