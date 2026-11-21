@@ -1432,6 +1432,116 @@ fn cdmw_panel_title_width(ui: &egui::Ui, title: &str) -> f32 {
         + cdmw_text_width(ui, crate::localization::tr(title), egui::TextStyle::Body)
 }
 
+/// The width a tool button needs to show its translated name on one line.
+fn cdmw_tool_button_width(ui: &egui::Ui, label: &str) -> f32 {
+    cdmw_text_width(ui, crate::localization::tr(label), egui::TextStyle::Button)
+        + ui.spacing().button_padding.x * 2.0
+}
+
+/// How a rail group lays out its tool buttons: a grid in the panel's width.
+struct CdmwToolGrid {
+    /// Each column's width.
+    columns: Vec<f32>,
+    rows: usize,
+    /// Filled column by column (top to bottom first) instead of row by row.
+    by_column: bool,
+}
+
+/// The width a tool button needs for its longest word, the narrowest it can
+/// be when its name wraps between words.
+fn cdmw_tool_button_word_width(ui: &egui::Ui, label: &str) -> f32 {
+    crate::localization::tr(label)
+        .split_whitespace()
+        .map(|word| cdmw_text_width(ui, word.to_owned(), egui::TextStyle::Button))
+        .fold(0.0_f32, f32::max)
+        + ui.spacing().button_padding.x * 2.0
+}
+
+/// The height of a tool button `width` wide: its name wrapped between words
+/// to fit, and never less than one row.
+fn cdmw_tool_button_height(ui: &egui::Ui, label: &str, width: f32) -> f32 {
+    let padding = ui.spacing().button_padding;
+    let text = ui
+        .painter()
+        .layout(
+            crate::localization::tr(label),
+            egui::TextStyle::Button.resolve(ui.style()),
+            ui.visuals().text_color(),
+            (width - padding.x * 2.0).max(1.0),
+        )
+        .size()
+        .y;
+    (text + padding.y * 2.0).max(ui.spacing().interact_size.y)
+}
+
+impl CdmwToolGrid {
+    /// The tool index shown at `row`, `column`, if any.
+    fn index(&self, row: usize, column: usize) -> usize {
+        if self.by_column {
+            column * self.rows + row
+        } else {
+            row * self.columns.len() + column
+        }
+    }
+}
+
+/// Lays out tool buttons in `available` width with as few rows as fit. Rows
+/// are balanced (four buttons make two rows of two, not three and one), each
+/// column is as wide as its widest button, and the room left over is shared
+/// out so the grid spans the panel. Filling row by row reads best; filling
+/// column by column is used only when it saves rows, as when one long name
+/// (Normals & Tangents) would otherwise leave every row a single button.
+/// Where only one button would fit on a row, a group of three or more gets
+/// two equal columns instead and its long names wrap between words.
+fn cdmw_tool_grid(ui: &egui::Ui, labels: &[&str], available: f32) -> CdmwToolGrid {
+    let spacing = ui.spacing().item_spacing.x;
+    let widths: Vec<f32> = labels
+        .iter()
+        .map(|label| cdmw_tool_button_width(ui, label))
+        .collect();
+    let count = widths.len().max(1);
+    let layout = |fitting: usize, by_column: bool| {
+        let rows = count.div_ceil(fitting);
+        let columns = count.div_ceil(rows);
+        let mut grid = CdmwToolGrid {
+            columns: vec![0.0_f32; columns],
+            rows,
+            by_column,
+        };
+        for row in 0..rows {
+            for column in 0..columns {
+                if let Some(width) = widths.get(grid.index(row, column)) {
+                    grid.columns[column] = grid.columns[column].max(*width);
+                }
+            }
+        }
+        grid
+    };
+    let used = |grid: &CdmwToolGrid| {
+        grid.columns.iter().sum::<f32>() + spacing * (grid.columns.len() - 1) as f32
+    };
+    let mut grid = (1..=count)
+        .rev()
+        .flat_map(|fitting| [layout(fitting, false), layout(fitting, true)])
+        .filter(|grid| used(grid) <= available)
+        .min_by_key(|grid| (grid.rows, grid.by_column))
+        .unwrap_or_else(|| layout(1, false));
+    if grid.columns.len() == 1 && count > 2 {
+        grid = CdmwToolGrid {
+            columns: vec![0.0; 2],
+            rows: count.div_ceil(2),
+            by_column: false,
+        };
+    }
+    // Whole points, so rounding never makes the grid a fraction wider than
+    // the panel (which would widen the panel by that fraction).
+    let extra = ((available - used(&grid)) / grid.columns.len() as f32).max(0.0);
+    for column in &mut grid.columns {
+        *column = (*column + extra).floor().max(1.0);
+    }
+    grid
+}
+
 /// The outer width a side panel needs to show rows of these content widths
 /// whole: the panel's frame margin, its separator line and a scroll bar's room.
 fn cdmw_side_panel_fit(ui: &egui::Ui, rows: impl IntoIterator<Item = f32>) -> f32 {
@@ -2984,8 +3094,9 @@ impl LabApplication {
         let policy_reason = state_str(&self.cdmw_state, "output_policy_reason")
             .unwrap_or("Authoring is unavailable under the current output policy")
             .to_owned();
-        // Collapsed, the rail is as wide as its widest header; an open section
-        // gets the rail's usual width.
+        // While it shows only headers and tool buttons, the rail is as wide as
+        // its widest header or button; a settings page (an active tool,
+        // Viewport, Output) gets the rail's usual width.
         let compact = cdmw_side_panel_fit(
             root_ui,
             std::iter::once(cdmw_panel_title_width(root_ui, "Tools")).chain(
@@ -3000,6 +3111,21 @@ impl LabApplication {
                     "Morph & Refit",
                 ]
                 .map(|title| cdmw_collapsed_header_width(root_ui, title)),
+            )
+            // An open group's buttons fit at this width (two to a row, long
+            // names wrapped between words), so opening a group never needs a
+            // wider rail.
+            .chain(std::iter::once(
+                CDMW_RAIL_TOOLS[1..17]
+                    .iter()
+                    .map(|(_, label, _)| cdmw_tool_button_word_width(root_ui, label))
+                    .fold(0.0_f32, f32::max)
+                    * 2.0
+                    + root_ui.spacing().item_spacing.x,
+            ))
+            .chain(
+                [CDMW_RAIL_TOOLS[1].1, CDMW_RAIL_TOOLS[2].1, CDMW_RAIL_TOOLS[3].1]
+                    .map(|label| cdmw_tool_button_width(root_ui, label)),
             ),
         );
         let reveal_pending = [keyboard::CDMW_REVEAL_VIEWPORT, CDMW_REVEAL_OUTPUT]
@@ -3188,7 +3314,9 @@ impl LabApplication {
         );
     }
 
-    /// Draws a tool group and says whether it is (still partly) open.
+    /// Draws a tool group and says whether it shows a settings page, which is
+    /// what needs the rail's working width. An open group of buttons fits the
+    /// compact rail.
     #[allow(clippy::too_many_arguments)]
     fn draw_cdmw_tool_group(
         &mut self,
@@ -3220,11 +3348,38 @@ impl LabApplication {
                     })
                     .show_unindented(ui, |ui| {
                         if !direct_selection {
-                            ui.horizontal_wrapped(|ui| {
-                                for &tool in tools {
-                                    self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
-                                }
-                            });
+                            let labels: Vec<&str> =
+                                tools.iter().map(|(_, label, _)| *label).collect();
+                            let grid = cdmw_tool_grid(ui, &labels, ui.available_width());
+                            for row in 0..grid.rows {
+                                // A wrapped name makes its row taller; every
+                                // button of the row gets that height.
+                                let height = grid
+                                    .columns
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(column, &width)| {
+                                        let (_, label, _) = tools.get(grid.index(row, column))?;
+                                        Some(cdmw_tool_button_height(ui, label, width))
+                                    })
+                                    .fold(0.0_f32, f32::max);
+                                ui.horizontal(|ui| {
+                                    for (column, &width) in grid.columns.iter().enumerate() {
+                                        let Some(&tool) = tools.get(grid.index(row, column))
+                                        else {
+                                            continue;
+                                        };
+                                        self.draw_cdmw_tool_tab(
+                                            ui,
+                                            tool,
+                                            egui::vec2(width, height),
+                                            busy,
+                                            authoring,
+                                            policy_reason,
+                                        );
+                                    }
+                                });
+                            }
                         }
                         // Keep the navigation together instead of inserting a
                         // settings page between rows of related tool buttons.
@@ -3259,13 +3414,33 @@ impl LabApplication {
         } else if group.header_response.clicked() && direct_selection && !busy {
             self.activate_cdmw_rail_page(CdmwRailPage::Select, Some(ViewportTool::Select));
         }
-        group.openness > 0.0
+        // Selection's body is its page, so it needs room while it is (still
+        // partly) open; other groups only while one of their tools is active.
+        group.openness > 0.0 && (direct_selection || active)
     }
 
     fn draw_cdmw_tool_tab(
         &mut self,
         ui: &mut egui::Ui,
         (page, label, tool): (CdmwRailPage, &str, Option<ViewportTool>),
+        size: egui::Vec2,
+        busy: bool,
+        authoring: bool,
+        policy_reason: &str,
+    ) {
+        // Every button is one grid column wide and as tall as its row; a
+        // longer name (a "Preparing" note) wraps inside it.
+        ui.allocate_ui_with_layout(size, egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+            ui.set_width(size.x);
+            self.draw_cdmw_tool_tab_button(ui, (page, label, tool), size, busy, authoring, policy_reason);
+        });
+    }
+
+    fn draw_cdmw_tool_tab_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        (page, label, tool): (CdmwRailPage, &str, Option<ViewportTool>),
+        size: egui::Vec2,
         busy: bool,
         authoring: bool,
         policy_reason: &str,
@@ -3279,7 +3454,7 @@ impl LabApplication {
                 crate::localization::tr("Preparing")
             );
             let response = ui
-                .add(Button::new(text).wrap())
+                .add(Button::new(text).min_size(size).wrap())
                 .on_hover_text(crate::localization::tr(&reason));
             if response.clicked() {
                 self.status = crate::localization::tr(&reason);
@@ -3296,6 +3471,7 @@ impl LabApplication {
                 && (!self.cdmw_morph_comparison_active() || page == CdmwRailPage::Select),
             Button::new(crate::localization::tr(label))
                 .selected(active)
+                .min_size(size)
                 .wrap(),
         );
         if let Some(hint) =
