@@ -238,3 +238,53 @@ def test_set_source_draws_the_variant_its_items_prefab_selects(tmp_path, monkeyp
     assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
     # Only the drawn file is named: the job takes at most 32 selections.
     assert jobs[0]["model_property_indices"] == {census.HONOR_GUARD_LB: 32}
+
+
+def test_replacement_material_payloads_keep_the_graph_totals_the_editor_checks(tmp_path):
+    """Import Replacement on a game model with native layers (alpha.6): the editor refused
+    the result because the graph kept its old totals or no rows, and closed itself."""
+    from tests.test_mesh_rust_authoring import RustMeshAuthoringTests
+    from cdmw.services.mesh_rust_preview_package import conserve_preview_core_material_graph
+
+    package = _native(tmp_path)
+    path = package / "manifest.json"
+    native = json.loads(path.read_text())
+    native["source_path"] = "owned-rust-authoring.pac"
+    native["batches"][0]["editor_identity"]["source_submesh_index"] = 0
+    path.write_text(json.dumps(native))
+    model = decode_dotnet_native_preview_package(package)
+    service, authoring = RustMeshAuthoringTests()._create(tmp_path / "session", material_name="helmet",
+        preview_material_model=model, material_package_path=package)
+    try:
+        base = authoring.archive_refit_material_cache["base"]
+        graph = base["preview_core_material_graph"]
+        totals = {key: graph[key] for key in ("source_edge_count", "unique_resource_count",
+                                              "copied_resource_count", "unique_resource_bytes")}
+        unchanged = copy.deepcopy(base)
+        conserve_preview_core_material_graph(unchanged)
+        assert {key: unchanged["preview_core_material_graph"][key] for key in totals} == totals
+
+        # An imported texture joins the payload: the totals count it once.
+        added = copy.deepcopy(base)
+        layer = next(layer[role] for row in graph["materials"] for layer in row["layers"]
+                     for role in ("diffuse", "normal", "material") if layer.get(role))
+        imported = {**layer, "path": "texture-0099-0123456789ab.dds", "sha256": "AB" * 32, "byte_length": 321}
+        added["textures"].append({"label": "imported", "role": "base_color", "file": imported,
+                                  "material_indices_by_lod": [[0]]})
+        added["textures"].append({"label": "imported again", "role": "normal", "file": dict(imported),
+                                  "material_indices_by_lod": [[0]]})
+        conserve_preview_core_material_graph(added)
+        result = added["preview_core_material_graph"]
+        assert result["unique_resource_count"] == totals["unique_resource_count"] + 1
+        assert result["unique_resource_bytes"] == totals["unique_resource_bytes"] + 321
+        assert result["source_edge_count"] == totals["source_edge_count"]
+        assert result["copied_resource_count"] <= result["unique_resource_count"]
+
+        # Every part replaced: no row is left, and the editor refuses an empty graph.
+        replaced = copy.deepcopy(base)
+        replaced["preview_core_material_graph"]["materials"] = []
+        conserve_preview_core_material_graph(replaced)
+        assert replaced["preview_core_material_graph"] is None
+    finally:
+        authoring.cancel()
+        service.close_edit_session("authoritative-rust-test", force_without_saving=True)

@@ -591,6 +591,11 @@ class MeshEditorRustProcessMixin:
         if event not in {"transaction_request", "command_request", "finish_request", "cancel", "vertex_inspect"}:
             self._fail_rust_editor(f"Mesh Editor sent unsupported event '{event or '(empty)'}'.", incompatible=True)
             return
+        if event == "cancel":
+            # The helper closes itself right after this line, maybe before the
+            # cancel below has run: its exit is a close, not a crash.
+            self.standalone_rust_helper_cancelled = True
+            self._report_rust_helper_cancel_reason(str(payload.get("reason", "") or ""))
         if not self.standalone_rust_ready:
             self._send_rust_error_response(payload, "Mesh Editor is not ready for authoring commands")
             return
@@ -618,6 +623,34 @@ class MeshEditorRustProcessMixin:
             return
         self.standalone_rust_protocol_queue.append(dict(payload))
         self._start_next_rust_protocol_worker()
+
+    def _report_rust_helper_cancel_reason(self, reason: str) -> None:
+        """Show why the helper closed the edit when it closed it because of an error."""
+
+        reason = " ".join(reason.split())[:1000]
+        prefix = "protocol failure:"
+        if not reason.casefold().startswith(prefix):
+            return  # The user closed the editor, or an older helper gave no detail.
+        detail = reason[len(prefix):].strip() or "no detail"
+        message = f"Mesh Editor stopped because it could not show CDMW's result: {detail}"
+        self._record_rust_helper_cancel(detail)
+        host = getattr(self, "standalone_native_host_frame", None)
+        show_error = getattr(host, "show_error", None)
+        if callable(show_error):
+            show_error(message)
+        self._set_rust_status(message, error=True)
+
+    def _record_rust_helper_cancel(self, detail: str) -> None:
+        try:
+            window = self.window()
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        recorder = getattr(window, "_record_runtime_event", None)
+        if callable(recorder):
+            try:
+                recorder("mesh_editor_helper_protocol_failure", severity="error", reason=str(detail))
+            except (RuntimeError, TypeError, ValueError):
+                pass
 
     def _handle_rust_hello(self, payload: Mapping[str, object]) -> None:
         if self.standalone_rust_hello_received:
@@ -1617,7 +1650,7 @@ class MeshEditorRustProcessMixin:
         if process is not self.standalone_rust_process:
             return
         self._drain_rust_process_output(process)
-        if self.standalone_rust_closing:
+        if self.standalone_rust_closing or getattr(self, "standalone_rust_helper_cancelled", False):
             return
         self.standalone_rust_process_error_reported = True
         suffix = self._rust_process_diagnostic_suffix()
@@ -1699,6 +1732,10 @@ class MeshEditorRustProcessMixin:
             self._publish_rust_protocol_status(
                 "Mesh Editor closed while Finish was running; waiting for the safe terminal result."
             )
+        elif getattr(self, "standalone_rust_helper_cancelled", False):
+            # The helper asked to cancel and closed (an error it named, or its
+            # window closed): the cancel in progress closes the session.
+            pass
         elif (
             (self.standalone_rust_process_error_reported
              or (not self.standalone_rust_closing and not self.standalone_rust_failure_reported))
@@ -1761,8 +1798,12 @@ class MeshEditorRustProcessMixin:
                 or not callable(getattr(session, "rewrite_for_relaunch", None))):
             return False
         now = time.monotonic()
-        previous = float(getattr(self, "_rust_last_crash_at", 0.0) or 0.0)
+        # Only a stop of this same session counts as "again": a new session
+        # (Start Fresh, another mesh) starts with a clean count.
+        previous = (float(getattr(self, "_rust_last_crash_at", 0.0) or 0.0)
+                    if getattr(self, "_rust_last_crash_session", None) is session else 0.0)
         self._rust_last_crash_at = now
+        self._rust_last_crash_session = session
         self.standalone_rust_ready = False
         self.standalone_rust_hello_received = False
         # The session is kept: a failure path that ran first (Qt reports a crash
@@ -1820,6 +1861,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_closing = False
         self.standalone_rust_failure_reported = False
         self.standalone_rust_process_error_reported = False
+        self.standalone_rust_helper_cancelled = False
         self.standalone_rust_finish_accepted = False
         # A new helper (after a crash or a park) says hello once and numbers its
         # requests from 1 again (section 8.7 A3 and A4).
