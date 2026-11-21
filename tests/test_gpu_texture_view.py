@@ -165,12 +165,143 @@ def test_clear_and_hide_cancel_pending_preparation_and_ignore_old_process(app, t
     host.hide()
     assert task.stop.is_set() and stopped == [process]
     assert host._generation != generation and host._process is None
-    host._process_failed(process, generation)
+    host._process_failed(process)
     assert len(pending) == 1
     host.show()
     assert len(pending) == 2
     host.clear_preview()
     assert not host._path and host._closed
+    host.close()
+
+
+def _resident_helper(host, monkeypatch):
+    """Stand in for a helper that has started and reported ready."""
+    sent, stopped, prepared = [], [], []
+    monkeypatch.setattr(host, "_send", lambda **kw: sent.append(kw))
+    monkeypatch.setattr(host, "_prepare", lambda **kw: prepared.append(kw))
+    monkeypatch.setattr(module, "stop_qprocess_async", stopped.append)
+    process = object()
+    host._process, host._ready = process, True
+    return process, sent, stopped, prepared
+
+
+def _loads(sent):
+    return [message for message in sent if message.get("command") == "load"]
+
+
+def _loaded(host, generation):
+    host._event({"event": "loaded", "generation": generation,
+                 "metadata": {"width": 64, "height": 64, "mip_count": 1, "format": "Bc1Unorm"}})
+
+
+def test_ready_helper_draws_the_next_dds_without_being_restarted(app, tmp_path, monkeypatch):
+    host = module.GpuTexturePreview()
+    host.show()
+    process, sent, stopped, prepared = _resident_helper(host, monkeypatch)
+    host.load_path(tmp_path / "first.dds")
+    first = _loads(sent)
+    assert [load["path"] for load in first] == [str(tmp_path / "first.dds")]
+    assert first[0]["generation"] == host._generation
+    _loaded(host, host._generation)
+    assert host._gpu and host.has_ready_helper()
+    host.load_path(tmp_path / "second.dds")
+    loads = _loads(sent)
+    assert [load["path"] for load in loads] == [str(tmp_path / "first.dds"), str(tmp_path / "second.dds")]
+    assert loads[1]["generation"] > loads[0]["generation"]
+    assert stopped == [] and prepared == [] and host._process is process
+    # The previous texture stays up, not a placeholder, until the new one is drawn.
+    assert host.stack.currentWidget() is host.viewport and not host._gpu
+    _loaded(host, loads[0]["generation"])
+    assert not host._gpu
+    _loaded(host, loads[1]["generation"])
+    assert host._gpu
+    # Only DDS files are drawn by the helper.
+    host.load_path(tmp_path / "plain.png")
+    assert stopped == [process] and host._process is None and not host.has_ready_helper()
+    assert prepared == [{"fallback": False}] and host.stack.currentWidget() is host.scroll
+    host.shutdown()
+    host.close()
+
+
+def test_helper_still_starting_loads_only_the_newest_path(app, tmp_path, monkeypatch):
+    host = module.GpuTexturePreview()
+    host.show()
+    process, sent, stopped, prepared = _resident_helper(host, monkeypatch)
+    host._ready = False
+    host.load_path(tmp_path / "first.dds")
+    host.load_path(tmp_path / "second.dds")
+    assert stopped == [] and prepared == [] and _loads(sent) == []
+    assert host._timeout.isActive()
+    host._event({"event": "ready", "protocol": "cdmw_texture_view_v1"})
+    assert [load["path"] for load in _loads(sent)] == [str(tmp_path / "second.dds")]
+    assert host.stack.currentWidget() is host.viewport
+    host.shutdown()
+    host.close()
+
+
+def test_hidden_ready_helper_waits_for_the_next_texture_then_retires(app, tmp_path, monkeypatch):
+    host = module.GpuTexturePreview()
+    host.show()
+    process, sent, stopped, prepared = _resident_helper(host, monkeypatch)
+    host.load_path(tmp_path / "first.dds")
+    shown = host._generation
+    host.hide()
+    assert stopped == [] and host._process is process and host._idle.isActive()
+    _loaded(host, shown)
+    assert not host._gpu  # an answer for a view nobody sees is stale
+    host.show()
+    loads = _loads(sent)
+    assert len(loads) == 2 and loads[1]["generation"] > loads[0]["generation"]
+    assert not host._idle.isActive()
+    host.hide()
+    host._retire_idle_helper()
+    assert stopped == [process] and host._process is None
+    host.show()
+    assert prepared == [{"fallback": False}]
+    host.shutdown()
+    host.close()
+
+
+def test_texture_the_helper_cannot_draw_falls_back_and_keeps_the_helper(app, tmp_path, monkeypatch):
+    host = module.GpuTexturePreview()
+    host.show()
+    process, sent, stopped, prepared = _resident_helper(host, monkeypatch)
+    host.load_path(tmp_path / "legacy.dds")
+    host._event({"event": "error", "generation": host._generation, "message": "unsupported"})
+    assert prepared == [{"fallback": True}] and stopped == [] and host._process is process
+    assert host.stack.currentWidget() is host.scroll and host._idle.isActive()
+    # An idle helper is not kept behind an image for ever.
+    host._retire_idle_helper()
+    assert stopped == [process]
+    stopped.clear()
+    host._process, host._ready = process, True
+    host.load_path(tmp_path / "legacy.dds")
+    host._event({"event": "error", "generation": host._generation, "message": "unsupported"})
+    host.load_path(tmp_path / "next.dds")
+    assert _loads(sent)[-1]["path"] == str(tmp_path / "next.dds") and stopped == []
+    assert host.stack.currentWidget() is host.viewport
+    # A protocol error is about the helper itself, so that one is replaced.
+    host._event({"event": "error", "generation": 0, "message": "bad command"})
+    assert stopped == [process] and host._process is None
+    host.shutdown()
+    host.close()
+
+
+def test_helper_that_exits_while_hidden_is_started_again_not_replaced_by_an_image(app, tmp_path, monkeypatch):
+    host = module.GpuTexturePreview()
+    host.show()
+    process, sent, stopped, prepared = _resident_helper(host, monkeypatch)
+    host.load_path(tmp_path / "first.dds")
+    host.hide()
+    host._process_failed(process)
+    assert host._process is None and prepared == [] and not host._idle.isActive()
+    host.show()
+    assert prepared == [{"fallback": False}]
+    # On screen, a helper that exits leaves the image fallback.
+    host._process, host._ready = process, True
+    host._process_failed(process)
+    assert prepared[-1] == {"fallback": True} and host._process is None
+    host.shutdown()
     host.close()
 
 

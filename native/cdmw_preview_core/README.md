@@ -39,9 +39,14 @@ Conservation retains every declared parameter, including an unavailable RGB
 emission map superseded by a resolved, exact same-wrapper emissive-intensity map.
 Such a row remains unresolved and is explicitly marked
 `transported_inactive_rgb_emission`; `inactive_unavailable_texture_count` reports
-this subset of `unresolved_texture_count`. Only these inactive missing sources
-may coexist with `conserved: true`. Missing active inputs and foreign-owner
-substitutions still fail conservation. No replacement DDS is generated.
+this subset of `unresolved_texture_count`. The same holds for a material
+wrapper whose `_emissiveTexture` and `_emissiveIntensityTexture` have no source
+at all, which is common in world models: both rows are marked
+`transported_inactive_missing_emission`, the material does not glow and its
+other maps stay. Only these inactive missing sources may coexist with
+`conserved: true`. Missing active inputs, a missing half of an emission pair
+whose other half resolved, and foreign-owner substitutions still fail
+conservation. No replacement DDS is generated.
 
 ## Windows paths and ownership
 
@@ -147,6 +152,20 @@ geometry, material, package, report, rebuild, index, and command owners live in
 legacy implementation has translation-unit-private types and helpers. There
 are no source-level `.cpp` includes; each owner uses the shared 1,000-line
 default ceiling, and each real function stays at or below 150 lines.
+
+A static model's companion (`.pam` or `.pamlod`) is read as a material sidecar
+for the texture names it holds, and it is megabytes of binary mesh data. The
+scans over sidecar text in `material_text_scan.cpp` are therefore linear passes,
+each with exactly the result of the regular expression named beside it; the
+self test compares every scan with that expression on fixtures and on generated
+text. A new scan over whole sidecar text belongs there, with its expression in
+the self test, not as a `std::regex` over the text.
+
+Besides the four phase times, a report gives where material binding spent its
+time: `native_material_graph_ms`, `native_material_sidecar_lookup_ms`,
+`native_material_sidecar_parse_ms`, `native_material_declaration_ms`,
+`native_material_texture_ms`, `native_material_finish_ms` and
+`native_material_mesh_reference_ms`.
 
 ## Build
 

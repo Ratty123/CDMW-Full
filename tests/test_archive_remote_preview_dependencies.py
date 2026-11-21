@@ -19,13 +19,14 @@ from cdmw.domain.archives.catalogue import (
     ArchiveQueryHandle,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
+from cdmw.domain.archives.catalogue_operations import PrepareEntriesRequest, PrepareEntriesResult, PrepareEntryResult
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchivePreviewDependencySet,
     ArchiveRemotePreviewDependencyProvider,
     MAX_ARCHIVE_PREVIEW_DEPENDENCIES,
     MAX_ARCHIVE_PREVIEW_SNAPSHOTS,
+    MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES,
 )
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
 
@@ -364,6 +365,69 @@ def test_remote_preview_rejects_incomplete_discovery_below_the_candidate_limit()
     assert failures == [(74, "This choice has incomplete or ambiguous dependencies.")]
     assert not ready and len(service.requests) == 1  # No partial preparation/publication.
     assert provider.pending_ui_request_id is None
+
+
+def _texture_request(provider, service):
+    ready, failures = [], []
+    provider.ready.connect(lambda request_id, snapshot: ready.append((request_id, snapshot)))
+    provider.failed.connect(lambda request_id, message: failures.append((request_id, message)))
+    selected = _dto(7, "ui/texture/image/worldmap/fog.dds")
+    assert provider.request(selected, ui_request_id=74)
+    return selected, ready, failures
+
+
+def test_a_texture_previews_when_its_related_files_lookup_is_incomplete() -> None:
+    """A texture is drawn from its own bytes: an incomplete list of related files does not refuse it."""
+
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    sidecar = _dto(8, "ui/texture/image/worldmap/fog.xml")
+    service.result_ready.emit(
+        "association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (sidecar,), 1, True),
+    )
+    assert not failures
+    prepare = service.requests[-1][0]
+    assert isinstance(prepare, PrepareEntriesRequest) and prepare.entry_ids == (7, 8)
+    service.result_ready.emit(
+        "prepare-2", "prepare_entry", PrepareEntriesResult("session-a", (_prepared(selected), _prepared(sidecar)), 2, 2, 80),
+    )
+    assert [request_id for request_id, _snapshot in ready] == [74]
+    snapshot = ready[0][1]
+    assert not snapshot.truncated and [entry.path for entry in snapshot.entries] == [selected.path, sidecar.path]
+
+
+def test_a_long_arbitrary_cut_of_related_files_is_dropped_not_prepared() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    many = tuple(_dto(100 + index, f"ui/texture/other_{index}.dds") for index in range(MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES + 1))
+    service.result_ready.emit(
+        "association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, many, 4096, True),
+    )
+    assert not failures and service.requests[-1][0].entry_ids == (7,)
+    service.result_ready.emit(
+        "prepare-2", "prepare_entry", PrepareEntriesResult("session-a", (_prepared(selected),), 1, 1, 40),
+    )
+    assert len(ready) == 1 and ready[0][1].total_candidates == 0 and not ready[0][1].truncated
+
+
+def test_a_failed_related_files_lookup_still_shows_a_texture_but_not_a_model() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    selected, ready, failures = _texture_request(provider, service)
+    service.request_failed.emit("association-1", "The value cannot be an empty string.")
+    assert not failures and service.requests[-1][0].entry_ids == (7,)
+    # The file itself failing to prepare is still a failure.
+    service.request_failed.emit("prepare-2", "The archive session was closed.")
+    assert failures == [(74, "The archive session was closed.")] and not ready
+
+    model = _dto(9, "character/dress.pac")
+    assert provider.request(model, ui_request_id=75)
+    service.request_failed.emit(f"association-{len(service.requests)}", "lookup failed")
+    assert failures[-1] == (75, "lookup failed") and not ready
 
 
 def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> None:
@@ -1089,6 +1153,8 @@ class _SecondaryIndexRetryHarness(_PreviewHarness):
         self.scheduled_delays: list[int] = []
         self.rendered: list[object] = []
         self._entry_override = snapshot.selected_entry
+        # The retry is scheduled after the dependencies' own request was started.
+        self.scheduled_archive_preview_request = None
 
     def _current_archive_entry(self) -> object:
         return self._entry_override
@@ -1111,6 +1177,43 @@ def _pending_snapshot(pending: bool) -> ArchivePreviewDependencySet:
         prepared={7: _prepared(selected)},
         secondary_index_pending=pending,
     )
+
+
+def test_a_secondary_index_retry_waits_for_the_preview_still_being_built() -> None:
+    """Asking again cancels the preview in flight; a slow model was started over at every retry."""
+
+    from cdmw.ui.archive_browser import workers as workers_module
+
+    snapshot = _pending_snapshot(True)
+    harness = _SecondaryIndexRetryHarness(snapshot)
+    waiting: list[tuple[int, object]] = []
+    original_timer = workers_module.QTimer
+    workers_module.QTimer = SimpleNamespace(singleShot=lambda delay, callback: waiting.append((int(delay), callback)))
+    try:
+        for still_building in ("archive_preview_worker", "scheduled_archive_preview_request",
+                               "_archive_texture_request_loading", "archive_preview_texture_upgrade_pending"):
+            setattr(harness, still_building, object())
+            harness._retry_archive_preview_for_secondary_index(snapshot.selected_entry)
+            assert harness.rendered == [], still_building
+            assert [delay for delay, _callback in waiting] == [workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS]
+            setattr(harness, still_building, None)
+            waiting.pop()[1]()  # the preview has been shown: now the names are fetched
+            assert harness.rendered == [snapshot.selected_entry]
+            harness.rendered.clear()
+
+        # It stops waiting when another file is selected, and does not wait for ever.
+        harness.archive_preview_worker = object()
+        harness._retry_archive_preview_for_secondary_index(snapshot.selected_entry)
+        harness._entry_override = _pending_snapshot(True).selected_entry.__class__(
+            "character/other.pac", Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0)
+        waiting.pop()[1]()
+        assert harness.rendered == [] and waiting == []
+        harness._entry_override = snapshot.selected_entry
+        harness._retry_archive_preview_for_secondary_index(
+            snapshot.selected_entry, deferred=workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_DEFER_LIMIT)
+        assert harness.rendered == [] and waiting == []
+    finally:
+        workers_module.QTimer = original_timer
 
 
 def test_settled_dependencies_do_not_schedule_a_secondary_index_retry() -> None:

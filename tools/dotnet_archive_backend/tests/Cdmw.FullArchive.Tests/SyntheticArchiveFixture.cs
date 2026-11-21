@@ -201,6 +201,23 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateOpaquePayloadsAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-opaque-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        // Payload bytes that happen to read as more file names than a reference scan keeps.
+        var noise = Encoding.ASCII.GetBytes(string.Join(' ', Enumerable.Range(0, 20000).Select(static index => $"n{index}.dds")));
+        await BuildPackageAsync(root, "0009",
+        [
+            ("ui/texture/fog.dds", [.. "DDS "u8, .. noise]),
+            ("ui/texture/fog.xml", "<Texture Path=\"ui/texture/fog.dds\"/>"u8.ToArray()),
+            ("sound/windows/voice.wem", [.. "RIFF"u8, .. noise]),
+            ("sound/windows/.vce_meta", "meta"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        return fixture;
+    }
+
     public static async Task<SyntheticArchiveFixture> CreateAnimationReferencesAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-animation-{Guid.NewGuid():N}");

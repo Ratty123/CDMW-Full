@@ -128,20 +128,29 @@ public sealed class ArchiveItemCatalogBuildService(
         CancellationToken cancellationToken)
     {
         var sources = new ArchiveItemSources(session.PackageRoot);
-        var total = session.Index.EntryCount;
+        // Only these file types are offered or kept below, so the rest of the archive is not read.
+        var entryIds = ArchiveCatalogInventory.EntryIds(
+            session, ArchiveItemSources.CandidateExtensions.Concat([".prefab", ".pac", ".pact", ".dds"]), cancellationToken);
+        var total = entryIds.Length;
         var candidates = new List<ArchiveEntryDto>();
         await using var stream = new FileStream(entriesPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024 * 1024, leaveOpen: false) { NewLine = "\n" };
-        for (long entryId = 0; entryId < total; entryId++)
+        for (var index = 0; index < total; index++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if ((index & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (publishProgress is not null)
                 {
-                    await publishProgress(new ProgressUpdate(entryId, total, "item_catalog_scan")).ConfigureAwait(false);
+                    await publishProgress(new ProgressUpdate(index, total, "item_catalog_scan")).ConfigureAwait(false);
                 }
             }
+            var entryId = entryIds[index];
+            // Most textures are not icons, and their path alone says so.
+            var entryPath = session.Index.ReadEntryPath(entryId);
+            if (entryPath.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)
+                && !entryPath.Contains("icon", StringComparison.OrdinalIgnoreCase))
+                continue;
             var entry = session.ReadEntry(entryId);
             sources.Offer(entry);
             if (entry.Extension is ".prefab" or ".pac" or ".pact"

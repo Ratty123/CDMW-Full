@@ -245,7 +245,7 @@ class ArchivePreviewResultMixin:
                 self.archive_isolated_renderer_package_source = "dotnet-canonical"
                 show_textures = bool(
                     render_settings.use_textures_by_default
-                    and self._archive_active_package_has_textures()
+                    and self._archive_active_package_draws_textures()
                 )
                 self.archive_d3d11_preview_host.set_render_tuning(render_settings)
                 self.archive_d3d11_preview_host.set_viewport_display_mode(
@@ -412,7 +412,7 @@ class ArchivePreviewResultMixin:
                 and self._current_model_preview_render_settings().use_textures_by_default
                 and not finalized_result.native_preview_diagnostics.get("texture_preparation_error")
                 and not bool(
-                    getattr(self, "_archive_active_package_has_textures", lambda: False)()
+                    getattr(self, "_archive_active_package_draws_textures", lambda: False)()
                 )
                 and not bool(getattr(self, "_archive_texture_request_loading", False))
             ):

@@ -1141,6 +1141,7 @@ static void run_batch_shader_family_owner_contract_self_test() {
 }
 
 static void run_material_contract_self_test() {
+    run_material_text_scan_self_test();
     run_tiled_exact_uv_self_test();
     run_item_set_components_self_test();
     run_sub_component_wrapper_order_self_test();

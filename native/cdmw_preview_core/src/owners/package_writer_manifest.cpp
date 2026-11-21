@@ -60,7 +60,8 @@ static std::string native_material_conservation_json(const NativePackage& packag
             if (row.texture_resolved) ++resolved_texture_count;
             else {
                 ++unresolved_texture_count;
-                if (row.status == "transported_inactive_rgb_emission") {
+                if (row.status == "transported_inactive_rgb_emission"
+                    || row.status == "transported_inactive_missing_emission") {
                     ++inactive_unavailable_texture_count;
                 }
             }

@@ -157,6 +157,17 @@ class ArchivePreviewLoadingMixin:
             and controller is not None
             and getattr(controller, "applied_package_path", "")
         )
+        # A texture that follows a texture is drawn by the helper already on
+        # screen, so the previous one stays up until the next is ready, as a
+        # model does, without a text page flashing between them.
+        texture_preview = getattr(self, "archive_texture_preview", None)
+        keep_texture_visible = bool(
+            entry is not None
+            and str(getattr(entry, "extension", "") or "").strip().lower() == ".dds"
+            and texture_preview is not None
+            and self.archive_preview_stack.currentWidget() is texture_preview
+            and texture_preview.has_ready_helper()
+        )
         self.archive_preview_meta_label.setText("Loading preview...")
         self._clear_archive_texture_reference_views()
         self.archive_preview_warning_badge.clear()
@@ -175,7 +186,7 @@ class ArchivePreviewLoadingMixin:
             self.archive_preview_label.clear_preview("Preparing archive preview...")
             self.archive_media_preview.clear_media("Preparing archive preview...")
         self._update_archive_model_action_controls(None)
-        if not keep_d3d11_visible:
+        if not keep_d3d11_visible and not keep_texture_visible:
             self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
         self.archive_preview_tabs.setCurrentIndex(0)
         self._set_archive_preview_image_controls_enabled(False)

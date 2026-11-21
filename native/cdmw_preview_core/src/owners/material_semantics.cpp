@@ -250,17 +250,16 @@ static std::string semantic_subtype_for_role(const std::string& role) {
 static std::vector<std::string> extract_dds_tokens(const std::string& text) {
     std::vector<std::string> tokens;
     std::set<std::string> seen;
-    const std::regex pattern("([A-Za-z0-9_./\\\\-]+\\.dds)", std::regex_constants::icase);
-    auto begin = std::sregex_iterator(text.begin(), text.end(), pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        std::string token = (*it)[1].str();
+    // Every match of ([A-Za-z0-9_./\\-]+\.dds), ignoring case.
+    scan_path_tokens(text, {"dds"}, [&](size_t start, size_t end) {
+        std::string token = text.substr(start, end - start);
         std::replace(token.begin(), token.end(), '\\', '/');
         const std::string key = lower_copy(basename_from_path(token));
         if (!key.empty() && seen.insert(key).second) {
             tokens.push_back(token);
         }
-    }
+        return true;
+    });
     return tokens;
 }
 
@@ -560,15 +559,12 @@ static std::string joined_parameter_names(const std::vector<MaterialParameterRec
 }
 
 static std::string extract_shader_family_hint(const std::string& text) {
-    const std::regex material_name_pattern("(?:^|[\\s<])(?:_materialName|MaterialName|TechniqueName)=\"([^\"]+)\"", std::regex_constants::icase);
-    std::smatch match;
-    if (std::regex_search(text, match, material_name_pattern)) return match[1].str();
-    const std::regex pattern(
-        "(SkinnedMesh(?:Skin(?:Wrinkle)?|Standard(?:_Ver[0-9]+)?|Cloth(?:_Ver[0-9]+)?|Hair|Fur(?:_Ver[0-9]+)?|AnimalHair)|MultiTextured|Standard)",
-        std::regex_constants::icase
-    );
-    if (std::regex_search(text, match, pattern)) return match[1].str();
-    return "";
+    // The value of the first attribute that matches, ignoring case,
+    //   "(?:^|[\\s<])(?:_materialName|MaterialName|TechniqueName)=\"([^\"]+)\""
+    // and otherwise the first shader family name in the text.
+    std::string family = first_material_name_attribute(text);
+    if (family.empty()) family = first_shader_family_token(text);
+    return family;
 }
 
 static std::string xml_attr_value(const std::string& text, std::initializer_list<const char*> names) {
@@ -645,15 +641,16 @@ static std::string xml_attr_value_from_map(const std::map<std::string, std::stri
 static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, const std::string& tag_name) {
     std::vector<std::string> blocks;
     if (text.empty() || tag_name.empty()) return blocks;
-    const std::string lowered = lower_copy(text);
+    // Tag names are matched without regard to case, in place: this runs many times
+    // over one sidecar, and a static model's companion sidecar is megabytes long.
     const std::string open_token = "<" + lower_copy(tag_name);
     const std::string close_token = "</" + lower_copy(tag_name) + ">";
     size_t search = 0;
     while (true) {
-        const size_t open = lowered.find(open_token, search);
+        const size_t open = find_ascii_icase(text, open_token, search);
         if (open == std::string::npos) break;
         const size_t name_end = open + open_token.size();
-        if (name_end < lowered.size() && !xml_tag_name_boundary(lowered[name_end])) {
+        if (name_end < text.size() && !xml_tag_name_boundary(text[name_end])) {
             search = name_end;
             continue;
         }
@@ -664,7 +661,7 @@ static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, 
         while (cursor > open && std::isspace(static_cast<unsigned char>(text[cursor - 1]))) --cursor;
         const bool self_closing = cursor > open && text[cursor - 1] == '/';
         if (!self_closing) {
-            const size_t close = lowered.find(close_token, open_end + 1);
+            const size_t close = find_ascii_icase(text, close_token, open_end + 1);
             if (close == std::string::npos) {
                 search = open_end + 1;
                 continue;
@@ -678,15 +675,7 @@ static std::vector<std::string> collect_xml_tag_blocks(const std::string& text, 
 }
 
 static std::vector<std::string> collect_xml_open_tags(const std::string& text) {
-    std::vector<std::string> tags;
-    if (text.empty()) return tags;
-    const std::regex pattern("<[^!?/][^>]*>");
-    auto begin = std::sregex_iterator(text.begin(), text.end(), pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        tags.push_back(it->str());
-    }
-    return tags;
+    return scan_xml_open_tags(text);
 }
 
 static std::string native_joined_lower(std::initializer_list<std::string> values) {

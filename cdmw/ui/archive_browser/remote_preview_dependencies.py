@@ -25,6 +25,7 @@ from cdmw.domain.archives.catalogue_operations import (
     PrepareEntriesRequest,
     PrepareEntriesResult,
 )
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 
@@ -32,6 +33,10 @@ from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 MAX_ARCHIVE_PREVIEW_ENTRIES = 4096
 MAX_ARCHIVE_PREVIEW_DEPENDENCIES = MAX_ARCHIVE_PREVIEW_ENTRIES - 1
 MAX_ARCHIVE_PREVIEW_SNAPSHOTS = 4
+# A model is drawn from its dependencies, so an incomplete set is refused. Every
+# other file is drawn from its own bytes: for it an incomplete or failed lookup
+# only shortens the related-files list, and a short list is kept as it is.
+MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES = 256
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,10 +413,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
                 return
             if pending.truncated:
-                self._fail_pending(
-                    "This choice has incomplete or ambiguous dependencies."
-                )
-                return
+                if self._needs_complete_dependencies(pending):
+                    self._fail_pending(
+                        "This choice has incomplete or ambiguous dependencies."
+                    )
+                    return
+                self._settle_for_found_dependencies(pending)
             if pending.association_index < len(pending.component_entries):
                 pending.association_index += 1
                 self._start_association_lookup(pending)
@@ -544,6 +551,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if pending is None or pending.request_id != str(request_id):
             return
         message = str(getattr(error, "message", "") or error or "Archive preview lookup failed.")
+        if pending.operation == "find_association_candidates" and not self._needs_complete_dependencies(pending):
+            # The lookup of related files failed; the file itself can still be shown.
+            pending.candidates.clear()
+            self._settle_for_found_dependencies(pending)
+            self._start_dependency_preparation(pending)
+            return
         self._fail_pending(message)
 
     def _handle_cancelled(self, request_id: str) -> None:
@@ -665,6 +678,21 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         )
         pending.candidates = {candidate.entry_id: candidate for _index, candidate in ordered}
 
+    @staticmethod
+    def _needs_complete_dependencies(pending: _PendingPreviewDependencies) -> bool:
+        return bool(pending.component_entries) or (
+            str(pending.selected.extension or "").casefold() in ARCHIVE_MESH_EXTENSIONS
+        )
+
+    @staticmethod
+    def _settle_for_found_dependencies(pending: _PendingPreviewDependencies) -> None:
+        """Go on with what an incomplete lookup found, unless that is a long, arbitrary cut."""
+
+        if len(pending.candidates) > MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES:
+            pending.candidates.clear()
+        pending.total_candidates = len(pending.candidates)
+        pending.truncated = False
+
     def _start_dependency_preparation(self, pending: _PendingPreviewDependencies) -> None:
         entry_ids = (pending.selected.entry_id, *pending.candidates)
         try:
@@ -726,4 +754,5 @@ __all__ = [
     "MAX_ARCHIVE_PREVIEW_DEPENDENCIES",
     "MAX_ARCHIVE_PREVIEW_ENTRIES",
     "MAX_ARCHIVE_PREVIEW_SNAPSHOTS",
+    "MAX_BEST_EFFORT_PREVIEW_DEPENDENCIES",
 ]

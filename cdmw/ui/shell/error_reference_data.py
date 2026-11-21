@@ -8444,7 +8444,7 @@ MESSAGE_REFERENCE = [
     "message": "Appearance could not be decoded: {error.Message}",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 90
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 93
     }
   },
   {
@@ -8452,7 +8452,7 @@ MESSAGE_REFERENCE = [
     "message": "Appearance could not be read: {error.Message}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 92
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 95
     }
   },
   {
@@ -8460,7 +8460,7 @@ MESSAGE_REFERENCE = [
     "message": "Appearance has no supported body or face component declarations.",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 94
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 97
     }
   },
   {
@@ -9076,7 +9076,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive contains too many entries for the dependency lookup index.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 304
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 307
     }
   },
   {
@@ -9108,7 +9108,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency facet count is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 509
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 512
     }
   },
   {
@@ -9116,7 +9116,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency facet payload exceeded its safety bound.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 489
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 492
     }
   },
   {
@@ -9124,7 +9124,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency facet value is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 518
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 521
     }
   },
   {
@@ -9132,7 +9132,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency index destination has no parent directory.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 401
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 404
     }
   },
   {
@@ -9140,7 +9140,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency index does not match its source archive index.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 239
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 242
     }
   },
   {
@@ -9148,7 +9148,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency index facet data has trailing bytes.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 258
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 261
     }
   },
   {
@@ -9156,7 +9156,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive dependency index is smaller than its header.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 211
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 214
     }
   },
   {
@@ -9444,7 +9444,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive index returned a truncated virtual path.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 342
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveDependencyIndex.cs": 345
     }
   },
   {
@@ -9524,7 +9524,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount directory is duplicated.",
     "recovery": "conflict",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 76
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 81
     }
   },
   {
@@ -9532,7 +9532,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount directory name is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 74
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 79
     }
   },
   {
@@ -9540,7 +9540,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount name is not terminated.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 71
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 76
     }
   },
   {
@@ -9548,7 +9548,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount name offset is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 68
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 73
     }
   },
   {
@@ -9556,7 +9556,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount table checksum is invalid.",
     "recovery": "integrity",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 81
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 86
     }
   },
   {
@@ -9565,7 +9565,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/archive_resident_index.py": 171,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 41
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 46
     }
   },
   {
@@ -9581,7 +9581,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mount table layout is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 99
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 104
     }
   },
   {
@@ -9741,7 +9741,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview dependency set has no selected entry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 55
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 60
     }
   },
   {
@@ -9750,7 +9750,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/archive_browser/preview_result.py": 444,
-      "cdmw/ui/archive_browser/workers.py": 927
+      "cdmw/ui/archive_browser/workers.py": 958
     }
   },
   {
@@ -9758,7 +9758,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 674
+      "cdmw/ui/archive_browser/workers.py": 705
     }
   },
   {
@@ -9766,7 +9766,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview lookup failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 547
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 560
     }
   },
   {
@@ -9774,7 +9774,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview timed out and was stopped.",
     "recovery": "timeout",
     "sources": {
-      "cdmw/ui/archive_browser/preview_loading.py": 287
+      "cdmw/ui/archive_browser/preview_loading.py": 298
     }
   },
   {
@@ -10551,8 +10551,8 @@ MESSAGE_REFERENCE = [
     "message": "Character metadata exceeds 128 MiB: {entry.Path}",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 40,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 37
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 43,
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogBuilder.cs": 40
     }
   },
   {
@@ -10600,7 +10600,7 @@ MESSAGE_REFERENCE = [
     "message": "Character preview preparation was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 555
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 568
     }
   },
   {
@@ -10811,7 +10811,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact archive mount table is truncated.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 62
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 67
     }
   },
   {
@@ -10819,7 +10819,7 @@ MESSAGE_REFERENCE = [
     "message": "Compact archive mount table layout is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 64
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 69
     }
   },
   {
@@ -11212,7 +11212,7 @@ MESSAGE_REFERENCE = [
     "message": "Customization dependencies are retained. The preview applies supported base appearance; complete customization rendering is unavailable.",
     "recovery": "missing",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 101
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalogBuilder.cs": 104
     }
   },
   {
@@ -11773,7 +11773,7 @@ MESSAGE_REFERENCE = [
     "message": "Full preview failed after fast preview: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 276
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 293
     }
   },
   {
@@ -11781,7 +11781,7 @@ MESSAGE_REFERENCE = [
     "message": "Full preview failed after {label} preview: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 968
+      "cdmw/ui/archive_browser/workers.py": 999
     }
   },
   {
@@ -11949,7 +11949,7 @@ MESSAGE_REFERENCE = [
     "message": "Incomplete {stem} table pair in {selected.SourcePamt}.",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 164
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemSources.cs": 181
     }
   },
   {
@@ -14405,7 +14405,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepared preview source is missing for entry id {dto.entry_id}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 81
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 86
     }
   },
   {
@@ -14919,7 +14919,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident package update failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 280
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 297
     }
   },
   {
@@ -15623,7 +15623,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 384
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 401
     }
   },
   {
@@ -16007,7 +16007,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker did not prepare every bounded preview dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 427
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 434
     }
   },
   {
@@ -16047,7 +16047,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned an invalid preview dependency set.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/workers.py": 586
+      "cdmw/ui/archive_browser/workers.py": 592
     }
   },
   {
@@ -16055,7 +16055,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned invalid prepared preview dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 394
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 399
     }
   },
   {
@@ -16063,7 +16063,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned preview candidates for the wrong entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 391
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 396
     }
   },
   {
@@ -16664,7 +16664,7 @@ MESSAGE_REFERENCE = [
     "message": "The native item catalogue indexer did not finish within {IndexerTimeout.TotalMinutes:N0} minutes.",
     "recovery": "timeout",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 234
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 243
     }
   },
   {
@@ -16672,7 +16672,7 @@ MESSAGE_REFERENCE = [
     "message": "The native item catalogue report is invalid.",
     "recovery": "input",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 255
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 264
     }
   },
   {
@@ -16680,7 +16680,7 @@ MESSAGE_REFERENCE = [
     "message": "The native item catalogue schema is not supported; expected {NativeCatalogSchemaVersion}.",
     "recovery": "configuration",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 260
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 269
     }
   },
   {
@@ -16752,7 +16752,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview renderer refused the display change ({reason}); the viewport still shows the previous view.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 451
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 468
     }
   },
   {
@@ -17027,8 +17027,8 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/item_set_preview.py": 137,
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 255,
-      "cdmw/ui/archive_browser/workers.py": 592
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 260,
+      "cdmw/ui/archive_browser/workers.py": 598
     }
   },
   {
@@ -18008,7 +18008,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw-archive-accelerator could not be started.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 219
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 228
     }
   },
   {
@@ -18016,7 +18016,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw-archive-accelerator exited with code {process.ExitCode}: {detail.Trim()}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 243
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 252
     }
   },
   {
@@ -18024,7 +18024,7 @@ MESSAGE_REFERENCE = [
     "message": "cdmw-archive-accelerator.exe was not found. Rebuild CDMW Full or set CDMW_FULL_ARCHIVE_ITEM_INDEX_PATH.cdmw-archive-accelerator.exe",
     "recovery": "missing",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 437
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveItemCatalogBuildService.cs": 446
     }
   },
   {
@@ -18459,8 +18459,8 @@ MESSAGE_REFERENCE = [
     "message": "failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 275,
-      "cdmw/ui/archive_browser/workers.py": 970,
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 292,
+      "cdmw/ui/archive_browser/workers.py": 1001,
       "cdmw/ui/shell/archive_backend_client.py": 75
     }
   },
@@ -41092,7 +41092,7 @@ MESSAGE_REFERENCE = [
     "message": "native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 972
+      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 893
     }
   },
   {
@@ -41100,7 +41100,7 @@ MESSAGE_REFERENCE = [
     "message": "native material sidecar read failed:",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 783
+      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 801
     }
   },
   {
@@ -70863,7 +70863,7 @@ MESSAGE_REFERENCE = [
     "message": "native archive IO preflight failed",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/preview_report.cpp": 486
+      "native/cdmw_preview_core/src/owners/preview_report.cpp": 496
     }
   },
   {
@@ -71424,7 +71424,7 @@ MESSAGE_REFERENCE = [
     "message": "native model parser found no renderable geometry",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/preview_report.cpp": 345
+      "native/cdmw_preview_core/src/owners/preview_report.cpp": 352
     }
   },
   {
@@ -71512,7 +71512,7 @@ MESSAGE_REFERENCE = [
     "message": "native preview-core package generation only supports .pac, .pam, .pamlod, and .pat",
     "recovery": "stale",
     "sources": {
-      "native/cdmw_preview_core/src/owners/preview_report.cpp": 341
+      "native/cdmw_preview_core/src/owners/preview_report.cpp": 348
     }
   },
   {
@@ -71936,7 +71936,7 @@ MESSAGE_REFERENCE = [
     "message": "no renderable geometry",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/preview_report.cpp": 224
+      "native/cdmw_preview_core/src/owners/preview_report.cpp": 231
     }
   },
   {
@@ -75072,7 +75072,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported Character Context model extension",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_preview_core/src/owners/preview_report.cpp": 221
+      "native/cdmw_preview_core/src/owners/preview_report.cpp": 228
     }
   },
   {
@@ -105603,7 +105603,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DDS preview dimensions",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 238
+      "cdmw/ui/preview/texture_view.py": 287
     }
   },
   {
@@ -105963,7 +105963,7 @@ MESSAGE_REFERENCE = [
     "message": "No image preview available.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 56
+      "cdmw/ui/preview/texture_view.py": 63
     }
   },
   {
@@ -106115,7 +106115,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a Texture Editor project: {resolved.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 541
+      "cdmw/core/texture_editor_project_io.py": 554
     }
   },
   {
@@ -106906,7 +106906,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor layer {layer.name} has no pixels to save.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 359
+      "cdmw/core/texture_editor_project_io.py": 372
     }
   },
   {
@@ -106914,7 +106914,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project has an unreadable version: {data.get('version')}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 545
+      "cdmw/core/texture_editor_project_io.py": 558
     }
   },
   {
@@ -106922,7 +106922,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project is missing required asset files: {sample}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 603
+      "cdmw/core/texture_editor_project_io.py": 616
     }
   },
   {
@@ -106930,7 +106930,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture Editor project save failed and rollback was incomplete. Recovery data was retained at: {recovery_paths or 'no recoverable backup path'}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 469
+      "cdmw/core/texture_editor_project_io.py": 482
     }
   },
   {
@@ -108066,7 +108066,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported texture source for Texture Editor: {resolved.suffix}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 76
+      "cdmw/core/texture_editor_project_io.py": 77
     }
   },
   {
@@ -108413,7 +108413,7 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "native/cd_texture_dx/src/encode.cpp": 469,
-      "native/cd_texture_dx/src/preview.cpp": 288
+      "native/cd_texture_dx/src/preview.cpp": 343
     }
   },
   {
@@ -108422,7 +108422,7 @@ MESSAGE_REFERENCE = [
     "recovery": "write",
     "sources": {
       "native/cd_texture_dx/src/encode.cpp": 466,
-      "native/cd_texture_dx/src/preview.cpp": 285
+      "native/cd_texture_dx/src/preview.cpp": 340
     }
   },
   {
@@ -108431,7 +108431,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cd_texture_dx/src/encode.cpp": 39,
-      "native/cd_texture_dx/src/preview.cpp": 37
+      "native/cd_texture_dx/src/preview.cpp": 39
     }
   },
   {
@@ -109176,7 +109176,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported output_pixel_type",
     "recovery": "unsupported",
     "sources": {
-      "native/cd_texture_dx/src/preview.cpp": 101
+      "native/cd_texture_dx/src/preview.cpp": 149
     }
   },
   {
@@ -109402,7 +109402,7 @@ MESSAGE_REFERENCE = [
     "message": "{resolved.name} was saved by a newer version of the Texture Editor (project version {project_version}; this build reads up to {_PROJECT_VERSION}).",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/texture_editor_project_io.py": 547
+      "cdmw/core/texture_editor_project_io.py": 560
     }
   },
   {
@@ -110641,6 +110641,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/texture_editor_project_io.py",
     "cdmw/core/texture_native.py",
     "cdmw/core/texture_native_preview_cache.py",
+    "cdmw/core/texture_native_rgba.py",
     "cdmw/core/texture_pipeline/inspection.py",
     "cdmw/core/texture_pipeline/preview.py",
     "cdmw/domain/textures/editor_presets.py",
@@ -111701,6 +111702,9 @@ SOURCE_COVERAGE = {
     "code": 8,
     "display": 1,
     "failure": 6,
+    "raise": 1
+  },
+  "cdmw/core/texture_native_rgba.py": {
     "raise": 1
   },
   "cdmw/core/texture_pipeline/__init__.py": {},
@@ -116627,6 +116631,7 @@ SOURCE_COVERAGE = {
   "native/cdmw_preview_core/src/owners/material_binding_build.cpp": {
     "native_message": 2
   },
+  "native/cdmw_preview_core/src/owners/material_binding_finish.cpp": {},
   "native/cdmw_preview_core/src/owners/material_bindings.cpp": {},
   "native/cdmw_preview_core/src/owners/material_graph.cpp": {},
   "native/cdmw_preview_core/src/owners/material_graph_cache.cpp": {
@@ -116642,6 +116647,7 @@ SOURCE_COVERAGE = {
   },
   "native/cdmw_preview_core/src/owners/material_selection_cache.cpp": {},
   "native/cdmw_preview_core/src/owners/material_semantics.cpp": {},
+  "native/cdmw_preview_core/src/owners/material_text_scan.cpp": {},
   "native/cdmw_preview_core/src/owners/mesh_rebuild_dispatch.cpp": {
     "native_handoff": 7,
     "native_message": 7
@@ -116785,13 +116791,14 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
-    "native_message": 1
-  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
     "native_handoff": 18,
     "native_message": 12
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
+    "native_message": 1
+  },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCatalogInventory.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
     "native_handoff": 4,
     "native_message": 4
@@ -116885,11 +116892,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,

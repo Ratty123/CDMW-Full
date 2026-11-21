@@ -251,15 +251,15 @@ internal static class ArchiveNameIndexBuilder
         Func<ProgressUpdate, Task>? progress)
     {
         var sources = new ArchiveItemSources(session.PackageRoot);
-        var total = session.Index.EntryCount;
-        for (long entryId = 0; entryId < total; entryId++)
+        var entryIds = ArchiveCatalogInventory.EntryIds(session, ArchiveItemSources.CandidateExtensions, cancellationToken);
+        for (var index = 0; index < entryIds.Length; index++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if ((index & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Publish(progress, new ProgressUpdate(entryId, total, "names_scan"));
+                Publish(progress, new ProgressUpdate(index, entryIds.Length, "names_scan"));
             }
-            sources.Offer(session.ReadEntry(entryId));
+            sources.Offer(session.ReadEntry(entryIds[index]));
         }
         sources.Finish();
         var result = new NameSources { ItemInfo = sources.ItemInfo, ItemInfoHeader = sources.ItemInfoHeader, StringInfo = sources.StringInfo };
@@ -782,16 +782,17 @@ internal static class ArchiveNameIndexBuilder
         {
             return resolved;
         }
-        var total = session.Index.EntryCount;
+        var entryIds = ArchiveCatalogInventory.EntryIds(session, [".prefab", ".pac", ".pact"], cancellationToken);
+        var total = entryIds.Length;
         Publish(progress, new ProgressUpdate(0, total, "names_resolve_models"));
-        for (long entryId = 0; entryId < total && resolved.Count < wantedHashes.Count; entryId++)
+        for (var index = 0; index < total && resolved.Count < wantedHashes.Count; index++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if ((index & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Publish(progress, new ProgressUpdate(entryId, total, "names_resolve_models"));
+                Publish(progress, new ProgressUpdate(index, total, "names_resolve_models"));
             }
-            var entry = session.ReadEntry(entryId);
+            var entry = session.ReadEntry(entryIds[index]);
             if (!PackageGroup(entry.SourcePamt).Equals("0009", StringComparison.OrdinalIgnoreCase) ||
                 entry.Extension is not (".prefab" or ".pac" or ".pact"))
             {
@@ -847,16 +848,17 @@ internal static class ArchiveNameIndexBuilder
 
         var matches = new List<(ArchiveEntryDto Entry, HashSet<string> Owners)>();
         var assets = new Dictionary<string, ArchiveEntryDto>(StringComparer.OrdinalIgnoreCase);
-        var total = session.Index.EntryCount;
+        var entryIds = ArchiveCatalogInventory.EntryIds(session, [".pac", ".pam", ".pamlod", ".prefab", ".pami"], cancellationToken);
+        var total = entryIds.Length;
         Publish(progress, new ProgressUpdate(0, total, "names_prefab_scan"));
-        for (long entryId = 0; entryId < total; entryId++)
+        for (var index = 0; index < total; index++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if ((index & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Publish(progress, new ProgressUpdate(entryId, total, "names_prefab_scan"));
+                Publish(progress, new ProgressUpdate(index, total, "names_prefab_scan"));
             }
-            var entry = session.Index.ReadEntry(entryId, session.Id);
+            var entry = session.Index.ReadEntry(entryIds[index], session.Id);
             if (entry.Extension is ".pac" or ".pam" or ".pamlod" or ".prefab" or ".pami"
                 && (sources is null || sources.Accepts(entry)))
             {

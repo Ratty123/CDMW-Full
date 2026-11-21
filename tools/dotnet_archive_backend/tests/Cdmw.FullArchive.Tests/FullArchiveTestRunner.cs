@@ -72,6 +72,8 @@ internal static class FullArchiveTestRunner
             ("npc_catalogue_prefab_models", NpcCatalogTests.PrefabModelsAsync),
             ("npc_catalogue_outfits_search_and_wearers", NpcCatalogTests.CatalogueAsync),
             ("npc_catalogue_cache_and_cancellation", NpcCatalogTests.CacheAsync),
+            ("catalogue_inventory_matches_full_walk", CatalogInventoryTests.RunAsync),
+            ("preview_association_skips_pixel_and_sound_payloads", CatalogInventoryTests.OpaquePayloadsAsync),
             ("texture_usage_classification", TextureUsageClassificationAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),

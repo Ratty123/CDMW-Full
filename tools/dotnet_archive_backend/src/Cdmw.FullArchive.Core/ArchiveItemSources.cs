@@ -10,6 +10,11 @@ internal sealed class ArchiveItemSources
     private const string Legacy = "gamedata/binary__/client/bin/";
     private const string Current = "gamedata/binarystaticinfo__/bin/";
     private const string LocalizationRoot = "gamedata/stringtable/binary__/";
+    // Every table and string table selected here ends in one of these, so a caller
+    // can offer only those entries (ArchiveIndex.GetEntryIdsByExtension) instead of
+    // reading all two million.
+    internal static readonly string[] CandidateExtensions =
+        [".pabgb", ".pabgh", ".staticinfobody", ".staticinfoheader", ".paloc"];
     private readonly Dictionary<string, List<ArchiveEntryDto>> _candidates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _mounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _hasMountTable;
@@ -142,10 +147,22 @@ internal sealed class ArchiveItemSources
 
     public void Offer(ArchiveEntryDto entry)
     {
-        var path = entry.Path.Replace('\\', '/').Trim('/').ToLowerInvariant();
-        if (!path.StartsWith(Legacy) && !path.StartsWith(Current) && !path.StartsWith(LocalizationRoot)) return;
+        var path = CandidateKey(entry.Path);
+        if (path is null) return;
         if (!_candidates.TryGetValue(path, out var entries)) _candidates[path] = entries = [];
         entries.Add(entry);
+    }
+
+    /// <summary>True for a path <see cref="Offer"/> keeps.</summary>
+    internal static bool IsCandidatePath(string path) => CandidateKey(path) is not null;
+
+    private static string? CandidateKey(string entryPath)
+    {
+        var path = entryPath.Replace('\\', '/').Trim('/').ToLowerInvariant();
+        if (!path.StartsWith(Legacy) && !path.StartsWith(Current) && !path.StartsWith(LocalizationRoot)) return null;
+        foreach (var extension in CandidateExtensions)
+            if (path.EndsWith(extension, StringComparison.Ordinal)) return path;
+        return null;
     }
 
     private (ArchiveEntryDto? Body, ArchiveEntryDto? Header) Pair(string stem, bool current)

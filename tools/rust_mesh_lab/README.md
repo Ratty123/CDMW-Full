@@ -38,7 +38,9 @@ coordinates. Load/view events carry their generation; stale requests are ignored
 An occluded window can upload but cannot promise a presented frame. Input lines
 are limited to 64 KiB and DDS data to 512 MiB; arrays, volumes and cubemaps are
 refused by the shared 2D upload contract. The Qt host retains its cancellable PNG
-fallback and stops the owned helper on hide, replacement, close or shutdown.
+fallback. It keeps a ready helper for the next DDS, sending `load` with a higher
+generation, and stops it on close or shutdown, for a file that is not a DDS, on
+a protocol error or timeout, and 15 seconds after the view is hidden.
 
 `--capture-dds-texture <absolute DDS> <new PNG>` exercises the same shader offscreen
 without a native window. It emits `frame_ready` before PNG encoding and `captured`

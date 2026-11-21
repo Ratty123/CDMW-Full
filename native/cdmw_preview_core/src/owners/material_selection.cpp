@@ -518,23 +518,21 @@ struct SidecarParameterSummary {
     std::string linked_mesh_path;
 };
 
-static int regex_count(const std::string& text, const std::regex& pattern) {
-    return static_cast<int>(std::distance(std::sregex_iterator(text.begin(), text.end(), pattern), std::sregex_iterator()));
-}
-
 static SidecarParameterSummary summarize_sidecar_parameters(const std::string& text) {
     SidecarParameterSummary summary;
-    summary.texture_params = regex_count(text, std::regex("MaterialParameterTexture", std::regex_constants::icase));
-    summary.float_params = regex_count(text, std::regex("MaterialParameterFloat|<FloatParameter|_float", std::regex_constants::icase));
-    summary.color_params = regex_count(text, std::regex("MaterialParameterColor|ColorParameter|Tint|_color", std::regex_constants::icase));
-    summary.byte4_params = regex_count(text, std::regex("MaterialParameterByte4|Byte4", std::regex_constants::icase));
-    summary.bit_flags = regex_count(text, std::regex("BitFlag|MaterialBit|_flag", std::regex_constants::icase));
-    const std::regex linked_mesh_pattern("([A-Za-z0-9_./\\\\-]+\\.(?:pac|pam|pamlod))", std::regex_constants::icase);
-    std::smatch match;
-    if (std::regex_search(text, match, linked_mesh_pattern)) {
-        summary.linked_mesh_path = match[1].str();
+    // Counts of these names, ignoring case, as a regular expression search counts them.
+    summary.texture_params = count_icase_literals(text, {"materialparametertexture"});
+    summary.float_params = count_icase_literals(text, {"materialparameterfloat", "<floatparameter", "_float"});
+    summary.color_params = count_icase_literals(text, {"materialparametercolor", "colorparameter", "tint", "_color"});
+    summary.byte4_params = count_icase_literals(text, {"materialparameterbyte4", "byte4"});
+    summary.bit_flags = count_icase_literals(text, {"bitflag", "materialbit", "_flag"});
+    // The first match of ([A-Za-z0-9_./\\-]+\.(?:pac|pam|pamlod)): a ".pamlod" name
+    // ends after ".pam", as it always has.
+    scan_path_tokens(text, {"pac", "pam"}, [&](size_t start, size_t end) {
+        summary.linked_mesh_path = text.substr(start, end - start);
         std::replace(summary.linked_mesh_path.begin(), summary.linked_mesh_path.end(), '\\', '/');
-    }
+        return false;
+    });
     return summary;
 }
 

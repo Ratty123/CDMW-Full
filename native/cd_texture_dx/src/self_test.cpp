@@ -6,7 +6,10 @@
 #include <cstring>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -18,6 +21,46 @@ bool encoded_ok(const std::string& report) {
 
 bool decoded_ok(const std::string& report) {
     return report.find("\"status\":\"decoded\"") != std::string::npos;
+}
+
+// The raw container must hold exactly the pixels the PNG holds.
+const char* raw_rgba8_matches_png(const PreviewJob& png_job) {
+    PreviewJob raw_job = png_job;
+    raw_job.output = png_job.output + L".rgba";
+    raw_job.output_container = "rgba8_raw";
+    const std::string report = decode_preview_job(raw_job);
+    if (!decoded_ok(report) || report.find("\"output_container\":\"rgba8_raw\"") == std::string::npos) {
+        return "decode_rgba8_raw";
+    }
+    DirectX::ScratchImage png_pixels;
+    DirectX::TexMetadata png_metadata{};
+    const HRESULT hr = DirectX::LoadFromWICFile(
+        png_job.output.c_str(),
+        DirectX::WIC_FLAGS_FORCE_RGB | DirectX::WIC_FLAGS_IGNORE_SRGB,
+        &png_metadata,
+        png_pixels
+    );
+    const DirectX::Image* png_frame = FAILED(hr) ? nullptr : png_pixels.GetImage(0, 0, 0);
+    if (!png_frame || png_frame->format != DXGI_FORMAT_R8G8B8A8_UNORM) return "load_rgba8_raw_reference";
+    std::ifstream stream(fs::path(raw_job.output), std::ios::binary);
+    const std::vector<char> raw((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    const size_t row_bytes = png_frame->width * 4;
+    const uint64_t payload_bytes = static_cast<uint64_t>(row_bytes) * png_frame->height;
+    const uint32_t fields[4] = {
+        1u, static_cast<uint32_t>(png_frame->width), static_cast<uint32_t>(png_frame->height), 4u,
+    };
+    if (raw.size() != 32 + payload_bytes
+        || std::memcmp(raw.data(), "CDMWRGBA", 8) != 0
+        || std::memcmp(raw.data() + 8, fields, sizeof(fields)) != 0
+        || std::memcmp(raw.data() + 24, &payload_bytes, sizeof(payload_bytes)) != 0) {
+        return "rgba8_raw_header";
+    }
+    for (size_t y = 0; y < png_frame->height; ++y) {
+        if (std::memcmp(raw.data() + 32 + y * row_bytes, png_frame->pixels + y * png_frame->rowPitch, row_bytes) != 0) {
+            return "rgba8_raw_pixels";
+        }
+    }
+    return nullptr;
 }
 
 }  // namespace
@@ -262,6 +305,14 @@ bool texture_codec_self_test(std::string& failed_component) {
         return finish(false, "decode_selected_mip");
     }
 
+    PreviewJob full_job = mip_job;
+    full_job.output = (root / L"mip0.png").wstring();
+    full_job.requested_mip = 0;
+    if (!decoded_ok(decode_preview_job(full_job))) return finish(false, "decode_full_mip");
+    for (const PreviewJob& png_job : {full_job, mip_job}) {
+        if (const char* failure = raw_rgba8_matches_png(png_job)) return finish(false, failure);
+    }
+
     DirectX::ScratchImage gray_source;
     hr = gray_source.Initialize2D(DXGI_FORMAT_R16_UNORM, 16, 16, 1, 1);
     if (FAILED(hr)) return finish(false, "initialize_gray16_source");
@@ -301,6 +352,10 @@ bool texture_codec_self_test(std::string& failed_component) {
     );
     if (FAILED(hr) || gray_metadata.format != DXGI_FORMAT_R16_UNORM) {
         return finish(false, "inspect_gray16_png");
+    }
+    gray_job.output_container = "rgba8_raw";
+    if (decoded_ok(decode_preview_job(gray_job))) {
+        return finish(false, "rgba8_raw_refuses_gray16");
     }
 
     return finish(true, "");

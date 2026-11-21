@@ -733,3 +733,59 @@ def test_untick_hides_textures_even_when_the_mirror_says_they_are_hidden(tmp_pat
 
     assert harness.archive_d3d11_preview_host.viewport_modes == ["untextured_wire"]
     assert harness.archive_d3d11_preview_host.loads == []
+
+
+def _layered_material_request(tmp_path: Path) -> tuple[_LifecycleHarness, Path]:
+    package = tmp_path / "layered"
+    package.mkdir()
+    (package / "manifest.json").write_text(
+        json.dumps(
+            {
+                "textures": [],
+                "preview_core_material_graph": {"resources_included": True, "copied_resource_count": 52},
+            }
+        ),
+        encoding="utf-8",
+    )
+    harness = _LifecycleHarness()
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    harness._archive_texture_request_id = 6
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_request_automatic = True
+    harness._archive_texture_package_generation = 10
+    harness._archive_texture_package_path = str(package)
+    harness._archive_texture_render_settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    harness._archive_pending_texture_result = "textured-result"
+    return harness, package
+
+
+def test_a_layered_material_package_is_not_reported_as_a_texture_failure(tmp_path: Path) -> None:
+    harness, package = _layered_material_request(tmp_path)
+
+    harness._handle_archive_resident_package_applied(str(package), 10)
+
+    assert not any(error for _message, error in harness.messages)
+    assert harness.messages[-1][0] == "Textures loaded in the resident Preview."
+    assert harness.current_archive_preview_result == "textured-result"
+    assert harness.render_requests == []
+
+
+def test_a_waiting_mesh_editor_open_still_hears_that_no_textures_are_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cdmw.ui.archive_browser import preview_dotnet_lifecycle
+
+    monkeypatch.setattr(
+        preview_dotnet_lifecycle.QTimer, "singleShot", staticmethod(lambda _delay, callback: callback())
+    )
+    harness, package = _layered_material_request(tmp_path)
+    harness._mesh_editor_pending_rust_texture_launch = {"request_id": 6}
+    finished: list[tuple[int, bool, str]] = []
+    harness._finish_pending_rust_mesh_editor_texture_launch = (
+        lambda *, request_id, success, message="": finished.append((request_id, success, message))
+    )
+
+    harness._handle_archive_resident_package_applied(str(package), 10)
+
+    assert finished == [(6, False, "The prepared package did not contain resolved DDS resources.")]
+    assert harness.render_requests == []  # textures are on screen: nothing is loaded again
