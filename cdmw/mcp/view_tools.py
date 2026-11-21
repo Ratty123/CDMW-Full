@@ -109,14 +109,9 @@ def _open_paths(call) -> dict[str, object]:
         raise ToolError(NOT_FOUND, "Browse Archives has none of these files. search_archive finds a file's path.")
 
     def select_all() -> int:
-        tree = archive.archive_tree
-        model = tree.model()
-        rows = model.rowCount() if model is not None else 0
-        if rows >= len(outcome["shown"]) or "listed" in outcome:
-            if "listed" not in outcome:
-                tree.selectAll()
+        if "listed" in outcome:
             return len(archive._selected_archive_entries())
-        return -1
+        return select_every_listed_row(archive, len(outcome["shown"]))
 
     while True:
         selected = context.ui_call(select_all)
@@ -128,6 +123,28 @@ def _open_paths(call) -> dict[str, object]:
         time.sleep(0.05)
     return {**context.ui_call(lambda: _selection_now(context)), "selected_files": selected,
             "shown": len(outcome["shown"]), "missing": outcome["missing"][:200]}
+
+
+def select_every_listed_row(archive, expected: int) -> int:
+    """Select every row Browse Archives lists, as Ctrl+A does. -1 while fewer than ``expected`` are listed.
+
+    The flat list draws its rows in a table inside the tree, and the tree's own model is then an
+    empty stand-in. The selection model is always the one of the rows that show.
+    """
+
+    from PySide6.QtCore import QItemSelection, QItemSelectionModel
+
+    tree = archive.archive_tree
+    selection = tree.selectionModel()
+    model = selection.model() if selection is not None else None
+    rows = model.rowCount() if model is not None else 0
+    if not rows or rows < expected:
+        return -1
+    flags = QItemSelectionModel.SelectionFlag
+    everything = QItemSelection(model.index(0, 0), model.index(rows - 1, max(0, model.columnCount() - 1)))
+    tree.setCurrentIndex(model.index(0, 0))
+    selection.select(everything, flags.ClearAndSelect | flags.Rows)
+    return len(archive._selected_archive_entries())
 
 
 def _select_listed(archive, paths, outcome) -> bool:

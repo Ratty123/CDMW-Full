@@ -74,6 +74,7 @@ AREAS: Mapping[str, tuple[str, str]] = {
     "test_patch_day_format_guards::test_static_table_decodes": ("Gameplay tables", "P-08 P-09 P-31"),
     "test_iteminfo_row": ("Gameplay tables", "P-12"),
     "test_iteminfo_patch_3732": ("Gameplay tables", "P-34"),
+    "test_iteminfo_page_rotation_3732": ("Gameplay tables", "P-34"),
     "test_storeinfo_table": ("Gameplay tables", "P-10 P-13"),
     "test_multichangeinfo_table": ("Gameplay tables", "S-4"),
     "test_itemgroupinfo_table": ("Gameplay tables", "S-2"),

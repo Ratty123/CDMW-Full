@@ -3619,7 +3619,6 @@ ERROR_REFERENCE = [
       "Browse Archives did not finish looking up the files.",
       "Browse Archives did not show the files in time.",
       "Browse Archives did not show {first} as part of the set.",
-      "Browse Archives did not show {first}.",
       "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
       "Browse Archives did not show {wanted}. search_archive finds a file's path.",
       "Browse Archives has none of these files. search_archive finds a file's path.",
@@ -43470,15 +43469,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {first} as part of the set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 451
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Browse Archives did not show {first}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/mcp/mesh_tools.py": 441
+      "cdmw/mcp/mesh_tools.py": 479
     }
   },
   {
@@ -43486,7 +43477,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 519
+      "cdmw/mcp/mesh_tools.py": 547
     }
   },
   {
@@ -46628,7 +46619,7 @@ MESSAGE_REFERENCE = [
     "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 731
+      "cdmw/mcp/mesh_tools.py": 759
     }
   },
   {
@@ -48103,7 +48094,7 @@ MESSAGE_REFERENCE = [
     "message": "Give path, set or ticked_parts, not more than one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 494
+      "cdmw/mcp/mesh_tools.py": 522
     }
   },
   {
@@ -50523,7 +50514,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the game archives first: open Browse Archives with the game folder set in Settings > Paths.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 491
+      "cdmw/mcp/mesh_tools.py": 519
     }
   },
   {
@@ -54968,7 +54959,7 @@ MESSAGE_REFERENCE = [
     "message": "Offered for a model that is part of a worn set opened from Item Finder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 458
+      "cdmw/mcp/mesh_tools.py": 486
     }
   },
   {
@@ -60197,7 +60188,7 @@ MESSAGE_REFERENCE = [
     "message": "Select a mesh in Browse Archives first, or give its path.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 523
+      "cdmw/mcp/mesh_tools.py": 551
     }
   },
   {
@@ -61771,7 +61762,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not open this set; app_state shows why.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 463
+      "cdmw/mcp/mesh_tools.py": 491
     }
   },
   {
@@ -61804,7 +61795,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 128,
-      "cdmw/mcp/mesh_tools.py": 616
+      "cdmw/mcp/mesh_tools.py": 644
     }
   },
   {
@@ -61812,7 +61803,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 740
+      "cdmw/mcp/mesh_tools.py": 768
     }
   },
   {
@@ -61820,7 +61811,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 565
+      "cdmw/mcp/mesh_tools.py": 593
     }
   },
   {
@@ -61844,7 +61835,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 593
+      "cdmw/mcp/mesh_tools.py": 621
     }
   },
   {
@@ -61852,7 +61843,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has {len(rows)} open documents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 552
+      "cdmw/mcp/mesh_tools.py": 580
     }
   },
   {
@@ -61860,7 +61851,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is not asking whether to continue a draft.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 537
+      "cdmw/mcp/mesh_tools.py": 565
     }
   },
   {
@@ -61877,7 +61868,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 126,
-      "cdmw/mcp/mesh_tools.py": 738
+      "cdmw/mcp/mesh_tools.py": 766
     }
   },
   {
@@ -61885,7 +61876,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no ticked parts of a set to open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 476
+      "cdmw/mcp/mesh_tools.py": 504
     }
   },
   {
@@ -62887,7 +62878,7 @@ MESSAGE_REFERENCE = [
     "message": "The set names a file twice.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 498
+      "cdmw/mcp/mesh_tools.py": 526
     }
   },
   {
@@ -63120,7 +63111,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor cannot light a part up.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 576
+      "cdmw/mcp/mesh_tools.py": 604
     }
   },
   {
@@ -77487,7 +77478,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show the files in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 127
+      "cdmw/mcp/view_tools.py": 122
     }
   },
   {
@@ -77495,7 +77486,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {wanted}. search_archive finds a file's path.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 184
+      "cdmw/mcp/view_tools.py": 201
     }
   },
   {
@@ -77503,7 +77494,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives has no Scene panel yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 195
+      "cdmw/mcp/view_tools.py": 212
     }
   },
   {
@@ -77538,7 +77529,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives shows no 3D preview now: select a model first (view_open).",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/view_tools.py": 238
+      "cdmw/mcp/view_tools.py": 255
     }
   },
   {
@@ -83356,7 +83347,7 @@ MESSAGE_REFERENCE = [
     "message": "Name an action (show_all, isolate), a part or a file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 230
+      "cdmw/mcp/view_tools.py": 247
     }
   },
   {
@@ -83380,7 +83371,7 @@ MESSAGE_REFERENCE = [
     "message": "Name the file: path, or several with paths.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 166
+      "cdmw/mcp/view_tools.py": 183
     }
   },
   {
@@ -84110,7 +84101,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 395
+      "cdmw/mcp/view_tools.py": 412
     }
   },
   {
@@ -86539,7 +86530,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view can only be copied from the screen while CDMW is the window in front: click CDMW's window, then ask again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 420
+      "cdmw/mcp/view_tools.py": 437
     }
   },
   {
@@ -86547,7 +86538,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor's view is not on screen: show the Mesh Editor (app_open_tool mesh_editor) with CDMW's window visible.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 417
+      "cdmw/mcp/view_tools.py": 434
     }
   },
   {
@@ -86587,7 +86578,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no file {a['file']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 228
+      "cdmw/mcp/view_tools.py": 245
     }
   },
   {
@@ -86595,7 +86586,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no part {a['part']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 224
+      "cdmw/mcp/view_tools.py": 241
     }
   },
   {
@@ -86603,7 +86594,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel's button is disabled now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 220
+      "cdmw/mcp/view_tools.py": 237
     }
   },
   {
@@ -87772,7 +87763,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview cannot take a picture now: nothing is shown in it yet.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/view_tools.py": 311
+      "cdmw/mcp/view_tools.py": 328
     }
   },
   {
@@ -87780,7 +87771,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview did not deliver the picture in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 293
+      "cdmw/mcp/view_tools.py": 310
     }
   },
   {
@@ -87788,7 +87779,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview did not take the camera now.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/view_tools.py": 256
+      "cdmw/mcp/view_tools.py": 273
     }
   },
   {
@@ -88012,7 +88003,7 @@ MESSAGE_REFERENCE = [
     "message": "The shared Preview settings are not available yet.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/view_tools.py": 265
+      "cdmw/mcp/view_tools.py": 282
     }
   },
   {
@@ -90720,7 +90711,7 @@ MESSAGE_REFERENCE = [
     "message": "error",
     "recovery": "internal",
     "sources": {
-      "tools/patch_day_check.py": 223
+      "tools/patch_day_check.py": 224
     }
   },
   {
@@ -92534,7 +92525,7 @@ MESSAGE_REFERENCE = [
       "cdmw/services/problem_report_diagnostics.py": 61,
       "tools/audit_crimson_shader_corpus.py": 22,
       "tools/extract_crimson_shader_corpus.py": 27,
-      "tools/patch_day_check.py": 146
+      "tools/patch_day_check.py": 147
     }
   },
   {
@@ -112291,10 +112282,10 @@ SOURCE_COVERAGE = {
     "raise": 5
   },
   "cdmw/mcp/mesh_tools.py": {
-    "code": 17,
+    "code": 16,
     "diagnostic_field": 5,
     "failure": 5,
-    "raise": 38,
+    "raise": 37,
     "report": 4,
     "validation": 1
   },
@@ -116826,12 +116817,12 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
-    "native_message": 1
-  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
     "native_handoff": 18,
     "native_message": 12
+  },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
+    "native_message": 1
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCatalogInventory.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
@@ -116927,11 +116918,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,
