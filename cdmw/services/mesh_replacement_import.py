@@ -102,6 +102,20 @@ class PendingMeshReplacement:
         return self.source_label or Path(self.source_path).name
 
 
+def _obj_mtllib_values(path):
+    """The material library names exactly as the OBJ's mtllib lines write them."""
+    values = []
+    try:
+        with Path(path).open("r", encoding="utf-8-sig", errors="ignore") as handle:
+            for line in handle:
+                parts = line.strip().split(maxsplit=1)
+                if len(parts) == 2 and parts[0].lower() == "mtllib":
+                    values.append(parts[1].strip().strip("\"'"))
+    except OSError:
+        pass
+    return tuple(dict.fromkeys(value for value in values if value))
+
+
 def _import_source_files(path, *, include_materials=True):
     """Keep required geometry separate from optional imported materials."""
     from urllib.parse import unquote
@@ -113,11 +127,17 @@ def _import_source_files(path, *, include_materials=True):
     if include_materials and path.suffix.lower() == ".obj":
         libraries = _obj_material_library_paths(path)
         explicit = set(_obj_material_library_paths(path, include_fallback=False))
+        # A renamed or re-exported pair keeps the old name in its mtllib line. The
+        # importer then reads the MTL named like the OBJ, so that one is enough.
+        same_name = path.with_suffix(".mtl").expanduser().resolve()
         for library in libraries:
             if library.is_file():
                 files.append(library)
-            elif library in explicit:
-                raise ValueError(f"Missing imported material library: {library}")
+            elif library in explicit and not same_name.is_file():
+                # An unquoted name with spaces is split into candidates; name it as written.
+                written = ", ".join(_obj_mtllib_values(path)) or library.name
+                raise ValueError(f"Missing imported material library: {written}. "
+                                 f"Put it next to {path.name}, or name the MTL {same_name.name}.")
         references = list(_obj_material_texture_references(path))
     elif include_materials and path.suffix.lower() == ".dae":
         from xml.etree import ElementTree

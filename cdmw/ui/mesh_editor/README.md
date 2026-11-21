@@ -1105,7 +1105,17 @@ step says so. When the import found the model's own textures it suggests
 **Imported Materials & Textures**; when its MTL or textures are missing it
 disables that choice and shows a warning, with the exact missing file on hover.
 `replacement_ui_state()` sends this as `pending.materials`
-(`{"error", "textures", "surface"}`).
+(`{"error", "textures", "surface", "helper_targets", "untextured_targets"}`).
+
+A few game parts are drawn by a material without any texture (a
+`SkinnedMeshGhost` accessory, a helmet's `mold`). Imported textures are written in
+the format of the game textures they replace, so such a part cannot take them on
+its own: the mapping step warns before Apply, `untextured_targets` lists those
+parts, and Apply names the part. Mapped together with a textured part it is
+accepted and its material receives the texture row. Each game part takes one
+imported part in this mode, and every imported part needs a texture of its own; a
+plain material colour is not imported. Each refusal names the material and what
+to change.
 
 Imported materials drop the target's detail, grime, colour-blend and height layers
 and replace its normal map with a flat one when the import has none. On the Ver2

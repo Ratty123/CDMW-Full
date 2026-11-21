@@ -5828,6 +5828,23 @@ impl LabApplication {
                                 crate::localization::tr(format!("{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.")),
                             );
                         }
+                        // A few parts are drawn by a material with no texture at
+                        // all (a ghost accessory, a `mold`). Imported textures take
+                        // their format from the textures they replace, so Apply
+                        // refuses when no chosen part has one.
+                        let untextured = pending["materials"]["untextured_targets"].as_array().cloned().unwrap_or_default();
+                        let is_untextured = |choice: &str| untextured.iter().any(|id| id.as_str() == Some(choice));
+                        if choices.iter().all(|choice| is_untextured(choice.as_str()) || is_helper(choice.as_str())) {
+                            if let Some((source, choice)) = sources.iter().zip(&choices).find(|(_, choice)| is_untextured(choice.as_str())) {
+                                let target = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))
+                                    .and_then(|row| row["name"].as_str()).unwrap_or(choice.as_str());
+                                let part = source["name"].as_str().unwrap_or("");
+                                ui.colored_label(
+                                    ui.visuals().warn_fg_color,
+                                    crate::localization::tr(format!("{target} has no textures in the game's material, so it cannot take imported textures. Map {part} to another part, join it with one before exporting, or choose Keep Original Materials.")),
+                                );
+                            }
+                        }
                     }
                     // Keep Original Materials draws the game's textures on the
                     // imported UVs; say so before the result looks mixed up.

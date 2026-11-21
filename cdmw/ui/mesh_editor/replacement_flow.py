@@ -42,7 +42,11 @@ def prepare_replacement_event(tab, session, event):
         owner = owner.owner
     if state is None:
         args["_archive_entry"] = target
-        args["_archive_dependencies"] = archive_workflow_dependency_context(owner, target)
+        # The set this session was opened with. Browse Archives keeps only its last
+        # few previews, so asking it again after browsing on could return nothing,
+        # or another file's set that lists this model without its textures.
+        args["_archive_dependencies"] = (getattr(tab, "archive_session_dependencies", None)
+                                         or archive_workflow_dependency_context(owner, target))
     if event.get("command") == "replacement_choose":
         path, source_path_override = source_path_override, None
         if path is None:
