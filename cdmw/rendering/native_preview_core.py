@@ -539,6 +539,9 @@ class NativePreviewCoreServiceClient:
                 self._mark_report_recycle_reason(report_path, report, recycle_reason)
                 self.shutdown()
         except RunCancelled as cancelled:
+            if not dispatched and getattr(cancelled, "preview_helper_finished", False):
+                # The line drained was the cold start's ready line, not this job's answer.
+                cancelled.preview_helper_finished = False
             if getattr(cancelled, "preview_helper_finished", False):
                 # Cancelled after the helper finished: count the job, honour a
                 # recycle it asked for, and remove its folder now.

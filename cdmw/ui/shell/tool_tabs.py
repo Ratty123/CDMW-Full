@@ -801,6 +801,9 @@ class ShellToolTabsMixin:
         """
 
         for sync in (
+            # First what is saved (a profile import while it was pending writes there),
+            # then the in-memory values the shell holds.
+            lambda: settings_tab._load_settings(self.current_theme_key),
             lambda: settings_tab._apply_model_preview_controls(self.archive._current_model_preview_render_settings()),
             lambda: settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings()),
             lambda: settings_tab.sync_appearance_controls(self.current_theme_key),

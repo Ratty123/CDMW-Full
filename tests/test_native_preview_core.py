@@ -371,9 +371,12 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIsNone(client._process)
 
     def test_a_cancel_the_helper_already_answered_keeps_the_service_and_removes_the_job(self) -> None:
+        answered = threading.Event()
+
         class _AnsweredStdout:
             def readline(self) -> str:
-                time.sleep(0.02)
+                # The helper answers only once the cancel has been seen.
+                answered.wait(5.0)
                 return '{"status":"ok"}' + chr(10)
 
         class _FakeProcess:
@@ -400,9 +403,16 @@ class NativePreviewCoreTests(unittest.TestCase):
             stop_event = threading.Event()
             stop_event.set()
             removed: list[Path] = []
+            calls = {"count": 0}
+
+            def cancel_on_the_read(*_args: object, **_kwargs: object) -> None:
+                calls["count"] += 1
+                if calls["count"] >= 3:  # the stdout wait, after dispatch
+                    answered.set()
+                    raise RunCancelled("x")
             with (
                 patch.object(native_preview_core, "remove_preview_job_root", side_effect=removed.append),
-                patch.object(native_preview_core, "raise_if_cancelled", side_effect=[None, None, RunCancelled("x")]),
+                patch.object(native_preview_core, "raise_if_cancelled", side_effect=cancel_on_the_read),
                 self.assertRaises(RunCancelled) as raised,
             ):
                 client.preview_job(job_root / "job.json", job_root / "report.json",

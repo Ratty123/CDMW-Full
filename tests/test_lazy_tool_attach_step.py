@@ -13,6 +13,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QObject  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget  # noqa: E402
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab  # noqa: E402
@@ -164,6 +166,9 @@ def test_the_settings_tab_catches_up_with_changes_made_while_it_was_built():
     calls = []
 
     class _SettingsTab(QWidget):
+        def _load_settings(self, theme):
+            calls.append(("load", theme))
+
         def _apply_model_preview_controls(self, settings):
             calls.append(("preview", settings))
 
@@ -193,3 +198,92 @@ def test_the_settings_tab_catches_up_with_changes_made_while_it_was_built():
     container._finish_requested_widget()
     assert ("preview", "after") in calls and ("appearance", "light") in calls
     assert ("performance", "performance") in calls and ("language", "en") in calls
+    # What was saved meanwhile (a profile import) is read first, then the live values.
+    assert calls[0] == ("load", "light")
+
+
+def test_a_tool_published_only_to_shut_it_down_does_not_save_its_settings():
+    """Closing CDMW publishes a pending tool so it can shut down; it was never shown,
+    so its stale controls must not be saved over newer values."""
+
+    _app()
+    saved = []
+
+    class _Tool(QWidget):
+        def flush_settings_save(self):
+            saved.append("flush")
+
+    container = LazyToolTab(_Tool)
+    container._construct_requested_widget()
+    container.request_shutdown()
+    assert container.widget_if_created() is not None
+    container.flush_settings_save()
+    assert saved == []
+
+
+def test_preview_and_archive_syncs_do_not_build_a_lazy_settings_tab():
+    """The first preview pushes its settings to Settings; with Settings not built yet that
+    must not build it (it used to, on the first archive selection)."""
+
+    from types import SimpleNamespace
+
+    from cdmw.ui.archive_browser.preview_settings import ArchivePreviewSettingsMixin
+
+    _app()
+    built = []
+
+    def factory():
+        built.append(True)
+        return QWidget()
+
+    settings_tab = LazyToolTab(factory)
+    owner = SimpleNamespace(
+        shell=SimpleNamespace(settings_tab=settings_tab, _current_archive_performance_settings=lambda: None),
+        _current_model_preview_render_settings=lambda: None,
+    )
+    ArchivePreviewSettingsMixin._sync_model_preview_settings_controls(owner)
+    ArchivePreviewSettingsMixin._sync_archive_performance_settings_controls(owner)
+    assert built == [] and settings_tab.widget_if_created() is None
+
+
+def test_create_new_item_follows_a_settings_tab_built_after_it():
+    from PySide6.QtCore import Signal
+
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+
+    _app()
+
+    class _Settings(QWidget):
+        model_preview_settings_changed = Signal(object)
+        archive_performance_settings_changed = Signal(object)
+
+    received = []
+    owner = SimpleNamespace(set_preview_render_settings=lambda s: received.append(("preview", s)),
+                            set_archive_performance_settings=lambda s: received.append(("archive", s)))
+    owner._follow_settings_tab = lambda tab: NewItemStudioTab._follow_settings_tab(owner, tab)
+    settings_tab = LazyToolTab(_Settings)
+    settings_tab.when_created(owner._follow_settings_tab)
+    widget = settings_tab.ensure_widget()
+    widget.model_preview_settings_changed.emit("p")
+    widget.archive_performance_settings_changed.emit("a")
+    assert received == [("preview", "p"), ("archive", "a")]
+
+
+def test_the_layout_restart_notice_is_never_shown_before_it_has_a_parent():
+    from PySide6.QtWidgets import QFormLayout
+
+    from cdmw.ui.shell.compact.settings import CompactWorkspaceSettingsMixin
+
+    _app()
+    shown_unparented = []
+
+    class _Owner(QWidget, CompactWorkspaceSettingsMixin):
+        settings = SimpleNamespace(value=lambda *_a, **_k: None)
+
+    owner = _Owner()
+    form = QFormLayout(owner)
+    owner._build_compact_workspace_settings_ui(form)
+    label = owner.application_layout_restart_label
+    if label.parentWidget() is None:
+        shown_unparented.append(not label.isHidden())
+    assert shown_unparented in ([], [False])

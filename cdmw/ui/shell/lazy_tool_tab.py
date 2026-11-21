@@ -62,6 +62,8 @@ class LazyToolTab(QWidget):
         self._prepare_ui = prepare_ui
         self._widget: QWidget | None = None
         self._pending_widget: QWidget | None = None
+        # True once the widget was published for use, not only to shut it down.
+        self._published_for_use = False
         self._created_callbacks: list[Callable[[QWidget], None]] = []
         self._creating = False
         self._load_requested = False
@@ -302,6 +304,7 @@ class LazyToolTab(QWidget):
         self._widget = widget
         self._load_timer.stop()
         self._next_load_step = None
+        self._published_for_use = not self._shutdown_requested
         callbacks = () if self._shutdown_requested else tuple(self._created_callbacks)
         self._created_callbacks.clear()
         for callback in callbacks:
@@ -362,9 +365,10 @@ class LazyToolTab(QWidget):
             shutdown()
 
     def flush_settings_save(self) -> None:
-        # Only a published tool: one still being built was never shown, so nobody
-        # changed its controls, and its values may be older than the saved ones.
-        widget = self._widget
+        # Only a tool published for use: one still being built (or published only
+        # to shut it down) was never shown, so nobody changed its controls, and its
+        # values may be older than the saved ones.
+        widget = self._widget if self._published_for_use else None
         flush = getattr(widget, "flush_settings_save", None) if widget is not None else None
         if callable(flush):
             flush()
