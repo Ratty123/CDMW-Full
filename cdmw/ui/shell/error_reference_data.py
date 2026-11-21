@@ -43495,7 +43495,15 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 547
+      "cdmw/mcp/mesh_tools.py": 549
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Browse Archives is listing its files again; call mesh_open once more.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 559
     }
   },
   {
@@ -46637,7 +46645,7 @@ MESSAGE_REFERENCE = [
     "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 759
+      "cdmw/mcp/mesh_tools.py": 768
     }
   },
   {
@@ -60222,7 +60230,7 @@ MESSAGE_REFERENCE = [
     "message": "Select a mesh in Browse Archives first, or give its path.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 551
+      "cdmw/mcp/mesh_tools.py": 553
     }
   },
   {
@@ -61829,7 +61837,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 128,
-      "cdmw/mcp/mesh_tools.py": 644
+      "cdmw/mcp/mesh_tools.py": 653
     }
   },
   {
@@ -61837,7 +61845,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 768
+      "cdmw/mcp/mesh_tools.py": 777
     }
   },
   {
@@ -61845,7 +61853,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 593
+      "cdmw/mcp/mesh_tools.py": 602
     }
   },
   {
@@ -61869,7 +61877,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 621
+      "cdmw/mcp/mesh_tools.py": 630
     }
   },
   {
@@ -61877,7 +61885,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has {len(rows)} open documents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 580
+      "cdmw/mcp/mesh_tools.py": 589
     }
   },
   {
@@ -61885,7 +61893,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is not asking whether to continue a draft.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 565
+      "cdmw/mcp/mesh_tools.py": 574
     }
   },
   {
@@ -61902,7 +61910,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 126,
-      "cdmw/mcp/mesh_tools.py": 766
+      "cdmw/mcp/mesh_tools.py": 775
     }
   },
   {
@@ -63145,7 +63153,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor cannot light a part up.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 604
+      "cdmw/mcp/mesh_tools.py": 613
     }
   },
   {
@@ -112377,7 +112385,7 @@ SOURCE_COVERAGE = {
     "code": 16,
     "diagnostic_field": 5,
     "failure": 5,
-    "raise": 37,
+    "raise": 38,
     "report": 4,
     "validation": 1
   },
