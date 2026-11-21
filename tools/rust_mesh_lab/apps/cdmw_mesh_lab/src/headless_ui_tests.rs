@@ -1011,19 +1011,24 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
                 })
                 .min_by(|a, b| a.area().total_cmp(&b.area()))
                 .ok_or("tool button")?;
+            // Buttons fill their grid column, so they may be wider than their
+            // name, but never wider than the rail.
+            let rail = ui.application.viewport_rect.ok_or("viewport")?.left();
             assert!(
-                button.width() - text.width() <= style.spacing.button_padding.x * 2.0 + 8.0,
-                "{label} reserves unused button width: {button:?} vs {text:?}"
+                button.width() >= text.width() && button.right() <= rail,
+                "{label} does not fit its column in the rail: {button:?} vs {text:?}, rail {rail}"
             );
+            // In the narrow rail a long name wraps between its words onto a
+            // second line, never more.
             assert!(
                 button.height()
                     <= style
                         .spacing
                         .interact_size
                         .y
-                        .max(line_height + style.spacing.button_padding.y * 2.0)
+                        .max(line_height * 2.0 + style.spacing.button_padding.y * 2.0)
                         + 2.0,
-                "{label} should remain a compact single-line tab: {button:?}"
+                "{label} should stay a compact tab of at most two lines: {button:?}"
             );
         }
         ui.click_tool_button("Topology")?;
@@ -6714,6 +6719,10 @@ fn integrated_refit_create_body_slider_selects_the_driver_and_opens_the_creator(
         .handle_actions(vec![UiAction::SetPartSelection(vec![1])]);
     ui.click("Morph & Refit")?;
     ui.click("Shape")?;
+    // Let the wheel scroll that brings the button into view come to rest, so
+    // only the creator's own reveal moves the rail afterwards.
+    ui.reveal("Create body slider")?;
+    ui.settle_layout();
     ui.click("Create body slider")?;
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
     assert!(

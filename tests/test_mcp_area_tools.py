@@ -424,7 +424,7 @@ def test_open_show_document_and_close_go_through_the_shells_own_calls(mesh, sett
     shell = mesh.window.shell
     wanted = "character/model/cd_probe_0001.pac"
     current = [None]
-    opened, shown, closed = [], [], []
+    opened, shown, closed, seen = [], [], [], []
     mesh.window.archive = SimpleNamespace(
         _note_archive_ui_activity=lambda: None,
         _reveal_archive_path_in_live_catalogue=lambda path: (
@@ -433,6 +433,18 @@ def test_open_show_document_and_close_go_through_the_shells_own_calls(mesh, sett
     shell._open_current_archive_mesh_editor = lambda: opened.append(current[0].path)
     result = mcp.ok("mesh_open", {"path": wanted})
     assert result["opening"] and result["path"] == wanted and opened == [wanted]
+    # The file is the current row now: it opens as it stands. A second reveal would re-list
+    # Browse around it and Open would be pressed while its row is gone.
+    revealed = []
+    mesh.window.archive._reveal_archive_path_in_live_catalogue = lambda path: revealed.append(path) or True
+    again = mcp.ok("mesh_open", {"path": wanted.upper()})
+    assert again["opening"] and again["path"] == wanted and opened == [wanted, wanted] and revealed == []
+    # The row went between the wait and the press: the tool says so and does not claim an open.
+    shell._open_current_archive_mesh_editor = lambda: (current.__setitem__(0, None), opened.append("pressed"))
+    mesh.window.archive._current_archive_mesh_entry = lambda: current[0] if len(seen.append(1) or seen) < 3 else None
+    assert mcp.error("mesh_open", {"path": wanted})["code"] == "unavailable" and "pressed" not in opened
+    mesh.window.archive._current_archive_mesh_entry = lambda: current[0]
+    shell._open_current_archive_mesh_editor = lambda: opened.append(current[0].path)
     # Documents: the tab strip's own set_active.
     holder = shell.mesh_editor_tab
     holder.documents = (mesh.ui,)
