@@ -387,12 +387,15 @@ class NativePreviewCoreServiceClient:
         while thread.is_alive():
             try:
                 raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
-            except RunCancelled:
+            except RunCancelled as cancelled:
                 # Allow a nearly-finished job a brief grace drain so we keep the
                 # warm service process and its resident archive/path caches alive.
                 thread.join(0.08)
                 if thread.is_alive() or not str(result.get("line") or "").strip():
                     self._kill_locked()
+                else:
+                    # The helper answered: it is done with this job's files.
+                    cancelled.preview_helper_finished = True
                 raise
             if time.monotonic() >= deadline:
                 self._kill_locked()
@@ -535,7 +538,18 @@ class NativePreviewCoreServiceClient:
             if recycle_reason:
                 self._mark_report_recycle_reason(report_path, report, recycle_reason)
                 self.shutdown()
-        except RunCancelled:
+        except RunCancelled as cancelled:
+            if getattr(cancelled, "preview_helper_finished", False):
+                # Cancelled after the helper finished: count the job, honour a
+                # recycle it asked for, and remove its folder now.
+                self._jobs_completed += 1
+                report = self._read_report_for_recycle(report_path)
+                recycle_reason = self._recycle_reason_for_report(report)
+                if recycle_reason:
+                    self._mark_report_recycle_reason(report_path, report, recycle_reason)
+                    self.shutdown()
+                remove_preview_job_root(job_path.parent)
+                raise
             # The stdout waiter stops the exact process that was reading this
             # job. Never remove its inputs while it could still be using them.
             if dispatched and process is not None and process.poll() is not None:
@@ -1173,8 +1187,8 @@ def run_native_preview_core_preview_job(
                 timeout_seconds=max(0.5, float(timeout_seconds)),
                 stop_event=stop_event,
             )
-    except RunCancelled:
-        if job_dispatched_to_service:
+    except RunCancelled as cancelled:
+        if job_dispatched_to_service and not getattr(cancelled, "preview_helper_finished", False):
             retain_preview_job_for_helper(job_root)
             _record_native_preview_core_python_event(
                 "native_preview_core_cancel_after_dispatch",

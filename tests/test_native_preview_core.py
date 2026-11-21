@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -368,6 +369,51 @@ class NativePreviewCoreTests(unittest.TestCase):
 
         self.assertTrue(fake_process.killed)
         self.assertIsNone(client._process)
+
+    def test_a_cancel_the_helper_already_answered_keeps_the_service_and_removes_the_job(self) -> None:
+        class _AnsweredStdout:
+            def readline(self) -> str:
+                time.sleep(0.02)
+                return '{"status":"ok"}' + chr(10)
+
+        class _FakeProcess:
+            def __init__(self) -> None:
+                self.stdout = _AnsweredStdout()
+                self.stdin = _FakeServiceStdin()
+                self.killed = False
+
+            def poll(self) -> None:
+                return None
+
+            def kill(self) -> None:
+                self.killed = True
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            client = NativePreviewCoreServiceClient(temp_path / "cdmw-preview-core.exe")
+            fake_process = _FakeProcess()
+            client._process = fake_process  # type: ignore[assignment]
+            client._start_locked = lambda stop_event=None: None  # type: ignore[method-assign]
+            job_root = temp_path / "job_root"
+            job_root.mkdir()
+            (job_root / "job.json").write_text("{}", encoding="utf-8")
+            stop_event = threading.Event()
+            stop_event.set()
+            removed: list[Path] = []
+            with (
+                patch.object(native_preview_core, "remove_preview_job_root", side_effect=removed.append),
+                patch.object(native_preview_core, "raise_if_cancelled", side_effect=[None, None, RunCancelled("x")]),
+                self.assertRaises(RunCancelled) as raised,
+            ):
+                client.preview_job(job_root / "job.json", job_root / "report.json",
+                                   timeout_seconds=1.0, stop_event=stop_event)
+
+        # The warm service stays, the finished job is counted and its folder goes.
+        self.assertTrue(getattr(raised.exception, "preview_helper_finished", False))
+        self.assertFalse(fake_process.killed)
+        self.assertIs(client._process, fake_process)
+        self.assertEqual(1, client._jobs_completed)
+        self.assertEqual([job_root], removed)
 
     def test_native_preview_core_is_bundled_and_archive_worker_attempts_it(self) -> None:
         spec_text = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
