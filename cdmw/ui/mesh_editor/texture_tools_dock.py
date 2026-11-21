@@ -21,12 +21,15 @@ keys pressed here), and the Mesh Editor's font size throughout.
 from __future__ import annotations
 
 import dataclasses
+import importlib
+import sys
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, QSize, Qt, Signal
 from PySide6.QtGui import QFont, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -57,6 +60,100 @@ _SECTIONS = ("tool_settings_section", "layers_section", "adjustments_section", "
 #: The Mesh Editor's own Undo and Redo keys (the Rust editor's defaults for session.undo
 #: and session.redo in shortcuts.rs); keys the user gave those commands replace them.
 MESH_STEP_KEYS = {"undo": ("Ctrl+Z",), "redo": ("Ctrl+Shift+Z", "Ctrl+Y")}
+
+_PREWARM_LOCK = threading.Lock()
+_PREWARM_STARTED = False
+#: Safe Python-only module pre-imports (never constructs QWidgets off the UI thread).
+_PREWARM_MODULES = (
+    "cdmw.domain.textures.original_output",
+    "cdmw.services.mesh_live_texture_output",
+    "cdmw.services.keymap_store",
+    "cdmw.ui.texture_editor_tab",
+)
+
+
+def prewarm_texture_editor_imports() -> bool:
+    """Pre-import the Texture Editor's Python modules on a background daemon thread so
+    the first double-click in the Textures panel avoids the cold import spike on the UI
+    thread. Returns True if this call launched the background importer."""
+    global _PREWARM_STARTED
+    if "cdmw.ui.texture_editor_tab" in sys.modules:
+        _PREWARM_STARTED = True
+        return False
+    with _PREWARM_LOCK:
+        if _PREWARM_STARTED:
+            return False
+        _PREWARM_STARTED = True
+
+    def _run() -> None:
+        for module_name in _PREWARM_MODULES:
+            if module_name in sys.modules:
+                continue
+            try:
+                importlib.import_module(module_name)
+            except Exception:
+                # Any genuine import error will surface deterministically on the UI
+                # thread if the user later opens the docked Texture Editor.
+                return
+
+    threading.Thread(
+        target=_run,
+        name="cdmw-texture-editor-prewarm",
+        daemon=True,
+    ).start()
+    return True
+
+
+@dataclass(frozen=True, slots=True)
+class _PendingTextureOpen:
+    """Immutable snapshot captured on the UI thread before off-thread editability check."""
+
+    request_id: int
+    texture_id: str
+    session_id: str
+    decoded_path: str
+    source_sha256: str
+    game_path: str
+    role: str
+    file_name: str
+    users: tuple[str, ...]
+    in_renderer: bool
+    tools_generation: int
+    stop_event: threading.Event
+    captured_warning: object = None
+
+
+class _TextureOpenCheckSignals(QObject):
+    checked = Signal(object, object, str)
+
+
+class _TextureOpenCheckRunnable(QRunnable):
+    """Runs `check_texture_editable` off the UI thread and relays the outcome."""
+
+    def __init__(self, pending: _PendingTextureOpen, signals: _TextureOpenCheckSignals) -> None:
+        super().__init__()
+        self._pending = pending
+        self._signals = signals
+
+    def run(self) -> None:
+        if self._pending.stop_event.is_set():
+            return
+        from cdmw.domain.textures.original_output import TextureOutputRefused, check_texture_editable
+
+        original = None
+        refused_reason = ""
+        try:
+            original = check_texture_editable(Path(self._pending.decoded_path))
+        except TextureOutputRefused as exc:
+            refused_reason = str(exc.reason)
+        except Exception as exc:
+            refused_reason = f"CDMW cannot read this texture, so it cannot edit it: {exc}"
+        if self._pending.stop_event.is_set():
+            return
+        try:
+            self._signals.checked.emit(self._pending, original, refused_reason)
+        except RuntimeError:
+            pass  # the owning tab went away while the check was in flight
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +263,8 @@ class MeshEditorTextureTools(QDockWidget):
         self.kept_text = ""
         #: The Mesh Editor's UI font, once it has said which (``sync_ui_font``).
         self._ui_font: QFont | None = None
+        #: Monotonic counter bumped on ``show_empty`` to invalidate late async opens.
+        self._open_generation = 0
 
         body = QWidget(self)
         body.setObjectName("MeshEditorTextureTools")
@@ -256,6 +355,10 @@ class MeshEditorTextureTools(QDockWidget):
         """The mesh closed, or another one loads: nothing of the last one stays in view.
         The edits are the document's (its draft, Finish, Build Mod), not the panel's."""
 
+        self._open_generation += 1
+        cancel_open = getattr(self.editor, "cancel_pending_source_open", None)
+        if callable(cancel_open):
+            cancel_open()
         self.target = None
         self._targets = {}
         self.title_label.setText(EMPTY_TEXT)
@@ -311,6 +414,8 @@ class MeshEditorTextureTools(QDockWidget):
         if self.target is not None:
             self.target = dataclasses.replace(self.target, in_renderer=self.target.source_sha256.lower() in shown)
             self._show_warning_marker()
+        if self._editor_factory is None:
+            prewarm_texture_editor_imports()
 
     def set_sharing_text(self, game_path: str, text: str) -> None:
         """Say which other game files use ``game_path``, when it is the texture shown."""
@@ -416,19 +521,30 @@ class MeshEditorTextureTools(QDockWidget):
         sync = getattr(self.editor, "sync_ui_font", None)
         if callable(sync):
             sync(QFont(font))  # its sizes that follow the font
+        target_families = font.families() or [font.family()]
+        target_size = font.pointSizeF()
+        dock_class_font = QApplication.font("QDockWidget")
         for widget in (self, *self.findChildren(QWidget)):
+            current = widget.font()
+            if (
+                widget is not self
+                and widget.testAttribute(Qt.WidgetAttribute.WA_SetFont)
+                and current.pointSizeF() == target_size
+                and (current.families() or [current.family()]) == target_families
+            ):
+                continue
             # The size and family only: a bold title or section header stays bold.
-            own = QFont(widget.font())
-            own.setFamilies(font.families() or [font.family()])
-            own.setPointSizeF(font.pointSizeF())
-            if widget is self and own == QApplication.font("QDockWidget"):
+            own = QFont(current)
+            own.setFamilies(target_families)
+            own.setPointSizeF(target_size)
+            if widget is self and own == dock_class_font:
                 # Qt paints a dock's title in the title font it read when the dock was
                 # made unless the dock's font differs from its class font; a style hint
                 # (used only when the family is missing) makes it differ, so the title
                 # follows the size too.
                 own.setStyleHint(QFont.StyleHint.System if own.styleHint() != QFont.StyleHint.System
                                  else QFont.StyleHint.AnyStyle)
-            if own != widget.font() or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
+            if own != current or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
                 widget.setFont(own)
         self._fit_colour_fields()
         self._draw_warning_marker()
@@ -465,7 +581,13 @@ class MeshEditorTextureTools(QDockWidget):
     def _default_editor(self) -> QWidget:
         from cdmw.ui.texture_editor_tab import TextureEditorTab
 
-        return TextureEditorTab(settings=self.settings, base_dir=self.base_dir, get_png_root=lambda: "", parent=self)
+        return TextureEditorTab(
+            settings=self.settings,
+            base_dir=self.base_dir,
+            get_png_root=lambda: "",
+            parent=self,
+            embedded_tools_only=True,
+        )
 
     def _lay_out(self, editor: QWidget) -> None:
         # The editor's canvas, tool buttons and sections move out of the editor's own
@@ -509,7 +631,8 @@ class MeshEditorTextureTools(QDockWidget):
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
             form.setHorizontalSpacing(scaled_px(6, rail))
             form.setVerticalSpacing(scaled_px(3, rail))
-        self._fit_colour_fields()
+        if self._ui_font is None:
+            self._fit_colour_fields()
         for name in _SECTIONS:
             section = getattr(editor, name, None)
             if section is not None:
@@ -582,6 +705,7 @@ __all__ = [
     "MESH_STEP_KEYS",
     "MeshEditorTextureTools",
     "panel_step_keys",
+    "prewarm_texture_editor_imports",
     "rgba_array_image",
     "shared_texture_notice",
     "unseen_texture_notice",

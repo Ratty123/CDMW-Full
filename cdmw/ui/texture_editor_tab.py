@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSettings, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSettings, QSize, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import (
     QAction,
     QBrush,
     QColor,
+    QFont,
+    QFontMetrics,
     QIcon,
     QImage,
     QMouseEvent,
@@ -53,6 +56,8 @@ from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
 from cdmw.services.texture_editor_service import native_texture_editor_backend_status_text
 from cdmw.ui.texture_workflow.editor_action_state import (
     texture_editor_guide_action_state,
+    texture_editor_history_action_state,
+    texture_editor_history_shared_with_mesh_editor,
     texture_editor_image_action_state,
     texture_editor_layer_action_state,
     texture_editor_main_action_state,
@@ -89,6 +94,7 @@ from cdmw.ui.texture_workflow.editor_layer_state import (
 )
 from cdmw.ui.texture_workflow.editor_session import (
     _TextureEditorSession,
+    texture_editor_active_session_compare_flattened,
     texture_editor_document_composite_revision,
 )
 from cdmw.ui.texture_workflow.job import TextureJob
@@ -105,7 +111,16 @@ from cdmw.ui.texture_workflow.editor_status_state import (
 )
 from cdmw.ui.texture_workflow.editor_tool_coordination import TextureEditorToolCoordinationMixin
 from cdmw.ui.texture_workflow.editor_tool_operation_ui import TextureEditorToolOperationUiMixin
-from cdmw.ui.texture_workflow.editor_settings_persistence import TextureEditorSettingsPersistenceMixin
+from cdmw.ui.texture_workflow.editor_tool_state import (
+    TextureEditorToolControlSnapshot,
+    texture_editor_brush_visual_state,
+    texture_editor_tool_setting_visibility,
+    texture_editor_tool_settings_from_controls,
+)
+from cdmw.ui.texture_workflow.editor_settings_persistence import (
+    TextureEditorSettingsPersistenceMixin,
+    _settings_bool,
+)
 from cdmw.ui.texture_workflow.editor_status_cache_ui import TextureEditorStatusCacheUiMixin
 from cdmw.ui.texture_workflow.editor_ui_shell import TextureEditorUiShellMixin
 from cdmw.ui.texture_workflow.editor_ui_constraints import (
@@ -118,8 +133,10 @@ from cdmw.ui.texture_workflow.editor_view_state import (
     texture_editor_guides_from_view_state,
     texture_editor_grid_control_state,
     texture_editor_grid_color_hex,
+    texture_editor_resolved_view_state,
     texture_editor_view_controls_state,
     texture_editor_view_mode_key,
+    texture_editor_view_state_payload,
 )
 from cdmw.ui.texture_workflow.editor_view_coordination import TextureEditorViewCoordinationMixin
 from cdmw.ui.texture_workflow.editor_widgets import CollapsibleSection, TextureEditorNavigator, TextureEditorRuler
@@ -184,13 +201,20 @@ class TextureEditorTab(
         workspace_job: TextureJob | None = None,
         parent: Optional[QWidget] = None,
         build_in_steps: bool = False,
+        embedded_tools_only: bool = False,
     ) -> None:
         """Build the editor. With `build_in_steps` only the first part is built
         here; each `continue_construction()` call builds the next (the shell's
         lazy tab runs one per event-loop turn), and `after_construction`
-        callbacks run once the editor is complete."""
+        callbacks run once the editor is complete.
+
+        With `embedded_tools_only`, build only the 4 editing sections, tool
+        buttons, canvas, and minimal session state mounted by the Mesh Editor's
+        docked Texture Editor panel.
+        """
 
         super().__init__(parent)
+        self._embedded_tools_only = bool(embedded_tools_only)
         self._after_construction_callbacks: List[Callable[[], None]] = []
         self._construction_steps: Optional[Iterator[None]] = self._construct_editor(
             settings=settings,
@@ -316,6 +340,48 @@ class TextureEditorTab(
         self._horizontal_guides: Tuple[int, ...] = ()
         self._tool_setting_rows: Dict[str, Tuple[Optional[QWidget], QWidget]] = {}
         self._ui_constraint_warning_cache: Dict[str, str] = {}
+        self._source_open_request_id = 0
+        self._active_open_source_request_id = 0
+        self._active_open_source_stop_event: Optional[threading.Event] = None
+        self._pending_open_source_request: Optional[Tuple[int, Path, object, object]] = None
+        self._shutting_down = False
+        self._loading_settings = False
+        self._tool_icon_palette_key: Optional[Tuple[int, int, int]] = None
+        self._selection_combine_mode = "replace"
+        self._status_source_text = ""
+
+        if self._embedded_tools_only:
+            self.left_scroll = None
+            self.main_splitter = None
+            self.tool_panel = None
+            self.right_panel = None
+            self.right_scroll = None
+            self.canvas_panel = None
+            self.undo_button = None
+            self.redo_button = None
+            self.document_tab_bar = QTabBar(self)
+            self.document_tab_bar.setDocumentMode(True)
+            self.document_tab_bar.setDrawBase(False)
+            self.document_tab_bar.setExpanding(False)
+            self.document_tab_bar.hide()
+            self._build_tool_buttons(parent=self)
+            self.canvas = TextureEditorCanvas()
+            self.canvas_scroll = QScrollArea(self)
+            self.canvas_scroll.setWidgetResizable(False)
+            self.canvas_scroll.setAlignment(Qt.AlignCenter)
+            self.canvas_scroll.setWidget(self.canvas)
+            self.canvas.attach_scroll_area(self.canvas_scroll)
+            self.tool_settings_section = self._build_tool_settings_section()
+            self.tool_settings_section.setParent(self)
+            self.layers_section = self._build_layers_section()
+            self.layers_section.setParent(self)
+            self.adjustments_section = self._build_adjustments_section()
+            self.adjustments_section.setParent(self)
+            self.history_section = self._build_history_section()
+            self.history_section.setParent(self)
+            self._finish_editor_setup()
+            return
+
         self.setStyleSheet(
             """
             QGroupBox {
@@ -492,42 +558,13 @@ class TextureEditorTab(
         left_actions_layout.addWidget(self.warning_label)
         left_actions_layout.addWidget(self.status_label)
         tool_layout.addWidget(left_actions_body)
-        self.tool_buttons: Dict[str, QToolButton] = {}
+        self._build_tool_buttons()
         tool_group = QGroupBox("Tools")
         tool_group.setObjectName("EditorToolGroup")
         tool_group_layout = QGridLayout(tool_group)
         tool_group_layout.setContentsMargins(8, 12, 8, 8)
         tool_group_layout.setSpacing(4)
-        for tool_key, label in (
-            ("paint", "Paint"),
-            ("erase", "Erase"),
-            ("fill", "Fill"),
-            ("gradient", "Gradient"),
-            ("sharpen", "Sharpen"),
-            ("soften", "Soften"),
-            ("smudge", "Smudge"),
-            ("dodge_burn", "Dodge/Burn"),
-            ("clone", "Clone"),
-            ("heal", "Heal"),
-            ("patch", "Patch"),
-            ("move", "Move"),
-            ("select_rect", "Rect Select"),
-            ("lasso", "Lasso"),
-            ("recolor", "Recolor"),
-        ):
-            button = QToolButton()
-            button.setText(label)
-            button.setIcon(_create_tool_icon(tool_key))
-            button.setCheckable(True)
-            button.setObjectName("EditorToolButton")
-            button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-            button.setIconSize(QSize(16, 16))
-            button.setMinimumHeight(22)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            button.setAutoRaise(False)
-            button.setToolTip(label)
-            self.tool_buttons[tool_key] = button
-            index = len(self.tool_buttons) - 1
+        for index, button in enumerate(self.tool_buttons.values()):
             tool_group_layout.addWidget(button, index // 2, index % 2)
         tool_group_layout.setRowStretch((len(self.tool_buttons) + 1) // 2, 1)
         tool_layout.addWidget(tool_group)
@@ -745,236 +782,7 @@ class TextureEditorTab(
         right_layout.addWidget(self.navigator_section)
 
         yield  # one construction step ends here (build_in_steps)
-        tool_settings_body = QFrame()
-        tool_settings_body.setObjectName("EditorSectionBody")
-        self.tool_settings_layout = QFormLayout(tool_settings_body)
-        self.tool_settings_layout.setContentsMargins(10, 10, 10, 10)
-        self.tool_settings_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self.tool_settings_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
-        self.tool_settings_layout.setHorizontalSpacing(12)
-        self.tool_settings_layout.setVerticalSpacing(8)
-        self.tool_settings_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.paint_color_edit = QLineEdit("#C85A30")
-        self.paint_color_button = QPushButton("Pick")
-        self.paint_color_sample_button = QPushButton("Sample")
-        self.paint_color_row = QWidget()
-        paint_color_row_layout = QHBoxLayout(self.paint_color_row)
-        paint_color_row_layout.setContentsMargins(0, 0, 0, 0)
-        paint_color_row_layout.setSpacing(6)
-        paint_color_row_layout.addWidget(self.paint_color_edit, stretch=1)
-        paint_color_row_layout.addWidget(self.paint_color_button)
-        paint_color_row_layout.addWidget(self.paint_color_sample_button)
-        self.secondary_color_edit = QLineEdit("#FFFFFF")
-        self.secondary_color_button = QPushButton("Pick")
-        self.secondary_color_sample_button = QPushButton("Sample")
-        self.secondary_color_row = QWidget()
-        secondary_color_row_layout = QHBoxLayout(self.secondary_color_row)
-        secondary_color_row_layout.setContentsMargins(0, 0, 0, 0)
-        secondary_color_row_layout.setSpacing(6)
-        secondary_color_row_layout.addWidget(self.secondary_color_edit, stretch=1)
-        secondary_color_row_layout.addWidget(self.secondary_color_button)
-        secondary_color_row_layout.addWidget(self.secondary_color_sample_button)
-        self.brush_preset_combo = QComboBox()
-        for entry in texture_editor_brush_preset_combo_state(
-            self._custom_brush_presets,
-            preserve_key="custom",
-            current_key="custom",
-        ).entries:
-            self.brush_preset_combo.addItem(entry.label, entry.key)
-        self.save_brush_preset_button = QPushButton("Save")
-        self.save_brush_preset_button.setObjectName("EditorPanelButton")
-        self.brush_preset_row = QWidget()
-        brush_preset_row_layout = QHBoxLayout(self.brush_preset_row)
-        brush_preset_row_layout.setContentsMargins(0, 0, 0, 0)
-        brush_preset_row_layout.setSpacing(6)
-        brush_preset_row_layout.addWidget(self.brush_preset_combo, stretch=1)
-        brush_preset_row_layout.addWidget(self.save_brush_preset_button)
-        self.brush_tip_combo = QComboBox()
-        self.brush_tip_combo.addItem("Round", "round")
-        self.brush_tip_combo.addItem("Square", "square")
-        self.brush_tip_combo.addItem("Diamond", "diamond")
-        self.brush_tip_combo.addItem("Flat", "flat")
-        self.brush_tip_combo.addItem("Image Stamp", "image_stamp")
-        self.brush_pattern_combo = QComboBox()
-        self.brush_pattern_combo.addItem("Solid", "solid")
-        self.brush_pattern_combo.addItem("Speckle", "speckle")
-        self.brush_pattern_combo.addItem("Hatch", "hatch")
-        self.brush_pattern_combo.addItem("Crosshatch", "crosshatch")
-        self.brush_pattern_combo.addItem("Grain", "grain")
-        self.custom_brush_tip_path_edit = QLineEdit()
-        self.custom_brush_tip_path_edit.setReadOnly(True)
-        self.custom_brush_tip_path_edit.setPlaceholderText("No image stamp loaded")
-        self.load_custom_brush_tip_button = QPushButton("Load...")
-        self.clear_custom_brush_tip_button = QPushButton("Clear")
-        self.custom_brush_tip_row = QWidget()
-        custom_brush_tip_row_layout = QHBoxLayout(self.custom_brush_tip_row)
-        custom_brush_tip_row_layout.setContentsMargins(0, 0, 0, 0)
-        custom_brush_tip_row_layout.setSpacing(6)
-        custom_brush_tip_row_layout.addWidget(self.custom_brush_tip_path_edit, stretch=1)
-        custom_brush_tip_row_layout.addWidget(self.load_custom_brush_tip_button)
-        custom_brush_tip_row_layout.addWidget(self.clear_custom_brush_tip_button)
-        self.symmetry_mode_combo = QComboBox()
-        self.symmetry_mode_combo.addItem("Off", "off")
-        self.symmetry_mode_combo.addItem("Horizontal mirror", "horizontal")
-        self.symmetry_mode_combo.addItem("Vertical mirror", "vertical")
-        self.symmetry_mode_combo.addItem("Both axes", "both")
-        self.brush_size_slider = QSlider(Qt.Horizontal)
-        self.brush_size_slider.setRange(1, 256)
-        self.brush_size_slider.setValue(32)
-        self.size_step_mode_combo = QComboBox()
-        self.size_step_mode_combo.addItem("Normal", "normal")
-        self.size_step_mode_combo.addItem("Fine detail", "fine")
-        self.hardness_slider = QSlider(Qt.Horizontal)
-        self.hardness_slider.setRange(0, 100)
-        self.hardness_slider.setValue(80)
-        self.roundness_slider = QSlider(Qt.Horizontal)
-        self.roundness_slider.setRange(10, 100)
-        self.roundness_slider.setValue(100)
-        self.angle_slider = QSlider(Qt.Horizontal)
-        self.angle_slider.setRange(-180, 180)
-        self.angle_slider.setValue(0)
-        self.smoothing_slider = QSlider(Qt.Horizontal)
-        self.smoothing_slider.setRange(0, 100)
-        self.smoothing_slider.setValue(0)
-        self.opacity_slider = QSlider(Qt.Horizontal)
-        self.opacity_slider.setRange(1, 100)
-        self.opacity_slider.setValue(100)
-        self.flow_slider = QSlider(Qt.Horizontal)
-        self.flow_slider.setRange(1, 100)
-        self.flow_slider.setValue(100)
-        self.spacing_slider = QSlider(Qt.Horizontal)
-        self.spacing_slider.setRange(1, 100)
-        self.spacing_slider.setValue(20)
-        self.fill_tolerance_slider = QSlider(Qt.Horizontal)
-        self.fill_tolerance_slider.setRange(0, 255)
-        self.fill_tolerance_slider.setValue(24)
-        self.fill_contiguous_checkbox = QCheckBox("Contiguous fill only")
-        self.fill_contiguous_checkbox.setChecked(True)
-        self.strength_slider = QSlider(Qt.Horizontal)
-        self.strength_slider.setRange(0, 100)
-        self.strength_slider.setValue(25)
-        self.paint_blend_mode_combo = QComboBox()
-        self.paint_blend_mode_combo.addItem("Normal", "normal")
-        self.paint_blend_mode_combo.addItem("Multiply", "multiply")
-        self.paint_blend_mode_combo.addItem("Screen", "screen")
-        self.paint_blend_mode_combo.addItem("Overlay", "overlay")
-        self.sharpen_mode_combo = QComboBox()
-        self.sharpen_mode_combo.addItem("Unsharp Mask", "unsharp_mask")
-        self.sharpen_mode_combo.addItem("Local Contrast", "local_contrast")
-        self.sharpen_mode_combo.addItem("High Pass", "high_pass")
-        self.soften_mode_combo = QComboBox()
-        self.soften_mode_combo.addItem("Gaussian Blur", "gaussian")
-        self.soften_mode_combo.addItem("Median Blur", "median")
-        self.soften_mode_combo.addItem("Surface Blur", "surface")
-        self.sample_visible_layers_checkbox = QCheckBox("Sample visible layers")
-        self.sample_visible_layers_checkbox.setChecked(True)
-        self.clone_aligned_checkbox = QCheckBox("Aligned sampling")
-        self.clone_aligned_checkbox.setChecked(True)
-        self.clear_clone_source_button = QPushButton("Clear Source")
-        self.clear_clone_source_button.setObjectName("EditorPanelButton")
-        self.lasso_snap_checkbox = QCheckBox("Snap lasso to edges")
-        self.lasso_snap_checkbox.setChecked(False)
-        self.lasso_snap_radius_slider = QSlider(Qt.Horizontal)
-        self.lasso_snap_radius_slider.setRange(2, 24)
-        self.lasso_snap_radius_slider.setValue(10)
-        self.lasso_snap_sensitivity_slider = QSlider(Qt.Horizontal)
-        self.lasso_snap_sensitivity_slider.setRange(1, 100)
-        self.lasso_snap_sensitivity_slider.setValue(55)
-        self.clone_source_label = QLabel("Ctrl+right-click sets the source point. Right-drag pans the canvas. Turn off aligned sampling to keep stamping from one fixed source.")
-        self.clone_source_label.setWordWrap(True)
-        self.smudge_strength_slider = QSlider(Qt.Horizontal)
-        self.smudge_strength_slider.setRange(1, 100)
-        self.smudge_strength_slider.setValue(45)
-        self.dodge_burn_mode_combo = QComboBox()
-        self.dodge_burn_mode_combo.addItem("Dodge Midtones", "dodge_midtones")
-        self.dodge_burn_mode_combo.addItem("Dodge Highlights", "dodge_highlights")
-        self.dodge_burn_mode_combo.addItem("Dodge Shadows", "dodge_shadows")
-        self.dodge_burn_mode_combo.addItem("Burn Midtones", "burn_midtones")
-        self.dodge_burn_mode_combo.addItem("Burn Highlights", "burn_highlights")
-        self.dodge_burn_mode_combo.addItem("Burn Shadows", "burn_shadows")
-        self.dodge_burn_exposure_slider = QSlider(Qt.Horizontal)
-        self.dodge_burn_exposure_slider.setRange(1, 100)
-        self.dodge_burn_exposure_slider.setValue(20)
-        self.patch_blend_slider = QSlider(Qt.Horizontal)
-        self.patch_blend_slider.setRange(1, 100)
-        self.patch_blend_slider.setValue(70)
-        self.gradient_type_combo = QComboBox()
-        self.gradient_type_combo.addItem("Linear", "linear")
-        self.gradient_type_combo.addItem("Radial", "radial")
-        self.recolor_mode_combo = QComboBox()
-        self.recolor_mode_combo.addItem("Tint whole texture", "tint")
-        self.recolor_mode_combo.addItem("Replace selected color", "replace_color")
-        self.recolor_source_edit = QLineEdit("#808080")
-        self.recolor_source_pick_button = QPushButton("Pick")
-        self.recolor_source_sample_button = QPushButton("Sample")
-        self.recolor_target_edit = QLineEdit("#C85A30")
-        self.recolor_target_pick_button = QPushButton("Pick")
-        self.recolor_target_sample_button = QPushButton("Sample")
-        self.recolor_tolerance_slider = QSlider(Qt.Horizontal)
-        self.recolor_tolerance_slider.setRange(0, 255)
-        self.recolor_tolerance_slider.setValue(48)
-        self.recolor_strength_slider = QSlider(Qt.Horizontal)
-        self.recolor_strength_slider.setRange(1, 100)
-        self.recolor_strength_slider.setValue(100)
-        self.recolor_preserve_luma_checkbox = QCheckBox("Preserve shading / luminance")
-        self.recolor_preserve_luma_checkbox.setChecked(True)
-        self.apply_recolor_button = QPushButton("Apply Recolor To Active Layer")
-        recolor_source_row = QWidget()
-        recolor_source_row_layout = QHBoxLayout(recolor_source_row)
-        recolor_source_row_layout.setContentsMargins(0, 0, 0, 0)
-        recolor_source_row_layout.setSpacing(6)
-        recolor_source_row_layout.addWidget(self.recolor_source_edit, stretch=1)
-        recolor_source_row_layout.addWidget(self.recolor_source_pick_button)
-        recolor_source_row_layout.addWidget(self.recolor_source_sample_button)
-        recolor_target_row = QWidget()
-        recolor_target_row_layout = QHBoxLayout(recolor_target_row)
-        recolor_target_row_layout.setContentsMargins(0, 0, 0, 0)
-        recolor_target_row_layout.setSpacing(6)
-        recolor_target_row_layout.addWidget(self.recolor_target_edit, stretch=1)
-        recolor_target_row_layout.addWidget(self.recolor_target_pick_button)
-        recolor_target_row_layout.addWidget(self.recolor_target_sample_button)
-        self._add_tool_setting_row("brush_preset", "Preset", self.brush_preset_row)
-        self._add_tool_setting_row("brush_tip", "Brush tip", self.brush_tip_combo)
-        self._add_tool_setting_row("custom_brush_tip", "Stamp", self.custom_brush_tip_row)
-        self._add_tool_setting_row("brush_pattern", "Pattern", self.brush_pattern_combo)
-        self._add_tool_setting_row("symmetry_mode", "Symmetry", self.symmetry_mode_combo)
-        self._add_tool_setting_row("paint_color", "Color", self.paint_color_row)
-        self._add_tool_setting_row("secondary_color", "Secondary", self.secondary_color_row)
-        self._add_tool_setting_row("brush_size", "Brush size", self.brush_size_slider)
-        self._add_tool_setting_row("size_step_mode", "Size mode", self.size_step_mode_combo)
-        self._add_tool_setting_row("hardness", "Hardness", self.hardness_slider)
-        self._add_tool_setting_row("roundness", "Roundness", self.roundness_slider)
-        self._add_tool_setting_row("angle_degrees", "Angle", self.angle_slider)
-        self._add_tool_setting_row("smoothing", "Smoothing", self.smoothing_slider)
-        self._add_tool_setting_row("opacity", "Opacity", self.opacity_slider)
-        self._add_tool_setting_row("flow", "Flow", self.flow_slider)
-        self._add_tool_setting_row("spacing", "Spacing", self.spacing_slider)
-        self._add_tool_setting_row("paint_blend_mode", "Blend mode", self.paint_blend_mode_combo)
-        self._add_tool_setting_row("fill_tolerance", "Fill tolerance", self.fill_tolerance_slider)
-        self._add_tool_setting_row("fill_contiguous", "", self.fill_contiguous_checkbox)
-        self._add_tool_setting_row("strength", "Strength", self.strength_slider)
-        self._add_tool_setting_row("smudge_strength", "Smudge", self.smudge_strength_slider)
-        self._add_tool_setting_row("dodge_burn_mode", "Tone mode", self.dodge_burn_mode_combo)
-        self._add_tool_setting_row("dodge_burn_exposure", "Exposure", self.dodge_burn_exposure_slider)
-        self._add_tool_setting_row("patch_blend", "Patch blend", self.patch_blend_slider)
-        self._add_tool_setting_row("gradient_type", "Gradient", self.gradient_type_combo)
-        self._add_tool_setting_row("sharpen_mode", "Sharpen mode", self.sharpen_mode_combo)
-        self._add_tool_setting_row("soften_mode", "Soften mode", self.soften_mode_combo)
-        self._add_tool_setting_row("sample_visible_layers", "", self.sample_visible_layers_checkbox)
-        self._add_tool_setting_row("clone_aligned", "", self.clone_aligned_checkbox)
-        self._add_tool_setting_row("clone_clear_source", "", self.clear_clone_source_button)
-        self._add_tool_setting_row("lasso_snap_to_edges", "", self.lasso_snap_checkbox)
-        self._add_tool_setting_row("lasso_snap_radius", "Snap radius", self.lasso_snap_radius_slider)
-        self._add_tool_setting_row("lasso_snap_sensitivity", "Edge sensitivity", self.lasso_snap_sensitivity_slider)
-        self._add_tool_setting_row("clone_hint", "Clone / Heal", self.clone_source_label)
-        self._add_tool_setting_row("recolor_mode", "Recolor mode", self.recolor_mode_combo)
-        self._add_tool_setting_row("recolor_source", "Recolor source", recolor_source_row)
-        self._add_tool_setting_row("recolor_target", "Recolor target", recolor_target_row)
-        self._add_tool_setting_row("recolor_tolerance", "Recolor tolerance", self.recolor_tolerance_slider)
-        self._add_tool_setting_row("recolor_strength", "Recolor strength", self.recolor_strength_slider)
-        self._add_tool_setting_row("recolor_preserve_luma", "", self.recolor_preserve_luma_checkbox)
-        self._add_tool_setting_row("recolor_apply", "", self.apply_recolor_button)
-        self.tool_settings_section = CollapsibleSection("Tool Settings", tool_settings_body, expanded=True)
+        self.tool_settings_section = self._build_tool_settings_section()
         right_layout.addWidget(self.tool_settings_section)
 
         yield  # one construction step ends here (build_in_steps)
@@ -1299,6 +1107,296 @@ class TextureEditorTab(
         right_layout.addWidget(self.atlas_section)
 
         yield  # one construction step ends here (build_in_steps)
+        self.layers_section = self._build_layers_section()
+        right_layout.addWidget(self.layers_section)
+
+        yield  # one construction step ends here (build_in_steps)
+        self.adjustments_section = self._build_adjustments_section()
+        right_layout.addWidget(self.adjustments_section)
+
+        self.history_section = self._build_history_section()
+        right_layout.addWidget(self.history_section)
+
+        right_layout.addStretch(1)
+        yield  # one construction step ends here (build_in_steps)
+        self._finish_editor_setup()
+
+    @staticmethod
+    def _tool_icon_palette_signature(palette: Optional[QPalette] = None) -> Tuple[int, int, int]:
+        resolved = palette if palette is not None else QApplication.palette()
+        return (
+            int(resolved.color(QPalette.Highlight).rgba()),
+            int(resolved.color(QPalette.ButtonText).rgba()),
+            int(resolved.color(QPalette.PlaceholderText).rgba()),
+        )
+
+    def _build_tool_buttons(self, *, parent: Optional[QWidget] = None) -> None:
+        self.tool_buttons: Dict[str, QToolButton] = {}
+        palette = QApplication.palette()
+        self._tool_icon_palette_key = self._tool_icon_palette_signature(palette)
+        for tool_key, label in (
+            ("paint", "Paint"),
+            ("erase", "Erase"),
+            ("fill", "Fill"),
+            ("gradient", "Gradient"),
+            ("sharpen", "Sharpen"),
+            ("soften", "Soften"),
+            ("smudge", "Smudge"),
+            ("dodge_burn", "Dodge/Burn"),
+            ("clone", "Clone"),
+            ("heal", "Heal"),
+            ("patch", "Patch"),
+            ("move", "Move"),
+            ("select_rect", "Rect Select"),
+            ("lasso", "Lasso"),
+            ("recolor", "Recolor"),
+        ):
+            button = QToolButton(parent)
+            button.setText(label)
+            button.setIcon(_create_tool_icon(tool_key, palette))
+            button.setCheckable(True)
+            button.setObjectName("EditorToolButton")
+            button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            button.setIconSize(QSize(16, 16))
+            button.setMinimumHeight(22)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setAutoRaise(False)
+            button.setToolTip(label)
+            self.tool_buttons[tool_key] = button
+
+    def _build_tool_settings_section(self) -> CollapsibleSection:
+        tool_settings_body = QFrame()
+        tool_settings_body.setObjectName("EditorSectionBody")
+        self.tool_settings_layout = QFormLayout(tool_settings_body)
+        self.tool_settings_layout.setContentsMargins(10, 10, 10, 10)
+        self.tool_settings_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        self.tool_settings_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        self.tool_settings_layout.setHorizontalSpacing(12)
+        self.tool_settings_layout.setVerticalSpacing(8)
+        self.tool_settings_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.paint_color_edit = QLineEdit("#C85A30")
+        self.paint_color_button = QPushButton("Pick")
+        self.paint_color_sample_button = QPushButton("Sample")
+        self.paint_color_row = QWidget()
+        paint_color_row_layout = QHBoxLayout(self.paint_color_row)
+        paint_color_row_layout.setContentsMargins(0, 0, 0, 0)
+        paint_color_row_layout.setSpacing(6)
+        paint_color_row_layout.addWidget(self.paint_color_edit, stretch=1)
+        paint_color_row_layout.addWidget(self.paint_color_button)
+        paint_color_row_layout.addWidget(self.paint_color_sample_button)
+        self.secondary_color_edit = QLineEdit("#FFFFFF")
+        self.secondary_color_button = QPushButton("Pick")
+        self.secondary_color_sample_button = QPushButton("Sample")
+        self.secondary_color_row = QWidget()
+        secondary_color_row_layout = QHBoxLayout(self.secondary_color_row)
+        secondary_color_row_layout.setContentsMargins(0, 0, 0, 0)
+        secondary_color_row_layout.setSpacing(6)
+        secondary_color_row_layout.addWidget(self.secondary_color_edit, stretch=1)
+        secondary_color_row_layout.addWidget(self.secondary_color_button)
+        secondary_color_row_layout.addWidget(self.secondary_color_sample_button)
+        self.brush_preset_combo = QComboBox()
+        for entry in texture_editor_brush_preset_combo_state(
+            self._custom_brush_presets,
+            preserve_key="custom",
+            current_key="custom",
+        ).entries:
+            self.brush_preset_combo.addItem(entry.label, entry.key)
+        self.save_brush_preset_button = QPushButton("Save")
+        self.save_brush_preset_button.setObjectName("EditorPanelButton")
+        self.brush_preset_row = QWidget()
+        brush_preset_row_layout = QHBoxLayout(self.brush_preset_row)
+        brush_preset_row_layout.setContentsMargins(0, 0, 0, 0)
+        brush_preset_row_layout.setSpacing(6)
+        brush_preset_row_layout.addWidget(self.brush_preset_combo, stretch=1)
+        brush_preset_row_layout.addWidget(self.save_brush_preset_button)
+        self.brush_tip_combo = QComboBox()
+        self.brush_tip_combo.addItem("Round", "round")
+        self.brush_tip_combo.addItem("Square", "square")
+        self.brush_tip_combo.addItem("Diamond", "diamond")
+        self.brush_tip_combo.addItem("Flat", "flat")
+        self.brush_tip_combo.addItem("Image Stamp", "image_stamp")
+        self.brush_pattern_combo = QComboBox()
+        self.brush_pattern_combo.addItem("Solid", "solid")
+        self.brush_pattern_combo.addItem("Speckle", "speckle")
+        self.brush_pattern_combo.addItem("Hatch", "hatch")
+        self.brush_pattern_combo.addItem("Crosshatch", "crosshatch")
+        self.brush_pattern_combo.addItem("Grain", "grain")
+        self.custom_brush_tip_path_edit = QLineEdit()
+        self.custom_brush_tip_path_edit.setReadOnly(True)
+        self.custom_brush_tip_path_edit.setPlaceholderText("No image stamp loaded")
+        self.load_custom_brush_tip_button = QPushButton("Load...")
+        self.clear_custom_brush_tip_button = QPushButton("Clear")
+        self.custom_brush_tip_row = QWidget()
+        custom_brush_tip_row_layout = QHBoxLayout(self.custom_brush_tip_row)
+        custom_brush_tip_row_layout.setContentsMargins(0, 0, 0, 0)
+        custom_brush_tip_row_layout.setSpacing(6)
+        custom_brush_tip_row_layout.addWidget(self.custom_brush_tip_path_edit, stretch=1)
+        custom_brush_tip_row_layout.addWidget(self.load_custom_brush_tip_button)
+        custom_brush_tip_row_layout.addWidget(self.clear_custom_brush_tip_button)
+        self.symmetry_mode_combo = QComboBox()
+        self.symmetry_mode_combo.addItem("Off", "off")
+        self.symmetry_mode_combo.addItem("Horizontal mirror", "horizontal")
+        self.symmetry_mode_combo.addItem("Vertical mirror", "vertical")
+        self.symmetry_mode_combo.addItem("Both axes", "both")
+        self.brush_size_slider = QSlider(Qt.Horizontal)
+        self.brush_size_slider.setRange(1, 256)
+        self.brush_size_slider.setValue(32)
+        self.size_step_mode_combo = QComboBox()
+        self.size_step_mode_combo.addItem("Normal", "normal")
+        self.size_step_mode_combo.addItem("Fine detail", "fine")
+        self.hardness_slider = QSlider(Qt.Horizontal)
+        self.hardness_slider.setRange(0, 100)
+        self.hardness_slider.setValue(80)
+        self.roundness_slider = QSlider(Qt.Horizontal)
+        self.roundness_slider.setRange(10, 100)
+        self.roundness_slider.setValue(100)
+        self.angle_slider = QSlider(Qt.Horizontal)
+        self.angle_slider.setRange(-180, 180)
+        self.angle_slider.setValue(0)
+        self.smoothing_slider = QSlider(Qt.Horizontal)
+        self.smoothing_slider.setRange(0, 100)
+        self.smoothing_slider.setValue(0)
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(1, 100)
+        self.opacity_slider.setValue(100)
+        self.flow_slider = QSlider(Qt.Horizontal)
+        self.flow_slider.setRange(1, 100)
+        self.flow_slider.setValue(100)
+        self.spacing_slider = QSlider(Qt.Horizontal)
+        self.spacing_slider.setRange(1, 100)
+        self.spacing_slider.setValue(20)
+        self.fill_tolerance_slider = QSlider(Qt.Horizontal)
+        self.fill_tolerance_slider.setRange(0, 255)
+        self.fill_tolerance_slider.setValue(24)
+        self.fill_contiguous_checkbox = QCheckBox("Contiguous fill only")
+        self.fill_contiguous_checkbox.setChecked(True)
+        self.strength_slider = QSlider(Qt.Horizontal)
+        self.strength_slider.setRange(0, 100)
+        self.strength_slider.setValue(25)
+        self.paint_blend_mode_combo = QComboBox()
+        self.paint_blend_mode_combo.addItem("Normal", "normal")
+        self.paint_blend_mode_combo.addItem("Multiply", "multiply")
+        self.paint_blend_mode_combo.addItem("Screen", "screen")
+        self.paint_blend_mode_combo.addItem("Overlay", "overlay")
+        self.sharpen_mode_combo = QComboBox()
+        self.sharpen_mode_combo.addItem("Unsharp Mask", "unsharp_mask")
+        self.sharpen_mode_combo.addItem("Local Contrast", "local_contrast")
+        self.sharpen_mode_combo.addItem("High Pass", "high_pass")
+        self.soften_mode_combo = QComboBox()
+        self.soften_mode_combo.addItem("Gaussian Blur", "gaussian")
+        self.soften_mode_combo.addItem("Median Blur", "median")
+        self.soften_mode_combo.addItem("Surface Blur", "surface")
+        self.sample_visible_layers_checkbox = QCheckBox("Sample visible layers")
+        self.sample_visible_layers_checkbox.setChecked(True)
+        self.clone_aligned_checkbox = QCheckBox("Aligned sampling")
+        self.clone_aligned_checkbox.setChecked(True)
+        self.clear_clone_source_button = QPushButton("Clear Source")
+        self.clear_clone_source_button.setObjectName("EditorPanelButton")
+        self.lasso_snap_checkbox = QCheckBox("Snap lasso to edges")
+        self.lasso_snap_checkbox.setChecked(False)
+        self.lasso_snap_radius_slider = QSlider(Qt.Horizontal)
+        self.lasso_snap_radius_slider.setRange(2, 24)
+        self.lasso_snap_radius_slider.setValue(10)
+        self.lasso_snap_sensitivity_slider = QSlider(Qt.Horizontal)
+        self.lasso_snap_sensitivity_slider.setRange(1, 100)
+        self.lasso_snap_sensitivity_slider.setValue(55)
+        self.clone_source_label = QLabel("Ctrl+right-click sets the source point. Right-drag pans the canvas. Turn off aligned sampling to keep stamping from one fixed source.")
+        self.clone_source_label.setWordWrap(True)
+        self.smudge_strength_slider = QSlider(Qt.Horizontal)
+        self.smudge_strength_slider.setRange(1, 100)
+        self.smudge_strength_slider.setValue(45)
+        self.dodge_burn_mode_combo = QComboBox()
+        self.dodge_burn_mode_combo.addItem("Dodge Midtones", "dodge_midtones")
+        self.dodge_burn_mode_combo.addItem("Dodge Highlights", "dodge_highlights")
+        self.dodge_burn_mode_combo.addItem("Dodge Shadows", "dodge_shadows")
+        self.dodge_burn_mode_combo.addItem("Burn Midtones", "burn_midtones")
+        self.dodge_burn_mode_combo.addItem("Burn Highlights", "burn_highlights")
+        self.dodge_burn_mode_combo.addItem("Burn Shadows", "burn_shadows")
+        self.dodge_burn_exposure_slider = QSlider(Qt.Horizontal)
+        self.dodge_burn_exposure_slider.setRange(1, 100)
+        self.dodge_burn_exposure_slider.setValue(20)
+        self.patch_blend_slider = QSlider(Qt.Horizontal)
+        self.patch_blend_slider.setRange(1, 100)
+        self.patch_blend_slider.setValue(70)
+        self.gradient_type_combo = QComboBox()
+        self.gradient_type_combo.addItem("Linear", "linear")
+        self.gradient_type_combo.addItem("Radial", "radial")
+        self.recolor_mode_combo = QComboBox()
+        self.recolor_mode_combo.addItem("Tint whole texture", "tint")
+        self.recolor_mode_combo.addItem("Replace selected color", "replace_color")
+        self.recolor_source_edit = QLineEdit("#808080")
+        self.recolor_source_pick_button = QPushButton("Pick")
+        self.recolor_source_sample_button = QPushButton("Sample")
+        self.recolor_target_edit = QLineEdit("#C85A30")
+        self.recolor_target_pick_button = QPushButton("Pick")
+        self.recolor_target_sample_button = QPushButton("Sample")
+        self.recolor_tolerance_slider = QSlider(Qt.Horizontal)
+        self.recolor_tolerance_slider.setRange(0, 255)
+        self.recolor_tolerance_slider.setValue(48)
+        self.recolor_strength_slider = QSlider(Qt.Horizontal)
+        self.recolor_strength_slider.setRange(1, 100)
+        self.recolor_strength_slider.setValue(100)
+        self.recolor_preserve_luma_checkbox = QCheckBox("Preserve shading / luminance")
+        self.recolor_preserve_luma_checkbox.setChecked(True)
+        self.apply_recolor_button = QPushButton("Apply Recolor To Active Layer")
+        recolor_source_row = QWidget()
+        recolor_source_row_layout = QHBoxLayout(recolor_source_row)
+        recolor_source_row_layout.setContentsMargins(0, 0, 0, 0)
+        recolor_source_row_layout.setSpacing(6)
+        recolor_source_row_layout.addWidget(self.recolor_source_edit, stretch=1)
+        recolor_source_row_layout.addWidget(self.recolor_source_pick_button)
+        recolor_source_row_layout.addWidget(self.recolor_source_sample_button)
+        recolor_target_row = QWidget()
+        recolor_target_row_layout = QHBoxLayout(recolor_target_row)
+        recolor_target_row_layout.setContentsMargins(0, 0, 0, 0)
+        recolor_target_row_layout.setSpacing(6)
+        recolor_target_row_layout.addWidget(self.recolor_target_edit, stretch=1)
+        recolor_target_row_layout.addWidget(self.recolor_target_pick_button)
+        recolor_target_row_layout.addWidget(self.recolor_target_sample_button)
+        self._add_tool_setting_row("brush_preset", "Preset", self.brush_preset_row)
+        self._add_tool_setting_row("brush_tip", "Brush tip", self.brush_tip_combo)
+        self._add_tool_setting_row("custom_brush_tip", "Stamp", self.custom_brush_tip_row)
+        self._add_tool_setting_row("brush_pattern", "Pattern", self.brush_pattern_combo)
+        self._add_tool_setting_row("symmetry_mode", "Symmetry", self.symmetry_mode_combo)
+        self._add_tool_setting_row("paint_color", "Color", self.paint_color_row)
+        self._add_tool_setting_row("secondary_color", "Secondary", self.secondary_color_row)
+        self._add_tool_setting_row("brush_size", "Brush size", self.brush_size_slider)
+        self._add_tool_setting_row("size_step_mode", "Size mode", self.size_step_mode_combo)
+        self._add_tool_setting_row("hardness", "Hardness", self.hardness_slider)
+        self._add_tool_setting_row("roundness", "Roundness", self.roundness_slider)
+        self._add_tool_setting_row("angle_degrees", "Angle", self.angle_slider)
+        self._add_tool_setting_row("smoothing", "Smoothing", self.smoothing_slider)
+        self._add_tool_setting_row("opacity", "Opacity", self.opacity_slider)
+        self._add_tool_setting_row("flow", "Flow", self.flow_slider)
+        self._add_tool_setting_row("spacing", "Spacing", self.spacing_slider)
+        self._add_tool_setting_row("paint_blend_mode", "Blend mode", self.paint_blend_mode_combo)
+        self._add_tool_setting_row("fill_tolerance", "Fill tolerance", self.fill_tolerance_slider)
+        self._add_tool_setting_row("fill_contiguous", "", self.fill_contiguous_checkbox)
+        self._add_tool_setting_row("strength", "Strength", self.strength_slider)
+        self._add_tool_setting_row("smudge_strength", "Smudge", self.smudge_strength_slider)
+        self._add_tool_setting_row("dodge_burn_mode", "Tone mode", self.dodge_burn_mode_combo)
+        self._add_tool_setting_row("dodge_burn_exposure", "Exposure", self.dodge_burn_exposure_slider)
+        self._add_tool_setting_row("patch_blend", "Patch blend", self.patch_blend_slider)
+        self._add_tool_setting_row("gradient_type", "Gradient", self.gradient_type_combo)
+        self._add_tool_setting_row("sharpen_mode", "Sharpen mode", self.sharpen_mode_combo)
+        self._add_tool_setting_row("soften_mode", "Soften mode", self.soften_mode_combo)
+        self._add_tool_setting_row("sample_visible_layers", "", self.sample_visible_layers_checkbox)
+        self._add_tool_setting_row("clone_aligned", "", self.clone_aligned_checkbox)
+        self._add_tool_setting_row("clone_clear_source", "", self.clear_clone_source_button)
+        self._add_tool_setting_row("lasso_snap_to_edges", "", self.lasso_snap_checkbox)
+        self._add_tool_setting_row("lasso_snap_radius", "Snap radius", self.lasso_snap_radius_slider)
+        self._add_tool_setting_row("lasso_snap_sensitivity", "Edge sensitivity", self.lasso_snap_sensitivity_slider)
+        self._add_tool_setting_row("clone_hint", "Clone / Heal", self.clone_source_label)
+        self._add_tool_setting_row("recolor_mode", "Recolor mode", self.recolor_mode_combo)
+        self._add_tool_setting_row("recolor_source", "Recolor source", recolor_source_row)
+        self._add_tool_setting_row("recolor_target", "Recolor target", recolor_target_row)
+        self._add_tool_setting_row("recolor_tolerance", "Recolor tolerance", self.recolor_tolerance_slider)
+        self._add_tool_setting_row("recolor_strength", "Recolor strength", self.recolor_strength_slider)
+        self._add_tool_setting_row("recolor_preserve_luma", "", self.recolor_preserve_luma_checkbox)
+        self._add_tool_setting_row("recolor_apply", "", self.apply_recolor_button)
+        return CollapsibleSection("Tool Settings", tool_settings_body, expanded=True)
+
+    def _build_layers_section(self) -> CollapsibleSection:
         layers_body = QFrame()
         layers_body.setObjectName("EditorSectionBody")
         layers_layout = QVBoxLayout(layers_body)
@@ -1377,10 +1475,9 @@ class TextureEditorTab(
         layers_layout.addLayout(mask_actions)
         layers_layout.addWidget(QLabel("Layer opacity"))
         layers_layout.addWidget(self.layer_opacity_slider)
-        self.layers_section = CollapsibleSection("Layers", layers_body, expanded=False)
-        right_layout.addWidget(self.layers_section)
+        return CollapsibleSection("Layers", layers_body, expanded=False)
 
-        yield  # one construction step ends here (build_in_steps)
+    def _build_adjustments_section(self) -> CollapsibleSection:
         adjustments_body = QFrame()
         adjustments_body.setObjectName("EditorSectionBody")
         adjustments_layout = QVBoxLayout(adjustments_body)
@@ -1480,9 +1577,9 @@ class TextureEditorTab(
         adjustment_mask_actions.addWidget(self.adjustment_use_active_mask_button, 0, 0)
         adjustment_mask_actions.addWidget(self.adjustment_clear_mask_button, 0, 1)
         adjustments_layout.addLayout(adjustment_mask_actions)
-        self.adjustments_section = CollapsibleSection("Adjustments", adjustments_body, expanded=False)
-        right_layout.addWidget(self.adjustments_section)
+        return CollapsibleSection("Adjustments", adjustments_body, expanded=False)
 
+    def _build_history_section(self) -> CollapsibleSection:
         history_body = QFrame()
         history_body.setObjectName("EditorSectionBody")
         history_layout = QVBoxLayout(history_body)
@@ -1498,14 +1595,22 @@ class TextureEditorTab(
         history_actions.addWidget(self.history_clear_button)
         history_actions.addStretch(1)
         history_layout.addLayout(history_actions)
-        self.history_section = CollapsibleSection("History", history_body, expanded=False)
-        right_layout.addWidget(self.history_section)
-
-        right_layout.addStretch(1)
-        yield  # one construction step ends here (build_in_steps)
-        self._finish_editor_setup()
+        return CollapsibleSection("History", history_body, expanded=False)
 
     def _finish_editor_setup(self) -> None:
+        if self._embedded_tools_only:
+            self._task_completed_on_ui.connect(self._handle_async_task_completed)
+            self._task_error_on_ui.connect(self._handle_async_task_error)
+            self._task_finished_on_ui.connect(self._handle_async_task_finished)
+            self._connect_signals()
+            self._rebuild_brush_preset_combo(preserve_key="custom")
+            self._set_active_tool("paint")
+            self._load_settings()
+            self._settings_ready = True
+            self._refresh_ui()
+            self._apply_font_sensitive_metrics(self.font())
+            return
+
         if self.workspace_embedded:
             self.main_splitter.setStretchFactor(0, 8)
             self.main_splitter.setStretchFactor(1, 2)
@@ -1533,3 +1638,733 @@ class TextureEditorTab(
         self._apply_font_sensitive_metrics(self.font())
         # The context object drops the call if the editor is deleted before it runs.
         QTimer.singleShot(0, self, self._apply_responsive_splitter_defaults)
+
+    # ----- Icon / font / embedded-tools-only overrides -----------------------
+
+    def _refresh_tool_button_icons(self) -> None:
+        palette = QApplication.palette()
+        palette_key = self._tool_icon_palette_signature(palette)
+        if palette_key == self._tool_icon_palette_key:
+            return
+        self._tool_icon_palette_key = palette_key
+        for tool_key, button in self.tool_buttons.items():
+            button.setIcon(_create_tool_icon(tool_key, palette))
+
+    def _apply_font_sensitive_metrics(self, font: QFont) -> None:
+        if not self._embedded_tools_only:
+            super()._apply_font_sensitive_metrics(font)
+            return
+        metrics = QFontMetrics(font)
+        compact_button_height = max(22, metrics.height() + 6)
+        tool_button_height = max(22, metrics.height() + 6)
+        tool_icon_size = max(14, min(18, metrics.height() + 2))
+        for button in (self.history_restore_button, self.history_clear_button):
+            button.setMinimumHeight(compact_button_height)
+        self._refresh_tool_button_icons()
+        for button in self.tool_buttons.values():
+            button.setMinimumHeight(tool_button_height)
+            button.setIconSize(QSize(tool_icon_size, tool_icon_size))
+
+    def sync_ui_font(self, font: QFont) -> None:
+        if not self._embedded_tools_only:
+            super().sync_ui_font(font)
+            return
+        # The host dock applies the font to its visible tree in a single pass; here
+        # only update font-sensitive button/icon metrics without walking the tree twice.
+        self._apply_font_sensitive_metrics(QFont(font))
+
+    def _connect_signals(self) -> None:
+        if not self._embedded_tools_only:
+            super()._connect_signals()
+            return
+        self.document_tab_bar.currentChanged.connect(self._handle_document_tab_changed)
+        self.document_tab_bar.tabCloseRequested.connect(self._close_document_tab)
+        for tool_key, button in self.tool_buttons.items():
+            button.clicked.connect(lambda checked=False, key=tool_key: self._set_active_tool(key))
+        self._connect_canvas_signals()
+        self.paint_color_button.clicked.connect(lambda: self._pick_color_into(self.paint_color_edit))
+        self.paint_color_sample_button.clicked.connect(lambda: self.canvas.set_color_sample_target("paint"))
+        self.secondary_color_button.clicked.connect(lambda: self._pick_color_into(self.secondary_color_edit))
+        self.secondary_color_sample_button.clicked.connect(lambda: self.canvas.set_color_sample_target("secondary"))
+        self.recolor_source_pick_button.clicked.connect(lambda: self._pick_color_into(self.recolor_source_edit))
+        self.recolor_target_pick_button.clicked.connect(lambda: self._pick_color_into(self.recolor_target_edit))
+        self.recolor_source_sample_button.clicked.connect(lambda: self.canvas.set_color_sample_target("recolor_source"))
+        self.recolor_target_sample_button.clicked.connect(lambda: self.canvas.set_color_sample_target("recolor_target"))
+        self.apply_recolor_button.clicked.connect(self.apply_recolor_to_active_layer)
+        self.save_brush_preset_button.clicked.connect(self.save_current_brush_preset)
+        self.load_custom_brush_tip_button.clicked.connect(self.load_custom_brush_tip)
+        self.clear_custom_brush_tip_button.clicked.connect(self.clear_custom_brush_tip)
+        self.clear_clone_source_button.clicked.connect(self.clear_clone_source_point)
+        self.layers_list.currentItemChanged.connect(lambda *_args: self._handle_layer_selection_changed())
+        self.layers_list.model().rowsMoved.connect(self._handle_layers_reordered_by_drag)
+        self.add_layer_button.clicked.connect(self.add_layer)
+        self.duplicate_layer_button.clicked.connect(self.duplicate_layer)
+        self.remove_layer_button.clicked.connect(self.remove_layer)
+        self.merge_layer_button.clicked.connect(self.merge_layer_down)
+        self.layer_up_button.clicked.connect(lambda: self.reorder_layer(1))
+        self.layer_down_button.clicked.connect(lambda: self.reorder_layer(-1))
+        self.layer_name_edit.editingFinished.connect(self.rename_selected_layer)
+        self.layer_visible_checkbox.toggled.connect(self.toggle_selected_layer_visibility)
+        self.layer_opacity_slider.valueChanged.connect(self.preview_selected_layer_opacity)
+        self.layer_opacity_slider.sliderReleased.connect(self.commit_selected_layer_opacity)
+        self.layer_add_mask_button.clicked.connect(self.add_mask_to_selected_layer)
+        self.layer_invert_mask_button.clicked.connect(self.invert_selected_layer_mask)
+        self.layer_delete_mask_button.clicked.connect(self.delete_selected_layer_mask)
+        self.layer_mask_enabled_checkbox.toggled.connect(self.toggle_selected_layer_mask_enabled)
+        self.layer_edit_mask_checkbox.toggled.connect(self.toggle_edit_mask_target)
+        self.layer_blend_mode_combo.currentIndexChanged.connect(self.commit_selected_layer_blend_mode)
+        self.layer_locked_checkbox.toggled.connect(self.commit_selected_layer_flags)
+        self.layer_alpha_locked_checkbox.toggled.connect(self.commit_selected_layer_flags)
+        self.history_list.currentRowChanged.connect(self._handle_history_row_changed)
+        self.history_list.itemDoubleClicked.connect(lambda *_args: self.restore_selected_history())
+        self.history_restore_button.clicked.connect(self.restore_selected_history)
+        self.history_clear_button.clicked.connect(self.clear_history)
+        self.adjustment_add_button.clicked.connect(self.add_adjustment_layer)
+        self.adjustment_duplicate_button.clicked.connect(self.duplicate_selected_adjustment)
+        self.adjustment_remove_button.clicked.connect(self.remove_selected_adjustment)
+        self.adjustment_reset_button.clicked.connect(self.reset_selected_adjustment)
+        self.adjustment_up_button.clicked.connect(lambda: self.move_selected_adjustment(-1))
+        self.adjustment_down_button.clicked.connect(lambda: self.move_selected_adjustment(1))
+        self.adjustment_solo_button.clicked.connect(self.solo_selected_adjustment)
+        self.adjustment_use_active_mask_button.clicked.connect(self.use_active_layer_as_adjustment_mask)
+        self.adjustment_clear_mask_button.clicked.connect(self.clear_selected_adjustment_mask)
+        self.adjustments_list.currentItemChanged.connect(lambda *_args: self._handle_adjustment_selection_changed())
+        self.adjustment_enabled_checkbox.toggled.connect(self.commit_selected_adjustment_enabled)
+        self.adjustment_mode_combo.currentIndexChanged.connect(self._schedule_adjustment_preview)
+        self.adjustment_opacity_slider.valueChanged.connect(self._schedule_adjustment_preview)
+        self.adjustment_opacity_slider.sliderReleased.connect(self.commit_selected_adjustment_properties)
+        self.adjustment_param_a_slider.valueChanged.connect(self._schedule_adjustment_preview)
+        self.adjustment_param_a_slider.sliderReleased.connect(self.commit_selected_adjustment_properties)
+        self.adjustment_param_b_slider.valueChanged.connect(self._schedule_adjustment_preview)
+        self.adjustment_param_b_slider.sliderReleased.connect(self.commit_selected_adjustment_properties)
+        self.adjustment_param_c_slider.valueChanged.connect(self._schedule_adjustment_preview)
+        self.adjustment_param_c_slider.sliderReleased.connect(self.commit_selected_adjustment_properties)
+        for widget in (
+            self.paint_color_edit,
+            self.secondary_color_edit,
+            self.brush_preset_combo,
+            self.brush_tip_combo,
+            self.brush_pattern_combo,
+            self.symmetry_mode_combo,
+            self.brush_size_slider,
+            self.size_step_mode_combo,
+            self.hardness_slider,
+            self.roundness_slider,
+            self.angle_slider,
+            self.smoothing_slider,
+            self.opacity_slider,
+            self.flow_slider,
+            self.spacing_slider,
+            self.fill_tolerance_slider,
+            self.fill_contiguous_checkbox,
+            self.paint_blend_mode_combo,
+            self.strength_slider,
+            self.smudge_strength_slider,
+            self.dodge_burn_mode_combo,
+            self.dodge_burn_exposure_slider,
+            self.patch_blend_slider,
+            self.gradient_type_combo,
+            self.sharpen_mode_combo,
+            self.soften_mode_combo,
+            self.sample_visible_layers_checkbox,
+            self.clone_aligned_checkbox,
+            self.lasso_snap_checkbox,
+            self.lasso_snap_radius_slider,
+            self.lasso_snap_sensitivity_slider,
+            self.recolor_mode_combo,
+            self.recolor_source_edit,
+            self.recolor_target_edit,
+            self.recolor_tolerance_slider,
+            self.recolor_strength_slider,
+            self.recolor_preserve_luma_checkbox,
+        ):
+            if hasattr(widget, "textChanged"):
+                widget.textChanged.connect(self._handle_tool_settings_changed)  # type: ignore[attr-defined]
+            elif hasattr(widget, "valueChanged"):
+                widget.valueChanged.connect(self._handle_tool_settings_changed)  # type: ignore[attr-defined]
+            elif hasattr(widget, "currentIndexChanged"):
+                widget.currentIndexChanged.connect(self._handle_tool_settings_changed)  # type: ignore[attr-defined]
+            elif hasattr(widget, "toggled"):
+                widget.toggled.connect(self._handle_tool_settings_changed)  # type: ignore[attr-defined]
+
+    def _rebuild_shortcuts(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._rebuild_shortcuts()
+
+    def _save_texture_editor_splitter_sizes(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._save_texture_editor_splitter_sizes()
+
+    def _apply_responsive_splitter_defaults(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._apply_responsive_splitter_defaults()
+
+    def _apply_empty_state_layout(self, has_doc: bool) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._apply_empty_state_layout(has_doc)
+
+    def _schedule_left_sidebar_scroll_restore(self, scroll_x: int, scroll_y: int) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._schedule_left_sidebar_scroll_restore(scroll_x, scroll_y)
+
+    def _set_status(self, message: str, error: bool) -> None:
+        if not self._embedded_tools_only:
+            super()._set_status(message, error)
+            return
+        source_message = str(message or "")
+        self._status_source_text = source_message
+        self.status_message_requested.emit(self._translate_ui_text(source_message), error)
+
+    def set_ui_translator(self, translator: Callable[[str], str]) -> None:
+        if not self._embedded_tools_only:
+            super().set_ui_translator(translator)
+            return
+        self._translate_ui_text = translator if callable(translator) else (lambda text: str(text or ""))
+
+    def _load_settings(self) -> None:
+        if not self._embedded_tools_only:
+            super()._load_settings()
+            return
+        self._loading_settings = True
+        try:
+            self.paint_color_edit.setText(str(self.settings.value("texture_editor/paint_color", "#C85A30")))
+            self.secondary_color_edit.setText(str(self.settings.value("texture_editor/secondary_color", "#FFFFFF")))
+            brush_preset = str(self.settings.value("texture_editor/brush_preset", "custom"))
+            self._rebuild_brush_preset_combo(preserve_key=brush_preset)
+            brush_tip = str(self.settings.value("texture_editor/brush_tip", "round"))
+            brush_tip_index = self.brush_tip_combo.findData(brush_tip)
+            if brush_tip_index >= 0:
+                self.brush_tip_combo.setCurrentIndex(brush_tip_index)
+            brush_pattern = str(self.settings.value("texture_editor/brush_pattern", "solid"))
+            brush_pattern_index = self.brush_pattern_combo.findData(brush_pattern)
+            if brush_pattern_index >= 0:
+                self.brush_pattern_combo.setCurrentIndex(brush_pattern_index)
+            self.custom_brush_tip_path_edit.setText(str(self.settings.value("texture_editor/custom_brush_tip_path", "")))
+            symmetry_mode = str(self.settings.value("texture_editor/symmetry_mode", "off"))
+            symmetry_mode_index = self.symmetry_mode_combo.findData(symmetry_mode)
+            if symmetry_mode_index >= 0:
+                self.symmetry_mode_combo.setCurrentIndex(symmetry_mode_index)
+            self.brush_size_slider.setValue(int(self.settings.value("texture_editor/brush_size", 32)))
+            size_step_mode = str(self.settings.value("texture_editor/size_step_mode", "normal"))
+            size_step_index = self.size_step_mode_combo.findData(size_step_mode)
+            if size_step_index >= 0:
+                self.size_step_mode_combo.setCurrentIndex(size_step_index)
+            self.hardness_slider.setValue(int(self.settings.value("texture_editor/hardness", 80)))
+            self.roundness_slider.setValue(int(self.settings.value("texture_editor/roundness", 100)))
+            self.angle_slider.setValue(int(self.settings.value("texture_editor/angle_degrees", 0)))
+            self.smoothing_slider.setValue(int(self.settings.value("texture_editor/smoothing", 0)))
+            self.opacity_slider.setValue(int(self.settings.value("texture_editor/opacity", 100)))
+            self.flow_slider.setValue(int(self.settings.value("texture_editor/flow", 100)))
+            self.spacing_slider.setValue(int(self.settings.value("texture_editor/spacing", 20)))
+            self.strength_slider.setValue(int(self.settings.value("texture_editor/strength", 25)))
+            self.smudge_strength_slider.setValue(int(self.settings.value("texture_editor/smudge_strength", 45)))
+            dodge_burn_mode = str(self.settings.value("texture_editor/dodge_burn_mode", "dodge_midtones"))
+            dodge_burn_mode_index = self.dodge_burn_mode_combo.findData(dodge_burn_mode)
+            if dodge_burn_mode_index >= 0:
+                self.dodge_burn_mode_combo.setCurrentIndex(dodge_burn_mode_index)
+            self.dodge_burn_exposure_slider.setValue(int(self.settings.value("texture_editor/dodge_burn_exposure", 20)))
+            self.patch_blend_slider.setValue(int(self.settings.value("texture_editor/patch_blend", 70)))
+            gradient_type = str(self.settings.value("texture_editor/gradient_type", "linear"))
+            gradient_index = self.gradient_type_combo.findData(gradient_type)
+            if gradient_index >= 0:
+                self.gradient_type_combo.setCurrentIndex(gradient_index)
+            paint_blend_mode = str(self.settings.value("texture_editor/paint_blend_mode", "normal"))
+            paint_blend_index = self.paint_blend_mode_combo.findData(paint_blend_mode)
+            if paint_blend_index >= 0:
+                self.paint_blend_mode_combo.setCurrentIndex(paint_blend_index)
+            self._selection_combine_mode = str(self.settings.value("texture_editor/selection_combine_mode", "replace") or "replace")
+            sharpen_mode = str(self.settings.value("texture_editor/sharpen_mode", "unsharp_mask"))
+            soften_mode = str(self.settings.value("texture_editor/soften_mode", "gaussian"))
+            sharpen_index = self.sharpen_mode_combo.findData(sharpen_mode)
+            if sharpen_index >= 0:
+                self.sharpen_mode_combo.setCurrentIndex(sharpen_index)
+            soften_index = self.soften_mode_combo.findData(soften_mode)
+            if soften_index >= 0:
+                self.soften_mode_combo.setCurrentIndex(soften_index)
+            self.sample_visible_layers_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/sample_visible_layers", True), True))
+            self.clone_aligned_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/clone_aligned", True), True))
+            self.fill_tolerance_slider.setValue(int(self.settings.value("texture_editor/fill_tolerance", 24)))
+            self.fill_contiguous_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/fill_contiguous", True), True))
+            self.lasso_snap_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/lasso_snap_to_edges", False), False))
+            self.lasso_snap_radius_slider.setValue(int(self.settings.value("texture_editor/lasso_snap_radius", 10)))
+            self.lasso_snap_sensitivity_slider.setValue(int(self.settings.value("texture_editor/lasso_edge_sensitivity", 55)))
+            self.recolor_source_edit.setText(str(self.settings.value("texture_editor/recolor_source", "#808080")))
+            self.recolor_target_edit.setText(str(self.settings.value("texture_editor/recolor_target", "#C85A30")))
+            self.recolor_tolerance_slider.setValue(int(self.settings.value("texture_editor/recolor_tolerance", 48)))
+            self.recolor_strength_slider.setValue(int(self.settings.value("texture_editor/recolor_strength", 100)))
+            self.recolor_preserve_luma_checkbox.setChecked(_settings_bool(self.settings.value("texture_editor/recolor_preserve_luma", True), True))
+            self._last_open_dir = str(self.settings.value("texture_editor/last_open_dir", str(self.base_dir)))
+            self._last_save_dir = str(self.settings.value("texture_editor/last_save_dir", str(self.base_dir)))
+            mode = str(self.settings.value("texture_editor/recolor_mode", "tint"))
+            index = self.recolor_mode_combo.findData(mode)
+            if index >= 0:
+                self.recolor_mode_combo.setCurrentIndex(index)
+        finally:
+            self._loading_settings = False
+        self._handle_tool_settings_changed()
+
+    def _save_settings(self) -> None:
+        if not self._embedded_tools_only:
+            super()._save_settings()
+            return
+        if not self._settings_ready:
+            return
+        self.settings.setValue("texture_editor/paint_color", self.paint_color_edit.text())
+        self.settings.setValue("texture_editor/secondary_color", self.secondary_color_edit.text())
+        self.settings.setValue("texture_editor/brush_preset", self.brush_preset_combo.currentData())
+        self.settings.setValue("texture_editor/brush_tip", self.brush_tip_combo.currentData())
+        self.settings.setValue("texture_editor/brush_pattern", self.brush_pattern_combo.currentData())
+        self.settings.setValue("texture_editor/custom_brush_tip_path", self.custom_brush_tip_path_edit.text())
+        self.settings.setValue("texture_editor/symmetry_mode", self.symmetry_mode_combo.currentData())
+        self.settings.setValue("texture_editor/brush_size", self.brush_size_slider.value())
+        self.settings.setValue("texture_editor/size_step_mode", self.size_step_mode_combo.currentData())
+        self.settings.setValue("texture_editor/hardness", self.hardness_slider.value())
+        self.settings.setValue("texture_editor/roundness", self.roundness_slider.value())
+        self.settings.setValue("texture_editor/angle_degrees", self.angle_slider.value())
+        self.settings.setValue("texture_editor/smoothing", self.smoothing_slider.value())
+        self.settings.setValue("texture_editor/opacity", self.opacity_slider.value())
+        self.settings.setValue("texture_editor/flow", self.flow_slider.value())
+        self.settings.setValue("texture_editor/spacing", self.spacing_slider.value())
+        self.settings.setValue("texture_editor/strength", self.strength_slider.value())
+        self.settings.setValue("texture_editor/smudge_strength", self.smudge_strength_slider.value())
+        self.settings.setValue("texture_editor/dodge_burn_mode", self.dodge_burn_mode_combo.currentData())
+        self.settings.setValue("texture_editor/dodge_burn_exposure", self.dodge_burn_exposure_slider.value())
+        self.settings.setValue("texture_editor/patch_blend", self.patch_blend_slider.value())
+        self.settings.setValue("texture_editor/gradient_type", self.gradient_type_combo.currentData())
+        self.settings.setValue("texture_editor/paint_blend_mode", self.paint_blend_mode_combo.currentData())
+        self.settings.setValue("texture_editor/sharpen_mode", self.sharpen_mode_combo.currentData())
+        self.settings.setValue("texture_editor/soften_mode", self.soften_mode_combo.currentData())
+        self.settings.setValue("texture_editor/sample_visible_layers", self.sample_visible_layers_checkbox.isChecked())
+        self.settings.setValue("texture_editor/clone_aligned", self.clone_aligned_checkbox.isChecked())
+        self.settings.setValue("texture_editor/fill_tolerance", self.fill_tolerance_slider.value())
+        self.settings.setValue("texture_editor/fill_contiguous", self.fill_contiguous_checkbox.isChecked())
+        self.settings.setValue("texture_editor/lasso_snap_to_edges", self.lasso_snap_checkbox.isChecked())
+        self.settings.setValue("texture_editor/lasso_snap_radius", self.lasso_snap_radius_slider.value())
+        self.settings.setValue("texture_editor/lasso_edge_sensitivity", self.lasso_snap_sensitivity_slider.value())
+        self.settings.setValue("texture_editor/recolor_mode", self.recolor_mode_combo.currentData())
+        self.settings.setValue("texture_editor/recolor_source", self.recolor_source_edit.text())
+        self.settings.setValue("texture_editor/recolor_target", self.recolor_target_edit.text())
+        self.settings.setValue("texture_editor/recolor_tolerance", self.recolor_tolerance_slider.value())
+        self.settings.setValue("texture_editor/recolor_strength", self.recolor_strength_slider.value())
+        self.settings.setValue("texture_editor/recolor_preserve_luma", self.recolor_preserve_luma_checkbox.isChecked())
+        self.settings.setValue("texture_editor/last_open_dir", self._last_open_dir)
+        self.settings.setValue("texture_editor/last_save_dir", self._last_save_dir)
+
+    def _handle_tool_settings_changed(self) -> None:
+        if self._loading_settings:
+            return
+        if not self._embedded_tools_only:
+            super()._handle_tool_settings_changed()
+            return
+        sender = self.sender()
+        if sender is self.brush_preset_combo:
+            preset_key = str(self.brush_preset_combo.currentData() or "custom")
+            if preset_key != "custom":
+                self._apply_brush_preset(preset_key)
+        elif (
+            not self._applying_brush_preset
+            and self._settings_ready
+            and sender in {
+                self.brush_size_slider,
+                self.size_step_mode_combo,
+                self.hardness_slider,
+                self.roundness_slider,
+                self.angle_slider,
+                self.smoothing_slider,
+                self.opacity_slider,
+                self.flow_slider,
+                self.spacing_slider,
+                self.brush_tip_combo,
+                self.brush_pattern_combo,
+            }
+        ):
+            self._mark_brush_preset_custom()
+        self.current_tool_settings = texture_editor_tool_settings_from_controls(
+            self.current_tool_settings,
+            TextureEditorToolControlSnapshot(
+                color_hex=self.paint_color_edit.text(),
+                secondary_color_hex=self.secondary_color_edit.text(),
+                brush_preset=self.brush_preset_combo.currentData(),
+                brush_tip=self.brush_tip_combo.currentData(),
+                brush_pattern=self.brush_pattern_combo.currentData(),
+                custom_brush_tip_path=self.custom_brush_tip_path_edit.text(),
+                symmetry_mode=self.symmetry_mode_combo.currentData(),
+                size=self.brush_size_slider.value(),
+                size_step_mode=self.size_step_mode_combo.currentData(),
+                hardness=self.hardness_slider.value(),
+                roundness=self.roundness_slider.value(),
+                angle_degrees=self.angle_slider.value(),
+                smoothing=self.smoothing_slider.value(),
+                opacity=self.opacity_slider.value(),
+                flow=self.flow_slider.value(),
+                spacing=self.spacing_slider.value(),
+                strength=self.strength_slider.value(),
+                smudge_strength=self.smudge_strength_slider.value(),
+                dodge_burn_mode=self.dodge_burn_mode_combo.currentData(),
+                dodge_burn_exposure=self.dodge_burn_exposure_slider.value(),
+                patch_blend=self.patch_blend_slider.value(),
+                gradient_type=self.gradient_type_combo.currentData(),
+                paint_blend_mode=self.paint_blend_mode_combo.currentData(),
+                fill_tolerance=self.fill_tolerance_slider.value(),
+                fill_contiguous=self.fill_contiguous_checkbox.isChecked(),
+                sharpen_mode=self.sharpen_mode_combo.currentData(),
+                soften_mode=self.soften_mode_combo.currentData(),
+                sample_visible_layers=self.sample_visible_layers_checkbox.isChecked(),
+                clone_aligned=self.clone_aligned_checkbox.isChecked(),
+                selection_combine_mode=self._selection_combine_mode,
+                lasso_snap_to_edges=self.lasso_snap_checkbox.isChecked(),
+                lasso_snap_radius=self.lasso_snap_radius_slider.value(),
+                lasso_edge_sensitivity=self.lasso_snap_sensitivity_slider.value(),
+                recolor_mode=self.recolor_mode_combo.currentData(),
+                recolor_source_hex=self.recolor_source_edit.text(),
+                recolor_target_hex=self.recolor_target_edit.text(),
+                recolor_tolerance=self.recolor_tolerance_slider.value(),
+                recolor_strength=self.recolor_strength_slider.value(),
+                recolor_preserve_luminance=self.recolor_preserve_luma_checkbox.isChecked(),
+            ),
+        )
+        brush_visual = texture_editor_brush_visual_state(self.current_tool_settings)
+        self.canvas.set_brush_size(brush_visual.size)
+        self.canvas.set_brush_visual_state(
+            hardness=brush_visual.hardness,
+            tip=brush_visual.tip,
+            roundness=brush_visual.roundness,
+            angle_degrees=brush_visual.angle_degrees,
+            pattern=brush_visual.pattern,
+        )
+        self.canvas.set_symmetry_mode(brush_visual.symmetry_mode)
+        self._save_settings()
+        self._refresh_tool_visibility()
+
+    def _refresh_tool_visibility(self) -> None:
+        if not self._embedded_tools_only:
+            super()._refresh_tool_visibility()
+            return
+        tool = self.current_tool_settings.tool
+        has_active_selection = bool(
+            self.document is not None
+            and (self.document.selection.mode != "none" or self.document.quick_mask_enabled)
+        )
+        visibility = texture_editor_tool_setting_visibility(
+            tool,
+            brush_tip=str(self.brush_tip_combo.currentData() or "round"),
+            lasso_snap_enabled=self.lasso_snap_checkbox.isChecked(),
+            has_active_selection=has_active_selection,
+        )
+        for key, (label_widget, field_widget) in self._tool_setting_rows.items():
+            visible = visibility.rows.get(key, True)
+            if label_widget is not None:
+                label_widget.setVisible(visible)
+            field_widget.setVisible(visible)
+
+    def _refresh_metadata(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_metadata()
+
+    def _refresh_canvas_status_strip(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_canvas_status_strip()
+
+    def _refresh_navigation_overlays(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_navigation_overlays()
+
+    def _refresh_zoom_indicators(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_zoom_indicators()
+
+    def _refresh_selection_controls(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_selection_controls()
+
+    def _refresh_channel_controls(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_channel_controls()
+
+    def _refresh_transform_controls(self) -> None:
+        if self._embedded_tools_only:
+            return
+        super()._refresh_transform_controls()
+
+    def _refresh_atlas_action_state(self, *, has_doc: bool, busy: bool) -> None:
+        if not self._embedded_tools_only:
+            super()._refresh_atlas_action_state(has_doc=has_doc, busy=busy)
+            return
+        self.history_list.setEnabled(has_doc and not busy)
+
+    def _update_history_action_state(self) -> None:
+        if not self._embedded_tools_only:
+            super()._update_history_action_state()
+            return
+        state = texture_editor_history_action_state(
+            self.document,
+            busy=self._busy(),
+            selected_row=self.history_list.currentRow(),
+            history_index=self.history_index,
+            history_count=len(self.history_snapshots),
+        )
+        self.history_restore_button.setEnabled(state.restore_enabled)
+
+    def _capture_view_state(self) -> Dict[str, object]:
+        if not self._embedded_tools_only:
+            return super()._capture_view_state()
+        return texture_editor_view_state_payload(
+            zoom_factor=self.canvas.current_display_scale(),
+            fit_to_view=self.canvas.is_fit_to_view(),
+            view_mode="edited",
+            compare_split=50,
+            grid_enabled=False,
+            grid_size=64,
+            grid_color=texture_editor_grid_color_hex(self._grid_color.name(QColor.HexRgb)),
+            grid_opacity=42,
+            show_rulers=False,
+            show_guides=False,
+            vertical_guides=(),
+            horizontal_guides=(),
+            scroll_x=self.canvas_scroll.horizontalScrollBar().value(),
+            scroll_y=self.canvas_scroll.verticalScrollBar().value(),
+        )
+
+    def _apply_view_state(self, state: Optional[Dict[str, object]]) -> None:
+        if not self._embedded_tools_only:
+            super()._apply_view_state(state)
+            return
+        if not state:
+            if getattr(self, "new_documents_open_fitted", False):
+                self.canvas.set_fit_to_view(True)
+            else:
+                self.canvas.set_zoom_factor(1.0)
+            self.canvas_scroll.horizontalScrollBar().setValue(0)
+            self.canvas_scroll.verticalScrollBar().setValue(0)
+            return
+        view_state = texture_editor_resolved_view_state(
+            state,
+            default_compare_split=50,
+            default_grid_enabled=False,
+            default_grid_size=64,
+            default_grid_color=texture_editor_grid_color_hex(self._grid_color.name(QColor.HexRgb)),
+            default_grid_opacity=42,
+        )
+        if view_state.fit_to_view:
+            self.canvas.set_fit_to_view(True)
+        else:
+            self.canvas.set_zoom_factor(view_state.zoom_factor)
+            self.canvas_scroll.horizontalScrollBar().setValue(view_state.scroll_x)
+            self.canvas_scroll.verticalScrollBar().setValue(view_state.scroll_y)
+
+    def _refresh_canvas(self) -> None:
+        if not self._embedded_tools_only:
+            super()._refresh_canvas()
+            return
+        if self.document is None:
+            self.canvas.set_image(None)
+            self.canvas.set_quick_mask_overlay(None)
+            self.canvas.set_symmetry_mode("off")
+            return
+        canvas_dirty_bounds = self._composite_dirty_bounds
+        flattened = self._current_composite_rgba()
+        original_flattened = texture_editor_active_session_compare_flattened(
+            self._sessions,
+            self._active_session_index,
+        )
+        self.canvas.set_rgba_images(
+            flattened,
+            original_rgba=original_flattened,
+            dirty_bounds=canvas_dirty_bounds,
+        )
+        self.canvas.set_selection(self.document.selection)
+        self.canvas.set_quick_mask_overlay(texture_editor_quick_mask_overlay_image(self.document))
+        floating_state = texture_editor_floating_canvas_transform_state(self.document, self._floating_pixels)
+        self.canvas.set_floating_transform_state(
+            current_bounds=floating_state.current_bounds,
+            origin_bounds=floating_state.origin_bounds,
+            offset_x=floating_state.offset_x,
+            offset_y=floating_state.offset_y,
+            scale_x=floating_state.scale_x,
+            scale_y=floating_state.scale_y,
+            rotation_degrees=floating_state.rotation_degrees,
+        )
+        self.canvas.set_clone_source_point(self.current_tool_settings.clone_source_point)
+        self.canvas.set_symmetry_mode(self.current_tool_settings.symmetry_mode)
+        self.canvas.set_view_mode("edited")
+
+    def _refresh_ui(self) -> None:
+        if not self._embedded_tools_only:
+            super()._refresh_ui()
+            return
+        self._refresh_editor_views(
+            canvas=True,
+            metadata=False,
+            layers=True,
+            history=True,
+            selection=False,
+            adjustments=True,
+            transform=False,
+            status=False,
+            tool_visibility=False,
+        )
+        has_doc = self.document is not None
+        busy = self._busy()
+        main_actions = texture_editor_main_action_state(self.document, busy=busy)
+        for button in (
+            self.add_layer_button,
+            self.duplicate_layer_button,
+            self.remove_layer_button,
+            self.merge_layer_button,
+            self.layer_up_button,
+            self.layer_down_button,
+            self.history_clear_button,
+        ):
+            button.setEnabled(main_actions.document_action_enabled)
+        if texture_editor_history_shared_with_mesh_editor(self.document):
+            self.history_clear_button.setEnabled(False)
+            self.history_clear_button.setToolTip(
+                "The Mesh Editor's Undo history holds this texture's edits, so it is not cleared here."
+            )
+        else:
+            self.history_clear_button.setToolTip("")
+        layer_actions = texture_editor_layer_action_state(self.document, busy=busy)
+        self.layer_name_edit.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_visible_checkbox.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_locked_checkbox.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_alpha_locked_checkbox.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_mask_enabled_checkbox.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_edit_mask_checkbox.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_add_mask_button.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_invert_mask_button.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_delete_mask_button.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_blend_mode_combo.setEnabled(layer_actions.property_controls_enabled)
+        self.layer_opacity_slider.setEnabled(layer_actions.property_controls_enabled)
+        self.canvas.setEnabled(main_actions.canvas_enabled)
+        self.document_tab_bar.setEnabled(main_actions.document_tabs_enabled)
+        tool_actions = texture_editor_tool_action_state(
+            self.document,
+            busy=busy,
+            clone_source_point=self.current_tool_settings.clone_source_point,
+        )
+        for button in self.tool_buttons.values():
+            button.setEnabled(tool_actions.controls_enabled)
+        for widget in (
+            self.paint_color_edit,
+            self.paint_color_button,
+            self.paint_color_sample_button,
+            self.secondary_color_edit,
+            self.secondary_color_button,
+            self.secondary_color_sample_button,
+            self.brush_preset_combo,
+            self.save_brush_preset_button,
+            self.brush_tip_combo,
+            self.brush_pattern_combo,
+            self.custom_brush_tip_path_edit,
+            self.load_custom_brush_tip_button,
+            self.clear_custom_brush_tip_button,
+            self.symmetry_mode_combo,
+            self.brush_size_slider,
+            self.size_step_mode_combo,
+            self.hardness_slider,
+            self.roundness_slider,
+            self.angle_slider,
+            self.smoothing_slider,
+            self.opacity_slider,
+            self.flow_slider,
+            self.spacing_slider,
+            self.fill_tolerance_slider,
+            self.fill_contiguous_checkbox,
+            self.paint_blend_mode_combo,
+            self.strength_slider,
+            self.smudge_strength_slider,
+            self.dodge_burn_mode_combo,
+            self.dodge_burn_exposure_slider,
+            self.patch_blend_slider,
+            self.gradient_type_combo,
+            self.sharpen_mode_combo,
+            self.soften_mode_combo,
+            self.sample_visible_layers_checkbox,
+            self.clone_aligned_checkbox,
+            self.clear_clone_source_button,
+            self.lasso_snap_checkbox,
+            self.lasso_snap_radius_slider,
+            self.lasso_snap_sensitivity_slider,
+            self.recolor_mode_combo,
+            self.recolor_source_edit,
+            self.recolor_source_pick_button,
+            self.recolor_source_sample_button,
+            self.recolor_target_edit,
+            self.recolor_target_pick_button,
+            self.recolor_target_sample_button,
+            self.recolor_tolerance_slider,
+            self.recolor_strength_slider,
+            self.recolor_preserve_luma_checkbox,
+            self.apply_recolor_button,
+        ):
+            widget.setEnabled(tool_actions.controls_enabled)
+        self.clear_clone_source_button.setEnabled(tool_actions.clear_clone_source_enabled)
+        self._refresh_adjustment_action_state(has_doc=has_doc, busy=busy)
+        self.history_list.setEnabled(has_doc and not busy)
+        self._update_history_action_state()
+        self._refresh_tool_visibility()
+
+    # ----- Async source-open cancellation & stale-request lifecycle ----------
+
+    def cancel_pending_source_open(self) -> None:
+        """Invalidate any queued or in-flight `open_source_path` work cleanly."""
+        self._source_open_request_id = int(getattr(self, "_source_open_request_id", 0)) + 1
+        pending = getattr(self, "_pending_open_source_request", None)
+        self._pending_open_source_request = None
+        if pending is not None and pending[3] is not None:
+            pending[3](False, "")
+        active_stop = getattr(self, "_active_open_source_stop_event", None)
+        if active_stop is not None:
+            active_stop.set()
+            worker = getattr(self, "_task_worker", None)
+            if worker is not None:
+                worker.stop()
+
+    @Slot(str)
+    def _handle_async_task_error(self, message: str) -> None:
+        if self._shutting_down or (
+            self._active_open_source_request_id
+            and self._active_open_source_request_id != self._source_open_request_id
+        ):
+            report = getattr(self, "_task_result_callback", None)
+            if report is not None:
+                report(False, "")
+            return
+        super()._handle_async_task_error(message)
+
+    @Slot()
+    def _handle_async_task_finished(self) -> None:
+        self._active_open_source_stop_event = None
+        self._active_open_source_request_id = 0
+        super()._handle_async_task_finished()
+        pending = self._pending_open_source_request
+        if pending is None or self._shutting_down:
+            return
+        self._pending_open_source_request = None
+        pending_request_id, pending_source, pending_binding, pending_report = pending
+        if pending_request_id != self._source_open_request_id or self._busy():
+            if pending_report is not None:
+                pending_report(False, "")
+            return
+        self.open_source_path(
+            pending_source,
+            binding=pending_binding,
+            report_result=pending_report,
+            _reuse_request_id=pending_request_id,
+        )
+
+    def request_shutdown(self) -> None:
+        self._shutting_down = True
+        self.cancel_pending_source_open()
+        super().request_shutdown()
