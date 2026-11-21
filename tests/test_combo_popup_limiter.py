@@ -143,3 +143,22 @@ def test_a_list_that_opens_above_its_combo_stays_against_it(app):
     finally:
         combo.hidePopup()
         host.close()
+
+
+def test_a_tree_view_popup_is_measured_too(app):
+    from PySide6.QtWidgets import QTreeView
+
+    combo = QComboBox()
+    view = QTreeView()
+    view.setHeaderHidden(True)
+    view.setRootIsDecorated(False)
+    combo.setView(view)
+    combo.setMaxVisibleItems(30)
+    combo.addItems([f"Tree row {row}" for row in range(30)])
+    host = _host(app, combo)
+    try:
+        popup, shown = _open(app, combo)
+        assert shown.viewport().height() == _rows_height(combo, ComboPopupLimiter.MAX_VISIBLE_ROWS)
+    finally:
+        combo.hidePopup()
+        host.close()

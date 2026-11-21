@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Qt
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView, QApplication, QComboBox, QListView, QTableView, QTreeView, QWidget,
+)
 from cdmw.ui.app_event_hub import install_app_event_filter
 
 
@@ -83,10 +85,9 @@ class ComboPopupLimiter(QObject):
         if model is None:
             return 0
         root = view.rootIndex()
-        is_hidden = getattr(view, "isRowHidden", None)
         shown = []
         for row in range(int(model.rowCount(root))):
-            if callable(is_hidden) and is_hidden(row):
+            if cls._row_hidden(view, row, root):
                 continue
             shown.append(row)
             if len(shown) > cls.MAX_VISIBLE_ROWS:
@@ -97,6 +98,14 @@ class ComboPopupLimiter(QObject):
         after_last = view.visualRect(model.index(shown[-1], column, root))
         height = int(after_last.top() - first.top())
         return height if height > 0 else 0
+
+    @staticmethod
+    def _row_hidden(view: QAbstractItemView, row: int, root) -> bool:
+        if isinstance(view, QTreeView):
+            return bool(view.isRowHidden(row, root))
+        if isinstance(view, (QListView, QTableView)):
+            return bool(view.isRowHidden(row))
+        return False
 
     @staticmethod
     def _opened_above_combo(popup: QWidget, geometry) -> bool:
