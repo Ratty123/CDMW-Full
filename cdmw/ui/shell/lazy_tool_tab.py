@@ -362,7 +362,9 @@ class LazyToolTab(QWidget):
             shutdown()
 
     def flush_settings_save(self) -> None:
-        widget = self._widget or self._pending_widget
+        # Only a published tool: one still being built was never shown, so nobody
+        # changed its controls, and its values may be older than the saved ones.
+        widget = self._widget
         flush = getattr(widget, "flush_settings_save", None) if widget is not None else None
         if callable(flush):
             flush()

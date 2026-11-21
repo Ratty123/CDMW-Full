@@ -131,3 +131,65 @@ def test_a_tool_built_in_steps_is_attached_before_its_steps_restyle_nothing_late
         app.removeEventFilter(counter)
         app.setStyleSheet(previous_sheet)
         container.deleteLater()
+
+
+def test_a_tool_still_being_built_does_not_save_its_settings():
+    """A pending tool was never shown, so its controls hold no change of the user's; saving
+    them at close would overwrite newer values the shell saved (the lazy Settings tab)."""
+
+    _app()
+    saved = []
+
+    class _Tool(QWidget):
+        def flush_settings_save(self):
+            saved.append("flush")
+
+    container = LazyToolTab(_Tool)
+    container._construct_requested_widget()
+    assert container._pending_widget is not None
+    container.flush_settings_save()
+    assert saved == []
+    container._attach_requested_widget()
+    container._finish_requested_widget()
+    container.flush_settings_save()
+    assert saved == ["flush"]
+
+
+def test_the_settings_tab_catches_up_with_changes_made_while_it_was_built():
+    from types import SimpleNamespace
+
+    from cdmw.ui.shell.tool_tabs import ShellToolTabsMixin
+
+    _app()
+    calls = []
+
+    class _SettingsTab(QWidget):
+        def _apply_model_preview_controls(self, settings):
+            calls.append(("preview", settings))
+
+        def sync_archive_performance_controls(self, settings):
+            calls.append(("performance", settings))
+
+        def sync_appearance_controls(self, theme):
+            calls.append(("appearance", theme))
+
+        def set_language_options(self, languages, *, current_code):
+            calls.append(("language", current_code))
+
+    values = {"preview": "before", "theme": "graphite"}
+    shell = SimpleNamespace(
+        archive=SimpleNamespace(_current_model_preview_render_settings=lambda: values["preview"]),
+        _current_archive_performance_settings=lambda: "performance",
+        ui_localizer=SimpleNamespace(available_languages=lambda: ("en",), language_code="en"),
+    )
+    container = LazyToolTab(_SettingsTab)
+    container.when_created(lambda tab: ShellToolTabsMixin._sync_published_settings_tab(shell, tab))
+    container._construct_requested_widget()
+    # Changed while the tab was pending: the shell skipped it then.
+    values["preview"] = "after"
+    shell.current_theme_key = "light"
+    assert calls == []
+    container._attach_requested_widget()
+    container._finish_requested_widget()
+    assert ("preview", "after") in calls and ("appearance", "light") in calls
+    assert ("performance", "performance") in calls and ("language", "en") in calls

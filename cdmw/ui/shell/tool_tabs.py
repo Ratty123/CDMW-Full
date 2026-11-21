@@ -786,18 +786,33 @@ class ShellToolTabsMixin:
         settings_tab.archive_performance_settings_changed.connect(
             self.archive._handle_archive_performance_settings_changed
         )
-        # Built on first visit: show the Preview and archive values in use now, which
-        # the shell only pushes to a Settings tab that already exists.
-        try:
-            settings_tab._apply_model_preview_controls(self.archive._current_model_preview_render_settings())
-            settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings())
-        except Exception:
-            pass
         holder = getattr(self, "_deferred_settings_sections_holder", None)
         if holder is not None:
             holder.deleteLater()
             self._deferred_settings_sections_holder = None
         return settings_tab
+
+    def _sync_published_settings_tab(self, settings_tab: QWidget) -> None:
+        """Show the values in use now on a Settings tab that has just been published.
+
+        The shell pushes Preview, archive, appearance and language changes only to a
+        Settings tab that exists; one built on first visit catches up here, after any
+        change made while it was still being built.
+        """
+
+        for sync in (
+            lambda: settings_tab._apply_model_preview_controls(self.archive._current_model_preview_render_settings()),
+            lambda: settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings()),
+            lambda: settings_tab.sync_appearance_controls(self.current_theme_key),
+            lambda: settings_tab.set_language_options(
+                self.ui_localizer.available_languages(),
+                current_code=self.ui_localizer.language_code,
+            ),
+        ):
+            try:
+                sync()
+            except Exception:
+                pass
 
     def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
         pump_startup_splash("Preparing settings...")
@@ -806,6 +821,9 @@ class ShellToolTabsMixin:
             "settings",
             self._create_settings_tab,
         )
+        when_created = getattr(type(self.settings_tab), "when_created", None)
+        if callable(when_created):
+            self.settings_tab.when_created(self._sync_published_settings_tab)
         # Keep the shared setup/paths/archive sections owned inside the window
         # tree (and unshown) until SettingsTab is constructed on first visit.
         holder = QWidget(self.settings_tab)
