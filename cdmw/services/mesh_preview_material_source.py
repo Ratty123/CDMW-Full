@@ -111,7 +111,10 @@ def unedited_preview_core_material_source(part):
 def bind_authoring_preview_core_materials(mesh, package_path, *, manifest=None):
     """Match original source file, section and material, never a name-only import."""
     from cdmw.services.mesh_rust_authoring import _mesh_lods
-    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+    from cdmw.services.mesh_rust_preview_package import (
+        _validated_preview_core_source,
+        preview_core_missing_material_source,
+    )
 
     if not package_path:
         return
@@ -132,6 +135,10 @@ def bind_authoring_preview_core_materials(mesh, package_path, *, manifest=None):
     if not source_path or source_path != normalize(getattr(mesh, "path", "")):
         return
     _validated_preview_core_source(package, manifest)
+    if preview_core_missing_material_source(package, manifest):
+        # The cached package outlived the texture files it points at (the archive index was
+        # rebuilt since): the editor prepares its own materials, as when Browse has no package.
+        return
     batches = {}
     for batch in manifest["batches"]:
         identity = batch.get("editor_identity", {})
@@ -206,7 +213,10 @@ def load_preview_core_set_package(
     from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
     from cdmw.rendering.native_preview_package_cache import acquire_native_preview_package_cache_lease_for_path
     from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
-    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+    from cdmw.services.mesh_rust_preview_package import (
+        _validated_preview_core_source,
+        preview_core_missing_material_source,
+    )
 
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     if not package_path:
@@ -233,6 +243,10 @@ def load_preview_core_set_package(
             lease.release()
             return None
         _validated_preview_core_source(package, manifest)
+        if preview_core_missing_material_source(package, manifest):
+            # Stale: its textures belonged to an archive index that has been replaced.
+            lease.release()
+            return None
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         source_path = _normalize_preview_model_path(manifest.get("source_path"))
         by_path: dict[str, list[Mapping[str, object]]] = {}
@@ -424,7 +438,10 @@ def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False)
     from cdmw.modding.mesh_parser import ParsedMesh
     from cdmw.modding.mesh_totals import refresh_mesh_totals
     from cdmw.services.mesh_dotnet_reference_composite import append_dotnet_native_reference_composite
-    from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
+    from cdmw.services.mesh_rust_preview_package import (
+        _validated_preview_core_source,
+        preview_core_missing_material_source,
+    )
 
     if not package_path:
         return None
@@ -441,6 +458,8 @@ def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False)
     if not normalize(manifest.get("source_path")) or normalize(manifest.get("source_path")) != normalize(getattr(mesh, "path", "")):
         return None
     _validated_preview_core_source(package, manifest)
+    if preview_core_missing_material_source(package, manifest):
+        return None
     reference = ParsedMesh(path=str(getattr(mesh, "path", "")), format="pac",
                            bbox_min=getattr(mesh, "bbox_min", (0, 0, 0)), bbox_max=getattr(mesh, "bbox_max", (0, 0, 0)),
                            has_uvs=True)
