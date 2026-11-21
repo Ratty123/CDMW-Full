@@ -18,6 +18,7 @@ from cdmw.core.prefab_binary import (
     KIND_POINTER,
     KIND_STRING,
     PrefabBinaryError,
+    PrefabMember,
     decode_prefab_binary,
     pointer_sites,
 )
@@ -319,21 +320,26 @@ def test_the_member_kind_taxonomy_matches_the_documented_survey() -> None:
     assert pb.COLLECTION_KINDS == {pb.KIND_OBJECT_COLLECTION, pb.KIND_COLLECTION}
     assert pb.POINTER_KINDS == {pb.KIND_OBJECT, pb.KIND_POINTER}
     assert pb.INLINE_KINDS == {pb.KIND_INLINE, pb.KIND_ENUM, pb.KIND_INLINE_12}
-    # 6 is deliberately absent from the handled sets: it is named, not yet read.
+    # 6 is deliberately absent from these sets: only the group-list reading of a
+    # prefab reads it, as a collection.
     assert pb.KIND_OBJECT_COLLECTION not in pb.POINTER_KINDS
     assert pb.KIND_OBJECT_COLLECTION not in pb.INLINE_KINDS
 
 
 def test_an_unread_member_kind_fails_loudly_rather_than_guessing() -> None:
-    """Kind 6 must not be silently skipped: a wrong length would corrupt an edit."""
-    import pathlib
+    """A kind the walk cannot read stops it: a wrong length would corrupt an edit.
 
-    from cdmw.core import prefab_binary as pb
+    Kind 6 is read only by the group-list reading of a prefab, where each element
+    closes on its own length field (see the by-value list tests below); the
+    earlier readings, and every kind still unread, refuse rather than skip.
+    """
+    from cdmw.core.prefab_binary import _BlobCursor, _Collected, _read_member
 
-    source = pathlib.Path(pb.__file__).read_text(encoding="utf-8")
-    assert "unsupported member kind" in source
-    # The handled-collection branch must not have quietly absorbed kind 6.
-    assert "if flags == KIND_COLLECTION:" in source
+    for flags in (0x0006, 0x0008):
+        member = PrefabMember("_unread", "ReflectObject", flags, 0, 0x1028, 0)
+        cursor = _BlobCursor(b"\x00" * 32, 0, (), stated_layouts=True, group_lists=False)
+        with pytest.raises(PrefabBinaryError, match=f"unsupported member kind 0x{flags:04x}"):
+            _read_member(cursor, member, _Collected(), None)
 
 
 def test_pointee_strings_are_recoverable_without_the_walk() -> None:
@@ -992,3 +998,159 @@ def test_a_file_read_by_the_group_lists_has_no_header_width_to_choose() -> None:
 
     assert walk_is_determined(data)
     assert {item.header_width for item in decode_prefab_binary(data).collections} == {5}
+
+
+# Nested prefab instance overrides, wide masks and by-value object lists,
+# measured on the installed game's 51,178 prefabs (2026-11-21). Each stopped
+# cd_spot_military_totalset.prefab and others like it partway through.
+
+_KIND_OBJECT_LIST = 0x0006
+
+
+class _Groups:
+    """A root ``_components`` list whose elements are written as the shipped groups are.
+
+    Each element is ``header, owner, self pointer``, its record (``u16 z``,
+    ``u16`` name count 0), its members, and the u32 closing it: its distance
+    from the record. The blob ends on the last element's closing field.
+    """
+
+    def __init__(self, base: int) -> None:
+        self.base = base
+        self.blob = bytearray(struct.pack("<H", 2) + (0b1).to_bytes(6, "little"))
+
+    def collection(self, count: int) -> None:
+        self.blob += b"\x00" + struct.pack("<I", count) + b"\x00" * 13  # kind, count, preamble
+
+    def open(self, width: int, mask: int, type_index: int, *, override: int = 0, z: int = 0, presence: bool = False) -> int:
+        if presence:
+            self.blob += b"\x01"
+        self.blob += struct.pack("<H", width) + mask.to_bytes(width, "little")
+        self.blob += bytes((type_index, 0, override))
+        start = _owner_and_pointer(self.blob, self.base)
+        self.blob += struct.pack("<HH", z, 0)
+        return start
+
+    def close(self, start: int) -> None:
+        self.blob += struct.pack("<I", len(self.blob) - start)
+
+
+def _components_root() -> bytes:
+    return _typedef("SceneObject", ("_components", "ReflectObjectPtr", KIND_COLLECTION, 0, 0x1008))
+
+
+def _override_prefab(z: int = 1) -> bytes:
+    """An overridden spline component whose spline object record says ``z`` 1."""
+    holder = _typedef(
+        "SplineHolder",
+        ("_isEnable", "bool", 0, 1, 2),
+        ("_splineObject", "ReflectObjectPtr", KIND_POINTER, 8, 0x1008),
+    )
+    spline = _typedef("SplineThing", ("_thickness", "float", 0, 4, 0), ("_curve", "uint32", 0, 4, 0))
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1)
+        element = groups.open(1, 0b10, 1, override=1)
+        pointee = groups.open(1, 0b11, 2, z=z, presence=True)
+        groups.blob += struct.pack("<fI", 0.5, 2)
+        groups.close(pointee)
+        groups.close(element)
+        return groups.blob
+
+    return _assemble((_components_root(), holder, spline), blob_for)
+
+
+def test_an_overridden_object_s_record_may_say_z_1() -> None:
+    """``01 00 00 00`` where a pointee had always opened ``00 00 00 00``.
+
+    A nested prefab instance's overridden ``CustomAttributeSplineComponent``
+    points at a ``SplineObject3D`` whose record says ``z`` 1; read as a fixed
+    zero, it stopped 46 shipped prefabs, one of them 1% of the way in.
+    """
+    from cdmw.core.prefab_binary import READING_GROUP_LISTS
+
+    document = decode_prefab_binary(_override_prefab())
+
+    assert document.walk_complete, document.walk_note
+    assert document.reading == READING_GROUP_LISTS
+    (holder,) = document.objects
+    assert holder.component_type == "SplineHolder"
+    assert [(item.name, item.raw) for item in holder.numbers] == [
+        ("_thickness", struct.pack("<f", 0.5)),
+        ("_curve", struct.pack("<I", 2)),
+    ]
+    assert len(document.pointee_length_fields) == 2
+
+
+def test_a_record_z_other_than_0_or_1_still_stops_the_walk() -> None:
+    document = decode_prefab_binary(_override_prefab(z=2))
+
+    assert not document.walk_complete
+
+
+def _decal_prefab(*, z: int = 0, stated_type: int = 1) -> bytes:
+    """A 43-member component (six mask bytes) holding a by-value object list."""
+    members = [("_isEnable", "bool", 0, 1, 2)]
+    members += [(f"_value{index}", "float", 0, 4, 4) for index in range(1, 42)]
+    members += [("_pointDatas", "ReflectObject", _KIND_OBJECT_LIST, 0, 0x1028)]
+    decal = _typedef("SplineDecalThing", *members)
+    point = _typedef("PointData", ("_width", "float", 0, 4, 4))
+
+    def blob_for(base: int) -> bytearray:
+        groups = _Groups(base)
+        groups.collection(1)
+        element = groups.open(6, (1 << 1) | (1 << 42), stated_type)
+        groups.blob += struct.pack("<f", 0.2)  # _value1
+        groups.collection(2)                    # _pointDatas
+        for width in (4.0, 8.0):
+            item = groups.open(1, 0b1, 2, z=z)
+            groups.blob += struct.pack("<f", width)
+            groups.close(item)
+        groups.close(element)
+        return groups.blob
+
+    return _assemble((_components_root(), decal, point), blob_for)
+
+
+def test_a_component_with_more_than_32_members_has_a_six_byte_mask() -> None:
+    """``06 00 02 ff 92 00 40 00 21 00 00``: a SplineDecalComponent's header.
+
+    Only widths 1 to 4 were looked for, so the header search stepped over it
+    and carried on inside the component's own data.
+    """
+    document = decode_prefab_binary(_decal_prefab())
+
+    assert document.walk_complete, document.walk_note
+    decal = next(item for item in document.objects if item.component_type == "SplineDecalThing")
+    assert decal.member_names == ("_value1", "_pointDatas")
+
+
+def test_a_by_value_object_list_reads_like_a_pointer_list() -> None:
+    from cdmw.core.prefab_binary import _decode_previous
+
+    data = _decal_prefab()
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete, document.walk_note
+    points = [item for item in document.objects if item.component_type == "PointData"]
+    assert [item.numbers[0].raw for item in points] == [struct.pack("<f", 4.0), struct.pack("<f", 8.0)]
+    listed = next(item for item in document.collections if item.member_name == "_pointDatas")
+    assert listed.count == len(listed.elements) == 2
+    # The earlier readings still refuse kind 6 rather than guess at it.
+    previous = _decode_previous(data)
+    assert not previous.walk_complete
+    assert "unsupported member kind 0x0006" in previous.walk_note
+
+
+def test_a_by_value_list_element_s_name_record_may_say_z_1() -> None:
+    document = decode_prefab_binary(_decal_prefab(z=1))
+
+    assert document.walk_complete, document.walk_note
+
+
+def test_a_wide_mask_is_believed_only_for_a_type_that_needs_it() -> None:
+    """A six-byte width naming a two-member type is not a header."""
+    document = decode_prefab_binary(_decal_prefab(stated_type=2))
+
+    assert not document.walk_complete

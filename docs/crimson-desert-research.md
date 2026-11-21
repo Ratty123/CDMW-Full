@@ -2169,6 +2169,24 @@ validated length fields. Measured over the shipped revision-15 prefabs on game
 complete only by reading socket elements as other components now report a
 partial walk. This is a decode result over the archive corpus, not game proof.
 
+Nested prefab instances that override an object, spline decals and by-value
+object lists use three more forms. An element header ends `u8 type, u8 0,
+u8 override`, and an overridden `CustomAttributeSplineComponent` says 1 there;
+its `SplineObject3D` pointee, the `SplineDecalPointData` and
+`SplineDecalVolumeData` elements and `CustomAttributeLayoutContainer` pointees
+then open their record with a u16 of 1 instead of 0, the field the effect
+grammar calls `z`. A component with more than 32 members writes a wider mask:
+`SplineDecalComponent` declares 43 and its header is `06 00` followed by six
+mask bytes. Its `_pointDatas` and `_volumeDatas` are kind 6 (by-value) object
+lists, laid out in a prefab as kind 7 lists are: kind byte, count, the 13-byte
+preamble, then groups that each close on their own length field. Measured over
+the 51,178 prefabs of the installed game (2026-11-21): 145 more walks complete,
+none completes less, and the 15 complete walks that change reading leave no
+collection over-declared where the earlier reading left up to 21. 123 prefabs
+remain partial, most at a pointee length mismatch. A `.pcg` kind 6 member still
+does not read this way. This is a decode result over the archive corpus, not
+game proof.
+
 The decoder exposes objects, asset references, numeric values and transforms.
 The supported serialized `Transform` is 40 bytes: scale, quaternion `xyzw` and
 position. A larger runtime transform structure is a different contract and must
