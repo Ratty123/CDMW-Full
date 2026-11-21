@@ -40984,7 +40984,7 @@ MESSAGE_REFERENCE = [
     "message": "native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 1019
+      "native/cdmw_preview_core/src/owners/material_binding_build.cpp": 893
     }
   },
   {
@@ -116207,6 +116207,7 @@ SOURCE_COVERAGE = {
   "native/cdmw_preview_core/src/owners/material_binding_build.cpp": {
     "native_message": 2
   },
+  "native/cdmw_preview_core/src/owners/material_binding_finish.cpp": {},
   "native/cdmw_preview_core/src/owners/material_bindings.cpp": {},
   "native/cdmw_preview_core/src/owners/material_graph.cpp": {},
   "native/cdmw_preview_core/src/owners/material_graph_cache.cpp": {
