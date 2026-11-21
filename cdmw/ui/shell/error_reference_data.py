@@ -11772,7 +11772,7 @@ MESSAGE_REFERENCE = [
     "message": "Full preview failed after fast preview: {failure}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 293
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 316
     }
   },
   {
@@ -14918,7 +14918,7 @@ MESSAGE_REFERENCE = [
     "message": "Resident package update failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 297
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 320
     }
   },
   {
@@ -15622,7 +15622,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 401
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 424
     }
   },
   {
@@ -16751,7 +16751,7 @@ MESSAGE_REFERENCE = [
     "message": "The preview renderer refused the display change ({reason}); the viewport still shows the previous view.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 468
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 491
     }
   },
   {
@@ -18458,7 +18458,7 @@ MESSAGE_REFERENCE = [
     "message": "failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 292,
+      "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py": 315,
       "cdmw/ui/archive_browser/workers.py": 1001,
       "cdmw/ui/shell/archive_backend_client.py": 75
     }
@@ -19196,7 +19196,7 @@ MESSAGE_REFERENCE = [
     "message": "pathc:missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/preview_cache.py": 189
+      "cdmw/ui/archive_browser/preview_cache.py": 188
     }
   },
   {
@@ -20295,7 +20295,7 @@ MESSAGE_REFERENCE = [
     "message": "{path_value}:missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/preview_cache.py": 400
+      "cdmw/ui/archive_browser/preview_cache.py": 399
     }
   },
   {

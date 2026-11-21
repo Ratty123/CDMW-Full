@@ -70,9 +70,9 @@ def test_browse_shows_the_panel_for_a_file_that_is_not_a_set(tmp_path) -> None:
     }), encoding="utf-8")
     panel = preview.archive_item_set_components
     panel.prefabComponentToggled.connect(preview._archive_scene_prefab_toggled)  # as preview_layout does
-    preview._populate_archive_d3d11_part_visibility_menu(tmp_path)
+    preview._populate_archive_scene_parts(tmp_path)
     assert panel.active and set(panel._groups) == {SWORD, SCABBARD}
-    # The panel's tick on the component goes through the Parts entry's toggle, which loads it.
+    # Ticking the listed component loads it.
     panel._groups[SCABBARD].setCheckState(0, Qt.Checked)
     assert preview.reloads == 1
     assert SCABBARD in preview._archive_d3d11_enabled_prefab_component_paths()

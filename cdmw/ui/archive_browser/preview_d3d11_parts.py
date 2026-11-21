@@ -1,4 +1,4 @@
-"""Part visibility controls for Rust Preview archive previews."""
+"""Browse Archives' Scene panel wiring: part visibility and prefab component loading."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from cdmw.ui.preview.part_manifest import read_part_manifest as _read_part_manif
 
 
 class ArchivePreviewD3D11PartsMixin:
-    """Menu helpers for toggling source submeshes in the Rust Preview preview host."""
+    """Feeds the Scene panel from the shown package and sends its ticks to the preview host."""
 
     @staticmethod
     def _archive_d3d11_prefab_component_path_key(path_value: object) -> str:
@@ -74,57 +74,38 @@ class ArchivePreviewD3D11PartsMixin:
             selections.pop(entry_key, None)
         return True
 
-    def _clear_archive_d3d11_part_visibility_menu(self) -> None:
+    def _clear_archive_scene_parts(self) -> None:
         self._archive_item_set_visibility_active = False
         panel = getattr(self, "archive_item_set_components", None)
         if panel is not None:
             panel.hide()
-        menu = getattr(self, "archive_d3d11_part_visibility_menu", None)
-        if menu is not None:
-            menu.clear()
-        self.archive_d3d11_part_visibility_actions = {}
-        self.archive_d3d11_part_visibility_groups = {}
-        self.archive_d3d11_part_visibility_button.setText("Parts")
-        self.archive_d3d11_part_visibility_button.setEnabled(False)
-        self.archive_d3d11_part_visibility_button.setVisible(False)
 
-    def _set_archive_d3d11_hidden_parts_from_menu(self) -> None:
-        groups = getattr(self, "archive_d3d11_part_visibility_groups", {}) or {}
-        hidden: List[int] = []
-        shown_count = 0
-        for action, source_indices, _prefab_component, _model_path in groups.values():
-            if hasattr(action, "isChecked") and bool(action.isChecked()):
-                shown_count += 1
-            else:
-                hidden.extend(int(index) for index in source_indices if int(index) >= 0)
-        hidden.extend(
+    def _apply_archive_hidden_parts(self) -> None:
+        """Send the Scene panel's unticked parts (and Character Context's) to the preview."""
+
+        hidden: List[int] = [
             int(index)
             for index in tuple(getattr(self, "archive_character_context_pending_hidden_indices", ()) or ())
             if int(index) >= 0
-        )
+        ]
         if getattr(self, "_archive_item_set_visibility_active", False):
             hidden.extend(self.archive_item_set_components.hidden_indices)
-        total_count = len(groups)
-        self.archive_d3d11_part_visibility_button.setText(
-            f"Parts {shown_count}/{total_count}" if total_count else "Parts"
-        )
         self.archive_d3d11_preview_host.set_hidden_source_submeshes(sorted(set(hidden)))
 
     def _archive_item_set_visibility_changed(self, _hidden: object = ()) -> None:
         if not getattr(self, "_archive_item_set_visibility_active", False):
             return
-        hidden = set(self.archive_item_set_components.hidden_indices)
-        self.archive_d3d11_part_visibility_bulk_update = True
-        try:
-            for action, indices, _prefab, _path in self.archive_d3d11_part_visibility_groups.values():
-                if indices:
-                    action.setChecked(any(index not in hidden for index in indices))
-        finally:
-            self.archive_d3d11_part_visibility_bulk_update = False
-        self._set_archive_d3d11_hidden_parts_from_menu()
+        self._apply_archive_hidden_parts()
 
-    def _populate_archive_d3d11_part_visibility_menu(self, package_dir: Path) -> None:
-        self._clear_archive_d3d11_part_visibility_menu()
+    def _populate_archive_scene_parts(self, package_dir: Path) -> None:
+        """List the shown package's files and parts in the Scene panel.
+
+        The Scene panel is the one place to show, hide and load parts (Fredric,
+        2026-11-21: it replaced the Parts dropdown above the preview). Prefab
+        components the model can load are listed with it, unticked until loaded.
+        """
+
+        self._clear_archive_scene_parts()
         self.archive_character_context_pending_hidden_indices = ()
         self.archive_character_context_loaded_indices = ()
         manifest = _read_part_manifest(Path(package_dir))
@@ -140,7 +121,7 @@ class ArchivePreviewD3D11PartsMixin:
         current_entry_getter = getattr(self, "_current_archive_entry", None)
         current_entry = current_entry_getter() if callable(current_entry_getter) else None
         self._sync_archive_character_context_source(current_entry)
-        rows: Dict[str, Dict[str, object]] = {}
+        prefab_components: Dict[str, str] = {}
         context_indices: List[int] = []
         asset_family = manifest.get("asset_family")
         member_rows = asset_family.get("member_rows") if isinstance(asset_family, Mapping) else ()
@@ -153,174 +134,37 @@ class ArchivePreviewD3D11PartsMixin:
                 if str(member.get("role") or "").strip() != "Model Component":
                     continue
                 model_path = str(member.get("path") or "").replace("\\", "/").strip()
-                path_key = self._archive_d3d11_prefab_component_path_key(model_path)
-                if not path_key:
+                if not self._archive_d3d11_prefab_component_path_key(model_path):
                     continue
-                rows[f"prefab|{path_key}"] = {
-                    "label": str(member.get("display_name") or Path(model_path).name or model_path),
-                    "model_path": model_path,
-                    "prefab_component": True,
-                    "source_indices": [],
-                }
+                prefab_components.setdefault(
+                    model_path, str(member.get("display_name") or Path(model_path).name or model_path)
+                )
         for batch in batches:
             if not isinstance(batch, Mapping):
                 continue
             identity = batch.get("editor_identity")
             if not isinstance(identity, Mapping):
-                identity = {}
+                continue
             try:
                 source_index = int(identity.get("source_submesh_index", batch.get("index", -1)))
             except (TypeError, ValueError):
                 continue
             if source_index < 0:
                 continue
-            label = str(
-                identity.get("part_label")
-                or identity.get("source_component_label")
-                or batch.get("material_name")
-                or f"Batch {source_index}"
-            )
-            model_path = str(identity.get("source_model_path") or "")
-            context_component = bool(identity.get("context_component", False))
-            prefab_component = bool(identity.get("prefab_component", False)) and not context_component
-            if context_component:
+            if bool(identity.get("context_component", False)):
                 context_indices.append(source_index)
-            component_index = identity.get("source_component_index", "")
-            path_key = self._archive_d3d11_prefab_component_path_key(model_path)
-            group_key = (
-                f"prefab|{path_key}"
-                if prefab_component and path_key
-                else (f"{component_index}|{model_path}" if model_path else f"batch|{source_index}")
-            )
-            row = rows.setdefault(
-                group_key,
-                {
-                    "label": label,
-                    "model_path": model_path,
-                    "prefab_component": prefab_component,
-                    "source_indices": [],
-                },
-            )
-            source_indices = row.get("source_indices")
-            if isinstance(source_indices, list) and source_index not in source_indices:
-                source_indices.append(source_index)
         self.archive_character_context_loaded_indices = tuple(sorted(set(context_indices)))
-        if panel is not None:
-            # P5: the Scene panel beside every 3D preview, not only Item Finder sets.
-            prefab_components = tuple(
-                (str(row.get("model_path") or ""), str(row.get("label") or ""))
-                for key, row in rows.items() if key.startswith("prefab|") and row.get("model_path")
-            )
-            members = tuple(entry.path for entry in bridge.item_set_members) if is_set else ()
-            panel.set_parts(batches, members, prefab_components=prefab_components)
-            self._archive_item_set_visibility_active = panel.active
-            if is_set:
-                selected = self._current_archive_entry()
-                panel.highlight_path(str(getattr(selected, "path", "")))
-        if len(rows) <= 1:
-            if getattr(self, "_archive_item_set_visibility_active", False):
-                self._set_archive_d3d11_hidden_parts_from_menu()
+        if panel is None:
             return
-        menu = self.archive_d3d11_part_visibility_menu
-        show_all_action = menu.addAction("Show all parts")
-        hide_added_action = menu.addAction("Hide added prefab pieces")
-        menu.addSeparator()
-        self.archive_d3d11_part_visibility_actions = {}
-        self.archive_d3d11_part_visibility_groups = {}
-        selected_prefab_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
-        ordered_rows = sorted(
-            rows.items(),
-            key=lambda item: (str(item[1].get("label") or "").lower(), str(item[0])),
-        )
-        for group_key, row in ordered_rows:
-            label = str(row.get("label") or group_key)
-            model_path = str(row.get("model_path") or "")
-            prefab_component = bool(row.get("prefab_component", False))
-            raw_indices = row.get("source_indices")
-            source_indices = tuple(
-                sorted(
-                    int(index)
-                    for index in (raw_indices if isinstance(raw_indices, list) else [])
-                    if int(index) >= 0
-                )
-            )
-            if not source_indices and not prefab_component:
-                continue
-            action = menu.addAction(label)
-            action.setCheckable(True)
-            prefab_path_key = self._archive_d3d11_prefab_component_path_key(model_path)
-            action.setChecked(not prefab_component or prefab_path_key in selected_prefab_paths)
-            action.setToolTip(
-                (
-                    f"Enable to build and load this prefab component: {model_path}"
-                    if prefab_component and not source_indices
-                    else model_path
-                )
-                or "Preview component"
-            )
-            action.setStatusTip(model_path or "")
-            action.setData(list(source_indices))
-            for source_index in source_indices:
-                self.archive_d3d11_part_visibility_actions[source_index] = action
-            self.archive_d3d11_part_visibility_groups[group_key] = (
-                action,
-                source_indices,
-                prefab_component,
-                model_path,
-            )
-            action.toggled.connect(
-                lambda checked=False, key=group_key: self._handle_archive_d3d11_part_toggled(
-                    key,
-                    bool(checked),
-                )
-            )
-
-        def _apply_bulk_prefab_selection(*, enabled: bool) -> None:
-            if getattr(self, "_archive_item_set_visibility_active", False):
-                hidden = () if enabled else tuple(
-                    index for _action, indices, prefab, _path in self.archive_d3d11_part_visibility_groups.values()
-                    if prefab for index in indices
-                )
-                self.archive_item_set_components.set_hidden_indices(hidden)
-                return
-            selected_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
-            self.archive_d3d11_part_visibility_bulk_update = True
-            try:
-                for (
-                    action,
-                    _source_indices,
-                    prefab_component,
-                    model_path,
-                ) in self.archive_d3d11_part_visibility_groups.values():
-                    if hasattr(action, "setChecked"):
-                        action.setChecked(bool(enabled) if prefab_component else True)
-                    if prefab_component:
-                        path_key = self._archive_d3d11_prefab_component_path_key(model_path)
-                        if enabled and path_key:
-                            selected_paths.add(path_key)
-                        else:
-                            selected_paths.discard(path_key)
-            finally:
-                self.archive_d3d11_part_visibility_bulk_update = False
-            changed = self._set_archive_d3d11_enabled_prefab_component_paths(selected_paths)
-            self._set_archive_d3d11_hidden_parts_from_menu()
-            if changed:
-                self._reload_archive_d3d11_prefab_components()
-
-        def _show_all() -> None:
-            _apply_bulk_prefab_selection(enabled=True)
-
-        def _hide_added() -> None:
-            _apply_bulk_prefab_selection(enabled=False)
-
-        show_all_action.triggered.connect(_show_all)
-        hide_added_action.triggered.connect(_hide_added)
-        self.archive_d3d11_part_visibility_button.setVisible(True)
-        self.archive_d3d11_part_visibility_button.setEnabled(True)
-        if getattr(self, "_archive_item_set_visibility_active", False):
-            self._archive_item_set_visibility_changed()
-        else:
-            self._set_archive_d3d11_hidden_parts_from_menu()
+        # P5: the Scene panel beside every 3D preview, not only Item Finder sets.
+        members = tuple(entry.path for entry in bridge.item_set_members) if is_set else ()
+        panel.set_parts(batches, members, prefab_components=tuple(prefab_components.items()))
+        self._archive_item_set_visibility_active = panel.active
+        if is_set:
+            selected = self._current_archive_entry()
+            panel.highlight_path(str(getattr(selected, "path", "")))
+        if self._archive_item_set_visibility_active:
+            self._apply_archive_hidden_parts()
 
     def _archive_scene_open_file(self, path: str) -> None:
         """Open in Mesh Editor on one file of the Scene panel (P5)."""
@@ -336,44 +180,15 @@ class ArchivePreviewD3D11PartsMixin:
             launch(entry)
 
     def _archive_scene_prefab_toggled(self, path: str, checked: bool) -> None:
-        """A prefab component file ticked in the Scene panel loads, as its Parts entry does (P5)."""
+        """A prefab component file ticked in the Scene panel is loaded into the preview (P5)."""
 
         path_key = self._archive_d3d11_prefab_component_path_key(path)
-        group_key = f"prefab|{path_key}"
-        group = (getattr(self, "archive_d3d11_part_visibility_groups", {}) or {}).get(group_key)
-        if group is not None and hasattr(group[0], "setChecked"):
-            group[0].setChecked(bool(checked))  # its toggle loads or unloads it
-            return
         selected_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
         if checked and path_key:
             selected_paths.add(path_key)
         else:
             selected_paths.discard(path_key)
         if self._set_archive_d3d11_enabled_prefab_component_paths(selected_paths):
-            self._reload_archive_d3d11_prefab_components()
-
-    def _handle_archive_d3d11_part_toggled(self, group_key: str, checked: bool) -> None:
-        if bool(getattr(self, "archive_d3d11_part_visibility_bulk_update", False)):
-            return
-        group = (getattr(self, "archive_d3d11_part_visibility_groups", {}) or {}).get(group_key)
-        if group is None:
-            return
-        _action, _source_indices, prefab_component, model_path = group
-        if (getattr(self, "_archive_item_set_visibility_active", False) and _source_indices
-                and self.archive_item_set_components.set_group_visible(model_path, checked)):
-            return
-        if not prefab_component:
-            self._set_archive_d3d11_hidden_parts_from_menu()
-            return
-        selected_paths = set(self._archive_d3d11_enabled_prefab_component_paths())
-        path_key = self._archive_d3d11_prefab_component_path_key(model_path)
-        if checked and path_key:
-            selected_paths.add(path_key)
-        else:
-            selected_paths.discard(path_key)
-        changed = self._set_archive_d3d11_enabled_prefab_component_paths(selected_paths)
-        self._set_archive_d3d11_hidden_parts_from_menu()
-        if changed:
             self._reload_archive_d3d11_prefab_components()
 
     def _reload_archive_d3d11_prefab_components(self) -> None:
@@ -408,7 +223,7 @@ class ArchivePreviewD3D11PartsMixin:
         self.archive_character_context_pending_hidden_indices = tuple(
             getattr(self, "archive_character_context_loaded_indices", ()) or ()
         )
-        self._set_archive_d3d11_hidden_parts_from_menu()
+        self._apply_archive_hidden_parts()
         refresh = getattr(self, "_refresh_current_model_preview_assets", None)
         if callable(refresh):
             status = getattr(self.shell, "set_status_message", None)

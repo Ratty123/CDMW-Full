@@ -117,28 +117,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_refresh_button = QPushButton("Refresh")
         self.archive_model_preview_refresh_button.setToolTip(archive_model_preview_refresh_tooltip())
         self._build_archive_model_toolbar_toggles()
-        self.archive_d3d11_part_visibility_button = QToolButton()
-        self.archive_d3d11_part_visibility_button.setObjectName("ArchivePartVisibilityButton")
-        self.archive_d3d11_part_visibility_button.setText("Parts")
-        self.archive_d3d11_part_visibility_button.setPopupMode(QToolButton.InstantPopup)
-        self.archive_d3d11_part_visibility_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.archive_d3d11_part_visibility_button.setToolTip(
-            "Show or hide base parts. Prefab components are packaged only after you enable them."
-        )
-        self.archive_d3d11_part_visibility_button.setEnabled(False)
-        self.archive_d3d11_part_visibility_button.setVisible(False)
-        self.archive_d3d11_part_visibility_menu = QMenu(self.archive_d3d11_part_visibility_button)
-        self.archive_d3d11_part_visibility_menu.setObjectName("ArchivePartVisibilityMenu")
-        if hasattr(self.archive_d3d11_part_visibility_menu, "setToolTipsVisible"):
-            self.archive_d3d11_part_visibility_menu.setToolTipsVisible(True)
-        self.archive_d3d11_part_visibility_button.setMenu(self.archive_d3d11_part_visibility_menu)
-        self.archive_d3d11_part_visibility_actions: Dict[int, object] = {}
-        self.archive_d3d11_part_visibility_groups: Dict[
-            str,
-            Tuple[object, Tuple[int, ...], bool, str],
-        ] = {}
         self.archive_d3d11_prefab_component_selections: Dict[str, set[str]] = {}
-        self.archive_d3d11_part_visibility_bulk_update = False
         self.archive_character_context_button = QPushButton("Character Context")
         self.archive_character_context_button.setCheckable(True)
         self.archive_character_context_button.setToolTip(
@@ -510,10 +489,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_reset_overrides_button.setMinimumHeight(24)
         self.archive_model_preview_reset_overrides_button.setMaximumHeight(26)
         self.archive_model_preview_reset_overrides_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        self.archive_d3d11_part_visibility_button.setMinimumWidth(74)
-        self.archive_d3d11_part_visibility_button.setMinimumHeight(24)
-        self.archive_d3d11_part_visibility_button.setMaximumHeight(26)
-        self.archive_d3d11_part_visibility_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.archive_character_context_button.setMinimumWidth(126)
         self.archive_character_context_button.setMinimumHeight(24)
         self.archive_character_context_button.setMaximumHeight(26)
@@ -526,7 +501,6 @@ class ArchivePreviewLayoutMixin:
         archive_view_controls_layout.addSpacing(8)
         archive_view_controls_layout.addWidget(self.archive_model_preview_refresh_button)
         archive_view_controls_layout.addWidget(self.archive_isolated_renderer_button)
-        archive_view_controls_layout.addWidget(self.archive_d3d11_part_visibility_button)
         archive_view_controls_layout.addWidget(self.archive_character_context_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_reset_overrides_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_flip_v_checkbox)

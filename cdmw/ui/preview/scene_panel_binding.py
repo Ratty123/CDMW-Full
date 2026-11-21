@@ -5,8 +5,8 @@ parts in a Scene panel beside it and sends the panel's ticks back to the host
 as its hidden parts. The panel shows only while the host is shown and the model
 has more than one part: a single part has nothing to tick.
 
-Browse Archives keeps its own wiring (its Parts dropdown and prefab loading
-share the panel's state); this binding is for the other previews, which load
+Browse Archives keeps its own wiring (it also loads prefab components from
+the panel); this binding is for the other previews, which load
 no prefab components and cannot open the Mesh Editor, so the panel there
 offers the visibility actions only.
 """

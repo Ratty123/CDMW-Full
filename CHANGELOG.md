@@ -56,6 +56,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
   - Item Finder, Body & Face Finder and NPC Finder start building their lists once the archive is open and CDMW is idle, even when another tab is in front, and a list that is still being built is kept when you open a Finder instead of being started again.
   - Opening a full item set from Browse Archives in the Mesh Editor reuses the materials and textures Browse already prepared for the set, prepares the pieces side by side and skips copies it does not need.
   - Opening a texture in the Mesh Editor's docked Texture Editor checks it in the background, so the window stays responsive; opening another texture first cancels the earlier one.
+- **Browse Archives:** the **Parts** drop-down above the 3D preview is gone. The **Scene** panel beside the preview lists the same files and parts, shows and hides them, and loads prefab pieces such as a scabbard when you tick them.
+- **Browse Archives** keeps showing a model while it is open in the Mesh Editor, so going back to Browse no longer needs **Refresh**.
 
 ### Fixed
 
