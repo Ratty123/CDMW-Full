@@ -384,6 +384,7 @@ std::vector<PreviewJob> parse_jobs(const std::string& text) {
         job.max_dimension = std::max(0, json_int_field(object, "max_dimension", json_int_field(object, "max_dim", 4096)));
         job.requested_mip = std::max(0, json_int_field(object, "requested_mip", json_int_field(object, "mip_level", 0)));
         job.output_pixel_type = json_string_field(object, "output_pixel_type", "rgba8");
+        job.output_container = json_string_field(object, "output_container", "png");
         jobs.push_back(job);
     }
     return jobs;

@@ -36,6 +36,11 @@ cd-texture-dx.exe batch-preview-json job.json report.json
 
 `batch-preview-json` accepts protocol-v2 decode requests with `input`, `output`, `slot`,
 `normal_space`, `max_dimension`, `requested_mip`, and `output_pixel_type`.
+An optional `output_container` of `rgba8_raw` (with `output_pixel_type` `rgba8`) writes
+the same final pixels without PNG compression: the 8 bytes `CDMWRGBA`, little-endian
+`u32` version (1), width, height and bytes per pixel (4), a `u64` payload size, then the
+rows top to bottom. The report item echoes `output_container`; a helper that does not
+know the field writes a PNG and echoes nothing. The Texture Editor opens DDS files this way.
 `batch-encode-json` accepts explicit DDS format, dimensions, mip count, overwrite,
 source-color, mip-alpha, coverage-reference, and DDS alpha-metadata policies.
 Source-colour policy is `auto`, `ignore_srgb_metadata`, or `assume_srgb`; the last

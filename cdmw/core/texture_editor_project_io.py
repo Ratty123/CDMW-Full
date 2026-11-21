@@ -20,6 +20,7 @@ from cdmw.core.texture_editor import (
     _safe_slug,
     save_rgba_array_png,
 )
+from cdmw.core.texture_native_rgba import decode_dds_rgba8_with_directxtex
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.core.upscale_profiles import infer_texture_semantics, is_technical_texture_type
@@ -126,16 +127,28 @@ def create_texture_editor_document_from_source(
     *,
     workspace_root: Path,
     binding: Optional[TextureEditorSourceBinding] = None,
-) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray], Path]:
+) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray], Optional[Path]]:
+    """Open a texture as a new document.
+
+    The third value is the PNG the source was converted to, or ``None`` for a DDS
+    whose pixels were read directly.
+    """
+
     resolved = source_path.expanduser().resolve()
     binding, _dds_info = derive_texture_editor_binding(resolved, binding=binding)
     document_root = build_texture_editor_document_root(workspace_root, resolved.stem)
-    normalized_png = normalize_texture_editor_source_to_png(
-        resolved,
-        output_dir=document_root / "normalized",
-        output_stem=resolved.stem,
-    )
-    pixels = _load_rgba_array(normalized_png)
+    normalized_png: Optional[Path] = None
+    # A DDS comes straight from the helper as pixels: a PNG in between costs most of
+    # the wait for a 4096 px texture. Anything that goes wrong falls through to the
+    # PNG route below, which reports it.
+    pixels = decode_dds_rgba8_with_directxtex(resolved) if resolved.suffix.lower() == ".dds" else None
+    if pixels is None:
+        normalized_png = normalize_texture_editor_source_to_png(
+            resolved,
+            output_dir=document_root / "normalized",
+            output_stem=resolved.stem,
+        )
+        pixels = _load_rgba_array(normalized_png)
     height, width = pixels.shape[:2]
     layer = TextureEditorLayer(
         layer_id=_new_layer_id(),

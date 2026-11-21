@@ -16,6 +16,9 @@ struct PreviewJob {
     int max_dimension = 4096;
     int requested_mip = 0;
     std::string output_pixel_type = "rgba8";
+    // "png" (default) or "rgba8_raw": the same final pixels behind a 32-byte header,
+    // for a caller that wants them in memory and not as a file to keep.
+    std::string output_container = "png";
 };
 
 struct EncodeJob {

@@ -6,6 +6,8 @@
 #include <chrono>
 #include <cmath>
 #include <cctype>
+#include <cstdint>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <iostream>
@@ -58,6 +60,49 @@ void invert_green_channel(DirectX::ScratchImage& image) {
     }
 }
 
+bool wants_raw_rgba8(const PreviewJob& job) {
+    return lower_copy(job.output_container) == "rgba8_raw";
+}
+
+// "CDMWRGBA", then little-endian u32 version, width, height, bytes per pixel and a
+// u64 payload size: 32 bytes, followed by the rows top to bottom without padding.
+// The caller reads the file once and deletes it, so it is marked temporary: Windows
+// then keeps it in memory where it can, and a 256 MB texture does not wait for a disk.
+bool write_rgba8_raw(const DirectX::Image& image, const std::wstring& path) {
+    const HANDLE file = CreateFileW(
+        path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+        FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    const auto write_all = [file](const uint8_t* data, uint64_t size) {
+        while (size > 0) {
+            const DWORD chunk = static_cast<DWORD>(std::min<uint64_t>(size, 64u * 1024u * 1024u));
+            DWORD written = 0;
+            if (!WriteFile(file, data, chunk, &written, nullptr) || written == 0) return false;
+            data += written;
+            size -= written;
+        }
+        return true;
+    };
+    const uint64_t row_bytes = static_cast<uint64_t>(image.width) * 4;
+    const uint64_t payload_bytes = row_bytes * static_cast<uint64_t>(image.height);
+    const uint32_t fields[4] = {
+        1u, static_cast<uint32_t>(image.width), static_cast<uint32_t>(image.height), 4u,
+    };
+    uint8_t header[32];
+    std::memcpy(header, "CDMWRGBA", 8);
+    std::memcpy(header + 8, fields, sizeof(fields));
+    std::memcpy(header + 24, &payload_bytes, sizeof(payload_bytes));
+    bool ok = write_all(header, sizeof(header));
+    if (ok && image.rowPitch == row_bytes) {
+        ok = write_all(image.pixels, payload_bytes);
+    } else {
+        for (size_t y = 0; ok && y < image.height; ++y) {
+            ok = write_all(image.pixels + image.rowPitch * y, row_bytes);
+        }
+    }
+    return CloseHandle(file) != 0 && ok;
+}
+
 }  // namespace
 
 static std::string preview_result_json(const PreviewJob& job, const DirectX::TexMetadata& metadata, size_t target_width, size_t target_height, const std::string& output_pixel_type, double elapsed) {
@@ -85,6 +130,7 @@ static std::string preview_result_json(const PreviewJob& job, const DirectX::Tex
         << "\"mip_count\":" << metadata.mipLevels << ","
         << "\"requested_mip\":" << job.requested_mip << ","
         << "\"output_pixel_type\":\"" << json_escape(output_pixel_type) << "\","
+        << "\"output_container\":\"" << (wants_raw_rgba8(job) ? "rgba8_raw" : "png") << "\","
         << "\"dds_alpha_mode\":\"" << alpha_mode_name(metadata.GetAlphaMode()) << "\","
         << "\"normal_space\":\""
         << (normal_green_inverted ? "green_up_inverted" : json_escape(job.normal_space)) << "\","
@@ -97,7 +143,9 @@ static std::string preview_result_json(const PreviewJob& job, const DirectX::Tex
 std::string decode_preview_job(const PreviewJob& job) {
     const auto started = std::chrono::steady_clock::now();
     const std::string output_pixel_type = lower_copy(job.output_pixel_type);
-    if (output_pixel_type != "rgba8" && output_pixel_type != "gray16") {
+    const bool raw_rgba8 = wants_raw_rgba8(job);
+    if ((output_pixel_type != "rgba8" && output_pixel_type != "gray16")
+        || (raw_rgba8 && output_pixel_type != "rgba8")) {
         return preview_error(job, "unsupported output_pixel_type " + job.output_pixel_type);
     }
 
@@ -198,21 +246,28 @@ std::string decode_preview_job(const PreviewJob& job) {
     if (!final_image) {
         return preview_error(job, "prepared output image is empty");
     }
-    const GUID* target_wic_format = output_pixel_type == "gray16"
-        ? &GUID_WICPixelFormat16bppGray
-        : nullptr;
-    hr = DirectX::SaveToWICFile(
-        *final_image,
-        DirectX::WIC_FLAGS_NONE,
-        GUID_ContainerFormatPng,
-        output_path.c_str(),
-        target_wic_format
-    );
+    if (raw_rgba8) {
+        // The pixels the PNG would hold, without the deflate here and the inflate there.
+        hr = final_image->format == DXGI_FORMAT_R8G8B8A8_UNORM
+                && write_rgba8_raw(*final_image, output_path)
+            ? S_OK : E_FAIL;
+    } else {
+        const GUID* target_wic_format = output_pixel_type == "gray16"
+            ? &GUID_WICPixelFormat16bppGray
+            : nullptr;
+        hr = DirectX::SaveToWICFile(
+            *final_image,
+            DirectX::WIC_FLAGS_NONE,
+            GUID_ContainerFormatPng,
+            output_path.c_str(),
+            target_wic_format
+        );
+    }
     const auto elapsed = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started
     ).count();
     if (FAILED(hr)) {
-        return preview_error(job, hresult_message("SaveToWICFile", hr));
+        return preview_error(job, hresult_message(raw_rgba8 ? "Write RGBA8 output" : "SaveToWICFile", hr));
     }
 
     return preview_result_json(job, metadata, target_width, target_height, output_pixel_type, elapsed);
