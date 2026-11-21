@@ -86,20 +86,21 @@ class ArchivePrefabInspectorActionsMixin:
             show_archive_progress=True,
         )
 
-    def _show_prefab_inspector(
-        self,
-        entry: ArchiveEntry,
-        data: bytes,
-        known_paths: dict[str, tuple[str, ...]],
-        *,
-        speed_filter: bool = False,
-    ) -> None:
+    def _prefab_users_finder(self, entry: ArchiveEntry):
+        """A lookup of the other prefabs that reference a file, or None when no prefab list is loaded.
+
+        Lives here rather than in the dialog because archive access belongs to the browser;
+        the Inspector's own window and the one inside Speed & Prefabs share it.
+        """
+
+        if not (getattr(self, "archive_entries_by_extension", None) or {}).get(".prefab"):
+            return None
+
         def _find_users(path: str) -> tuple[str, ...]:
             """Which other prefabs reference ``path``.
 
-            Lives here rather than in the dialog because archive access belongs
-            to the browser. A plain substring test rejects almost every entry
-            before anything is decoded, which is what makes this affordable.
+            A plain substring test rejects almost every entry before anything is
+            decoded, which is what makes this affordable.
             """
             found: list[str] = []
             candidates = self.archive_entries_by_extension.get(".prefab", ())
@@ -114,6 +115,16 @@ class ArchivePrefabInspectorActionsMixin:
                     found.append(candidate.path)
             return tuple(found)
 
+        return _find_users
+
+    def _show_prefab_inspector(
+        self,
+        entry: ArchiveEntry,
+        data: bytes,
+        known_paths: dict[str, tuple[str, ...]],
+        *,
+        speed_filter: bool = False,
+    ) -> None:
         # The decode and tree build happen in the constructor, before the window
         # can paint; the wait cursor covers that gap on large prefabs.
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -123,7 +134,7 @@ class ArchivePrefabInspectorActionsMixin:
                 title=f"Prefab Inspector - {entry.basename}",
                 parent=self,
                 known_paths=known_paths,
-                find_users=_find_users if self.archive_entries_by_extension.get(".prefab") else None,
+                find_users=self._prefab_users_finder(entry),
                 speed_filter=speed_filter,
             )
         finally:
@@ -134,8 +145,11 @@ class ArchivePrefabInspectorActionsMixin:
             return
         self._offer_prefab_export(entry, data, payload.data, payload.summary)
 
-    def _offer_prefab_export(self, entry: ArchiveEntry, original: bytes, patched: bytes, summary: str) -> None:
-        """Ask how an edited prefab leaves CDMW; shared by the Inspector and Prefab Edit JSON import."""
+    def _offer_prefab_export(self, entry: ArchiveEntry, original: bytes, patched: bytes, summary: str) -> bool:
+        """Ask how an edited prefab leaves CDMW; shared by the Inspector and Prefab Edit JSON import.
+
+        False when the user cancelled at this question, so nothing was started.
+        """
         # Say the unproven part before they install it, not after it fails.
         # Prefab editing has never been confirmed to load in game, and a modder
         # deserves to know which of their mods is the experimental one.
@@ -164,6 +178,9 @@ class ArchivePrefabInspectorActionsMixin:
             self._export_inspected_prefab_package(entry, original, patched, add=True)
         elif box.clickedButton() is loose_button:
             self._export_inspected_prefab(entry, patched, summary)
+        else:
+            return False
+        return True
 
     def _export_inspected_prefab_package(
         self, entry: ArchiveEntry, original: bytes, patched: bytes, *, add: bool = False

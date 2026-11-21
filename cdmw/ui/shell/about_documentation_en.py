@@ -149,7 +149,7 @@ class AboutDocumentationEnglishMixin:
                 <table>
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
-                  <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
+                  <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, <a href="topic:speed_prefabs">Speed &amp; Prefabs</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
@@ -536,17 +536,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Only the fields listed above can change. Branches, conditions and other frame-event contents stay as shipped, and the shared commonactioninfo tables cannot be edited. CDMW warns when a clip, blend space or sequencer is not in the game's archives, or when a socket, part or effect name is not in the chart; a socket or part the character does not have does nothing. If a new clip is longer or shorter, adjust the animation's start and end times. Clip changes (once every chart that plays the clip was changed), the chart speed rate and speed windows worked in game; other timing values and event edits have not been tested in game yet.</p>
                 <p>Asset Family lists a clip's event metadata, distance LOD and other voice-language copies as Path layout. A lip-sync clip and the voice line with the same name and language are paired as Line name; neither file names the other. Wwise sound details show the codec, length, loop points and markers.</p>
                 <p>The search is read-only and cancellable. Files above 32 MiB are skipped; searches continue in bounded batches without a fixed total byte limit, up to 2,000 results. Review skipped, unreadable and unsupported counts; no matches does not mean unused.</p>
-                <h4>Speed Tuning (Experimental)</h4>
-                <ol>
-                  <li>In Archive Browser, click Action Charts and choose Speed Tuning (Experimental)..., or right-click an action chart (.paac) and choose Speed Tuning (Experimental)....</li>
-                  <li>On Animation speed, pick a character and a set. A set is one action chart, such as Two-handed sword or Basic (legs).</li>
-                  <li>Set a factor from 0.1x to 5x: for the whole set, for a kind of move (attacks, jumps, guard and parry, dodges, draw and sheathe, movement, idle) or for one move. 2x plays twice as fast. A move's own factor beats its kind's; the whole-set factor scales the chart's speed rate on top.</li>
-                  <li>Leave Also change these moves in the charts that include this set's clips ticked: a move can play from another chart, so a change to one chart alone can show nothing in game.</li>
-                  <li>Check the Review, click Export DMM Mod..., name the mod and click Send to DMM, then enable it in DMM and click Mount. Sets exported under one mod name collect in one mod; a set put back to 1x leaves it.</li>
-                  <li>On Prefabs, search for prefabs that carry speed values (scene cameras, spinning and wind-driven objects, cloud drift) and open one in the Prefab Inspector with Speed values ticked. Select rows and click Scale by factor..., then Save changes....</li>
-                  <li>On Game tables, open AI movement speeds or the pushed object speed rate in Edit Game Table Values.</li>
-                </ol>
-                <p>Chart speed windows and the chart speed rate worked in game when changed through Crimson Live Edit. Prefab and game table speed edits have not been tested in game, and prefab effect (emitter) speeds cannot be edited yet because CDMW cannot read that far into those prefabs. The game's files are only read. To try speeds in the running game without a mod, use Crimson Live Edit. AI apps reach all of this through the experimental speed tools.</p>
+                <p>To change how fast moves, prefab effects or AI movement play, use <a href="topic:speed_prefabs">Speed &amp; Prefabs</a> under Authoring. Click Action Charts and choose Speed &amp; Prefabs (Experimental)..., or right-click an action chart (.paac), to open it on that chart's set.</p>
                 <p>Edit Game Table Values also offers AI movement speeds and the pushed object speed rate (experimental, not tested in game).</p>
                 <h4>Edit game table values</h4>
                 <ol>
@@ -929,6 +919,27 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Undo</b> and <b>Redo</b> also cover edits in <b>Constraints</b> and <b>Rig Behaviour</b>, and are available in the animation editor.</p>
                 <div class="doc-callout doc-warning"><b>Experimental:</b> edited and new animations, Reach, Plant, joins and retiming, and mods saved from <b>Your mod</b> have not been tested in game yet. Check the result in game before relying on it.</div>
                 <p>Each time the tool opens it checks its copies of the game files against the installed game and refreshes them after an update. Changes made before an update cannot be saved. Previews and checks in this tool do not prove in-game behaviour; test the mod in game.</p>
+                """,
+            },
+            {
+                "id": "speed_prefabs",
+                "title": "Speed & Prefabs",
+                "summary": "Make moves, prefab effects and AI movement play faster or slower, and export a DMM mod (experimental).",
+                "keywords": "speed tuning animation speed attack speed faster slower factor action chart prefab inspector camera wind cloud ai movement pushed objects game tables experimental",
+                "html": """
+                <p><b>Speed &amp; Prefabs</b> (Authoring) sets how fast things play. It has three pages: <b>Animation speed</b>, <b>Prefabs</b> and <b>Game tables</b>. Everything here is experimental, and the game's files are only read.</p>
+                <p><b>Animation speed</b></p>
+                <ol>
+                  <li>Pick a character and a set. A set is one action chart, such as Two-handed sword or Basic (legs). The first visit reads the game's action charts, which takes a few seconds.</li>
+                  <li>Set a factor from 0.1x to 5x: for the whole set, for a kind of move (attacks, jumps, guard and parry, dodges, draw and sheathe, movement, idle), for Moves named or for one move. 2x plays twice as fast. Moves named takes parts of clip names, such as finish, takedown, and gives its factor to every move whose clip name contains one. A move's own factor beats Moves named, which beats its kind's; the whole-set factor scales the chart's speed rate on top.</li>
+                  <li>Leave Also change linked charts ticked: a move can play from another chart, so a change to one chart alone can show nothing in game.</li>
+                  <li>Check the Review, click Export DMM Mod..., name the mod and click Send to DMM, then enable it in DMM and click Mount. Sets exported under one mod name collect in one mod; a set put back to 1x leaves it.</li>
+                </ol>
+                <p>To change a whole character at once, choose <b>All listed sets</b> beside Apply to. The factors then go to every set the list shows (type in Search sets to narrow it), and Export checks them all, tells you how many sets change and which are left out, and writes one mod. The whole-set factor works on one set at a time.</p>
+                <p><b>Start from…</b> fills in a starting point, such as Faster attacks (1.25x) or Slow-motion finishers (0.5x); the numbers are a first guess to adjust in game. <b>A speed mod you made…</b> opens the folder of a speed mod CDMW wrote: its sets are shown in bold and open with the factors the mod holds, and the next export updates that mod.</p>
+                <p><b>Prefabs</b>: choose a category and click Search to list prefabs that carry speed values (scene cameras, spinning and wind-driven objects, cloud drift). The first search reads every prefab and shows its progress; later searches are quick. The Speed values column shows how many values each prefab holds and which; prefabs that hold none, or that are only partly read, are greyed and cannot be scaled. Pick a prefab and the Prefab Inspector opens beside the list with Speed values ticked. Select rows, click Scale by factor..., then Save changes... and choose how to save the prefab. To change many at once, type a factor beside Scale the listed prefabs by and click Scale Listed Prefabs…: CDMW tells you how many values change and which prefabs are left out, then saves one item package (at most 128 prefabs) to add on the Mods page.</p>
+                <p><b>Game tables</b>: choose AI movement speeds or Pushed objects. The table loads in place; select a row and a value, type the new value and click Set value, then name the mod and click Write DMM Mod…. To change many rows at once, type a part of their name in the search, choose the speed beside Multiply, type a factor and click Add matching rows; each row's game value is multiplied and the changes join Changes in this mod.</p>
+                <div class="doc-callout doc-warning"><b>Experimental:</b> chart speed windows and the chart speed rate worked in game when changed through Crimson Live Edit. Prefab and game table speed edits have not been tested in game, and prefab effect (emitter) speeds cannot be edited yet because CDMW cannot read that far into those prefabs. To try speeds in the running game without a mod, use Crimson Live Edit. AI apps reach all of this through the experimental speed tools.</div>
                 """,
             },
             {

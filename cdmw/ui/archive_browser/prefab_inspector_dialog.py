@@ -145,8 +145,16 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         known_paths: Mapping[str, Sequence[str]] | None = None,
         find_users: Callable[[str], Sequence[str]] | None = None,
         speed_filter: bool = False,
+        embedded: bool = False,
+        heading: str = "",
     ) -> None:
         super().__init__(parent)
+        # Embedded, the inspector is a page inside another tool (Speed & Prefabs) rather than
+        # a window: no Close button, and Save changes hands the file over at once.
+        self._embedded = bool(embedded)
+        if self._embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
+        self._heading = heading or (title.split(" - ", 1)[1] if " - " in title else title)
         self.setWindowTitle(title)
         self.resize(980, 660)
         # `_opened` is the file as it arrived and never changes; `_original` is
@@ -165,6 +173,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # expected bytes are what makes the staleness check able to fail.
         self._value_edits: dict[int, tuple[bytes, bytes]] = {}
         self.result_payload: PrefabInspectorResult | None = None
+        # The payload Save changes last handed to on_save; a later edit makes it stale.
+        self._saved_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
         # It costs a second decode, so it is computed once per payload: here,
@@ -178,30 +188,58 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self._speed_filter_requested = bool(speed_filter)
         self._build_ui()
 
+    # -- embedded in another tool ------------------------------------------
+    def done(self, result: int) -> None:  # noqa: A003 - Qt override
+        # Esc, Enter and anything else that closes a dialog would hide an embedded inspector
+        # and leave an empty space in its host; there it stays until the host replaces it.
+        if not self._embedded:
+            super().done(result)
+
+    def has_unsaved_changes(self) -> bool:
+        """Edited rows or object changes that Save changes has not handed over yet."""
+
+        return self.revert_button.isEnabled() and not self._handed_over()
+
+    def _handed_over(self) -> bool:
+        payload = self.result_payload
+        return payload is not None and payload is self._saved_payload
+
     # -- construction ----------------------------------------------------
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        self.banner = QLabel(self._banner_text())
-        self.banner.setWordWrap(True)
-        layout.addWidget(self.banner)
-
-        # A modder meeting a prefab for the first time needs to know what kind
-        # of thing it is before any of the rows mean anything.
-        self.intro = QLabel(
+        if self._embedded:
+            layout.setContentsMargins(0, 0, 0, 0)
+        intro_text = (
             "A prefab is a parts list: which files an object is built from, and where each "
             "part sits. Saving writes a separate mod package - your game files are never "
             "changed."
         )
+        heading_box = QWidget(self)
+        heading = QVBoxLayout(heading_box)
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(2)
+        self.title_label = QLabel(self._heading)
+        self.title_label.setObjectName("prefabInspectorTitle")
+        self.title_label.setStyleSheet("font-size: 12pt; font-weight: 600;")
+        self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.title_label.setToolTip(intro_text)
+        heading.addWidget(self.title_label)
+        self.banner = QLabel(self._banner_text())
+        self.banner.setObjectName("HintLabel")
+        self.banner.setWordWrap(True)
+        self.banner.setToolTip(intro_text)
+        heading.addWidget(self.banner)
+        layout.addWidget(heading_box)
+        # The intro sentence now lives in the heading's tooltip; the label stays for callers
+        # that read it, hidden, so the rows get the room.
+        self.intro = QLabel(intro_text)
         self.intro.setWordWrap(True)
-        # No hard-coded colour: the app follows the system light/dark theme, and a
-        # fixed grey turns unreadable in one of them.
-        font = self.intro.font()
-        font.setItalic(True)
-        self.intro.setFont(font)
-        self.intro.setMinimumHeight(self.intro.fontMetrics().height() * 2)
-        layout.addWidget(self.intro)
+        self.intro.setVisible(False)
 
         tabs = QTabWidget(self)
+        if self._embedded:
+            # The host frames this; a second pane border inside it reads as a box in a box.
+            tabs.setDocumentMode(True)
         tabs.addTab(self._build_objects_tab(), "What this prefab contains")
         tabs.addTab(self._build_schema_tab(), "Fields explained")
         layout.addWidget(tabs, 1)
@@ -216,26 +254,35 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # the old label ("Save changes", "Write the changes into a copy") read as
         # if the save had already happened.
         self.apply_button = QPushButton("Save changes...")
+        self.apply_button.setProperty("primaryAction", True)
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
         self.apply_button.setToolTip(
-            "Build the edited file. You choose where to save the mod package after "
+            "Build the edited file. You choose where to save the mod package next; "
+            "the game files are never touched."
+            if self._embedded
+            else "Build the edited file. You choose where to save the mod package after "
             "closing this window; the game files are never touched."
         )
-        row.addWidget(self.apply_button)
         self.revert_button = QPushButton("Undo all changes")
         self.revert_button.setEnabled(False)
         self.revert_button.clicked.connect(self._revert_changes)
         self.revert_button.setToolTip("Put every row back to the value stored in the file.")
-        row.addWidget(self.revert_button)
         self.browse_button = QPushButton("Swap for another file...")
         self.browse_button.setEnabled(False)
         self.browse_button.clicked.connect(self._browse_for_selected_row)
-        row.addWidget(self.browse_button)
-        row.addStretch(1)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(self.reject)
-        row.addWidget(buttons)
+        if self._embedded:
+            # Embedded, the main action sits bottom right like the host tab's other pages.
+            row.addStretch(1)
+            for button in (self.browse_button, self.revert_button, self.apply_button):
+                row.addWidget(button)
+        else:
+            for button in (self.apply_button, self.revert_button, self.browse_button):
+                row.addWidget(button)
+            row.addStretch(1)
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(self.reject)
+            row.addWidget(buttons)
         layout.addLayout(row)
 
         # Hidden until there is something to say: an empty box that large just
@@ -359,12 +406,15 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
     def _build_objects_tab(self) -> QWidget:
         page = QWidget()
         box = QVBoxLayout(page)
+        if self._embedded:
+            box.setContentsMargins(0, 8, 0, 0)
         # Wrapped, or the sentence sets the dialog's minimum width: an unwrapped
         # QLabel demands its whole line, and this one grew past 1,000px when the
         # row-menu note was added -- which silently made the window unshrinkable
         # on a laptop screen. Wrapping costs a known trap in return, that a
         # wrapped label reports a one-line height, so the height is set too.
         self.objects_hint = QLabel(self._objects_hint())
+        self.objects_hint.setObjectName("HintLabel")
         self.objects_hint.setWordWrap(True)
         self.objects_hint.setMinimumHeight(self.objects_hint.fontMetrics().height() * 2)
         box.addWidget(self.objects_hint)
@@ -387,7 +437,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.speed_only_box = QCheckBox("Speed values (experimental)")
         self.speed_only_box.setObjectName("prefabSpeedOnlyBox")
         self.speed_only_box.setToolTip(
-            "Show only the speed values Speed Tuning knows: camera speeds, spin and wind speed-up, cloud drift. "
+            "Show only the speed values Speed & Prefabs knows: camera speeds, spin and wind speed-up, cloud drift. "
             "Prefab speed edits have not been tested in game."
         )
         self.speed_only_box.toggled.connect(lambda _on: self._apply_object_filter())
@@ -708,6 +758,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             self._log(f"    ... and {len(others) - 40:,} more")
 
     def _refresh_pending_state(self) -> None:
+        self._saved_payload = None  # an edit since the last Save changes
         replacements = self.collect_replacements()
         warnings = [
             self._warning_for(old, new)
@@ -966,12 +1017,15 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # like a completed save, and the export prompt that appears on close
         # comes as a surprise.
         self._log(
-            "Nothing has been written yet. Close this window and you will be asked "
+            "Nothing has been written yet. Choose where to save the mod package next."
+            if self._embedded
+            else "Nothing has been written yet. Close this window and you will be asked "
             "where to save the mod package."
         )
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)
-        if self._on_save is not None:
-            self._on_save(result.data, summary)
+        self._saved_payload = self.result_payload
+        if self._on_save is not None and self._on_save(result.data, summary) is False:
+            self._saved_payload = None  # the host's export was cancelled: the edits are still unsaved
 
 
 __all__ = ["PrefabInspectorDialog", "PrefabInspectorResult"]

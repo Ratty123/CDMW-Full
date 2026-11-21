@@ -149,3 +149,62 @@ def test_a_given_dmm_folder_is_the_one_written_and_remembered(browse, tmp_path) 
     result = client.ok("tables.editor_write", name="Given", dmm_folder=str(dmm))
     assert result["dmm_mods_folder"] == str(dmm / "mods") and written["parent"] == dmm / "mods"
     assert QSettings(str(tmp_path / "cdmw.ini"), QSettings.Format.IniFormat).value(DMM_FOLDER_SETTING) == str(dmm)
+
+
+def test_where_speed_prefabs_works_the_tabs_game_tables_page(browse, monkeypatch) -> None:
+    import cdmw.ui.archive_browser.game_table_actions as actions
+    from cdmw.services.game_table_edits import TableLayer
+    from cdmw.ui.speed_prefabs.workspace import SpeedPrefabsWorkspace
+    from tests.test_game_table_edits import table
+    from tests.test_static_table_records import minimal_record
+
+    client, browser, written, dmm = browse
+    raw, width = minimal_record("gimmickinfo", 7, "Crate")
+    body, header = table([(7, raw)], width=width)
+    read = []
+    monkeypatch.setattr(actions, "archive_table_layers",
+                        lambda root, name, **_kw: read.append(name) or [TableLayer(name, header, body)])
+    panel = actions.GameTableEditPanel(side_by_side=True, bulk=True)
+    browser._attach_game_table_panel(panel)
+    tab = SpeedPrefabsWorkspace((), load_set=lambda path: None, plan=lambda *args: (),
+                                open_game_table=lambda name: browser._show_game_table(panel, name),
+                                game_table_panel=panel)
+    activated = []
+    browser.shell._tool_widgets_by_key = {"speed_prefabs": tab}
+    browser.shell._activate_tool_key = activated.append
+    try:
+        assert client.ok("tables.editor_state", where="speed_prefabs")["tables"] == ["aimovespeedinfo", "gimmickinfo"]
+        other = client.call("tables.editor_edit", action="open", table="inventory", where="speed_prefabs")
+        assert other["error"]["code"] == "invalid_arguments" and "gimmickinfo" in other["error"]["message"]
+
+        state = client.ok("tables.editor_edit", action="open", table="gimmickinfo", where="speed_prefabs")
+        assert activated == ["speed_prefabs"] and tab.current_page() == "tables"
+        assert state["loaded"] == "gimmickinfo" and read == ["gimmickinfo"]  # the page's first visit read no other
+        assert [row["name"] for row in state["rows"]] == ["Crate"]
+        changed = client.ok("tables.editor_edit", action="set", row=7, value=0, new_value=2.5, where="speed_prefabs")
+        assert [(edit["table"], edit["row"], edit["value"]) for edit in changed["changes"]] == [("gimmickinfo", 7, 2.5)]
+        assert tab.state()["table_changes"] == 1
+        assert client.ok("tables.editor_state")["open"] is False  # the dialog was never opened, and holds no change
+
+        client.ok("tables.editor_write", name="Faster crates", dmm_folder=str(dmm), where="speed_prefabs")
+        assert written["title"] == "Faster crates" and written["parent"] == dmm / "mods"
+        assert written["edits"] == (TableFieldEdit("gimmickinfo", 7, "_pushObjectSpeedRate", 2.5),)
+
+        # One factor on every matching row: the page's own row, its counts and its refusals.
+        assert changed["scale"]["choices"] == ["push"] and changed["scale"]["button"] == "Add 1 matching rows"
+        cleared = client.ok("tables.editor_edit", action="clear", where="speed_prefabs")
+        assert cleared["changes"] == [] and cleared["change_count"] == 0 and not cleared["can_write"]
+        left = client.ok("tables.editor_edit", action="scale", choice="push", factor=2, where="speed_prefabs")
+        # The minimal row holds 0, outside the value's range: left as it is, and said.
+        assert left["change_count"] == 0 and "1 values outside their range" in left["message"]
+        wrong = client.call("tables.editor_edit", action="scale", choice="move", factor=2, where="speed_prefabs")
+        assert wrong["error"]["code"] == "invalid_arguments" and "offers: push" in wrong["error"]["message"]
+        none = client.call("tables.editor_edit", action="scale", choice="push", factor=2, query="wolf",
+                           where="speed_prefabs")
+        assert none["error"]["code"] == "not_found"
+        client.ok("tables.editor_edit", action="open", table="gimmickinfo")  # the dialog has no such row
+        refused = client.call("tables.editor_edit", action="scale", choice="push", factor=2)
+        assert refused["error"]["code"] == "refused" and "speed_prefabs" in refused["error"]["message"]
+    finally:
+        tab.close()
+        tab.deleteLater()

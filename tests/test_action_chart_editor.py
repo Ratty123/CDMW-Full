@@ -293,6 +293,29 @@ def test_export_refuses_unchanged_charts_and_foreign_folders(stored, tmp_path):
     assert compare_charts(data, edited, virtual_path=PATH).strings[0].new == NEW_CLIP
 
 
+def test_the_many_chart_writer_refuses_what_it_cannot_write(stored, tmp_path):
+    from cdmw.services.action_chart_edit_service import write_action_charts_mod
+
+    data = chart_bytes()
+    entry = stored(PATH, data)
+    with pytest.raises(ActionChartError, match="Name the mod"):
+        write_action_charts_mod([(entry, data)], parent=tmp_path, title=" ")
+    with pytest.raises(ActionChartError, match="no charts"):
+        write_action_charts_mod([], parent=tmp_path, title="x")
+    with pytest.raises(ActionChartError, match="given twice"):
+        write_action_charts_mod([(entry, data), (entry, data)], parent=tmp_path, title="x")
+    with pytest.raises(ActionChartError, match="not an editable action chart"):
+        write_action_charts_mod([(stored("character/sword.prefab", data), data)], parent=tmp_path, title="x")
+    with pytest.raises(ActionChartError):
+        write_action_charts_mod([(entry, data[:40])], parent=tmp_path, title="x")  # does not decode
+    foreign = tmp_path / "Taken"
+    foreign.mkdir()
+    (foreign / "keep.txt").write_text("someone else's mod", encoding="utf-8")
+    with pytest.raises(ActionChartError, match="CDMW did not write it"):
+        write_action_charts_mod([(entry, data)], parent=tmp_path, title="Taken")
+    assert [p.name for p in foreign.iterdir()] == ["keep.txt"]
+
+
 # --- dialogs ------------------------------------------------------------------------
 
 
@@ -839,7 +862,7 @@ def test_the_action_charts_button_works_with_nothing_selected(qt_app):
     button = ArchiveActionChartActionsMixin._build_action_chart_button(browser)
     actions = button.menu().actions()
     assert [action.text() for action in actions] == ["Find Action Chart by Character...", "Open Action Chart Mod...",
-                                                     "Speed Tuning (Experimental)..."]
+                                                     "Speed & Prefabs (Experimental)..."]
     for action in actions:
         action.trigger()
     assert triggered == ["find", "mod", "speed"]

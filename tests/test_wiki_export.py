@@ -140,7 +140,7 @@ def test_compact_pamt_reader_limit_is_translated_in_help_and_wiki(wiki_pages):
         assert translated.split(". ")[0] in page
 
 
-def test_manuals_have_one_native_named_page_per_language_and_19_guide_entries(wiki_manuals):
+def test_manuals_have_one_native_named_page_per_language_and_20_guide_entries(wiki_manuals):
     assert len(wiki_manuals) == 30
     assert set(wiki_manuals) == {
         *(manual_path(language.code) for language in BUILTIN_LANGUAGES),
@@ -152,8 +152,8 @@ def test_manuals_have_one_native_named_page_per_language_and_19_guide_entries(wi
         body = wiki_manuals[manual_path(language.code)]
         guides = re.findall(r'<a id="guide-([^"]+)"></a>', body)
         assert set(guides) == {page.lower() for page in PAGE_TOPICS}
-        assert len(guides) == len(PAGE_TOPICS) == 19
-        assert body.count("](#contents)") == 19
+        assert len(guides) == len(PAGE_TOPICS) == 20
+        assert body.count("](#contents)") == 20
         assert "> [!WARNING]" in body and "> [!IMPORTANT]" in body
     assert "<details>" not in wiki_manuals["_Sidebar.md"]
 
@@ -173,7 +173,7 @@ def test_each_manual_has_localized_contents_sidebar_and_opens_with_home(wiki_man
         assert independent_title and independent_title in sidebar and independent_title in body
         if language.code != "en":
             assert independent_title != "Independent items"
-        assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 19
+        assert len(re.findall(r"\]\([^\n]+#guide-", sidebar)) == 20
         assert "/Languages" not in sidebar and "🌐" not in sidebar
         assert all(url.startswith(manual_url(language.code) + "#") for url in re.findall(r"\]\(([^)]+)\)", sidebar))
         assert re.search(r"^## (.+)$", body, re.MULTILINE)[1] == translate("Home", "Home")
@@ -234,7 +234,7 @@ def test_consolidation_preserves_every_guides_visible_text(wiki_pages, wiki_manu
             r'<a id="guide-([^"]+)"></a>\n\n## [^\n]+\n\n(.*?)(?=\n\n---\n\n(?:<a id="guide-|CDMW `))',
             manual, re.DOTALL,
         ))
-        assert len(sections) == 19
+        assert len(sections) == 20
         for page in PAGE_TOPICS:
             old = wiki_pages[page_slug(page, language.code) + ".md"].split("\n", 1)[1]
             assert content_text(old) == content_text(sections[page.lower()]), (language.code, page)
@@ -363,7 +363,7 @@ def test_manual_migration_requires_every_source_guide(wiki_pages):
 
 def test_all_14_locales_have_complete_guides_and_same_language_navigation(wiki_pages):
     assert len(BUILTIN_LANGUAGES) == 14
-    assert len(wiki_pages) == 19 * 14 + 3
+    assert len(wiki_pages) == 20 * 14 + 3
     for language in BUILTIN_LANGUAGES:
         for page in PAGE_TOPICS:
             name = page_slug(page, language.code)

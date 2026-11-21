@@ -12,7 +12,7 @@ import math
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+    QGroupBox, QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw.core.static_table_records import TableFieldEdit
 from cdmw.services.active_ui_translation import translate_active_ui_text
@@ -117,22 +117,35 @@ class GameTablesEditor(QWidget):
 
     load_requested = Signal(str)
     edits_changed = Signal(object)
+    #: The rows the filter matches changed: the number of matches, not capped at the rows listed.
+    rows_changed = Signal(int)
 
-    def __init__(self, parent=None, *, include_speed: bool = False):
+    def __init__(self, parent=None, *, include_speed: bool = False, side_by_side: bool = False):
         super().__init__(parent)
         self._include_speed = include_speed
         self._index = None
         self._shown_key = None
         self._edits: dict[tuple, TableFieldEdit] = {}
         self._labels: dict[tuple, str] = {}
+        #: The class that owns a nested value, kept so a change keeps its label after another table loads.
+        self._owners: dict[tuple, str] = {}
+        self.rows_layout = None
+        self.pending_box = None
         layout = QVBoxLayout(self)
-        intro = QLabel("Change values in existing rows of the game's tables. Only values whose storage is proven "
-                       "on every shipped row are offered. Their effect in game has not been verified.")
+        if side_by_side:
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(8)
+        intro = QLabel("Change values in existing rows of the game's tables. Their effect in game has not "
+                       "been verified.")
+        intro.setObjectName("HintLabel")
         intro.setWordWrap(True)
+        intro.setToolTip("Only values whose storage is proven on every shipped row are offered.")
         layout.addWidget(intro)
+        self.intro = intro
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("Table:"))
+        self.table_label = QLabel("Table:")
+        top.addWidget(self.table_label)
         self.table = QComboBox()
         for kind, label in sorted(table_names(include_speed=include_speed).items(), key=lambda item: item[1].casefold()):
             self.table.addItem(label, kind)
@@ -143,22 +156,27 @@ class GameTablesEditor(QWidget):
         top.addWidget(self.load)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter rows by name or key")
+        self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._fill_rows)
         top.addWidget(self.search, 1)
         layout.addLayout(top)
+        self.busy = QProgressBar()
+        self.busy.setRange(0, 0)
+        self.busy.setTextVisible(False)
+        self.busy.setMaximumHeight(6)
+        self.busy.setVisible(False)
+        layout.addWidget(self.busy)
 
-        # Stacked, each with its own stretch: Create New Item's Rust view gives a table room
-        # only as a stretched child of a column; side by side in a row both collapse to a line.
         self.rows = QTableWidget(0, 3)
         self.rows.setHorizontalHeaderLabels(["Key", "Name", "Copy"])
         self._configure(self.rows)
+        self.rows.horizontalHeader().setStretchLastSection(False)
+        self.rows.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.rows.itemSelectionChanged.connect(self._fill_values)
-        layout.addWidget(self.rows, 3)
         self.values = QTableWidget(0, 4)
         self.values.setHorizontalHeaderLabels(["Value", "Current", "In this mod", "About"])
         self._configure(self.values)
         self.values.itemSelectionChanged.connect(self._value_selected)
-        layout.addWidget(self.values, 2)
 
         edit = QHBoxLayout()
         edit.addWidget(QLabel("New value:"))
@@ -173,22 +191,81 @@ class GameTablesEditor(QWidget):
         self.restore.setToolTip("Remove this mod's change to the selected value.")
         self.restore.clicked.connect(self._restore_value)
         edit.addWidget(self.restore)
-        layout.addLayout(edit)
 
-        layout.addWidget(QLabel("Changes in this mod:"))
+        pending_title = QLabel("Changes in this mod:")
         self.pending = QTableWidget(0, 4)
         self.pending.setHorizontalHeaderLabels(["Table", "Row", "Value", "New value"])
         self._configure(self.pending)
-        layout.addWidget(self.pending, 2)
         buttons = QHBoxLayout()
         self.remove = QPushButton("Remove selected change")
         self.remove.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove)
         buttons.addStretch(1)
-        layout.addLayout(buttons)
-        self.message = QLabel()
-        self.message.setWordWrap(True)
-        layout.addWidget(self.message)
+        self.pending_layout = None
+        if side_by_side:
+            # Rows on the left, the selected row's values and this mod's changes on the right,
+            # each in its own frame, so a wide tab shows all three without scrolling.
+            for table in (self.rows, self.values, self.pending):
+                table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                table.verticalHeader().setDefaultSectionSize(28)
+            splitter = QSplitter(Qt.Orientation.Horizontal)
+            splitter.setChildrenCollapsible(False)
+            splitter.setHandleWidth(8)
+            splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
+            # The app draws group boxes without a frame: these margins put each box's contents
+            # straight under its heading, as on the other pages of Speed & Prefabs.
+            box_margins = (6, 6, 6, 4)
+            rows_box = QGroupBox("Rows")
+            rows_layout = QVBoxLayout(rows_box)
+            rows_layout.setContentsMargins(*box_margins)
+            rows_layout.setSpacing(8)
+            top.removeWidget(self.search)
+            rows_layout.addWidget(self.search)
+            rows_layout.addWidget(self.rows, 1)
+            self.message = QLabel()
+            self.message.setObjectName("HintLabel")
+            self.message.setWordWrap(True)
+            rows_layout.addWidget(self.message)
+            self.rows_layout = rows_layout
+            splitter.addWidget(rows_box)
+            right = QWidget()
+            column = QVBoxLayout(right)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.setSpacing(8)
+            values_box = QGroupBox("Values of the selected row")
+            values_layout = QVBoxLayout(values_box)
+            values_layout.setContentsMargins(*box_margins)
+            values_layout.setSpacing(8)
+            values_layout.addWidget(self.values, 1)
+            values_layout.addLayout(edit)
+            column.addWidget(values_box, 3)
+            pending_box = QGroupBox("Changes in this mod")
+            self.pending_layout = QVBoxLayout(pending_box)
+            self.pending_layout.setContentsMargins(*box_margins)
+            self.pending_layout.setSpacing(8)
+            pending_title.setVisible(False)
+            self.pending_box = pending_box
+            # Many changes can come at once here (one factor on every matching row), so several can go at once.
+            self.pending.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            self.pending_layout.addWidget(self.pending, 1)
+            self.pending_layout.addLayout(buttons)
+            column.addWidget(pending_box, 2)
+            splitter.addWidget(right)
+            splitter.setStretchFactor(0, 2)
+            splitter.setStretchFactor(1, 3)
+            layout.addWidget(splitter, 1)
+        else:
+            # Stacked, each with its own stretch: Create New Item's Rust view gives a table room
+            # only as a stretched child of a column; side by side in a row both collapse to a line.
+            layout.addWidget(self.rows, 3)
+            layout.addWidget(self.values, 2)
+            layout.addLayout(edit)
+            layout.addWidget(pending_title)
+            layout.addWidget(self.pending, 2)
+            layout.addLayout(buttons)
+            self.message = QLabel()
+            self.message.setWordWrap(True)
+            layout.addWidget(self.message)
         self._update_controls()
 
     @staticmethod
@@ -203,6 +280,12 @@ class GameTablesEditor(QWidget):
 
     # --- host interface -------------------------------------------------------------
 
+    def set_table_choice_visible(self, visible: bool) -> None:
+        """Hide the table list and Load button when the host picks the table (Speed & Prefabs)."""
+
+        for widget in (self.table_label, self.table, self.load):
+            widget.setVisible(visible)
+
     def current_table(self) -> str:
         return str(self.table.currentData() or "")
 
@@ -211,6 +294,7 @@ class GameTablesEditor(QWidget):
 
     def set_loading(self, loading: bool) -> None:
         self.load.setEnabled(not loading)
+        self.busy.setVisible(loading)
         if loading:
             self.message.setText("Reading the table from the game's archives…")
 
@@ -231,11 +315,19 @@ class GameTablesEditor(QWidget):
             text += f" {index.refused:,} rows use a layout this build cannot read and are not listed."
         self.message.setText(text)
         self.load.setEnabled(True)
+        self.busy.setVisible(False)
         self._fill_rows()
 
     def show_error(self, message: str) -> None:
         self.load.setEnabled(True)
+        self.busy.setVisible(False)
         self.message.setText(str(message))
+
+    def refresh_loaded(self) -> None:
+        """Show the loaded table's own state again, after a read that was for another table."""
+
+        if self._index is not None:
+            self.set_index(self._index)
 
     def edits(self) -> tuple[TableFieldEdit, ...]:
         return tuple(self._edits[key] for key in sorted(self._edits, key=lambda k: (k[0], k[1], str(k[2]))))
@@ -245,11 +337,41 @@ class GameTablesEditor(QWidget):
         self._fill_pending()
         self._fill_values()
 
+    def merge_edits(self, edits, labels=None, owners=None, remove=()) -> None:
+        """Add or replace many changes at once and take back the ``remove`` keys; says so once.
+
+        ``labels`` maps (table, key, target) to the row's text and ``owners`` to the class of a
+        nested value, as `_set_value` records them for a single change.
+        """
+
+        for key in remove:
+            self._edits.pop(tuple(key), None)
+        for edit in edits or ():
+            self._edits[(edit.table, edit.key, edit.target)] = edit
+        self._labels.update(labels or {})
+        self._owners.update(owners or {})
+        self._changed()
+
+    def index(self):
+        """The loaded `TableEditIndex`, or None."""
+
+        return self._index
+
+    def matching_rows(self) -> tuple:
+        """Every row the filter matches, not only the ones listed."""
+
+        if self._index is None:
+            return ()
+        needle = self.search.text().strip().casefold()
+        return tuple(row for row in self._index.rows
+                     if not needle or needle in row.name.casefold() or needle == str(row.key))
+
     def clear_index(self) -> None:
         self._index = None
         self.rows.setRowCount(0)
         self.values.setRowCount(0)
         self._update_controls()
+        self.rows_changed.emit(0)
 
     # --- internals ------------------------------------------------------------------
 
@@ -262,9 +384,7 @@ class GameTablesEditor(QWidget):
         self.rows.setRowCount(0)
         if self._index is None:
             return
-        needle = self.search.text().strip().casefold()
-        matches = [row for row in self._index.rows
-                   if not needle or needle in row.name.casefold() or needle == str(row.key)]
+        matches = self.matching_rows()
         shown = matches[:ROW_LIMIT]
         self.rows.setRowCount(len(shown))
         for position, row in enumerate(shown):
@@ -280,6 +400,7 @@ class GameTablesEditor(QWidget):
             self.message.setText(f"Showing the first {len(shown):,} of {len(matches):,} matching rows; "
                                  "type more of a name to narrow them.")
         self._fill_values()
+        self.rows_changed.emit(len(matches))
 
     def _selected_row(self):
         if self._index is None:
@@ -351,6 +472,7 @@ class GameTablesEditor(QWidget):
         else:
             self._edits[key] = TableFieldEdit(self._index.table, row.key, value.target, stored)
             self._labels[key] = f"{row.name} ({row.key})"
+            self._owners[key] = getattr(value, "owner", "") or ""
         self.message.setText("")
         self._changed()
 
@@ -362,10 +484,10 @@ class GameTablesEditor(QWidget):
             self._changed()
 
     def _remove_selected(self) -> None:
-        items = self.pending.selectedItems()
-        if items:
-            key = self.pending.item(items[0].row(), 0).data(_KEY_ROLE)
-            self._edits.pop(key, None)
+        lines = {item.row() for item in self.pending.selectedItems()}
+        if lines:
+            for line in lines:
+                self._edits.pop(self.pending.item(line, 0).data(_KEY_ROLE), None)
             self._changed()
 
     def _changed(self) -> None:
@@ -385,10 +507,17 @@ class GameTablesEditor(QWidget):
             self.pending.setItem(position, 1, QTableWidgetItem(self._labels.get(key, str(edit.key))))
             self.pending.setItem(position, 2, QTableWidgetItem(value_label(edit.target, self._owner(edit))))
             self.pending.setItem(position, 3, QTableWidgetItem(str(edit.value)))
+        if self.pending_box is not None:
+            self.pending_box.setTitle(f"Changes in this mod ({len(edits):,})" if edits else "Changes in this mod")
         self._update_controls()
 
     def _owner(self, edit) -> str:
-        if isinstance(edit.target, str) or self._index is None or self._index.table != edit.table:
+        if isinstance(edit.target, str):
+            return ""
+        known = self._owners.get((edit.table, edit.key, edit.target))
+        if known:
+            return known
+        if self._index is None or self._index.table != edit.table:
             return ""
         row = next((row for row in self._index.rows if row.key == edit.key), None)
         value = next((value for value in (row.values if row else ()) if value.target == edit.target), None)

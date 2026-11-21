@@ -61,6 +61,7 @@ PAGE_TOPICS = {
         "workflow_planner_paths",
     ),
     "Placement-and-Animations": ("placement_studio",),
+    "Speed-and-Prefabs": ("speed_prefabs",),
     "Model-Library": ("model_library",),
     "Item-Icons": ("icon_creator",),
     "Mod-Management": ("mod_management", "mod_package_retrofit", "mod_packaging"),
@@ -97,7 +98,7 @@ PAGE_REFERENCES = {
 MANUAL_GROUPS = (
     ("Start Here", ("Home", "Getting-Started", "Tools-and-Navigation", "FAQ")),
     ("Assets", ("Archive-Browser", "Create-New-Item", "Model-Library", "Item-Icons")),
-    ("Authoring", ("Mesh-Editor", "Placement-and-Animations", "Textures")),
+    ("Authoring", ("Mesh-Editor", "Placement-and-Animations", "Speed-and-Prefabs", "Textures")),
     ("Utilities", ("Mod-Management", "Independent-Item-Packages", "Translations-and-Text-Search", "Formats-and-Research")),
     ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Error-Code-Library", "Contributing")),
 )

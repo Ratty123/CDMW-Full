@@ -540,6 +540,15 @@ class ShellToolTabsMixin:
         tab.setObjectName("placement_studio")
         return tab
 
+    def _create_speed_prefabs_tab(self) -> QWidget:
+        """Animation speed, prefab speed values and speed game tables (experimental).
+
+        The Archive Browser builds it, because it owns the archive reads and the workers.
+        Opening it starts reading the action charts on a worker; the tab shows each step.
+        """
+
+        return self.archive.create_speed_workspace()
+
     def _create_format_explorer_tab(self) -> QWidget:
         """What every game file format can and cannot do, and which tool does it.
 
@@ -823,6 +832,11 @@ class ShellToolTabsMixin:
             "placement_studio",
             self._create_placement_studio_tab,
         )
+        self.speed_prefabs_tab = self._add_lazy_shell_tool(
+            "Speed & Prefabs",
+            "speed_prefabs",
+            self._create_speed_prefabs_tab,
+        )
         self.format_explorer_tab = self._add_lazy_shell_tool(
             "Format Explorer",
             "format_explorer",
@@ -854,6 +868,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "Create New Item")
         self._register_detachable_tool("mod_management", self.mod_management_tab, "Mod Management")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animations")
+        self._register_detachable_tool("speed_prefabs", self.speed_prefabs_tab, "Speed & Prefabs")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
         self._register_detachable_tool(
             "format_explorer",

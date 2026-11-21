@@ -400,5 +400,17 @@
     "symbol": "LabApplication::draw_collision_volume_authoring",
     "source": "Collision shapes (experimental)",
     "reason": "Widget identity salt for the Collision shapes header, never drawn; the visible header is translated separately."
+  },
+  {
+    "path": "cdmw/ui/speed_prefabs/workspace.py",
+    "symbol": "SpeedPrefabsWorkspace.scope",
+    "source": "listed",
+    "reason": "Combo box data identity for Apply to; the visible choice label is translated separately."
+  },
+  {
+    "path": "cdmw/ui/speed_prefabs/workspace.py",
+    "symbol": "SpeedPrefabsWorkspace._fill_start_combo",
+    "source": "preset:{value_0}",
+    "reason": "Combo box data identity of a starting point; the visible choice label is shown separately."
   }
 ]

@@ -23,6 +23,7 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("mesh_editor", "Mesh Editor", "Authoring", "mesh"),
     CompactToolSpec("saved_work", "Drafts & Mods", "Authoring", "layers"),
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
+    CompactToolSpec("speed_prefabs", "Speed & Prefabs", "Authoring", "speed"),
     CompactToolSpec("textures", "Textures", "Authoring", "brush"),
     CompactToolSpec("mod_management", "Mod Management", "Utilities", "package"),
     CompactToolSpec("format_explorer", "Inspect File Formats", "Utilities", "document"),

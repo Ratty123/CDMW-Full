@@ -96,6 +96,12 @@ def _paint_icon(painter: QPainter, name: str, palette: QPalette, extent: int) ->
         _line(painter, (9, 6), (9, 12), (5, 16))
         _line(painter, (9, 12), (13, 16))
         _line(painter, (4, 8), (9, 9), (14, 8))
+    elif key == "speed":
+        # A gauge: a half dial with its needle leaning fast.
+        painter.drawArc(QRectF(2.5, 4.0, 13.0, 13.0), 0, 180 * 16)
+        _line(painter, (9, 10.5), (13, 6.5))
+        painter.drawEllipse(QPointF(9, 10.5), 1.0, 1.0)
+        _line(painter, (2.5, 13.5), (15.5, 13.5))
     elif key == "layers":
         _line(painter, (2.5, 6), (9, 2.5), (15.5, 6), (9, 9.5), (2.5, 6))
         _line(painter, (3, 9), (9, 12.5), (15, 9))

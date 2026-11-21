@@ -20,6 +20,7 @@ _TOOL_CONTAINER_ATTRIBUTES = {
     "mesh_editor": "mesh_editor_tab",
     "saved_work": "saved_work_tab",
     "placement_studio": "placement_studio_tab",
+    "speed_prefabs": "speed_prefabs_tab",
     "mod_management": "mod_management_tab",
     "format_explorer": "format_explorer_tab",
     "translation_studio": "translation_studio_tab",
@@ -372,6 +373,13 @@ def _textures_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
     return _snapshot(key, job.mode.title(), f"{len(job.assets)} assets", f"{len(job.selected)} selected")
 
 
+def _speed_prefabs_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
+    workspace = created_tool_widget(_attribute(owner, "speed_prefabs_tab"))
+    chart = _attribute(workspace, "_chart")
+    label = str(_attribute(chart, "label") or "")
+    return _snapshot(key, label) if label else _snapshot(key)
+
+
 _SNAPSHOT_PROVIDERS: dict[str, Callable[[object, str], CompactStatusSnapshot]] = {
     "archive_browser": _archive_snapshot,
     "model_library": _model_library_snapshot,
@@ -380,6 +388,7 @@ _SNAPSHOT_PROVIDERS: dict[str, Callable[[object, str], CompactStatusSnapshot]] =
     "mesh_editor": _mesh_editor_snapshot,
     "saved_work": lambda owner, key: _table_snapshot(owner, key, "items"),
     "placement_studio": _placement_snapshot,
+    "speed_prefabs": _speed_prefabs_snapshot,
     "textures": _textures_snapshot,
     "mod_management": lambda owner, key: _snapshot(key),
     "format_explorer": lambda owner, key: _table_snapshot(owner, key, "formats"),

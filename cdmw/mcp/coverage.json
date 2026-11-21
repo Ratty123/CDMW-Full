@@ -623,7 +623,7 @@
     {
       "id": "tables.editor_edit",
       "area": "Browse Archives",
-      "what": "Edit Game Table Values: open, load, set, restore and remove values",
+      "what": "Edit Game Table Values: open, load, set, restore, remove and clear values; on the Speed & Prefabs page, multiply a speed on every matching row (experimental)",
       "class": "edit",
       "tool": "tables.editor_edit"
     },
@@ -2214,9 +2214,30 @@
       "tool": "speed.export"
     },
     {
+      "id": "speed.sets_preview",
+      "area": "Speed Tuning",
+      "what": "Check one set of speed factors on many sets: what changes, what does not, what is left out (experimental)",
+      "class": "read",
+      "tool": "speed.sets_preview"
+    },
+    {
+      "id": "speed.sets_export",
+      "area": "Speed Tuning",
+      "what": "Export one animation speed DMM mod for many sets at once, such as a whole character (experimental)",
+      "class": "output",
+      "tool": "speed.sets_export"
+    },
+    {
+      "id": "speed.mod",
+      "area": "Speed Tuning",
+      "what": "Read a speed mod CDMW wrote: its charts and the factors saved for them (experimental)",
+      "class": "read",
+      "tool": "speed.mod"
+    },
+    {
       "id": "speed.prefab_search",
       "area": "Speed Tuning",
-      "what": "Search prefabs that declare speed values, by category (experimental)",
+      "what": "Search prefabs that declare speed values, by category, with the values each one really holds (experimental)",
       "class": "read",
       "tool": "speed.prefab_search"
     },
@@ -2235,6 +2256,20 @@
       "tool": "speed.prefab_export"
     },
     {
+      "id": "speed.prefabs_preview",
+      "area": "Speed Tuning",
+      "what": "Preview one factor on many prefabs: values before and after, and what is left out (experimental)",
+      "class": "read",
+      "tool": "speed.prefabs_preview"
+    },
+    {
+      "id": "speed.prefabs_export",
+      "area": "Speed Tuning",
+      "what": "Scale the speed values of many prefabs and save them as one item package (experimental)",
+      "class": "output",
+      "tool": "speed.prefabs_export"
+    },
+    {
       "id": "speed.table_rows",
       "area": "Speed Tuning",
       "what": "Read game table speed rows: AI movement and pushed object speed (experimental)",
@@ -2251,9 +2286,23 @@
     {
       "id": "speed.table_export",
       "area": "Speed Tuning",
-      "what": "Write game table speed edits as a DMM mod (experimental)",
+      "what": "Write game table speed edits, or one factor on every matching row, as a DMM mod (experimental)",
       "class": "output",
       "tool": "speed.table_export"
+    },
+    {
+      "id": "speed.workspace",
+      "area": "Speed & Prefabs",
+      "what": "Show the Speed & Prefabs tab on a page, set, prefab or speed table, and read what it shows (experimental)",
+      "class": "read",
+      "tool": "speed.workspace"
+    },
+    {
+      "id": "speed.workspace_edit",
+      "area": "Speed & Prefabs",
+      "what": "Work the Speed & Prefabs tab: factors, Moves named, starting points, all listed sets, the open speed mod, its prefab search and the factor for the listed prefabs (experimental)",
+      "class": "edit",
+      "tool": "speed.workspace_edit"
     }
   ],
   "surfaces": [
@@ -4142,15 +4191,15 @@
       "tool": "translation.review"
     },
     {
-      "key": "dialog:cdmw/ui/archive_browser/speed_tuning_dialog.py|SpeedTuningDialog",
-      "tool": "speed.export"
+      "key": "rail_page:speed_prefabs",
+      "tool": "speed.workspace"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Speed Tuning (Experimental)...",
+      "key": "menu:cdmw/ui/archive_browser/action_chart_actions.py|Speed & Prefabs (Experimental)...",
       "command": "browse.speed_tuning"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/actions.py|Speed Tuning (Experimental)...",
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Speed & Prefabs (Experimental)...",
       "command": "browse.speed_tuning"
     },
     {

@@ -27,8 +27,11 @@ def _type(name: str, *members: bytes) -> bytes:
 _FORMATS = {"float": ("<f", 4), "float3": ("<3f", 12)}
 
 
-def build_speed_prefab(components) -> bytes:
-    """`components`: [(type name, [(member, "float" | "float3", value), ...]), ...]."""
+def build_speed_prefab(components, *, absent=()) -> bytes:
+    """`components`: [(type name, [(member, "float" | "float3", value), ...]), ...].
+
+    A member named in `absent` is declared by its type but not held by the object.
+    """
 
     types = bytearray(_type("SceneObject", _text("_components") + _text("ReflectObjectPtr")
                             + struct.pack("<HHHH", KIND_COLLECTION, 0, 0, 0)))
@@ -42,13 +45,15 @@ def build_speed_prefab(components) -> bytes:
     out += struct.pack("<H", 2) + (0b1).to_bytes(6, "little")
     out += b"\x00" + struct.pack("<I", len(components))
     for number, (type_name, members) in enumerate(components):
-        mask = (1 << len(members)) - 1
+        mask = sum(1 << bit for bit, (name, _kind, _value) in enumerate(members) if name not in absent)
         out += struct.pack("<H", 1) + bytes((mask, number + 1, 0, 0))
         out += b"\x00" * 8
         out += struct.pack("<I", base + len(out) + 4)
         name_start = base + len(out)
         out += struct.pack("<HHH", 0, 1, 0) + _text(f"{type_name}_{number}")
-        for _name, kind, value in members:
+        for name, kind, value in members:
+            if name in absent:
+                continue
             fmt = _FORMATS[kind][0]
             out += struct.pack(fmt, *(value if isinstance(value, tuple) else (value,)))
         out += struct.pack("<I", base + len(out) - name_start)

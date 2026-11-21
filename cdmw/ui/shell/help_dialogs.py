@@ -246,7 +246,7 @@ class AboutDialog(QDialog):
             "hkx_physics_editor",
         }:
             return "Assets & Creation"
-        if section_id in {"mesh_editor", "placement_studio"}:
+        if section_id in {"mesh_editor", "placement_studio", "speed_prefabs"}:
             return "Mesh & Placement"
         if section_id.startswith("workflow_") or section_id in {
             "dds_output",

@@ -73,7 +73,7 @@ def retargeted(mesh=OTHER_MESH, source=None):
     return rewrite_prefab_paths(source or prefab_payload(), {SOURCE_MESH: mesh}).data
 
 
-def prefab_game(tmp_path, *, source=None):
+def prefab_game(tmp_path, *, source=None, extra=None):
     """The texture fixture's owned game plus one shipped prefab the decoder reads fully."""
     from cdmw.core.pathc_format import PathcTable, encode_pathc, register_dds
     from tests.test_new_item_provenance import current_files
@@ -82,6 +82,7 @@ def prefab_game(tmp_path, *, source=None):
     from cdmw.core.pappt_format import encode_pappt, parse_pappt
     files = current_files()
     files[PREFAB_PATH] = prefab_payload() if source is None else source
+    files.update(extra or {})
     # As in the texture fixture: a socket path New Item accepts, so an owned item can be planned here too.
     pappt_path = 'character/bin__/partprefabtable.pappt'
     pappt = parse_pappt(files[pappt_path])
@@ -460,3 +461,33 @@ def test_prefab_edit_json_import_offers_the_same_outputs_as_the_inspector(tmp_pa
         assert offered and offered[0][:3] == (entry, prefab_payload(), retargeted()) and not loose
     else:
         assert loose and loose[0][:2] == (entry, prefab_payload()) and not offered
+
+
+def test_several_prefab_edits_become_one_reviewed_package(tmp_path):
+    from cdmw.services.independent_prefab_authoring import prepare_prefab_packages, write_prefab_package
+    from cdmw.services.independent_prefab_package import prefab_modules
+    from cdmw.services.prefab_speed_service import scale_speed_values
+    from tests.prefab_speed_builder import build_speed_prefab
+
+    camera = build_speed_prefab([("CameraComponent", [("_speed", "float", 6.0)])])
+    wind = build_speed_prefab([("WindComponent", [("_windSpeedAccelerationScale", "float", 2.0)])])
+    paths = {"object/prefab/speed_camera.prefab": camera, "object/prefab/speed_wind.prefab": wind}
+    root, _snapshot = prefab_game(tmp_path, extra=paths)
+    edits = {path: (data, scale_speed_values(data, 2.0)[0]) for path, data in paths.items()}
+    review = prepare_prefab_packages(root, edits, title="Faster things")
+    rows = [row["path"] for module in prefab_modules(review.package) for row in module["data"]["replacements"]]
+    assert sorted(rows) == sorted(paths) and review.package.title == "Faster things"
+    assert [line for line in review.lines if line.startswith("Target prefab: ")] == [
+        f"Target prefab: {path}" for path in paths]
+    destination = tmp_path / "faster.cdmw"
+    write_prefab_package(review, destination)
+    assert sorted(read_package(destination).blobs.values(), key=len) == sorted(
+        (edit[1] for edit in edits.values()), key=len)
+
+    with pytest.raises(IndependentItemError, match="no prefab edit"):
+        prepare_prefab_packages(root, {})
+    with pytest.raises(IndependentItemError, match="at most 128"):
+        prepare_prefab_packages(root, {f"object/prefab/p{n}.prefab": (camera, camera) for n in range(129)})
+    other = scale_speed_values(camera, 3.0)[0]  # as if another mod changed the copy that was edited
+    with pytest.raises(IndependentItemError, match="differs from the game's own copy of object/prefab/speed_camera"):
+        prepare_prefab_packages(root, {"object/prefab/speed_camera.prefab": (other, camera)})
