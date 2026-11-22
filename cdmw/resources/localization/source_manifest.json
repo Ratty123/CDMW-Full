@@ -2586,7 +2586,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -2606,7 +2606,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -3681,7 +3681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 864,
+          "line": 868,
           "sink": "setToolTip"
         }
       ]
@@ -5366,7 +5366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1219,
+          "line": 1223,
           "sink": "setToolTip"
         }
       ]
@@ -5951,7 +5951,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1455,
+          "line": 1459,
           "sink": "addItem"
         }
       ]
@@ -6261,7 +6261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 966,
+          "line": 970,
           "sink": "QPushButton"
         }
       ]
@@ -6981,7 +6981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1111,
+          "line": 1134,
           "sink": "tr"
         }
       ]
@@ -6991,7 +6991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1243,
+          "line": 1266,
           "sink": "tr"
         }
       ]
@@ -7001,7 +7001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1233,
+          "line": 1256,
           "sink": "tr"
         }
       ]
@@ -7011,7 +7011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1227,
+          "line": 1250,
           "sink": "tr"
         }
       ]
@@ -7366,7 +7366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 971,
+          "line": 994,
           "sink": "tr"
         }
       ]
@@ -8761,7 +8761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1096,
+          "line": 1119,
           "sink": "tr"
         }
       ]
@@ -10286,7 +10286,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 841,
+          "line": 845,
           "sink": "addItem"
         }
       ]
@@ -10586,7 +10586,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1067,
+          "line": 1071,
           "sink": "setItemText"
         }
       ]
@@ -10626,7 +10626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 932,
+          "line": 955,
           "sink": "tr"
         }
       ]
@@ -10766,7 +10766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1067,
+          "line": 1071,
           "sink": "setItemText"
         }
       ]
@@ -11081,7 +11081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 780,
+          "line": 784,
           "sink": "QCheckBox"
         }
       ]
@@ -11091,7 +11091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 782,
+          "line": 786,
           "sink": "setToolTip"
         }
       ]
@@ -11136,7 +11136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1113,
+          "line": 1136,
           "sink": "tr"
         }
       ]
@@ -13206,7 +13206,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1097,
+          "line": 1101,
           "sink": "setText"
         }
       ]
@@ -15031,7 +15031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2298,
+          "line": 2369,
           "sink": "ValueError"
         }
       ]
@@ -20056,7 +20056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1346,
+          "line": 1416,
           "sink": "ValueError"
         },
         {
@@ -20071,7 +20071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1271,
+          "line": 1341,
           "sink": "ValueError"
         }
       ]
@@ -20081,7 +20081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1328,
+          "line": 1398,
           "sink": "ValueError"
         },
         {
@@ -20096,7 +20096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1299,
+          "line": 1369,
           "sink": "ValueError"
         },
         {
@@ -25441,7 +25441,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -27261,7 +27261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1708,
+          "line": 1712,
           "sink": "setToolTip"
         }
       ]
@@ -28051,12 +28051,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 840,
+          "line": 844,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 902,
+          "line": 906,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -30441,7 +30441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 898,
+          "line": 921,
           "sink": "tr"
         }
       ]
@@ -30566,12 +30566,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1558,
+          "line": 1562,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1559,
+          "line": 1563,
           "sink": "setText"
         }
       ]
@@ -30651,12 +30651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1558,
+          "line": 1562,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1559,
+          "line": 1563,
           "sink": "setText"
         }
       ]
@@ -32131,7 +32131,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 876,
+          "line": 880,
           "sink": "_hint"
         }
       ]
@@ -36126,7 +36126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 868,
+          "line": 889,
           "sink": "tr"
         }
       ]
@@ -36916,7 +36916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1457,
+          "line": 1461,
           "sink": "addItem"
         }
       ]
@@ -40801,7 +40801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1436,
+          "line": 1459,
           "sink": "tr"
         }
       ]
@@ -40881,12 +40881,12 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1624,
+          "line": 1647,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1675,
+          "line": 1698,
           "sink": "tr"
         }
       ]
@@ -41011,7 +41011,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1639,
+          "line": 1662,
           "sink": "tr"
         }
       ]
@@ -41576,7 +41576,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1652,
+          "line": 1675,
           "sink": "tr"
         }
       ]
@@ -41706,7 +41706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1454,
+          "line": 1477,
           "sink": "tr"
         }
       ]
@@ -42491,7 +42491,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1164,
+          "line": 1168,
           "sink": "setText"
         }
       ]
@@ -44466,7 +44466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 863,
+          "line": 879,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 884,
           "sink": "tr"
         }
       ]
@@ -45601,7 +45606,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 521,
+          "line": 602,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -45691,7 +45696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1116,
+          "line": 1139,
           "sink": "tr"
         }
       ]
@@ -45731,7 +45736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1453,
+          "line": 1476,
           "sink": "apply_entry_id_scope"
         }
       ]
@@ -45901,12 +45906,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1453,
+          "line": 1476,
           "sink": "apply_entry_id_scope"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1475,
+          "line": 1498,
           "sink": "apply_entry_id_scope"
         }
       ]
@@ -48111,7 +48116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 796,
+          "line": 800,
           "sink": "setText"
         }
       ]
@@ -49146,7 +49151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1836,
+          "line": 1840,
           "sink": "question"
         }
       ]
@@ -53371,7 +53376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 853,
+          "line": 857,
           "sink": "QCheckBox"
         }
       ]
@@ -55001,7 +55006,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -55011,7 +55016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 857,
+          "line": 868,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 873,
           "sink": "tr"
         }
       ]
@@ -56596,7 +56606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2316,
+          "line": 2387,
           "sink": "ValueError"
         }
       ]
@@ -57966,7 +57976,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 801,
+          "line": 805,
           "sink": "QPushButton"
         }
       ]
@@ -59381,7 +59391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 942,
+          "line": 1005,
           "sink": "RunCancelled"
         }
       ]
@@ -61606,7 +61616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1549,
+          "line": 1553,
           "sink": "setText"
         }
       ]
@@ -62986,7 +62996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 742,
+          "line": 746,
           "sink": "setPlaceholderText"
         }
       ]
@@ -65826,12 +65836,12 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 977,
+          "line": 1000,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1207,
+          "line": 1230,
           "sink": "tr"
         }
       ]
@@ -67356,7 +67366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2344,
+          "line": 2415,
           "sink": "ValueError"
         }
       ]
@@ -67366,7 +67376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2188,
+          "line": 2259,
           "sink": "RuntimeError"
         }
       ]
@@ -67381,7 +67391,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2340,
+          "line": 2411,
           "sink": "ValueError"
         }
       ]
@@ -67401,7 +67411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2342,
+          "line": 2413,
           "sink": "ValueError"
         }
       ]
@@ -67421,7 +67431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2331,
+          "line": 2402,
           "sink": "ValueError"
         }
       ]
@@ -67821,7 +67831,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -68301,7 +68311,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -68361,7 +68371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1106,
+          "line": 1129,
           "sink": "tr"
         }
       ]
@@ -68466,7 +68476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 982,
+          "line": 986,
           "sink": "_hint"
         }
       ]
@@ -76591,7 +76601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2302,
+          "line": 2373,
           "sink": "ValueError"
         }
       ]
@@ -78076,7 +78086,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -84951,7 +84961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1085,
+          "line": 1108,
           "sink": "tr"
         }
       ]
@@ -86111,7 +86121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1262,
+          "line": 1332,
           "sink": "ValueError"
         }
       ]
@@ -91716,7 +91726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 896,
+          "line": 919,
           "sink": "tr"
         }
       ]
@@ -93276,7 +93286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 947,
+          "line": 970,
           "sink": "tr"
         }
       ]
@@ -93291,7 +93301,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1092,
+          "line": 1115,
           "sink": "tr"
         }
       ]
@@ -93301,7 +93311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1240,
+          "line": 1263,
           "sink": "tr"
         }
       ]
@@ -93311,7 +93321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1115,
+          "line": 1138,
           "sink": "tr"
         }
       ]
@@ -93676,7 +93686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3284,
+          "line": 3355,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -94336,7 +94346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1204,
+          "line": 1274,
           "sink": "RuntimeError"
         }
       ]
@@ -94656,7 +94666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2237,
+          "line": 2308,
           "sink": "RuntimeError"
         }
       ]
@@ -94966,7 +94976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1222,
+          "line": 1292,
           "sink": "RuntimeError"
         }
       ]
@@ -95071,7 +95081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1750,
+          "line": 1820,
           "sink": "RuntimeError"
         }
       ]
@@ -98546,7 +98556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1108,
+          "line": 1131,
           "sink": "tr"
         }
       ]
@@ -98556,7 +98566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1200,
+          "line": 1223,
           "sink": "tr"
         }
       ]
@@ -98566,7 +98576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1498,
+          "line": 1502,
           "sink": "setText"
         }
       ]
@@ -100461,7 +100471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1098,
+          "line": 1121,
           "sink": "tr"
         }
       ]
@@ -100471,7 +100481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1099,
+          "line": 1122,
           "sink": "tr"
         }
       ]
@@ -100491,7 +100501,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -100541,7 +100551,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3283,
+          "line": 3354,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -103231,12 +103241,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1126,
+          "line": 1130,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1129,
+          "line": 1133,
           "sink": "setText"
         }
       ]
@@ -105096,7 +105106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1189,
+          "line": 1259,
           "sink": "RuntimeError"
         }
       ]
@@ -106176,7 +106186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1603,
+          "line": 1607,
           "sink": "setToolTip"
         }
       ]
@@ -106956,7 +106966,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -107206,7 +107216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 926,
+          "line": 930,
           "sink": "QLabel"
         }
       ]
@@ -107946,7 +107956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1580,
+          "line": 1584,
           "sink": "setToolTip"
         }
       ]
@@ -108281,17 +108291,17 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 789,
+          "line": 793,
           "sink": "_hint"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1529,
+          "line": 1533,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1545,
+          "line": 1549,
           "sink": "setText"
         }
       ]
@@ -108756,7 +108766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1449,
+          "line": 1472,
           "sink": "tr"
         }
       ]
@@ -109921,7 +109931,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         },
         {
@@ -112301,7 +112311,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1038,
+          "line": 1061,
           "sink": "tr"
         }
       ]
@@ -114676,7 +114686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1516,
+          "line": 1539,
           "sink": "tr"
         }
       ]
@@ -114686,7 +114696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1583,
+          "line": 1606,
           "sink": "tr"
         }
       ]
@@ -114831,7 +114841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1591,
+          "line": 1614,
           "sink": "tr"
         }
       ]
@@ -114851,7 +114861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1524,
+          "line": 1547,
           "sink": "tr"
         }
       ]
@@ -116661,7 +116671,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         }
       ]
@@ -116911,7 +116921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 975,
+          "line": 998,
           "sink": "tr"
         }
       ]
@@ -116921,7 +116931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1083,
+          "line": 1106,
           "sink": "tr"
         }
       ]
@@ -116931,7 +116941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1231,
+          "line": 1254,
           "sink": "tr"
         }
       ]
@@ -117151,7 +117161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1089,
+          "line": 1112,
           "sink": "tr"
         }
       ]
@@ -117161,7 +117171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 973,
+          "line": 996,
           "sink": "tr"
         }
       ]
@@ -117181,7 +117191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1090,
+          "line": 1113,
           "sink": "tr"
         }
       ]
@@ -123746,7 +123756,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 902,
+          "line": 906,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -131126,7 +131136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 966,
+          "line": 970,
           "sink": "QPushButton"
         }
       ]
@@ -133261,7 +133271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1760,
+          "line": 1764,
           "sink": "setText"
         }
       ]
@@ -135411,7 +135421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1853,
+          "line": 1924,
           "sink": "_push_history"
         }
       ]
@@ -139911,7 +139921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1559,
+          "line": 1629,
           "sink": "RuntimeError"
         }
       ]
@@ -140016,7 +140026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1563,
+          "line": 1633,
           "sink": "RuntimeError"
         }
       ]
@@ -140496,7 +140506,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1094,
+          "line": 1117,
           "sink": "tr"
         }
       ]
@@ -149421,7 +149431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 867,
+          "line": 871,
           "sink": "QPushButton"
         }
       ]
@@ -149586,7 +149596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 860,
+          "line": 864,
           "sink": "QLabel"
         }
       ]
@@ -149656,7 +149666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1603,
+          "line": 1607,
           "sink": "setToolTip"
         }
       ]
@@ -149921,7 +149931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 894,
+          "line": 917,
           "sink": "tr"
         }
       ]
@@ -150696,7 +150706,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 846,
+          "line": 850,
           "sink": "QPushButton"
         },
         {
@@ -151366,12 +151376,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 930,
+          "line": 934,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1849,
+          "line": 1853,
           "sink": "setText"
         }
       ]
@@ -151501,7 +151511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1646,
+          "line": 1650,
           "sink": "setText"
         }
       ]
@@ -152936,7 +152946,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1211,
+          "line": 1234,
           "sink": "tr"
         }
       ]
@@ -158076,17 +158086,17 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1580,
+          "line": 1584,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1587,
+          "line": 1591,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1603,
+          "line": 1607,
           "sink": "setToolTip"
         }
       ]
@@ -165571,17 +165581,17 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1237,
+          "line": 1260,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1241,
+          "line": 1264,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1247,
+          "line": 1270,
           "sink": "tr"
         }
       ]
@@ -165896,7 +165906,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1836,
+          "line": 1840,
           "sink": "question"
         }
       ]
@@ -166061,7 +166071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 902,
+          "line": 906,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -166121,7 +166131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 895,
+          "line": 899,
           "sink": "setToolTip"
         }
       ]
@@ -166826,7 +166836,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1450,
+          "line": 1454,
           "sink": "addItem"
         }
       ]
@@ -167886,7 +167896,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1107,
+          "line": 1130,
           "sink": "tr"
         }
       ]
@@ -173516,7 +173526,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1494,
+          "line": 1517,
           "sink": "tr"
         }
       ]
@@ -173686,12 +173696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1564,
+          "line": 1587,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1609,
+          "line": 1632,
           "sink": "tr"
         }
       ]
@@ -176036,12 +176046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 848,
+          "line": 852,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1595,
+          "line": 1599,
           "sink": "setToolTip"
         }
       ]
@@ -176866,7 +176876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1603,
+          "line": 1607,
           "sink": "setToolTip"
         }
       ]
@@ -176876,7 +176886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1580,
+          "line": 1584,
           "sink": "setToolTip"
         }
       ]
@@ -177456,7 +177466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1187,
+          "line": 1191,
           "sink": "setText"
         }
       ]
@@ -178011,7 +178021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1708,
+          "line": 1712,
           "sink": "setToolTip"
         }
       ]
@@ -178966,7 +178976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1470,
+          "line": 1493,
           "sink": "tr"
         }
       ]
@@ -180601,7 +180611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1548,
+          "line": 1552,
           "sink": "setPlainText"
         }
       ]
@@ -185811,12 +185821,12 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1484,
+          "line": 1507,
           "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1555,
+          "line": 1578,
           "sink": "tr"
         }
       ]
@@ -185836,7 +185846,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2556,
+          "line": 2627,
           "sink": "RuntimeError"
         }
       ]
@@ -186226,7 +186236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1254,
+          "line": 1258,
           "sink": "setToolTip"
         }
       ]
@@ -187346,7 +187356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2300,
+          "line": 2371,
           "sink": "ValueError"
         }
       ]
@@ -188226,7 +188236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1153,
+          "line": 1223,
           "sink": "ValueError"
         }
       ]
@@ -188261,7 +188271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2296,
+          "line": 2367,
           "sink": "ValueError"
         }
       ]
@@ -188476,12 +188486,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2532,
+          "line": 2603,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2560,
+          "line": 2631,
           "sink": "ValueError"
         }
       ]
@@ -194386,7 +194396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1595,
+          "line": 1599,
           "sink": "setToolTip"
         }
       ]
@@ -194556,7 +194566,7 @@
       "origins": [
         {
           "path": "cdmw/services/dmm_mount_overlaps.py",
-          "line": 570,
+          "line": 651,
           "sink": "python-return:format_overlap_report"
         },
         {
@@ -197501,7 +197511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1097,
+          "line": 1101,
           "sink": "setText"
         }
       ]
@@ -201401,7 +201411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1082,
+          "line": 1105,
           "sink": "tr"
         }
       ]
@@ -204871,7 +204881,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 898,
+          "line": 961,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -206366,32 +206376,32 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2637,
+          "line": 2708,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2645,
+          "line": 2716,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2656,
+          "line": 2727,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2675,
+          "line": 2746,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2699,
+          "line": 2770,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2733,
+          "line": 2804,
           "sink": "_result"
         },
         {
@@ -211726,7 +211736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 964,
+          "line": 1027,
           "sink": "TypeError"
         },
         {
@@ -212816,7 +212826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1239,
+          "line": 1262,
           "sink": "tr"
         }
       ]
@@ -212911,7 +212921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1155,
+          "line": 1225,
           "sink": "RuntimeError"
         }
       ]
@@ -212921,7 +212931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1179,
+          "line": 1249,
           "sink": "RuntimeError"
         }
       ]
@@ -212931,7 +212941,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1165,
+          "line": 1235,
           "sink": "RuntimeError"
         }
       ]
@@ -212941,7 +212951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1190,
+          "line": 1260,
           "sink": "RuntimeError"
         }
       ]
@@ -213046,7 +213056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3126,
+          "line": 3197,
           "sink": "RuntimeError"
         }
       ]
@@ -213121,7 +213131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3415,
+          "line": 3486,
           "sink": "RuntimeError"
         }
       ]
@@ -213131,7 +213141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2484,
+          "line": 2555,
           "sink": "RuntimeError"
         }
       ]
@@ -213141,12 +213151,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2461,
+          "line": 2532,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2495,
+          "line": 2566,
           "sink": "RuntimeError"
         }
       ]
@@ -213156,7 +213166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2473,
+          "line": 2544,
           "sink": "RuntimeError"
         }
       ]
@@ -213196,12 +213206,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2321,
+          "line": 2392,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2441,
+          "line": 2512,
           "sink": "RuntimeError"
         },
         {
@@ -213216,7 +213226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3005,
+          "line": 3076,
           "sink": "RuntimeError"
         }
       ]
@@ -213226,7 +213236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2369,
+          "line": 2440,
           "sink": "RuntimeError"
         }
       ]
@@ -213321,7 +213331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2787,
+          "line": 2858,
           "sink": "RuntimeError"
         }
       ]
@@ -213351,7 +213361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3462,
+          "line": 3533,
           "sink": "RuntimeError"
         }
       ]
@@ -213361,7 +213371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3441,
+          "line": 3512,
           "sink": "RuntimeError"
         }
       ]
@@ -213381,7 +213391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3316,
+          "line": 3387,
           "sink": "RuntimeError"
         }
       ]
@@ -213391,7 +213401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3597,
+          "line": 3668,
           "sink": "RuntimeError"
         }
       ]
@@ -213786,7 +213796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1707,
+          "line": 1711,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -213806,22 +213816,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2062,
+          "line": 2133,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2080,
+          "line": 2151,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2608,
+          "line": 2679,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2663,
+          "line": 2734,
           "sink": "_result"
         },
         {
@@ -219621,7 +219631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 998,
+          "line": 1061,
           "sink": "ValueError"
         }
       ]
@@ -222826,12 +222836,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2970,
+          "line": 3041,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 3009,
+          "line": 3080,
           "sink": "RuntimeError"
         }
       ]
@@ -224731,7 +224741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1030,
+          "line": 1034,
           "sink": "setToolTip"
         }
       ]
@@ -225196,7 +225206,7 @@
         },
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1168,
+          "line": 1191,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -225671,7 +225681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 903,
+          "line": 926,
           "sink": "setText"
         }
       ]
@@ -225691,12 +225701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1194,
+          "line": 1198,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1287,
+          "line": 1291,
           "sink": "setText"
         }
       ]
@@ -226361,7 +226371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 969,
+          "line": 973,
           "sink": "setToolTip"
         }
       ]
@@ -226391,7 +226401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2968,
+          "line": 3039,
           "sink": "RuntimeError"
         },
         {
@@ -226791,7 +226801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2589,
+          "line": 2660,
           "sink": "RuntimeError"
         }
       ]
@@ -226801,7 +226811,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2355,
+          "line": 2426,
           "sink": "ValueError"
         }
       ]
@@ -227451,7 +227461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1217,
+          "line": 1240,
           "sink": "tr"
         }
       ]
@@ -227461,7 +227471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 1223,
+          "line": 1246,
           "sink": "tr"
         }
       ]
@@ -228036,7 +228046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2583,
+          "line": 2654,
           "sink": "RuntimeError"
         }
       ]
@@ -228786,7 +228796,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1658,
+          "line": 1662,
           "sink": "setText"
         }
       ]
@@ -228881,7 +228891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1215,
+          "line": 1219,
           "sink": "setText"
         }
       ]
@@ -228891,7 +228901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1218,
+          "line": 1222,
           "sink": "setText"
         }
       ]
@@ -228921,7 +228931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 934,
+          "line": 957,
           "sink": "tr"
         }
       ]
@@ -228931,7 +228941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 881,
+          "line": 904,
           "sink": "tr"
         }
       ]
@@ -228941,7 +228951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 951,
+          "line": 974,
           "sink": "tr"
         }
       ]
@@ -228951,7 +228961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 953,
+          "line": 976,
           "sink": "tr"
         }
       ]
@@ -229116,7 +229126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1719,
+          "line": 1723,
           "sink": "setText"
         }
       ]
@@ -229126,7 +229136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1721,
+          "line": 1725,
           "sink": "setText"
         }
       ]
@@ -229136,7 +229146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1723,
+          "line": 1727,
           "sink": "setText"
         }
       ]
@@ -229266,7 +229276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 887,
+          "line": 910,
           "sink": "tr"
         }
       ]
@@ -229956,7 +229966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1543,
+          "line": 1547,
           "sink": "setText"
         }
       ]
@@ -230181,7 +230191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
-          "line": 949,
+          "line": 972,
           "sink": "tr"
         }
       ]
@@ -230781,7 +230791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1186,
+          "line": 1190,
           "sink": "setText"
         }
       ]
@@ -230791,7 +230801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1184,
+          "line": 1188,
           "sink": "setText"
         }
       ]
@@ -231416,7 +231426,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1907,
+          "line": 1911,
           "sink": "python-return:_short_member"
         }
       ]
@@ -231581,7 +231591,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1289,
+          "line": 1293,
           "sink": "setText"
         },
         {
@@ -232451,7 +232461,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1704,
+          "line": 1708,
           "sink": "QTableWidgetItem"
         },
         {
@@ -233073,6 +233083,11 @@
           "path": "cdmw/ui/archive_browser/appearance_common.py",
           "line": 36,
           "sink": "python-return:_appearance_composite_entry_summary"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 844,
+          "sink": "tr"
         }
       ]
     },

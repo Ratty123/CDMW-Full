@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 import re
@@ -837,6 +837,15 @@ class DmmMountedModsPage(QWidget):
         self._update_status_text()
         self._update_detail_bar()
 
+    def _format_notice_mod_list(self, mods: Sequence[str], *, limit: int = 3) -> str:
+        names = [short_mod_name(mod, max_chars=40) or mod for mod in mods if mod]
+        if len(names) <= limit:
+            return ", ".join(names)
+        return self.tr("{value_0}; +{value_1} more").format(
+            value_0=", ".join(names[:limit]),
+            value_1=len(names) - limit,
+        )
+
     def _update_notice_banner(
         self,
         info: Mapping[str, object] | None,
@@ -844,6 +853,7 @@ class DmmMountedModsPage(QWidget):
         analysis: DmmOverlapAnalysis | None,
     ) -> None:
         messages: list[str] = []
+        tip_sections: list[str] = []
         if info is None:
             info = describe_mount(self._game_root(), current_overlay())
         state = str(info.get("state", "") or "")
@@ -852,22 +862,35 @@ class DmmMountedModsPage(QWidget):
         elif state == "unreadable" and info.get("message"):
             messages.append(str(info["message"]))
         if analysis is not None and mount is not None and mount.serving:
+            sync_lines: list[str] = []
             if analysis.unmounted_enabled_mods:
-                messages.append(
+                sync_lines.append(
                     self.tr("Enabled in DMM but not in the current mount: {value_0}.").format(
-                        value_0=", ".join(analysis.unmounted_enabled_mods)
+                        value_0=self._format_notice_mod_list(analysis.unmounted_enabled_mods)
+                    )
+                )
+                tip_sections.append(
+                    self.tr("Enabled in DMM but not in the current mount: {value_0}.").format(
+                        value_0="\n" + "\n".join(f"- {mod}" for mod in analysis.unmounted_enabled_mods)
                     )
                 )
             if analysis.disabled_but_mounted_mods:
-                messages.append(
+                sync_lines.append(
                     self.tr("Currently mounted but disabled in DMM: {value_0}.").format(
-                        value_0=", ".join(analysis.disabled_but_mounted_mods)
+                        value_0=self._format_notice_mod_list(analysis.disabled_but_mounted_mods)
                     )
                 )
-            if analysis.unmounted_enabled_mods or analysis.disabled_but_mounted_mods:
-                messages.append(self.tr("Click Mount in DMM, then Refresh from DMM."))
-        text = " ".join(part for part in messages if part).strip()
+                tip_sections.append(
+                    self.tr("Currently mounted but disabled in DMM: {value_0}.").format(
+                        value_0="\n" + "\n".join(f"- {mod}" for mod in analysis.disabled_but_mounted_mods)
+                    )
+                )
+            if sync_lines:
+                sync_lines[-1] = f"{sync_lines[-1]} {self.tr('Click Mount in DMM, then Refresh from DMM.')}"
+                messages.extend(sync_lines)
+        text = "\n".join(part for part in messages if part).strip()
         self.notice_label.setText(text)
+        self.notice_label.setToolTip("\n\n".join(tip_sections))
         self.notice_label.setVisible(bool(text))
 
     def _update_status_text(self, info: Mapping[str, object] | None = None) -> None:

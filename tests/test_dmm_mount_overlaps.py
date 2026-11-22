@@ -17,7 +17,9 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.services import dmm_runtime_mount as dmm
 from cdmw.services.dmm_mount_overlaps import (
+    DmmOverlapAnalysis,
     format_overlap_report,
+    infer_game_path,
     scan_dmm_mount_overlaps,
 )
 from cdmw.ui.tools.mod_management import ModManagementTab
@@ -367,6 +369,126 @@ def test_mounted_page_shutdown_cancels_inflight_overlap_scan(tmp_path, monkeypat
         assert delivered == []
     finally:
         release.set()
+        page.request_shutdown()
+        page.deleteLater()
+        _qt().sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_infer_game_path_strips_patch_and_merge_and_skips_containers():
+    assert (
+        infer_game_path(("character", "descriptors", "kliff.xml.patch"))
+        == "character/descriptors/kliff.xml"
+    )
+    assert (
+        infer_game_path(("0012", "ui", "xml", "texture", "hud.xml.merge"))
+        == "ui/xml/texture/hud.xml"
+    )
+    assert infer_game_path(("0041", "0.pamt")) is None
+    assert infer_game_path(("0041", "0.paz")) is None
+    assert infer_game_path(("modinfo.json",)) is None
+    assert infer_game_path(("dmm_pack.json",)) is None
+
+
+def test_scan_dmm_mount_overlaps_handles_patch_merge_and_pamt_cache_mods(tmp_path):
+    game = _game(tmp_path)
+    install = tmp_path / "DMM"
+    _write(install / "DMM.exe", b"dmm")
+    mods = install / "mods"
+    cache = install / "archive_cache"
+
+    patch_entry = "WeaponPack/Option 1 - Patch"
+    merge_entry = "UiPack/UI Mod"
+    pamt_entry = "FastLoad_1.0_pkg/FastLoad"
+
+    _write(mods / "WeaponPack" / "Option 1 - Patch" / "modinfo.json", "{}")
+    _write(
+        mods / "WeaponPack" / "Option 1 - Patch" / "character/descriptors/kliff.xml.patch",
+        "<patch/>",
+    )
+    _write(
+        mods / "UiPack" / "UI Mod" / "files" / "0012" / (MERGED_XML + ".merge"),
+        "<merge/>",
+    )
+    # Packed .pamt/.paz mod in mods/, with its unpacked files mounted from archive_cache/.
+    _write(mods / "FastLoad_1.0_pkg" / "FastLoad" / "0041" / "0.pamt", b"pamt")
+    _write(mods / "FastLoad_1.0_pkg" / "FastLoad" / "0041" / "0.paz", b"paz")
+    cached_dds = _write(
+        cache / "FastLoad_1.0_pkg" / "FastLoad" / "0041" / "fastload/logo.dds",
+        b"dds",
+    )
+
+    merged_kliff = _write(
+        game / "bin64" / "dmm" / "files" / "character/descriptors/kliff.xml",
+        "<merged-kliff/>",
+    )
+    merged_hud = _write(game / "bin64" / "dmm" / "files" / MERGED_XML, "<merged-hud/>")
+
+    _write(
+        install / "config.json",
+        json.dumps({
+            "configVersion": 1,
+            "activeBrowserMods": [patch_entry, f"{merge_entry}/files", pamt_entry],
+        }),
+    )
+    _manifest(game, [
+        f"file\tcharacter/descriptors/kliff.xml\t{merged_kliff}",
+        f"file\t{MERGED_XML}\t{merged_hud}",
+        f"file\tfastload/logo.dds\t{cached_dds}",
+    ])
+
+    mount = dmm.read_runtime_mount(game)
+    assert mount is not None
+    analysis = scan_dmm_mount_overlaps(mount, saved_dmm_folder=str(install))
+    assert analysis.config_checked is True
+    assert analysis.unmounted_enabled_mods == ()
+    assert analysis.disabled_but_mounted_mods == ()
+    assert {
+        item.mod for item in analysis.merged_contributors_by_path["character/descriptors/kliff.xml"]
+    } == {"WeaponPack/Option 1 - Patch"}
+    assert {item.mod for item in analysis.merged_contributors_by_path[MERGED_XML]} == {
+        "UiPack/UI Mod/files"
+    }
+
+
+def test_mounted_page_notice_banner_truncates_long_lists_with_full_tooltip(tmp_path, monkeypatch):
+    from cdmw.ui.tools.dmm_mounted_mods_page import DmmMountedModsPage
+
+    _qt()
+    game = _game(tmp_path)
+    dds_file = _write(tmp_path / "DMM" / "mods" / "WinnerMod" / DDS, b"dds")
+    _manifest(game, [f"file\t{DDS}\t{dds_file}"])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    mount = dmm.read_runtime_mount(game)
+    assert mount is not None
+
+    unmounted = (
+        "LongArchive_1.1.6_3768_2026-11-19T21-01Z_CuEZpVMCK/FastLoad",
+        "Weapon_Carry_1.1.2/Weapon Carry 1 - Core",
+        "Weapon_Carry_1.1.2/Weapon Carry 2 - Kliff",
+        "Weapon_Carry_1.1.2/Weapon Carry 3 - Damiane",
+        "Weapon_Carry_1.1.2/Weapon Carry 5 - Hide Shield",
+    )
+    analysis = DmmOverlapAnalysis(
+        config_checked=True,
+        unmounted_enabled_mods=unmounted,
+    )
+    page = DmmMountedModsPage(get_game_root=lambda: str(game), defer_initial_load=True)
+    try:
+        info = dmm.describe_mount(str(game), dmm.current_overlay())
+        page._update_notice_banner(info, mount, analysis)
+        text = page.notice_label.text()
+        assert not page.notice_label.isHidden()
+        assert "LongArchive_1.1.6" not in text
+        assert "FastLoad" in text
+        assert "Weapon Carry 1 - Core" in text
+        assert "Weapon Carry 2 - Kliff" in text
+        assert "+2 more" in text
+        assert "Weapon Carry 5 - Hide Shield" not in text
+        tooltip = page.notice_label.toolTip()
+        for full_name in unmounted:
+            assert full_name in tooltip
+    finally:
         page.request_shutdown()
         page.deleteLater()
         _qt().sendPostedEvents(None, QEvent.DeferredDelete)
