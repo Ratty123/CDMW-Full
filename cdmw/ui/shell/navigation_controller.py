@@ -272,6 +272,18 @@ class NavigationControllerMixin:
         window.activateWindow()
         return True
 
+    def open_mod_management_page(self, page_key: str) -> bool:
+        """Activate Mod Management and switch to the requested sub-page."""
+        widget = self._tool_widgets_by_key.get("mod_management")
+        if widget is None or not widget.isEnabled():
+            return False
+        if isinstance(widget, LazyToolTab):
+            widget.when_created(lambda tool, key=page_key: tool.open_page(key))
+        elif callable(getattr(widget, "open_page", None)):
+            widget.open_page(page_key)
+        self._activate_tool_widget(widget)
+        return True
+
     def _activate_tool_key(self, key: str) -> None:
         widget = self._tool_widgets_by_key.get("mod_management" if key == "mod_package_retrofit" else key)
         if widget is not None and not widget.isEnabled():

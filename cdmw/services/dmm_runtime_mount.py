@@ -78,6 +78,8 @@ class DmmRuntimeMount:
     files: Mapping[str, DmmServedFile] = field(default_factory=dict)
     #: Empty when the plugin serves the files; otherwise why it serves nothing.
     problem: str = ""
+    #: Extra `file` lines in manifest.tsv after the winning first entry for a path.
+    duplicates: Mapping[str, tuple[DmmServedFile, ...]] = field(default_factory=dict)
 
     @property
     def serving(self) -> bool:
@@ -189,6 +191,33 @@ def mod_label(source_text: str, game_path: str) -> str:
     return parts[-1] if parts else "DMM"
 
 
+def mod_root_from_source(source: Path, game_path: str) -> Path | None:
+    """Best-effort mod folder for a served file, or None for DMM's merged staging folder."""
+
+    parts = list(Path(source).parts)
+    if not parts:
+        return None
+    tail = [part for part in str(game_path or "").replace("\\", "/").split("/") if part]
+    lowered = [part.casefold() for part in parts]
+    if tail and len(parts) > len(tail) and lowered[-len(tail):] == [part.casefold() for part in tail]:
+        parts = parts[:-len(tail)]
+        lowered = lowered[:-len(tail)]
+    else:
+        parts = parts[:-1]
+        lowered = lowered[:-1]
+    if lowered[-3:] == ["bin64", "dmm", "files"]:
+        return None
+    if len(parts) > 1 and _GROUP_FOLDER.fullmatch(parts[-1]):
+        parts = parts[:-1]
+    if not parts:
+        return None
+    if len(parts) == 1:
+        anchor = Path(parts[0]).anchor
+        if anchor and parts[0] == anchor:
+            return None
+    return Path(*parts)
+
+
 def installed_build(game_root: Path) -> tuple[str, int]:
     """meta/0.paver as hex and the size of the game's exe, as the plugin compares them."""
 
@@ -213,6 +242,7 @@ def read_runtime_mount(game_root: Path | str) -> DmmRuntimeMount | None:
     build = ""
     exe_size = -1
     files: dict[str, DmmServedFile] = {}
+    duplicates_lists: dict[str, list[DmmServedFile]] = {}
     for number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.rstrip("\r")
         if not line.strip() or line.startswith("#"):
@@ -249,9 +279,21 @@ def read_runtime_mount(game_root: Path | str) -> DmmRuntimeMount | None:
             if not parts or ".." in parts or ":" in key:
                 raise DmmManifestError(f"Manifest line {number} names an invalid game path.")
             # The plugin keeps the first line for a path, like the game's mount order.
-            files.setdefault(key, DmmServedFile(fields[1].replace("\\", "/").strip().strip("/"),
-                                                _source_path(fields[2]),
-                                                mod_label(fields[2], fields[1])))
+            served = DmmServedFile(
+                fields[1].replace("\\", "/").strip().strip("/"),
+                _source_path(fields[2]),
+                mod_label(fields[2], fields[1]),
+            )
+            existing = files.get(key)
+            if existing is None:
+                files[key] = served
+            else:
+                same_source = str(served.source).casefold() == str(existing.source).casefold()
+                known_dups = duplicates_lists.setdefault(key, [])
+                if not same_source and all(
+                    str(item.source).casefold() != str(served.source).casefold() for item in known_dups
+                ):
+                    known_dups.append(served)
             continue
         # Lines this reader does not know (texture tables) change no file CDMW prepares.
     if version is None:
@@ -267,7 +309,8 @@ def read_runtime_mount(game_root: Path | str) -> DmmRuntimeMount | None:
         if (current_build, current_exe_size) != (build, exe_size):
             problem = ("DMM mounted these mods for another game build. The game has updated since, so DMM "
                        "serves nothing until you mount again in DMM.")
-    return DmmRuntimeMount(game_root, manifest, build, exe_size, files, problem)
+    duplicates = {dup_key: tuple(items) for dup_key, items in duplicates_lists.items() if items}
+    return DmmRuntimeMount(game_root, manifest, build, exe_size, files, problem, duplicates)
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,7 +464,14 @@ class DmmMountOverlay:
         served = self.served_file(game_root, game_path)
         if served is None:
             return None
-        source = served.source
+        return self.prepare_served(served)
+
+    def prepare_served(self, served: DmmServedFile) -> PreparedDmmFile | None:
+        """A private copy of an explicit ``DmmServedFile`` (active or overridden), or None."""
+
+        if PurePosixPath(normalized_game_path(served.game_path)).suffix in KEEP_GAME_EXTENSIONS:
+            return None
+        source = Path(served.source)
         if source.is_symlink() or not source.is_file():
             return None
         if source.name.casefold() != PurePosixPath(served.game_path).name.casefold():

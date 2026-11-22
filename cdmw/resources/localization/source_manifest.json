@@ -2111,7 +2111,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -2247,6 +2247,16 @@
       ]
     },
     {
+      "key": ", inspect every mounted file and any overlaps across enabled mods, toggle DMM vs. vanilla with instant preview refresh, filter Browse Archives, or open mounted or overridden meshes and DDS textures directly.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 422,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": ", motion can play when some sections have no guides. Those sections follow the head; set their roots to make them swing.",
       "origins": [
         {
@@ -2276,7 +2286,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -2572,12 +2582,32 @@
       ]
     },
     {
+      "key": "- {value_0} ({value_1} overridden)",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
       "key": "- {value_0} / {value_1}{value_2}{value_3} scale={value_4} -> {value_5}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/appearance_composite.py",
           "line": 550,
           "sink": "ArchivePreviewResult"
+        }
+      ]
+    },
+    {
+      "key": "- {value_0} | Active: {value_1} | Overridden: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
         }
       ]
     },
@@ -4051,7 +4081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4081,7 +4111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4211,7 +4241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4221,7 +4251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4391,7 +4421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -4451,7 +4481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4551,7 +4581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6196,7 +6226,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -6216,7 +6246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6872,16 +6902,6 @@
       ]
     },
     {
-      "key": "Actions > DMM Mounted Mods...",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 422,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "Actions > Edited Results...",
       "origins": [
         {
@@ -6953,6 +6973,46 @@
           "path": "cdmw/ui/archive_browser/static_replacement_part_items.py",
           "line": 47,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Active (served) mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1104,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Active (served): {value_0} ({value_1})",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1205,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Active (served): {value_0} · Also in (overridden): {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1195,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Active (served): {value_0} · Selected (overridden): {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1189,
+          "sink": "tr"
         }
       ]
     },
@@ -7298,6 +7358,16 @@
           "path": "cdmw/ui/archive_browser/mod_ready_export.py",
           "line": 137,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Active files: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 964,
+          "sink": "tr"
         }
       ]
     },
@@ -8690,9 +8760,19 @@
       "key": "Added by mod",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 450,
-          "sink": "python-return:_row_status_label"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1089,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Added by mod only",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 461,
+          "sink": "tr"
         }
       ]
     },
@@ -9736,7 +9816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -10466,7 +10546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 297,
+          "line": 301,
           "sink": "setText"
         }
       ]
@@ -10512,12 +10592,22 @@
       ]
     },
     {
-      "key": "All mods ({value_0})",
+      "key": "All mounted files",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 411,
-          "sink": "addItem"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 456,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "All mounted mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 925,
+          "sink": "tr"
         }
       ]
     },
@@ -11022,6 +11112,16 @@
       ]
     },
     {
+      "key": "Also in (overridden): {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1106,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Also known as: {value_0}",
       "origins": [
         {
@@ -11386,7 +11486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -12721,7 +12821,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -15276,7 +15376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16151,7 +16251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16716,7 +16816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -22346,7 +22446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -22396,7 +22496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 143,
+          "line": 147,
           "sink": "QLabel"
         },
         {
@@ -22706,7 +22806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 118,
+          "line": 122,
           "sink": "QLabel"
         }
       ]
@@ -23226,7 +23326,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -23581,7 +23681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -24911,7 +25011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25076,7 +25176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25266,7 +25366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25276,7 +25376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25298,6 +25398,16 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 13,
           "sink": "python-data:INSTALL_METHODS"
+        }
+      ]
+    },
+    {
+      "key": "CDMW overlay: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
         }
       ]
     },
@@ -25411,7 +25521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -25421,7 +25531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26331,7 +26441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26341,7 +26451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26351,7 +26461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26381,7 +26491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26691,7 +26801,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 99,
+          "line": 118,
           "sink": "QPushButton"
         },
         {
@@ -27921,7 +28031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 706,
+          "line": 710,
           "sink": "setText"
         },
         {
@@ -27976,7 +28086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -29936,7 +30046,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 80,
+          "line": 96,
           "sink": "QPushButton"
         }
       ]
@@ -30268,6 +30378,16 @@
           "path": "cdmw/workers/effect_catalogue_worker.py",
           "line": 78,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Checking enabled DMM mods for overlaps...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 891,
+          "sink": "tr"
         }
       ]
     },
@@ -30811,7 +30931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -31101,7 +31221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -32526,7 +32646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -34046,7 +34166,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 149,
+          "line": 170,
           "sink": "getExistingDirectory"
         }
       ]
@@ -34956,7 +35076,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 129,
+          "line": 133,
           "sink": "QPushButton"
         },
         {
@@ -35211,7 +35331,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -35291,7 +35411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -35862,6 +35982,16 @@
       ]
     },
     {
+      "key": "Click Mount in DMM, then Refresh from DMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 861,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Click Other Charts Playing This Clip... to see which other charts play the selected clip and which characters use them. The game picks a chart from the character and the weapon in hand, so tick every chart that should change and click Change in Ticked Charts; they get the same clip change in the same mod when you export.",
       "origins": [
         {
@@ -36356,7 +36486,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 235,
+          "line": 239,
           "sink": "QPushButton"
         },
         {
@@ -36387,11 +36517,6 @@
         {
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 199,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 265,
           "sink": "QPushButton"
         },
         {
@@ -36513,6 +36638,11 @@
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 640,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 538,
+          "sink": "tr"
         },
         {
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
@@ -37816,7 +37946,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 23,
+          "line": 30,
           "sink": "tr"
         }
       ]
@@ -37861,7 +37991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 23,
+          "line": 30,
           "sink": "tr"
         }
       ]
@@ -38041,7 +38171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -38136,7 +38266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -38636,7 +38766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         },
         {
@@ -39156,7 +39286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -40111,12 +40241,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -40271,7 +40401,7 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 22,
+          "line": 29,
           "sink": "tr"
         }
       ]
@@ -40291,7 +40421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 22,
+          "line": 29,
           "sink": "tr"
         }
       ]
@@ -40527,6 +40657,16 @@
       "manual": true
     },
     {
+      "key": "Copied overlap report to the clipboard.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1398,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Copied problem summary from {value_0}.",
       "origins": [
         {
@@ -40600,14 +40740,14 @@
           "sink": "_show_dmm_status"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 780,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1586,
+          "sink": "tr"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 826,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1637,
+          "sink": "tr"
         }
       ]
     },
@@ -40730,9 +40870,9 @@
           "sink": "getExistingDirectory"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 791,
-          "sink": "getExistingDirectory"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1601,
+          "sink": "tr"
         }
       ]
     },
@@ -40805,6 +40945,16 @@
       "key": "Copy Original As Source",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Copy Overlap Report",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 379,
+          "sink": "tr"
+        }
+      ]
     },
     {
       "key": "Copy Red",
@@ -40897,6 +41047,16 @@
       ]
     },
     {
+      "key": "Copy a plain-text summary of mounted mods and file overlaps to the clipboard.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 381,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Copy complete selected faces into the Mesh Editor's internal clipboard.",
       "origins": [
         {
@@ -40931,7 +41091,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -41220,9 +41380,9 @@
           "sink": "QPushButton"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 263,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 531,
+          "sink": "tr"
         }
       ]
     },
@@ -41275,9 +41435,9 @@
           "sink": "_show_dmm_status"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 804,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1614,
+          "sink": "tr"
         }
       ]
     },
@@ -41405,9 +41565,9 @@
       "key": "Could not apply the DMM filter to Browse Archives.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 646,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1416,
+          "sink": "tr"
         }
       ]
     },
@@ -42007,6 +42167,21 @@
       ]
     },
     {
+      "key": "Could not read overridden file {value_0} for {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 189,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 267,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Could not read packaged UI language catalog {value_0}: {value_1}",
       "origins": [
         {
@@ -42566,7 +42741,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -42661,7 +42836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -43371,7 +43546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -44123,6 +44298,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 2043,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Currently mounted but disabled in DMM: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 856,
+          "sink": "tr"
         }
       ]
     },
@@ -45102,7 +45287,7 @@
       ]
     },
     {
-      "key": "DMM (Definitive Mod Manager) loads CDMW's items into the game. Mod Management keeps a list of .cdmw item packages and sends them to DMM as one mod.",
+      "key": "DMM (Definitive Mod Manager) loads CDMW's items into the game. Item Packages keeps a list of .cdmw item packages and sends them to DMM as one mod.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -45156,7 +45341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 78,
+          "line": 82,
           "sink": "setText"
         },
         {
@@ -45176,7 +45361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 76,
+          "line": 80,
           "sink": "setText"
         }
       ]
@@ -45186,7 +45371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 72,
+          "line": 76,
           "sink": "setText"
         }
       ]
@@ -45196,7 +45381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 74,
+          "line": 78,
           "sink": "setText"
         }
       ]
@@ -45206,7 +45391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 70,
+          "line": 74,
           "sink": "setText"
         }
       ]
@@ -45231,18 +45416,18 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 172,
-          "sink": "setWindowTitle"
+          "line": 24,
+          "sink": "tr"
         }
       ]
     },
     {
-      "key": "DMM Mounted Mods...",
+      "key": "DMM Mounted Mods: nothing mounted (no bin64/dmm/manifest.tsv).",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 154,
-          "sink": "addAction"
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 521,
+          "sink": "python-return:format_overlap_report"
         }
       ]
     },
@@ -45327,6 +45512,16 @@
       ]
     },
     {
+      "key": "DMM file: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1109,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "DMM has nothing mounted at run time.",
       "origins": [
         {
@@ -45360,8 +45555,8 @@
       "key": "DMM mounted mods",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 645,
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1415,
           "sink": "apply_entry_id_scope"
         }
       ]
@@ -45385,13 +45580,28 @@
       "key": "DMM no longer serves {value_0}. Refresh from DMM first.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 116,
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 186,
           "sink": "ValueError"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 152,
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 194,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 264,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 272,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 288,
           "sink": "ValueError"
         }
       ]
@@ -45515,13 +45725,13 @@
       "key": "DMM: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 645,
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1415,
           "sink": "apply_entry_id_scope"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 663,
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1437,
           "sink": "apply_entry_id_scope"
         }
       ]
@@ -48191,7 +48401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -48501,7 +48711,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -49016,7 +49226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -49026,7 +49236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -49241,7 +49451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -49866,7 +50076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/saved_work_naming.py",
-          "line": 163,
+          "line": 167,
           "sink": "emit"
         }
       ]
@@ -50666,7 +50876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -51326,7 +51536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -54607,6 +54817,26 @@
       ]
     },
     {
+      "key": "Enabled in DMM but not in current mount: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
+      "key": "Enabled in DMM but not in the current mount: {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 850,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Enabled in source",
       "origins": [
         {
@@ -55456,7 +55686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -55961,7 +56191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         },
         {
@@ -57571,7 +57801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -58676,7 +58906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60196,7 +60426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60831,7 +61061,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -61665,11 +61895,6 @@
           "sink": "setHeaderLabels"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 233,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_02.py",
           "line": 37,
           "sink": "setHeaderLabels"
@@ -61693,6 +61918,11 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 218,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 476,
+          "sink": "tr"
         }
       ]
     },
@@ -61943,6 +62173,11 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 615,
           "sink": "addTab"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 428,
+          "sink": "tr"
         },
         {
           "path": "tools/format_explorer/tab.py",
@@ -62250,9 +62485,9 @@
       "key": "Filter Browse Archives",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 246,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 507,
+          "sink": "tr"
         }
       ]
     },
@@ -62325,9 +62560,9 @@
       "key": "Filter by file name, path, or mod...",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 219,
-          "sink": "setPlaceholderText"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 450,
+          "sink": "tr"
         }
       ]
     },
@@ -65393,6 +65628,16 @@
           "path": "cdmw/ui/archive_browser/preview_state.py",
           "line": 335,
           "sink": "setPlainText"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 970,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1169,
+          "sink": "tr"
         }
       ]
     },
@@ -65896,7 +66141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -67377,6 +67622,16 @@
       "manual": true
     },
     {
+      "key": "Fully overridden enabled mods (0 active files):",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
       "key": "Fully read",
       "origins": [
         {
@@ -67630,9 +67885,9 @@
       "key": "Game Path",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 233,
-          "sink": "setHeaderLabels"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 480,
+          "sink": "tr"
         }
       ]
     },
@@ -67847,6 +68102,16 @@
       ]
     },
     {
+      "key": "Game folder: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
       "key": "Game icon / DDS",
       "origins": [
         {
@@ -67897,12 +68162,12 @@
       ]
     },
     {
-      "key": "Game path: {value_0}\nStatus: {value_1}\nMod: {value_2}\nDMM file: {value_3}",
+      "key": "Game path: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 468,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1099,
+          "sink": "tr"
         }
       ]
     },
@@ -68306,12 +68571,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -73981,7 +74246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -73991,7 +74256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74001,7 +74266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74171,7 +74436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -74296,7 +74561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74516,12 +74781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 188,
+          "line": 192,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 673,
+          "line": 677,
           "sink": "setText"
         },
         {
@@ -74711,7 +74976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 736,
+          "line": 740,
           "sink": "setToolTip"
         },
         {
@@ -74776,7 +75041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 710,
+          "line": 714,
           "sink": "_add_link_group"
         },
         {
@@ -74791,7 +75056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -74996,7 +75261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -75046,7 +75311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -75076,7 +75341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -75791,7 +76056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -76261,7 +76526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77251,7 +77516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -77281,7 +77546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -77468,6 +77733,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 980,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "In current mount but disabled in DMM: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
         }
       ]
     },
@@ -79512,12 +79787,12 @@
       ]
     },
     {
-      "key": "Inspect files DMM mounts at run time, toggle DMM vs. vanilla previews, or open modded meshes and textures.",
+      "key": "Inspect mods DMM mounts at run time, spot file overlaps, and open modded assets.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 89,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 23,
+          "sink": "tr"
         }
       ]
     },
@@ -80026,7 +80301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 706,
+          "line": 710,
           "sink": "setText"
         },
         {
@@ -80066,7 +80341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         },
         {
@@ -81846,27 +82121,27 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 96,
+          "line": 100,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 105,
+          "line": 109,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 786,
+          "line": 790,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 797,
+          "line": 801,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 836,
+          "line": 840,
           "sink": "information"
         },
         {
@@ -81931,7 +82206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 845,
+          "line": 849,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -81941,7 +82216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 845,
+          "line": 849,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -81951,7 +82226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 845,
+          "line": 849,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -81991,7 +82266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 845,
+          "line": 849,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -82128,6 +82403,21 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 169,
           "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Item Packages",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 17,
+          "sink": "tr"
         }
       ]
     },
@@ -83206,7 +83496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83520,9 +83810,9 @@
       "key": "Jump to the selected mounted file inside Browse Archives.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 249,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 514,
+          "sink": "tr"
         }
       ]
     },
@@ -83621,7 +83911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -83646,7 +83936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -83697,16 +83987,6 @@
       "manual": true
     },
     {
-      "key": "Keep a list of .cdmw item packages and send them to DMM as one mod.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 980,
-          "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
       "key": "Keep after extraction:",
       "origins": [],
       "manual": true
@@ -83751,7 +84031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -83816,7 +84096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -84315,9 +84595,19 @@
       "key": "Kept vanilla (game table)",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 446,
-          "sink": "python-return:_row_status_label"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1078,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Kept vanilla (game tables)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 463,
+          "sink": "tr"
         }
       ]
     },
@@ -85051,7 +85341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -86301,7 +86591,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -86620,9 +86910,9 @@
       "key": "Limit Browse Archives to the currently visible mounted files that replace a game file.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 247,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 510,
+          "sink": "tr"
         }
       ]
     },
@@ -86921,7 +87211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 216,
+          "line": 220,
           "sink": "setHeaderLabels"
         }
       ]
@@ -88101,7 +88391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/saved_work_naming.py",
-          "line": 125,
+          "line": 129,
           "sink": "setToolTip"
         }
       ]
@@ -88216,7 +88506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 643,
+          "line": 647,
           "sink": "setText"
         },
         {
@@ -88231,7 +88521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 614,
+          "line": 618,
           "sink": "setText"
         },
         {
@@ -88946,7 +89236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89311,7 +89601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -90143,6 +90433,16 @@
           "path": "cdmw/services/mesh_replacement_draft.py",
           "line": 100,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Manage .cdmw item packages and send them to DMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 18,
+          "sink": "tr"
         }
       ]
     },
@@ -91018,6 +91318,16 @@
           "path": "cdmw/ui/archive_browser/source_mix_overlay.py",
           "line": 171,
           "sink": "start"
+        }
+      ]
+    },
+    {
+      "key": "Matching mounted files against the game's archive index...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 889,
+          "sink": "tr"
         }
       ]
     },
@@ -92566,8 +92876,53 @@
         },
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 77,
+          "line": 93,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Merged",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 940,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Merged by DMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 462,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1085,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Merged by DMM (from: {value_0})",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1202,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Merged from: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1108,
+          "sink": "tr"
         }
       ]
     },
@@ -93006,7 +93361,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -96107,6 +96462,16 @@
       ]
     },
     {
+      "key": "Meshes (.pac, .pam, .pamlod)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 458,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Meshes: {value_0}",
       "origins": [
         {
@@ -96306,7 +96671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -96881,7 +97246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -97235,14 +97600,19 @@
       "key": "Mod",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 233,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/new_item/painting_dialog.py",
           "line": 350,
           "sink": "QGroupBox"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 428,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 478,
+          "sink": "tr"
         }
       ]
     },
@@ -97287,6 +97657,26 @@
       ]
     },
     {
+      "key": "Mod Management > Mounted in DMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 422,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Mod Management has two tabs:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Mod Manager",
       "origins": [],
       "manual": true
@@ -97321,7 +97711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -97726,8 +98116,28 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1101,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Mod: {value_0} · {value_1} active, {value_2} overridden",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1162,
+          "sink": "tr"
         }
       ]
     },
@@ -98626,7 +99036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 709,
+          "line": 713,
           "sink": "_add_link_group"
         }
       ]
@@ -98751,7 +99161,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 708,
+          "line": 712,
           "sink": "_add_link_group"
         }
       ]
@@ -98791,7 +99201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -99087,16 +99497,6 @@
       ]
     },
     {
-      "key": "Mods",
-      "origins": [
-        {
-          "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 17,
-          "sink": "addTab"
-        }
-      ]
-    },
-    {
       "key": "Mods installed",
       "origins": [
         {
@@ -99146,7 +99546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 665,
+          "line": 669,
           "sink": "setText"
         },
         {
@@ -99176,7 +99576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 177,
+          "line": 172,
           "sink": "setText"
         }
       ]
@@ -99627,12 +100027,22 @@
       "manual": true
     },
     {
+      "key": "Mount mods in DMM, then click Refresh from DMM.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 425,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Mounted (checking...)",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 452,
-          "sink": "python-return:_row_status_label"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1091,
+          "sink": "tr"
         }
       ]
     },
@@ -99640,9 +100050,9 @@
       "key": "Mounted (not checked)",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 453,
-          "sink": "python-return:_row_status_label"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1092,
+          "sink": "tr"
         }
       ]
     },
@@ -99653,6 +100063,51 @@
           "path": "tools/placement_studio/relationships.py",
           "line": 74,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Mounted files: {value_0} across {value_1} mod(s) | Overlaps: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
+      "key": "Mounted in DMM",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_management_advanced.py",
+          "line": 20,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Mounted in DMM (experimental)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Mounted mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 414,
+          "sink": "tr"
         }
       ]
     },
@@ -101616,7 +102071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 706,
+          "line": 710,
           "sink": "setText"
         }
       ]
@@ -103322,6 +103777,16 @@
       ]
     },
     {
+      "key": "No DMM mounted files match the current filter.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 472,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "No FBX written for {value_0}",
       "origins": [],
       "manual": true
@@ -104451,7 +104916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 713,
+          "line": 717,
           "sink": "setText"
         }
       ]
@@ -105231,7 +105696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 96,
+          "line": 100,
           "sink": "information"
         }
       ]
@@ -105306,7 +105771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 836,
+          "line": 840,
           "sink": "information"
         }
       ]
@@ -105466,7 +105931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -105887,6 +106352,26 @@
       ]
     },
     {
+      "key": "No mounted files",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 471,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "No mounted mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 424,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "No named physics profile is assigned for these variants.",
       "origins": [
         {
@@ -106028,6 +106513,16 @@
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 697,
           "sink": "python-return:text"
+        }
+      ]
+    },
+    {
+      "key": "No overlapping files detected among mounted DMM mods.",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
         }
       ]
     },
@@ -106481,7 +106976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 797,
+          "line": 801,
           "sink": "information"
         }
       ]
@@ -106491,7 +106986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 750,
+          "line": 754,
           "sink": "setToolTip"
         }
       ]
@@ -107825,9 +108320,9 @@
       "key": "No visible mounted files match entries in the loaded game archive.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 641,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1411,
+          "sink": "tr"
         }
       ]
     },
@@ -107896,7 +108391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -107906,7 +108401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -107916,7 +108411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -108980,6 +109475,11 @@
       "key": "Note: {value_0}",
       "origins": [
         {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        },
+        {
           "path": "cdmw/services/new_item_review.py",
           "line": 58,
           "sink": "python-return:plan_review_content"
@@ -109423,6 +109923,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 953,
           "sink": "_log"
+        }
+      ]
+    },
+    {
+      "key": "Notice banners warn when DMM's mount is outdated or out of sync with enabled mods.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -110137,7 +110647,7 @@
       ]
     },
     {
-      "key": "On Mods, choose Add item packages and select the .cdmw files.",
+      "key": "On Item Packages, choose Add item packages and select the .cdmw files.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -111071,7 +111581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -111181,7 +111691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 234,
+          "line": 238,
           "sink": "QPushButton"
         }
       ]
@@ -111327,11 +111837,36 @@
       ]
     },
     {
+      "key": "Open Mod Folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 417,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1031,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Open Mod Management > Mounted in DMM to inspect files DMM mounts, check overlaps, toggle DMM vs. vanilla previews, or open modded meshes and textures.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/controls_panel.py",
+          "line": 89,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Open Mod Management from the main window to repackage mods.",
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 135,
+          "line": 156,
           "sink": "tr"
         }
       ]
@@ -111826,7 +112361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/saved_work_naming.py",
-          "line": 134,
+          "line": 138,
           "sink": "emit"
         }
       ]
@@ -112530,11 +113065,6 @@
           "sink": "QPushButton"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 250,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/archive_browser/edited_results.py",
           "line": 27,
           "sink": "QPushButton"
@@ -112563,6 +113093,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 515,
+          "sink": "tr"
         }
       ]
     },
@@ -112605,9 +113140,9 @@
       "key": "Open in Texture Editor",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 251,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 517,
+          "sink": "tr"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs",
@@ -112643,6 +113178,16 @@
           "path": "tools/placement_studio/window_playback.py",
           "line": 111,
           "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
+      "key": "Open mounted or overridden meshes and DDS textures safely in the editors, filter Browse Archives, open a mod's folder, or choose Copy Overlap Report.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -113052,6 +113597,16 @@
       ]
     },
     {
+      "key": "Open the selected mod's folder in Explorer.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 419,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Open the selected piece in Mesh Editor.",
       "origins": [
         {
@@ -113221,7 +113776,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -113652,6 +114207,26 @@
       ]
     },
     {
+      "key": "Opening overridden {value_0} from {value_1} in Mesh Editor (overridden by {value_2})...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1478,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Opening overridden {value_0} from {value_1} in Texture Editor (overridden by {value_2})...",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1545,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Opening preview from local model file: {value_0}",
       "origins": [
         {
@@ -113790,9 +114365,9 @@
       "key": "Opening {value_0} from DMM's {value_1} in Texture Editor...",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 753,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1553,
+          "sink": "tr"
         }
       ]
     },
@@ -113810,9 +114385,9 @@
       "key": "Opening {value_0} from DMM's {value_1} in the Mesh Editor...",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 700,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1486,
+          "sink": "tr"
         }
       ]
     },
@@ -113976,7 +114551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management.py",
-          "line": 229,
+          "line": 253,
           "sink": "setText"
         }
       ]
@@ -115451,7 +116026,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -115602,6 +116177,16 @@
       ]
     },
     {
+      "key": "Overlapping files:",
+      "origins": [
+        {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        }
+      ]
+    },
+    {
       "key": "Overlapping transparent surfaces may show visible triangles or other visual glitches in game, even within the same model. Avoid overlapping transparent surfaces where possible.",
       "origins": [
         {
@@ -115613,6 +116198,36 @@
           "path": "cdmw/ui/new_item/translucency_editor.py",
           "line": 29,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Overlaps",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 428,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Overlaps / conflicts only",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 457,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Overlaps use amber status text and a bottom detail bar showing the active winner and overridden mods; files merged by DMM stay marked as merged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -115808,6 +116423,36 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 659,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Overridden by higher-priority mods: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 968,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Overridden by {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1076,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Overridden file: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1193,
+          "sink": "tr"
         }
       ]
     },
@@ -116022,12 +116667,42 @@
       ]
     },
     {
+      "key": "Overrides 1 mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1082,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Overrides other mods: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 966,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Overrides the target prefab with placement-source fields under the target virtual path; review internal source model/socket references.{value_0}",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/attachment_plan.py",
           "line": 507,
           "sink": "add_row"
+        }
+      ]
+    },
+    {
+      "key": "Overrides {value_0} mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1083,
+          "sink": "tr"
         }
       ]
     },
@@ -119091,7 +119766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 216,
+          "line": 220,
           "sink": "setHeaderLabels"
         },
         {
@@ -119301,7 +119976,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -119686,7 +120361,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -120308,6 +120983,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 93,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Pick a mod on the left to see both its active files and any files overridden by a higher-priority mod, or stay on All mounted mods for one active row per path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -121771,7 +122456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -123131,7 +123816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 31,
+          "line": 38,
           "sink": "addTab"
         }
       ]
@@ -124776,7 +125461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -125641,7 +126326,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -125726,7 +126411,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -128826,7 +129511,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -129151,7 +129836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -130466,7 +131151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -130940,9 +131625,9 @@
       "key": "Read DMM's manifest again after mounting or unmounting mods in DMM.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 208,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 385,
+          "sink": "tr"
         }
       ]
     },
@@ -132826,12 +133511,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -132861,7 +133546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -134016,7 +134701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -134261,7 +134946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 361,
+          "line": 365,
           "sink": "setToolTip"
         }
       ]
@@ -134311,7 +134996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 746,
+          "line": 750,
           "sink": "setToolTip"
         }
       ]
@@ -134331,12 +135016,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 197,
+          "line": 201,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
+          "line": 679,
           "sink": "setText"
         }
       ]
@@ -134821,7 +135506,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -135166,7 +135851,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -135690,9 +136375,9 @@
       "key": "Refresh from DMM",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 207,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 383,
+          "sink": "tr"
         }
       ]
     },
@@ -136826,7 +137511,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -139285,9 +139970,14 @@
       "key": "Replaces game file",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 448,
-          "sink": "python-return:_row_status_label"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 460,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1087,
+          "sink": "tr"
         }
       ]
     },
@@ -139406,7 +140096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -139421,7 +140111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -139461,7 +140151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -142251,7 +142941,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -146426,7 +147116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -148692,6 +149382,16 @@
       ]
     },
     {
+      "key": "Scan or load the game archives to match replaced vs. added files",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 887,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Scan or refresh workflow matching to see which DDS files use each profile.",
       "origins": [
         {
@@ -149836,7 +150536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 128,
+          "line": 132,
           "sink": "setPlaceholderText"
         }
       ]
@@ -150356,7 +151056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -151687,6 +152387,21 @@
       ]
     },
     {
+      "key": "Select a file to see active vs. overridden mods and source paths.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 493,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1173,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Select a grouped texture set on the left, then click 'Extract Selected Set'.",
       "origins": [
         {
@@ -152991,7 +153706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 786,
+          "line": 790,
           "sink": "information"
         }
       ]
@@ -153226,12 +153941,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 194,
+          "line": 198,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 674,
+          "line": 678,
           "sink": "setText"
         },
         {
@@ -156222,6 +156937,16 @@
       ]
     },
     {
+      "key": "Send .cdmw item packages to DMM and inspect mounted DMM mods and file overlaps.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "Send To",
       "origins": [
         {
@@ -157286,7 +158011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157296,7 +158021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157306,7 +158031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157316,7 +158041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157326,7 +158051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157336,7 +158061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157346,7 +158071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157356,7 +158081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157461,7 +158186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -157481,12 +158206,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -157511,7 +158236,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -158331,7 +159056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158361,7 +159086,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -158376,7 +159101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158386,7 +159111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -158610,9 +159335,9 @@
       "key": "Show DMM's mounted files in CDMW",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 199,
-          "sink": "QCheckBox"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 371,
+          "sink": "tr"
         }
       ]
     },
@@ -158641,7 +159366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 227,
+          "line": 231,
           "sink": "QPushButton"
         },
         {
@@ -158811,7 +159536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         },
         {
@@ -158885,9 +159610,9 @@
       "key": "Show Source File",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 264,
-          "sink": "QPushButton"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 533,
+          "sink": "tr"
         }
       ]
     },
@@ -159131,7 +159856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 230,
+          "line": 234,
           "sink": "setToolTip"
         }
       ]
@@ -159280,11 +160005,6 @@
       "key": "Show in Browse Archives",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 248,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/npc_finder/dialog.py",
           "line": 211,
           "sink": "QPushButton"
@@ -159298,6 +160018,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 512,
+          "sink": "tr"
         }
       ]
     },
@@ -159416,7 +160141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 228,
+          "line": 232,
           "sink": "setToolTip"
         }
       ]
@@ -159476,7 +160201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 178,
+          "line": 173,
           "sink": "setToolTip"
         }
       ]
@@ -164263,6 +164988,21 @@
           "path": "cdmw/ui/shell/model_library_bridge.py",
           "line": 470,
           "sink": "ArchivePreviewResult"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1199,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1203,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1209,
+          "sink": "tr"
         }
       ]
     },
@@ -165606,7 +166346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -166385,11 +167125,6 @@
           "sink": "setHeaderLabels"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 233,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 202,
           "sink": "setHeaderLabels"
@@ -166485,6 +167220,11 @@
           "sink": "QLabel"
         },
         {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 477,
+          "sink": "tr"
+        },
+        {
           "path": "tools/placement_studio/window_timing.py",
           "line": 40,
           "sink": "translate_active_ui_text"
@@ -166518,6 +167258,11 @@
           "path": "cdmw/ui/model_library/tasks.py",
           "line": 137,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1100,
+          "sink": "tr"
         }
       ]
     },
@@ -168381,7 +169126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         },
         {
@@ -168831,7 +169576,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -169501,7 +170246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -170001,7 +170746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -170551,7 +171296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
@@ -170581,7 +171326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -171501,7 +172246,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -171543,6 +172288,16 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 335,
           "sink": "getOpenFileNames"
+        }
+      ]
+    },
+    {
+      "key": "Textures (.dds)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 459,
+          "sink": "tr"
         }
       ]
     },
@@ -172105,9 +172860,9 @@
           "sink": "_show_dmm_status"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 681,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1456,
+          "sink": "tr"
         }
       ]
     },
@@ -172275,14 +173030,14 @@
       "key": "The Texture Editor is unavailable.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 736,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1526,
+          "sink": "tr"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 767,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1571,
+          "sink": "tr"
         }
       ]
     },
@@ -172291,7 +173046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -172411,7 +173166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -172421,7 +173176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -172431,7 +173186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173371,7 +174126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173661,7 +174416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173956,7 +174711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/saved_work_naming.py",
-          "line": 158,
+          "line": 162,
           "sink": "emit"
         }
       ]
@@ -177535,9 +178290,9 @@
       "key": "The selected file is added by the mod and does not exist in the game's archive index.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 660,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1432,
+          "sink": "tr"
         }
       ]
     },
@@ -179371,7 +180126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 28,
+          "line": 35,
           "sink": "setToolTip"
         }
       ]
@@ -179726,7 +180481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -180626,7 +181381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 714,
+          "line": 718,
           "sink": "setText"
         }
       ]
@@ -184166,7 +184921,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184286,7 +185041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184380,14 +185135,14 @@
       "key": "Turn on 'Show DMM's mounted files in CDMW' first.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 671,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1446,
+          "sink": "tr"
         },
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 727,
-          "sink": "_report_status"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1517,
+          "sink": "tr"
         }
       ]
     },
@@ -184685,11 +185440,6 @@
       "key": "Type",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 233,
-          "sink": "setHeaderLabels"
-        },
-        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 444,
           "sink": "setHeaderLabels"
@@ -184768,6 +185518,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 479,
+          "sink": "tr"
         }
       ]
     },
@@ -187506,7 +188261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 24,
+          "line": 31,
           "sink": "tr"
         }
       ]
@@ -187536,7 +188291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/tools/mod_management_advanced.py",
-          "line": 24,
+          "line": 31,
           "sink": "tr"
         }
       ]
@@ -188271,7 +189026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -188466,7 +189221,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -188591,7 +189346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -188646,7 +189401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -188981,7 +189736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189416,7 +190171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189871,7 +190626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -191236,7 +191991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 536,
+          "line": 540,
           "sink": "setToolTip"
         }
       ]
@@ -191776,7 +192531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -193115,6 +193870,11 @@
       "key": "Warning: {value_0}",
       "origins": [
         {
+          "path": "cdmw/services/dmm_mount_overlaps.py",
+          "line": 570,
+          "sink": "python-return:format_overlap_report"
+        },
+        {
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 485,
           "sink": "setToolTip"
@@ -194156,7 +194916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -194196,7 +194956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194216,7 +194976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194565,9 +195325,9 @@
       "key": "When checked, Browse Archives, Mesh Editor, Texture Editor, and Extract use the files DMM mounts instead of vanilla.",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 201,
-          "sink": "setToolTip"
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 374,
+          "sink": "tr"
         }
       ]
     },
@@ -194716,7 +195476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194756,7 +195516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194896,7 +195656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -194906,7 +195666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195171,7 +195931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195181,7 +195941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195191,7 +195951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195201,7 +195961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195211,7 +195971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195221,7 +195981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195231,7 +195991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195241,7 +196001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195251,7 +196011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195261,7 +196021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195421,7 +196181,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -195586,7 +196346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197351,7 +198111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -198206,7 +198966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199566,7 +200326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199656,12 +200416,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199671,7 +200431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199736,7 +200496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199766,7 +200526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -199952,6 +200712,16 @@
       ]
     },
     {
+      "key": "another mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1075,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "answers what a game format is, how far the current build can read or write it, and which Workbench tool owns the supported edit path.",
       "origins": [
         {
@@ -200076,7 +200846,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -200131,7 +200901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -200151,7 +200921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -201091,7 +201861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -202141,12 +202911,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -202196,7 +202966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -202271,7 +203041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -202771,7 +203541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -203206,7 +203976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -203216,7 +203986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -203346,7 +204116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -203366,7 +204136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -205861,27 +206631,27 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 420,
+          "line": 424,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 462,
+          "line": 466,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 483,
+          "line": 487,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 510,
+          "line": 514,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 772,
+          "line": 776,
           "sink": "setData"
         },
         {
@@ -206056,7 +206826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206066,7 +206836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206336,7 +207106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206471,7 +207241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206596,7 +207366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207701,7 +208471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207711,7 +208481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -207971,7 +208741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208106,7 +208876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208116,7 +208886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -208238,6 +209008,16 @@
           "path": "tools/placement_studio/viewport.py",
           "line": 1560,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "inspects what DMM currently mounts for the game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -208396,7 +209176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208416,7 +209196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208446,7 +209226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -208906,7 +209686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -209016,7 +209796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -209136,7 +209916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -209316,7 +210096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -210946,7 +211726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -210956,7 +211736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -211216,7 +211996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -211372,6 +212152,16 @@
       ]
     },
     {
+      "key": "multiple DMM mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1201,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "multiply",
       "origins": [
         {
@@ -211451,7 +212241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212471,7 +213261,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -213052,7 +213842,7 @@
       ]
     },
     {
-      "key": "on the Browse Archives toolbar or choose",
+      "key": "on the Browse Archives toolbar to jump to",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -213261,7 +214051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -213391,7 +214181,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -213401,7 +214191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -214261,7 +215051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -215016,7 +215806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -215026,7 +215816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -215498,6 +216288,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 331,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "reads DMM's mount list and checks enabled mods in DMM read-only to show which mods replace or add each file and where multiple enabled mods touch the same path.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
         }
       ]
     },
@@ -216726,7 +217526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -217181,7 +217981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -217191,7 +217991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -217802,6 +218602,16 @@
       ]
     },
     {
+      "key": "sends CDMW item packages to DMM, and",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 980,
+          "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
       "key": "separate",
       "origins": [
         {
@@ -217896,7 +218706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -220607,16 +221417,6 @@
       ]
     },
     {
-      "key": "to see every mounted file (both replaced game files and mod-added files), filter by mod or type, toggle DMM vs. vanilla with instant preview refresh, filter Browse Archives, or open mounted meshes and DDS textures directly.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 422,
-          "sink": "python-return:_build_archive_mesh_sections"
-        }
-      ]
-    },
-    {
       "key": "to see every row. Select a row to see its gap under the view.",
       "origins": [
         {
@@ -220946,7 +221746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -220956,7 +221756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -221597,7 +222397,7 @@
       ]
     },
     {
-      "key": "utilities mods cdmw cditem item package send dmm identities",
+      "key": "utilities mods cdmw cditem item package send dmm identities mounted overlaps conflicts",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -222486,7 +223286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -222506,7 +223306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1209,
+          "line": 1219,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -222601,7 +223401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -222611,7 +223411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1107,
+          "line": 1117,
           "sink": "python-return:_build_reference_sections"
         }
       ]
@@ -223738,6 +224538,11 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 230,
           "sink": "python-return:unknown_group_display_name"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1135,
+          "sink": "QTreeWidgetItem"
         }
       ]
     },
@@ -223957,16 +224762,6 @@
       ]
     },
     {
-      "key": "{value_0} ({value_1} replace game file(s), {value_2} added by mod, {value_3} kept vanilla).",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 402,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "{value_0} ({value_1}%)",
       "origins": [
         {
@@ -223996,17 +224791,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 301,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 305,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 657,
+          "line": 309,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
+          "line": 661,
           "sink": "setText"
         },
         {
@@ -224038,11 +224833,6 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 716,
           "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 413,
-          "sink": "addItem"
         },
         {
           "path": "cdmw/ui/archive_browser/filters.py",
@@ -224218,6 +225008,16 @@
           "path": "cdmw/services/old_install_removal.py",
           "line": 754,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} ({value_1}).",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 896,
+          "sink": "setText"
         }
       ]
     },
@@ -224506,7 +225306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 511,
+          "line": 515,
           "sink": "setData"
         },
         {
@@ -224601,7 +225401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 694,
+          "line": 698,
           "sink": "setText"
         }
       ]
@@ -224777,16 +225577,6 @@
       ]
     },
     {
-      "key": "{value_0} Matching mounted files against the game's archive index...",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 402,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "{value_0} MiB",
       "origins": [
         {
@@ -224888,16 +225678,6 @@
           "path": "cdmw/ui/new_item/effect_item_source.py",
           "line": 141,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} Scan or load the game archives to match replaced vs. added files.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py",
-          "line": 402,
-          "sink": "setText"
         }
       ]
     },
@@ -226012,6 +226792,26 @@
       ]
     },
     {
+      "key": "{value_0} files selected ({value_1} overlapping).",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1179,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} files selected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 1185,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "{value_0} files will change · {value_1} identical selections excluded",
       "origins": [
         {
@@ -226341,7 +227141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 845,
+          "line": 849,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -226657,6 +227457,11 @@
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
           "line": 124,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -227116,7 +227921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 666,
+          "line": 670,
           "sink": "setText"
         }
       ]
@@ -227457,6 +228262,46 @@
       ]
     },
     {
+      "key": "{value_0} overlap(s)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 927,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} overlapping file(s)",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 874,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} overridden",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 944,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} overrides",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 946,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "{value_0} package(s) found.",
       "origins": [
         {
@@ -227758,6 +228603,16 @@
           "path": "cdmw/ui/archive_browser/character_dependency_export.py",
           "line": 96,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} replace game file(s), {value_1} added by mod, {value_2} kept vanilla",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 880,
+          "sink": "tr"
         }
       ]
     },
@@ -228136,7 +228991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 548,
+          "line": 552,
           "sink": "setText"
         }
       ]
@@ -228663,6 +229518,16 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 251,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} win / {value_1} lost",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 942,
+          "sink": "tr"
         }
       ]
     },
@@ -229736,7 +230601,7 @@
         },
         {
           "path": "cdmw/services/dmm_runtime_mount.py",
-          "line": 124,
+          "line": 126,
           "sink": "python-return:short_mod_name"
         },
         {
@@ -231538,6 +232403,11 @@
           "path": "cdmw/ui/preview_widgets.py",
           "line": 427,
           "sink": "python-return:_format_media_preview_time"
+        },
+        {
+          "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
+          "line": 97,
+          "sink": "python-return:_row_storage_key"
         }
       ]
     },

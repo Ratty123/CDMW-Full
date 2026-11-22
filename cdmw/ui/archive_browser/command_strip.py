@@ -137,7 +137,7 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     # Compact Workspace hides the controls pane, so its panels open from here.
     panel_actions: dict[str, QAction] = {}
     edited_group = getattr(archive, "archive_edited_results_group", None)
-    if isinstance(edited_group, QGroupBox) or isinstance(dmm_mods, QAbstractButton):
+    if isinstance(edited_group, QGroupBox):
         actions_menu.addSeparator()
 
     def add_panel(group: QGroupBox, action: QAction, key: str, popup_name: str) -> None:
@@ -150,11 +150,6 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     if isinstance(edited_group, QGroupBox):
         add_panel(edited_group, actions_menu.addAction("Edited Results..."), "edited_results",
                   "CompactArchiveEditedResultsPanel")
-    if isinstance(dmm_mods, QAbstractButton):
-        dmm_action = actions_menu.addAction("DMM Mounted Mods...")
-        dmm_action.setToolTip(dmm_mods.toolTip())
-        dmm_action.triggered.connect(lambda _checked=False, source=dmm_mods: source.click())
-        panel_actions["dmm_mounted_mods"] = dmm_action
 
     def sync_actions() -> None:
         for action, source in action_pairs:

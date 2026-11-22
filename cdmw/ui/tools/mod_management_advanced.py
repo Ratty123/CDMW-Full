@@ -7,14 +7,21 @@ from PySide6.QtWidgets import QTabWidget
 class ModManagementPages(QTabWidget):
     task_changed = Signal()
 
-    def __init__(self, mods, repackage, merge, updates, parent=None):
+    def __init__(self, mods, repackage, merge, updates, parent=None, *, mounted=None):
         super().__init__(parent)
         self.setObjectName('mod_management_pages')
         self.setDocumentMode(True)
-        # Without the mod folder tools only Mods is a tab; the other owners stay
-        # parented here, hidden, for their existing callers.
+        # Without the mod folder tools, Item Packages and Mounted in DMM are shown;
+        # the retained folder-tool owners stay parented here, hidden, for callers.
         self._folder_tools = constants.MOD_FOLDER_TOOLS_ENABLED
-        self.addTab(mods, 'Mods')
+        mods_index = self.addTab(mods, self.tr('Item Packages'))
+        self.setTabToolTip(mods_index, self.tr('Manage .cdmw item packages and send them to DMM.'))
+        if mounted is not None:
+            mounted_index = self.addTab(mounted, self.tr('Mounted in DMM'))
+            self.setTabToolTip(
+                mounted_index,
+                self.tr('Inspect mods DMM mounts at run time, spot file overlaps, and open modded assets.'),
+            )
         self.task = QTabWidget()
         self.task.setDocumentMode(True)
         self.task.setObjectName('mod_management_package_task')
@@ -30,7 +37,8 @@ class ModManagementPages(QTabWidget):
         if self._folder_tools:
             self.addTab(self.task, 'Prepare packages')
         else:
-            self.tabBar().setVisible(False)
+            if self.count() <= 1:
+                self.tabBar().setVisible(False)
             self.task.setParent(self)
             self.task.hide()
 
