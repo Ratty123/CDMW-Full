@@ -1261,8 +1261,12 @@ impl LabApplication {
         if !self.cdmw_jiggle.preview.feedback.is_empty() {
             ui.small(&self.cdmw_jiggle.preview.feedback);
         }
-        if self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some() {
-            ui.ctx().request_repaint();
+        if self.cdmw_jiggle.preview.playing {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(16));
+        } else if self.cdmw_jiggle.preview.pending.is_some() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
         }
     }
 
@@ -1581,11 +1585,6 @@ impl LabApplication {
         if let Err(error) = result {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.feedback = format!("Motion preview stopped: {error}");
-        }
-        if self.cdmw_jiggle.preview.playing
-            && let Some(window) = &self.window
-        {
-            window.request_redraw();
         }
     }
 

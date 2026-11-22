@@ -37,6 +37,9 @@ class TransparencyPaintDialog(QDialog):
             (len(prepared.mask.pixels) + len(self._surface_history[0]))))
         self._reference = np.frombuffer(prepared.reference_rgba, dtype=np.uint8).reshape(
             prepared.mask.height, prepared.mask.width, 4)
+        self._resized_reference_cache = None
+        self._composite_rgba = None
+        self._last_composite_state_key = None
         self.document = TextureEditorDocument("Transparency mask", prepared.mask.width, prepared.mask.height,
             active_layer_id="mask", layers=(TextureEditorLayer("mask", "Mask", "", alpha_locked=True),))
         layout = QVBoxLayout(self)
@@ -153,6 +156,19 @@ class TransparencyPaintDialog(QDialog):
     def _channel(self):
         return int(self._dual and self.target.currentIndex() == 1)
 
+    def _reference_for_shape(self, height: int, width: int) -> np.ndarray:
+        if self._reference.shape[:2] == (height, width):
+            return self._reference
+        key = (id(self._reference), height, width)
+        cached = self._resized_reference_cache
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        from PIL import Image
+
+        resized = np.asarray(Image.fromarray(self._reference).resize((width, height), Image.Resampling.BILINEAR))
+        self._resized_reference_cache = (key, resized)
+        return resized
+
     def _pixels(self, channel=None):
         channel = self._channel() if channel is None else channel
         mask = self._surface_initial if channel else self._initial
@@ -162,17 +178,51 @@ class TransparencyPaintDialog(QDialog):
         rgba[..., :3], rgba[..., 3] = plane[..., None], 255
         return rgba
 
-    def _refresh(self, *_args):
-        image = self._pixels()
-        self.document = replace(self.document, width=image.shape[1], height=image.shape[0])
-        if self.view.currentIndex() == 0:
-            reference = self._reference
-            if reference.shape[:2] != image.shape[:2]:
-                from PIL import Image
-                reference = np.asarray(Image.fromarray(reference).resize((image.shape[1], image.shape[0]), Image.Resampling.BILINEAR))
-            weight = image[..., :1].astype(np.float32) / 510.
-            image[..., :3] = np.round(reference[..., :3] * (1. - weight) + np.array([255, 45, 20]) * weight).astype(np.uint8)
-        self.canvas.set_rgba_images(image)
+    def _refresh(self, *_args, dirty_bounds=None):
+        channel = self._channel()
+        mask = self._surface_initial if channel else self._initial
+        history = self._surface_history if channel else self._history
+        plane = np.frombuffer(history[self._history_index], dtype=np.uint8).reshape(mask.height, mask.width)
+        height, width = plane.shape
+        view_mode = self.view.currentIndex()
+        state_key = (id(self._reference), height, width, view_mode)
+        self.document = replace(self.document, width=width, height=height)
+        reusable = (
+            self._composite_rgba is not None
+            and self._composite_rgba.shape == (height, width, 4)
+            and self._last_composite_state_key == state_key
+        )
+        if not reusable:
+            self._composite_rgba = np.empty((height, width, 4), dtype=np.uint8)
+            self._composite_rgba[..., 3] = 255
+            self._last_composite_state_key = state_key
+            dirty_bounds = None
+
+        if dirty_bounds is not None:
+            bx, by, bw, bh = (int(v) for v in dirty_bounds)
+            x0, y0 = max(0, bx), max(0, by)
+            x1, y1 = min(width, bx + max(0, bw)), min(height, by + max(0, bh))
+            if x1 <= x0 or y1 <= y0:
+                return
+            slice_plane = plane[y0:y1, x0:x1]
+            target = self._composite_rgba[y0:y1, x0:x1]
+            if view_mode == 0:
+                ref_slice = self._reference_for_shape(height, width)[y0:y1, x0:x1, :3]
+                weight = slice_plane[..., None].astype(np.float32) / 510.
+                target[..., :3] = np.round(ref_slice * (1. - weight) + np.array([255, 45, 20]) * weight).astype(np.uint8)
+            else:
+                target[..., :3] = slice_plane[..., None]
+            target[..., 3] = 255
+            self.canvas.set_rgba_images(self._composite_rgba, dirty_bounds=(x0, y0, x1 - x0, y1 - y0))
+        else:
+            if view_mode == 0:
+                ref = self._reference_for_shape(height, width)[..., :3]
+                weight = plane[..., None].astype(np.float32) / 510.
+                self._composite_rgba[..., :3] = np.round(ref * (1. - weight) + np.array([255, 45, 20]) * weight).astype(np.uint8)
+            else:
+                self._composite_rgba[..., :3] = plane[..., None]
+            self._composite_rgba[..., 3] = 255
+            self.canvas.set_rgba_images(self._composite_rgba)
         self.undo_button.setEnabled(self._history_index > 0)
         self.redo_button.setEnabled(self._history_index + 1 < len(self._history))
         self.message.setText(f"Mask: {self.document.width} × {self.document.height}. Red shows fade. Scroll to zoom; middle-drag to pan. Mirrored, overlapping and tiled UVs share paint.")
@@ -180,7 +230,7 @@ class TransparencyPaintDialog(QDialog):
     def _remember(self, pixels):
         self._edit(lambda _pixels, _mask, _channel: pixels)
 
-    def _edit(self, operation):
+    def _edit(self, operation, *, dirty_bounds=None):
         if self._io_active:
             return
         colour, surface = self._history[self._history_index], self._surface_history[self._history_index]
@@ -210,12 +260,20 @@ class TransparencyPaintDialog(QDialog):
         self._surface_history = self._surface_history[-self._history_limit:]
         self._edited_history = self._edited_history[-self._history_limit:]
         self._history_index = len(self._history) - 1
-        self._refresh()
+        self._refresh(dirty_bounds=dirty_bounds)
 
     def _stroke(self, payload):
         if not isinstance(payload, dict) or not payload.get("points"):
             return
-        self._edit(self._stroke_operation(payload["points"]))
+        points = payload["points"]
+        xs = [float(p[0]) for p in points]
+        ys = [float(p[1]) for p in points]
+        radius = int(max(1, self.brush_size.value())) // 2 + 4
+        x0 = max(0, int(min(xs)) - radius)
+        y0 = max(0, int(min(ys)) - radius)
+        x1 = int(max(xs)) + radius + 1
+        y1 = int(max(ys)) + radius + 1
+        self._edit(self._stroke_operation(points), dirty_bounds=(x0, y0, max(1, x1 - x0), max(1, y1 - y0)))
 
     def _stroke_operation(self, points):
         shade = f"{self.value.value():02X}"

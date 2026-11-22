@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 import re
 
-from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QBrush, QColor, QDesktopServices, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -546,8 +546,15 @@ class DmmMountedModsPage(QWidget):
         self.open_mod_folder_button.clicked.connect(self.open_selected_mod_folder)
         self.mod_tree.itemSelectionChanged.connect(self._on_mod_selection_changed)
         self.mod_tree.customContextMenuRequested.connect(self._mod_tree_context_menu)
-        self.search_edit.textChanged.connect(lambda _text: self._populate_tree())
-        self.kind_combo.currentIndexChanged.connect(lambda _idx: self._populate_tree())
+        self._search_interactive = False
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(150)
+        self._search_timer.timeout.connect(self._populate_tree)
+        self.search_edit.textEdited.connect(self._on_search_text_edited)
+        self.search_edit.textChanged.connect(self._on_search_text_changed)
+        self.search_edit.returnPressed.connect(self._flush_search_filter)
+        self.kind_combo.currentIndexChanged.connect(self._on_kind_changed)
         self.file_tree.itemSelectionChanged.connect(self._on_file_selection_changed)
         self.file_tree.itemDoubleClicked.connect(self._handle_double_click)
         self.filter_browse_button.clicked.connect(self.filter_browse_archives)
@@ -1109,7 +1116,30 @@ class DmmMountedModsPage(QWidget):
         lines.append(self.tr("DMM file: {value_0}").format(value_0=str(row.source)))
         return "\n".join(lines)
 
+    def _on_search_text_edited(self, _text: str = "") -> None:
+        self._search_interactive = True
+        self._search_timer.start()
+
+    def _on_search_text_changed(self, _text: str = "") -> None:
+        if self._search_interactive:
+            self._search_interactive = False
+            return
+        self._search_timer.stop()
+        self._populate_tree()
+
+    def _flush_search_filter(self) -> None:
+        if self._search_timer.isActive():
+            self._search_timer.stop()
+            self._populate_tree()
+
+    def _on_kind_changed(self, _index: int = 0) -> None:
+        self._search_timer.stop()
+        self._populate_tree()
+
     def _populate_tree(self) -> None:
+        timer = getattr(self, "_search_timer", None)
+        if timer is not None:
+            timer.stop()
         selected_keys = {
             str(item.data(0, Qt.ItemDataRole.UserRole + 1) or "")
             for item in self.file_tree.selectedItems()
@@ -1124,8 +1154,11 @@ class DmmMountedModsPage(QWidget):
 
         sorting = self.file_tree.isSortingEnabled()
         self.file_tree.setSortingEnabled(False)
+        self.file_tree.setUpdatesEnabled(False)
         try:
             self.file_tree.clear()
+            items: list[QTreeWidgetItem] = []
+            to_select: list[QTreeWidgetItem] = []
             for row in visible:
                 name = PurePosixPath(row.game_path).name
                 status, role = self._row_status_label_and_role(row)
@@ -1141,11 +1174,16 @@ class DmmMountedModsPage(QWidget):
                 tip = self._row_tooltip(row, status)
                 for col in range(5):
                     item.setToolTip(col, tip)
-                self.file_tree.addTopLevelItem(item)
+                items.append(item)
                 if row_key in selected_keys:
+                    to_select.append(item)
+            if items:
+                self.file_tree.addTopLevelItems(items)
+                for item in to_select:
                     item.setSelected(True)
         finally:
             self.file_tree.setSortingEnabled(sorting)
+            self.file_tree.setUpdatesEnabled(True)
         self._sync_buttons()
         self._update_detail_bar()
 

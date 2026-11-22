@@ -151,7 +151,8 @@ class DotNetPreviewHostProtocolMixin:
             if force_frame_refresh:
                 flags |= 0x0020  # SWP_FRAMECHANGED: settle a child resized while hidden.
             child_window_mover(lambda: _typed_user32()).move(
-                hwnd, int(owner_pid.value), width, height, flags
+                hwnd, int(owner_pid.value), width, height, flags,
+                user32_loader=lambda: _typed_user32(),
             )
         except (OSError, AttributeError, ValueError):
             # Never let a geometry sync take the preview down; the helper's own

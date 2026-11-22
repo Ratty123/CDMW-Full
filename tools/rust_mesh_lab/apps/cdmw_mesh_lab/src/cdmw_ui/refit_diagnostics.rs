@@ -469,10 +469,17 @@ impl LabApplication {
         let was_coloured = self.view_mode == ViewMode::PartId;
         let was_islands = self.cdmw_island_colours;
         if mode == ViewMode::PartId && !was_coloured {
-            self.cdmw_part_colours_previous_mode = self.view_mode;
+            // The mode asked for, not the Faces a session without textures draws for
+            // it: turning the colours off again must not turn that fallback into a choice.
+            self.cdmw_part_colours_previous_mode = self.cdmw_preferred_view_mode();
         }
+        // A mode chosen here replaces whatever a session without textures fell back from.
+        self.cdmw_textured_view_mode_wanted = None;
         self.view_mode = mode;
         self.cdmw_island_colours = false;
+        if self.cdmw_mode() {
+            self.follow_cdmw_texture_availability();
+        }
         if was_coloured != (mode == ViewMode::PartId) || was_islands {
             self.refresh_cdmw_mesh_display();
         }

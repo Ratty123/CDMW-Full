@@ -66,8 +66,8 @@ def test_one_update_in_flight_per_texture_and_the_latest_edit_wins(tmp_path: Pat
     assert _wait(app, lambda: len(sent) == 2)
     assert sent[1]["revision"] == 3
     live.acknowledge({"source_sha256": SHA, "revision": 3, "ok": True})
-    # The superseded file is removed; the shown one stays.
-    assert not (tmp_path / first["file"]).exists()
+    # The superseded file is removed asynchronously; the shown one stays.
+    assert _wait(app, lambda: not (tmp_path / first["file"]).exists())
     assert (tmp_path / sent[1]["file"]).is_file()
 
 

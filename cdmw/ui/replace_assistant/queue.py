@@ -5,7 +5,7 @@ from enum import IntEnum
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Sequence
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import Qt, QThread, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -817,29 +817,67 @@ class ReplaceAssistantQueueMixin:
         button_row.addWidget(cancel_button)
         layout.addLayout(button_row)
 
-        def populate_results(filter_text: str) -> None:
-            needle = filter_text.strip().lower()
-            results_list.clear()
+        indexed_entries = [(entry, entry.basename.lower(), entry.path.lower()) for entry in archive_entries]
+
+        def populate_results(filter_text: Optional[str] = None) -> None:
+            needle = (filter_edit.text() if filter_text is None else filter_text).strip().lower()
             ranked: List[ArchiveEntry]
             if needle:
-                basename_matches = [entry for entry in archive_entries if needle in entry.basename.lower()]
-                path_matches = [entry for entry in archive_entries if needle in entry.path.lower() and entry not in basename_matches]
-                ranked = basename_matches + path_matches
+                basename_matches: List[ArchiveEntry] = []
+                path_matches: List[ArchiveEntry] = []
+                for entry, base_lower, path_lower in indexed_entries:
+                    if needle in base_lower:
+                        basename_matches.append(entry)
+                        if len(basename_matches) >= 500:
+                            break
+                    elif needle in path_lower and len(basename_matches) + len(path_matches) < 500:
+                        path_matches.append(entry)
+                ranked = (basename_matches + path_matches)[:500]
             else:
-                ranked = list(archive_entries)
-            for entry in ranked[:500]:
-                list_item = QListWidgetItem(f"{entry.package_label} | {entry.path}")
-                list_item.setData(Qt.UserRole, entry)
-                results_list.addItem(list_item)
-            if results_list.count():
-                results_list.setCurrentRow(0)
+                ranked = [entry for entry, _b, _p in indexed_entries[:500]]
+            results_list.setUpdatesEnabled(False)
+            try:
+                results_list.clear()
+                for entry in ranked:
+                    list_item = QListWidgetItem(f"{entry.package_label} | {entry.path}")
+                    list_item.setData(Qt.UserRole, entry)
+                    results_list.addItem(list_item)
+                if results_list.count():
+                    results_list.setCurrentRow(0)
+            finally:
+                results_list.setUpdatesEnabled(True)
             choose_button.setEnabled(results_list.currentItem() is not None)
 
+        filter_timer = QTimer(dialog)
+        filter_timer.setSingleShot(True)
+        filter_timer.setInterval(150)
+        filter_timer.timeout.connect(populate_results)
+        interactive_edit = [False]
+
+        def on_filter_edited(_text: str) -> None:
+            interactive_edit[0] = True
+            filter_timer.start()
+
+        def on_filter_changed(text: str) -> None:
+            if interactive_edit[0]:
+                interactive_edit[0] = False
+                return
+            filter_timer.stop()
+            populate_results(text)
+
+        def flush_filter() -> None:
+            if filter_timer.isActive():
+                filter_timer.stop()
+                populate_results()
+
         def accept_current() -> None:
+            flush_filter()
             if results_list.currentItem() is not None:
                 dialog.accept()
 
-        filter_edit.textChanged.connect(populate_results)
+        filter_edit.textEdited.connect(on_filter_edited)
+        filter_edit.textChanged.connect(on_filter_changed)
+        filter_edit.returnPressed.connect(flush_filter)
         results_list.itemSelectionChanged.connect(lambda: choose_button.setEnabled(results_list.currentItem() is not None))
         results_list.itemDoubleClicked.connect(lambda _item: accept_current())
         choose_button.clicked.connect(accept_current)

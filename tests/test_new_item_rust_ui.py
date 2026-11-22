@@ -239,3 +239,75 @@ def test_uniform_toggle_and_external_placement_keep_independent_edits_intact(pla
     assert controller.model_placement == ModelPlacement()
     _send(bridge, panel.scale_spins[2], "number", 2)
     assert controller.model_placement.scale == (2, 2, 2)
+
+
+def test_rust_new_item_tab_omits_unchanged_png_hex_and_resends_after_eviction(studio):
+    from cdmw.ui.new_item.rust_ui_tab import RustNewItemStudioTab
+
+    _fixture, tab, _bridge = studio
+    host_tab = RustNewItemStudioTab(workflow=tab)
+    sent: list[dict] = []
+    fake_proc = SimpleNamespace(state=lambda: QProcess.Running, bytesToWrite=lambda: 0)
+    asset_payload = {"png_hex": "89504e47", "width": 2, "height": 2}
+    asset_state = [
+        {"protocol": PROTOCOL, "type": "state", "session": "s", "generation": 1,
+         "root": {"id": "root", "kind": "column"}, "dialogs": [], "assets": {"img-a": asset_payload},
+         "theme": {}},
+    ]
+
+    class _FakeBridge:
+        session = "s"
+
+        def snapshot(self):
+            return dict(asset_state[0])
+
+    host_tab._bridge = _FakeBridge()
+    host_tab._process = fake_proc
+    host_tab._rust_mode = True
+    host_tab._ready = True
+    host_tab._send = lambda msg: sent.append(dict(msg))
+    host_tab.show()
+    try:
+        # First send includes full png_hex.
+        host_tab._publish_state()
+        assert len(sent) == 1
+        assert sent[0]["assets"]["img-a"]["png_hex"] == "89504e47"
+        host_tab._received_generation = host_tab._sent_generation
+
+        # Same state snapshot skips sending completely.
+        asset_state[0]["generation"] = 2
+        host_tab._publish_state()
+        assert len(sent) == 1
+
+        # UI change keeping img-a sends dimensions only without png_hex.
+        asset_state[0] = {
+            **asset_state[0], "generation": 3,
+            "root": {"id": "root", "kind": "column", "title": "changed"},
+            "assets": {"img-a": dict(asset_payload), "img-b": {"png_hex": "deadbeef", "width": 4, "height": 4}},
+        }
+        host_tab._publish_state()
+        assert len(sent) == 2
+        assert "png_hex" not in sent[1]["assets"]["img-a"]
+        assert sent[1]["assets"]["img-a"] == {"width": 2, "height": 2}
+        assert sent[1]["assets"]["img-b"]["png_hex"] == "deadbeef"
+        host_tab._received_generation = host_tab._sent_generation
+
+        # Evict img-b in frame 3, then bring it back in frame 4 -> png_hex must be re-sent.
+        asset_state[0] = {
+            **asset_state[0], "generation": 4,
+            "assets": {"img-a": dict(asset_payload)},
+        }
+        host_tab._publish_state()
+        host_tab._received_generation = host_tab._sent_generation
+        asset_state[0] = {
+            **asset_state[0], "generation": 5,
+            "assets": {"img-a": dict(asset_payload), "img-b": {"png_hex": "deadbeef", "width": 4, "height": 4}},
+        }
+        host_tab._publish_state()
+        assert sent[-1]["assets"]["img-b"]["png_hex"] == "deadbeef"
+    finally:
+        host_tab._timer.stop()
+        host_tab._startup_deadline.stop()
+        host_tab._stop_deadline.stop()
+        host_tab.deleteLater()
+        QApplication.processEvents()

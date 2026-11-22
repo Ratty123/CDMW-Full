@@ -29,6 +29,10 @@ from cdmw.ui.mesh_editor.saved_work_sources import (
 
 SOURCE_POLL_INTERVAL_MS = 250
 SOURCE_POLL_TIMEOUT_SECONDS = 90.0
+#: How long Continue Editing waits for Browse's textured preview once the file is
+#: prepared, as Open in Mesh Editor waits for the full preview; then it opens on
+#: what there is.
+TEXTURE_WAIT_SECONDS = 60.0
 
 
 class MeshEditorSavedWorkBridgeMixin:
@@ -86,7 +90,12 @@ class MeshEditorSavedWorkBridgeMixin:
         if isinstance(current, ArchiveEntry) and normalized_archive_path(current.path) == wanted:
             context = self._mesh_saved_work_dependencies(current)
             if context is not None:
-                self._prepare_mesh_saved_work_launch(row, context)
+                pending = self._new_mesh_saved_work_wait(row, wanted)
+                if not self._mesh_saved_work_waits_for_textures(pending, current):
+                    self._prepare_mesh_saved_work_launch(row, context)
+                    return
+                # Selected already, but its textured preview is still on the way.
+                self._start_mesh_saved_work_source_wait(pending)
                 return
         self.set_status_message(f"Finding {Path(row.source_archive_path).name} in the game files...")
         self._mesh_saved_work_resolver().resolve(
@@ -149,12 +158,20 @@ class MeshEditorSavedWorkBridgeMixin:
         if entry_id is None or not bridge.apply_entry_id_scope((entry_id,), label=f"Continue editing {name}"):
             self.set_status_message(f"Select {name} in Archive Browser, then choose Continue Editing again.", error=True)
             return
-        self._mesh_saved_work_pending = {
+        self._start_mesh_saved_work_source_wait(self._new_mesh_saved_work_wait(row, wanted))
+        self.set_status_message(f"Preparing {name} in Archive Browser before Mesh Editor opens...")
+
+    @staticmethod
+    def _new_mesh_saved_work_wait(row: SavedWorkRow, wanted: str) -> dict[str, object]:
+        return {
             "row": row,
             "path": wanted,
             "deadline": time.monotonic() + SOURCE_POLL_TIMEOUT_SECONDS,
             "preview_requested": False,
         }
+
+    def _start_mesh_saved_work_source_wait(self, pending: dict[str, object]) -> None:
+        self._mesh_saved_work_pending = pending
         timer = getattr(self, "_mesh_saved_work_source_timer", None)
         if timer is None:
             timer = QTimer(self)
@@ -162,7 +179,43 @@ class MeshEditorSavedWorkBridgeMixin:
             timer.timeout.connect(self._poll_mesh_saved_work_source)
             self._mesh_saved_work_source_timer = timer
         timer.start()
-        self.set_status_message(f"Preparing {name} in Archive Browser before Mesh Editor opens...")
+
+    def _mesh_saved_work_waits_for_textures(self, pending: dict[str, object], entry: ArchiveEntry) -> bool:
+        """Whether Browse's textured preview of ``entry`` is still on its way.
+
+        The Mesh Editor takes a file's layered materials (dyes, detail layers, tints)
+        from the preview Browse Archives shows of it, and Open in Mesh Editor waits for
+        that preview. Continue Editing opened as soon as the file's dependencies were
+        prepared. After a restart that is before the preview exists, so the draft came
+        back with its raw textures in the wrong colours (Fredric, 2026-11-22).
+        """
+
+        package_for = getattr(self, "_mesh_editor_active_textured_package_for_entry", None)
+        if not callable(package_for) or package_for(entry) is not None:
+            return False
+        now = time.monotonic()
+        started = pending.setdefault("texture_wait_started", now)
+        if now - float(started) > TEXTURE_WAIT_SECONDS:
+            return False  # open on what there is, as Open in Mesh Editor does after its wait
+        if not pending.get("texture_wait_told"):
+            pending["texture_wait_told"] = True
+            # The status Open in Mesh Editor shows for the same wait.
+            self.set_status_message("Resolving this mesh's textures before Mesh Editor opens...")
+        archive = self.archive
+        interim = getattr(self, "_archive_preview_interim_for", None)
+        if callable(interim) and interim(entry):
+            return True  # a quick preview is shown and the full one is being built
+        if getattr(archive, "archive_preview_worker", None) is not None:
+            return True  # the preview itself is still being prepared
+        if bool(getattr(archive, "_archive_texture_request_loading", False)):
+            return True
+        if pending.get("textures_requested"):
+            return False  # asked once and it ended without textures: there are none to wait for
+        request = getattr(archive, "_request_archive_preview_textures", None)
+        if not callable(request):
+            return False
+        pending["textures_requested"] = True
+        return bool(request(automatic=True))
 
     def _cancel_mesh_saved_work_source_wait(self) -> None:
         self._mesh_saved_work_pending = None
@@ -180,6 +233,8 @@ class MeshEditorSavedWorkBridgeMixin:
         if isinstance(current, ArchiveEntry) and normalized_archive_path(current.path) == pending["path"]:
             context = self._mesh_saved_work_dependencies(current)
             if context is not None:
+                if self._mesh_saved_work_waits_for_textures(pending, current):
+                    return
                 self._cancel_mesh_saved_work_source_wait()
                 self._prepare_mesh_saved_work_launch(row, context)
                 return

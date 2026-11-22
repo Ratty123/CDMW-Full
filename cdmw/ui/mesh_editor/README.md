@@ -1,11 +1,11 @@
 # Mesh Editor
 
-Archive overlay export, installation and restoration are disabled following the
-October 2026 DLC update. Build Mod offers DMM loose packages only;
-saved DMM archive-group choices return to loose output. Additional-hairstyle
-packages depend on the disabled overlay route and cannot be exported. Overlay
-implementation details below describe retained code, not available UI actions.
-Viewport selection, physics and other visual overlays are unaffected.
+Archive overlay installation and restoration in-place remain disabled following
+the October 2026 DLC update. Build Mod offers DMM loose packages for ordinary
+meshes (saved DMM archive-group choices return to loose output), plus DMM
+additive, full-table, and loose replacement packages for Hair Tools
+hairstyles, with optional direct Send to DMM. Viewport selection, physics and
+other visual overlays are unaffected.
 
 ## Contents
 
@@ -732,10 +732,18 @@ finish. Start waits for the selected hairstyle's own check.
 
 Start prepares a complete replacement in isolation before the existing unsaved
 work confirmation and scene switch. Cancellation and failed preparation preserve
-the current scene; **Retry loading choices** restarts preparation. An active
-generated hairstyle can start empty as one undoable edit without reopening its
-archive target. Procedural hairstyle presets have been removed; existing saved
-hair keeps its geometry. Repeated Create requests use the same route.
+the current scene; **Retry loading choices** restarts preparation. In Create
+mode, the compact setup dialog keeps **Keep donor scalp cap** enabled by default
+(preserving `*_Hair_Base_*` / scalp submeshes as rigid existing locks while
+clearing donor card sections) and offers **Choose donor material & textures...**
+to expand the gallery and pick which donor hairstyle supplies the material and
+strand atlas. An active generated hairstyle can start empty as one undoable edit
+without reopening its archive target, or fill a **Cropped**, **Bob**, **Long** or
+**Ponytail** starter shape with **Starter length** under **Setup**. Repeated
+Create requests bypass isolation when donor-material and scalp-cap choices match
+the open session. Under **Setup**, **Import custom hair mesh…** converts the
+hair session into an Import Replacement flow for GLB/FBX/OBJ meshes (cancelling
+or failing import leaves the active hair authoring state untouched).
 
 ### Selection and grooming
 
@@ -818,9 +826,13 @@ scalp. This explicitly combines selected sections sharing a material. Changed se
 without valid guides remain blocked. Mark rigid scalp pieces as rigid.
 
 Preparation controls remain available after every section has been assigned, so roots
-and rigid attachments can be corrected without resetting the hairstyle. Draw and
-follower density are available for generated hair; unsupported controls explain that
-limitation. Existing locks support grooming, cutting and deletion once bound.
+and rigid attachments can be corrected without resetting the hairstyle. **Draw**
+works in both Create and Edit hairstyles (Hybrid Mode appends generated locks
+with `-1` vertex provenance and transferred weights while preserving exact donor
+weights, offsets, triangles and UVs on surviving original vertices). Multi-section
+donors expose **Target section**, and **Strand card** (filtering out negative-U
+atlas outliers) selects which donor card strip new strokes or selected generated
+locks use. Existing locks support grooming, cutting and deletion once bound.
 
 ### Setup and references
 
@@ -864,8 +876,9 @@ running; completed edits remain ordered and bounded.
 ### Texture editing
 
 **Appearance > Background color** changes the viewport backdrop. **Hair color > Apply
-hair color** recolors every original base-color DDS together as one undoable edit. It
-starts from the captured originals each time, so repeated color changes retain strand
+hair color** recolors every original base-color DDS together as one undoable edit
+and updates the active preview textures and mod payload together. It starts
+from the captured originals each time, so repeated color changes retain strand
 detail and can recover from black. This replaces in-session edits to those color maps;
 Undo restores them. Recoloring retains the DDS headers, compression, dimensions and
 authored mip levels. BC2/BC3 transparency blocks stay byte-for-byte identical; other
@@ -914,19 +927,35 @@ without decoding the complete hair document again.
 
 ### Package output
 
+Build Mod offers **Add New Barber Hairstyle (DMM Additive)** (default, emitting
+DMM `CDMW items - shops and groups.json` operations for `partprefabtable.pappt`
+and `.xml.patch` patches for `meshparam_example_*.xml`), **Replace Existing
+Hairstyle (DMM Loose Mod)** (writing normalized PAC and DDS overlays at the
+donor's original archive paths), and **Add New Barber Hairstyle (Full Tables
+Archive)** as a compatible fallback. Users can customize the generated asset stem, supply an
+optional custom barber icon (PNG/JPG/WEBP/BMP/DDS transcoded to match the
+character's donor icon DDS layout), and send directly to `DMM\mods\<ModName>`.
+Clean mod roots place internal authoring/history data under `meta/cdmw-history/`
+with `generator` set to `"Crimson Desert Mod Workbench"`, normalize PartialDDS
+sizes for DMM loading, and register Hair Tools builds in Drafts & Mods saved
+work alongside overlay-mounted DMM/legacy archive sources.
+
 Packages retain the additional-choice contract, automatically allocate distinct internal
 identities and use the readable name in their manifest. Existing barber slots, including
 mod-added duplicates, remain byte-for-byte unchanged; the new choice inherits the first
-matching donor slot's settings and icon. Retained PAC vertices preserve their original
-skeletal and cloth-guide records when reshaped, cut or deleted. Generated geometry
-always transfers skinning from an immutable original PAC donor matched by stable part
-identity, including after consecutive Draw strokes, Undo/Redo and reopening.
+matching donor slot's settings and icon (or the custom icon when provided). Retained PAC
+vertices preserve their original skeletal and cloth-guide records when reshaped, cut,
+mixed with drawn locks in Hybrid Mode, or deleted. Generated geometry transfers skinning
+from an immutable original PAC donor matched by stable part identity, including after
+consecutive Draw strokes, Undo/Redo and reopening.
 
 Generated vertices needing five or six bone weights use ordinary skin records;
 compatible cloth bindings remain intact. The 40-byte PAC layout guard remains in force.
-Drafts can be reopened and saved repeatedly without losing part identities. A multi-LOD
-donor is blocked until its writer is verified. Installed archives stay read-only.
-In-game barber selection, save/load, headgear and motion remain unverified.
+Drafts can be reopened and saved repeatedly without losing part identities (including
+newly started drafts from `prepare_hair_editor_session`). A multi-LOD donor is blocked
+until its writer is verified. Installed archives stay read-only. In-game barber
+selection, additive/loose loading, custom icons, save/load, headgear and motion
+remain unverified and not tested in game.
 
 ## Replacement workflow
 

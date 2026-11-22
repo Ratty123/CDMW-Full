@@ -264,7 +264,7 @@ fn load_images(context: &egui::Context, view: &mut PresentationView, state: &Sta
         if view.textures.contains_key(id) {
             continue;
         }
-        if image.png_hex.len() % 2 != 0 {
+        if image.png_hex.is_empty() || image.png_hex.len() % 2 != 0 {
             bail!("Invalid New Item image encoding");
         }
         let bytes: Result<Vec<_>, _> = image
@@ -337,7 +337,7 @@ pub(crate) struct Application {
     context: egui::Context,
     window: Option<Arc<Window>>,
     input: Option<egui_winit::State>,
-    renderer: Option<cdmw_render_wgpu::WindowRenderer>,
+    renderer: Option<cdmw_render_wgpu::EguiWindowRenderer>,
     state: Option<State>,
     view: PresentationView,
     textures: egui::TexturesDelta,
@@ -439,18 +439,19 @@ impl Application {
         }
     }
 
-    fn make_renderer(&self, window: Arc<Window>) -> Result<cdmw_render_wgpu::WindowRenderer> {
+    fn make_renderer(&self, window: Arc<Window>) -> Result<cdmw_render_wgpu::EguiWindowRenderer> {
         if let Some(gpu) = &self.shared_gpu
-            && let Ok(renderer) = cdmw_render_wgpu::WindowRenderer::new_on(gpu, window.clone())
+            && let Ok(renderer) = cdmw_render_wgpu::EguiWindowRenderer::new_on(gpu, window.clone())
         {
             return Ok(renderer);
         }
-        Ok(pollster::block_on(cdmw_render_wgpu::WindowRenderer::new(
-            window,
-        ))?)
+        Ok(pollster::block_on(
+            cdmw_render_wgpu::EguiWindowRenderer::new(window),
+        )?)
     }
 
-    fn poll(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+    fn poll_messages(&mut self, event_loop: &ActiveEventLoop) -> Result<bool> {
+        let mut changed = false;
         while let Ok(message) = self.receiver.try_recv() {
             let message = message.map_err(|error| anyhow::anyhow!(error))?;
             if message["protocol"] != PROTOCOL || message["session"] != self.session {
@@ -481,11 +482,13 @@ impl Application {
                         &json!({"protocol":PROTOCOL,"type":"state_received","session":self.session,"generation":state.generation}),
                     )?;
                     self.state = Some(state);
+                    changed = true;
                 }
                 Some("rejected") => {
                     self.view.reject_edits();
                     self.in_flight = None;
                     self.requests.clear();
+                    changed = true;
                 }
                 Some("shutdown") => {
                     self.exit(event_loop);
@@ -494,13 +497,22 @@ impl Application {
                     if let Some(window) = &self.window {
                         let _ = cdmw_win32_embed::focus_child_window(window);
                     }
+                    changed = true;
                 }
                 Some("ack") => {}
                 _ => bail!("Unknown New Item host message"),
             }
         }
         self.send_next()?;
-        if let Some(window) = &self.window {
+        Ok(changed)
+    }
+
+    fn poll(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+        let changed = self.poll_messages(event_loop)?;
+        if changed
+            && let Some(window) = &self.window
+            && window.is_visible() != Some(false)
+        {
             window.request_redraw();
         }
         Ok(())
@@ -939,5 +951,38 @@ mod layout_input_tests {
         rebase_pending_inputs(&mut requests, &final_drag, &state);
         assert_eq!(requests.front().unwrap().action, "close_dialog");
         assert_eq!(requests.front().unwrap().revision, 9);
+    }
+
+    #[test]
+    fn omitted_png_hex_keeps_cached_texture_and_rejects_uncached_asset() {
+        let context = egui::Context::default();
+        let mut view = PresentationView::default();
+        let cached = context.load_texture(
+            "thumb",
+            egui::ColorImage::filled([2, 2], egui::Color32::WHITE),
+            egui::TextureOptions::LINEAR,
+        );
+        view.textures.insert("thumb".to_owned(), cached);
+        let state: State = serde_json::from_value(json!({
+            "protocol": PROTOCOL,
+            "session": "img-cache",
+            "generation": 1,
+            "root": {"id": "root", "kind": "column"},
+            "assets": {"thumb": {"width": 2, "height": 2}}
+        }))
+        .unwrap();
+        assert!(state.assets["thumb"].png_hex.is_empty());
+        load_images(&context, &mut view, &state).unwrap();
+        assert!(view.textures.contains_key("thumb"));
+
+        let missing: State = serde_json::from_value(json!({
+            "protocol": PROTOCOL,
+            "session": "img-cache",
+            "generation": 2,
+            "root": {"id": "root", "kind": "column"},
+            "assets": {"uncached": {"width": 2, "height": 2}}
+        }))
+        .unwrap();
+        assert!(load_images(&context, &mut view, &missing).is_err());
     }
 }

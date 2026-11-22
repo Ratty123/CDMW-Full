@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -106,7 +107,7 @@ class TextSearchTab(
         self.scheduled_preview_result: Optional[TextSearchResult] = None
         self.search_results: List[TextSearchResult] = []
         self.current_preview_result: Optional[TextSearchResult] = None
-        self._pending_result_indexes: List[int] = []
+        self._pending_result_indexes: deque[int] = deque()
         self._pending_result_total = 0
         self._pending_auto_preview_enabled = False
         self.last_search_query = ""
@@ -280,10 +281,10 @@ class TextSearchTab(
         self.results_tree.setHeaderLabels(["File Name", "Matches", "Package", "Path", "Ext"])
         self.results_tree.header().setStretchLastSection(False)
         self.results_tree.header().setSectionResizeMode(0, QHeaderView.Interactive)
-        self.results_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.results_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.results_tree.header().setSectionResizeMode(1, QHeaderView.Interactive)
+        self.results_tree.header().setSectionResizeMode(2, QHeaderView.Interactive)
         self.results_tree.header().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.results_tree.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.results_tree.header().setSectionResizeMode(4, QHeaderView.Interactive)
         self.results_tree.header().resizeSection(0, 220)
         self.results_tree.header().resizeSection(3, 280)
         make_tree_columns_persistent(
@@ -401,11 +402,19 @@ class TextSearchTab(
         self.query_edit.returnPressed.connect(self.start_search)
         self.path_filter_edit.returnPressed.connect(self.start_search)
         self.source_combo.currentIndexChanged.connect(self._handle_source_changed)
-        self.preview_find_edit.textChanged.connect(self._handle_preview_find_changed)
+        self._preview_find_interactive = False
+        self._preview_find_timer = QTimer(self)
+        self._preview_find_timer.setSingleShot(True)
+        self._preview_find_timer.setInterval(150)
+        self._preview_find_timer.timeout.connect(self._handle_preview_find_changed)
+        self.preview_find_edit.textEdited.connect(self._on_preview_find_edited)
+        self.preview_find_edit.textChanged.connect(self._on_preview_find_text_changed)
         self.preview_find_edit.returnPressed.connect(self._jump_to_next_preview_find_match)
         self.preview_find_prev_button.clicked.connect(self._jump_to_previous_preview_find_match)
         self.preview_find_next_button.clicked.connect(self._jump_to_next_preview_find_match)
-        self.preview_find_case_checkbox.toggled.connect(self._handle_preview_find_changed)
+        self.preview_find_case_checkbox.toggled.connect(
+            lambda _checked: (self._preview_find_timer.stop(), self._handle_preview_find_changed())
+        )
         self.preview_wrap_checkbox.toggled.connect(self._handle_preview_wrap_changed)
         self.preview_font_smaller_button.clicked.connect(lambda: self._adjust_preview_font(-1))
         self.preview_font_larger_button.clicked.connect(lambda: self._adjust_preview_font(1))
@@ -486,9 +495,17 @@ class TextSearchTab(
         }
         self.results_tree.setUpdatesEnabled(False)
         try:
+            sample_count = min(self.results_tree.topLevelItemCount(), 200)
+            metrics = self.results_tree.fontMetrics()
+            header_item = self.results_tree.headerItem()
             for column in (1, 2, 4):
-                self.results_tree.resizeColumnToContents(column)
-                header.resizeSection(column, max(minimums[column], header.sectionSize(column)))
+                header_text = header_item.text(column) if header_item is not None else ""
+                width = metrics.horizontalAdvance(header_text) + 28
+                for row_index in range(sample_count):
+                    item = self.results_tree.topLevelItem(row_index)
+                    if item is not None:
+                        width = max(width, metrics.horizontalAdvance(item.text(column)) + 24)
+                header.resizeSection(column, max(minimums[column], width))
             reserved = sum(header.sectionSize(column) for column in (1, 2, 4))
             remaining = max(0, viewport_width - reserved - 12)
             file_width = max(minimums[0], int(remaining * 0.38))

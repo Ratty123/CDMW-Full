@@ -47,10 +47,11 @@ def prepare_replacement_event(tab, session, event):
         # or another file's set that lists this model without its textures.
         args["_archive_dependencies"] = (getattr(tab, "archive_session_dependencies", None)
                                          or archive_workflow_dependency_context(owner, target))
-    if event.get("command") == "replacement_choose":
+    if event.get("command") in {"replacement_choose", "hair_import_custom"}:
+        title = "Import Custom Hair Mesh" if event.get("command") == "hair_import_custom" else "Import Replacement"
         path, source_path_override = source_path_override, None
         if path is None:
-            path, _ = QFileDialog.getOpenFileName(_dialog_parent(tab), "Import Replacement", "",
+            path, _ = QFileDialog.getOpenFileName(_dialog_parent(tab), title, "",
                                                   "Mesh models (*.obj *.dae *.gltf *.glb *.fbx)")
         blender = _blender_for(tab, path) if path.lower().endswith(".fbx") else ""
         if not path or blender is None:

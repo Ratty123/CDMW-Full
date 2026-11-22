@@ -164,6 +164,9 @@ def build_workspace(dialog, parts):
 
 class WorkspaceLifecycle:
     def _check_freshness(self):
+        preview = getattr(self, "_preview", None)
+        if preview is not None and (getattr(preview, "_playing", False) or preview.slider.isSliderDown()):
+            return
         scene = self._prepared_scene
         if scene is None or self._freshness_task.busy:
             return

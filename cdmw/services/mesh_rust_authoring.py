@@ -9957,6 +9957,9 @@ class RustMeshAuthoringSession:
         elif command == "hair_color":
             from cdmw.services.mesh_rust_hair import hair_color_command
             result = hair_color_command(self, args, stop_event)
+        elif command == "hair_import_custom":
+            from cdmw.services.mesh_rust_hair import hair_import_custom_command
+            result = hair_import_custom_command(self, args, stop_event)
         elif command == "undo":
             result = self._run_history_command("undo")
         elif command == "redo":

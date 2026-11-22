@@ -79,7 +79,16 @@ impl LabApplication {
             && self.cdmw_island_colours
             && !self.cdmw_island_colours_active()
         {
-            self.cdmw_part_colours_previous_mode
+            let previous = self.cdmw_part_colours_previous_mode;
+            // The mode before the colours may be a textured one this session cannot draw.
+            if self.cdmw_mode()
+                && !self.cdmw_textured_mode_available
+                && crate::cdmw_ui::cdmw_view_mode_needs_textures(previous)
+            {
+                ViewMode::Solid
+            } else {
+                previous
+            }
         } else {
             self.view_mode
         }
@@ -88,11 +97,17 @@ impl LabApplication {
     pub(super) fn set_cdmw_island_colours(&mut self, enabled: bool) {
         if enabled {
             if self.view_mode != ViewMode::PartId {
-                self.cdmw_part_colours_previous_mode = self.view_mode;
+                // The mode asked for, not the Faces a session without textures draws
+                // for it (see `follow_cdmw_texture_availability`).
+                self.cdmw_part_colours_previous_mode = self.cdmw_preferred_view_mode();
             }
             self.view_mode = ViewMode::PartId;
         } else {
+            self.cdmw_textured_view_mode_wanted = None;
             self.view_mode = self.cdmw_part_colours_previous_mode;
+            if self.cdmw_mode() {
+                self.follow_cdmw_texture_availability();
+            }
         }
         self.cdmw_island_colours = enabled;
         self.refresh_cdmw_mesh_display();

@@ -16,9 +16,13 @@ from __future__ import annotations
 
 import math
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
+from threading import Lock
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+import numpy as np
 
 from .model import Vec3
 from .skeleton import Matrix, transform_point
@@ -66,9 +70,19 @@ class Mesh:
     def transformed(self, matrix: Matrix, *, name: str = "") -> "Mesh":
         """Place the mesh in another space — how a weapon reaches its attachment point."""
 
+        if not self.vertices:
+            return Mesh(
+                name=name or self.name,
+                vertices=(),
+                triangles=self.triangles,
+                source_path=self.source_path,
+            )
+        pts = _vertices_array(self)
+        mat = np.asarray(matrix, dtype=np.float64).reshape(4, 4)
+        moved = pts @ mat[:3, :3] + mat[3, :3]
         return Mesh(
             name=name or self.name,
-            vertices=tuple(transform_point(vertex, matrix) for vertex in self.vertices),
+            vertices=tuple(Vec3(x, y, z) for x, y, z in moved.tolist()),
             triangles=self.triangles,
             source_path=self.source_path,
         )
@@ -183,6 +197,88 @@ def _ray_hits_triangle(origin: Vec3, a: Vec3, b: Vec3, c: Vec3) -> bool:
     return t > 1e-9
 
 
+_VERTEX_CACHE_LOCK = Lock()
+_VERTEX_ARRAYS: OrderedDict[int, tuple] = OrderedDict()
+_TRI_ARRAYS: OrderedDict[tuple[int, int], tuple] = OrderedDict()
+
+
+def _vertices_array(mesh) -> np.ndarray:
+    points = getattr(mesh, "_points", None)
+    if points is not None:
+        arr = np.asarray(points, dtype=np.float64)
+        return arr.reshape(-1, 3) if len(arr) else np.empty((0, 3), dtype=np.float64)
+    if hasattr(mesh, "points") and not isinstance(mesh, Mesh):
+        arr = np.asarray(mesh.points, dtype=np.float64)
+        return arr.reshape(-1, 3) if len(arr) else np.empty((0, 3), dtype=np.float64)
+    vertices = mesh.vertices
+    if not vertices:
+        return np.empty((0, 3), dtype=np.float64)
+    key = id(vertices)
+    with _VERTEX_CACHE_LOCK:
+        hit = _VERTEX_ARRAYS.get(key)
+        if hit is not None and hit[0] is vertices:
+            _VERTEX_ARRAYS.move_to_end(key)
+            return hit[1]
+    arr = np.asarray([(v.x, v.y, v.z) for v in vertices], dtype=np.float64)
+    arr.setflags(write=False)
+    with _VERTEX_CACHE_LOCK:
+        _VERTEX_ARRAYS[key] = (vertices, arr)
+        _VERTEX_ARRAYS.move_to_end(key)
+        while len(_VERTEX_ARRAYS) > 32:
+            _VERTEX_ARRAYS.popitem(last=False)
+    return arr
+
+
+def _triangle_ray_data(mesh) -> Optional[tuple]:
+    triangles = getattr(mesh, "triangles", ())
+    if not triangles:
+        return None
+    use_cache = isinstance(mesh, Mesh) and isinstance(triangles, tuple)
+    verts_ref = mesh.vertices if use_cache else None
+    key = (id(verts_ref), id(triangles))
+    if use_cache:
+        with _VERTEX_CACHE_LOCK:
+            hit = _TRI_ARRAYS.get(key)
+            if hit is not None and hit[0] is verts_ref and hit[1] is triangles:
+                _TRI_ARRAYS.move_to_end(key)
+                return hit[2]
+    verts = _vertices_array(mesh)
+    if not len(verts):
+        return None
+    tris = np.asarray(triangles, dtype=np.int64)
+    A = verts[tris[:, 0]]
+    B = verts[tris[:, 1]]
+    C = verts[tris[:, 2]]
+    E1 = B - A
+    E2 = C - A
+    ray = np.asarray(_RAY, dtype=np.float64)
+    H = np.cross(ray, E2)
+    det = np.einsum("ij,ij->i", E1, H)
+    valid = np.abs(det) >= 1e-12
+    if not np.any(valid):
+        return None
+    A = A[valid]
+    B = B[valid]
+    C = C[valid]
+    E1 = E1[valid]
+    E2 = E2[valid]
+    H = H[valid]
+    inv = 1.0 / det[valid]
+    x_max = np.maximum(A[:, 0], np.maximum(B[:, 0], C[:, 0]))
+    y0 = np.minimum(A[:, 1], np.minimum(B[:, 1], C[:, 1]))
+    y1 = np.maximum(A[:, 1], np.maximum(B[:, 1], C[:, 1]))
+    z0 = np.minimum(A[:, 2], np.minimum(B[:, 2], C[:, 2]))
+    z1 = np.maximum(A[:, 2], np.maximum(B[:, 2], C[:, 2]))
+    data = (A, E1, E2, H, inv, x_max, y0, y1, z0, z1)
+    if use_cache:
+        with _VERTEX_CACHE_LOCK:
+            _TRI_ARRAYS[key] = (verts_ref, triangles, data)
+            _TRI_ARRAYS.move_to_end(key)
+            while len(_TRI_ARRAYS) > 16:
+                _TRI_ARRAYS.popitem(last=False)
+    return data
+
+
 def points_inside(points: Sequence[Vec3], mesh: Mesh) -> List[int]:
     """Indices of points enclosed by `mesh`, by odd/even +X ray crossings.
 
@@ -191,64 +287,77 @@ def points_inside(points: Sequence[Vec3], mesh: Mesh) -> List[int]:
     exact — the count is reported, not thresholded into a pass/fail by itself.
     """
 
-    if mesh.empty or not mesh.triangles or not points:
+    if mesh.empty or not mesh.triangles or len(points) == 0:
         return []
     low, high = mesh.bounds()
-    vertices = mesh.vertices
+    if isinstance(points, np.ndarray):
+        pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+    else:
+        pts = np.asarray([(p.x, p.y, p.z) for p in points], dtype=np.float64)
+    if not len(pts):
+        return []
 
-    # Testing every triangle for every point is O(points x triangles) and does not scale: a
-    # 16,232-triangle body proxy against a 353-vertex sword is 5.7M ray/triangle tests, which
-    # froze the UI for 13 seconds on a character switch. The ray is nearly +X, so a triangle
-    # can only be crossed if its Y and Z spans bracket the ray — bucketing by Y turns the inner
-    # loop into a small candidate list.
-    span = high.y - low.y
-    buckets = max(1, min(64, int(len(mesh.triangles) ** 0.5)))
-    height = (span / buckets) if span > 1e-9 else 1.0
-    by_row: List[List[Tuple[int, int, int, float, float]]] = [[] for _ in range(buckets)]
-    for a, b, c in mesh.triangles:
-        va, vb, vc = vertices[a], vertices[b], vertices[c]
-        y0, y1 = min(va.y, vb.y, vc.y), max(va.y, vb.y, vc.y)
-        z0, z1 = min(va.z, vb.z, vc.z), max(va.z, vb.z, vc.z)
-        first = max(0, min(buckets - 1, int((y0 - low.y) / height)))
-        last = max(0, min(buckets - 1, int((y1 - low.y) / height)))
-        for row in range(first, last + 1):
-            by_row[row].append((a, b, c, z0, z1))
+    cand_mask = (
+        (pts[:, 0] >= low.x) & (pts[:, 0] <= high.x)
+        & (pts[:, 1] >= low.y) & (pts[:, 1] <= high.y)
+        & (pts[:, 2] >= low.z) & (pts[:, 2] <= high.z)
+    )
+    cand_idx = np.flatnonzero(cand_mask)
+    if not len(cand_idx):
+        return []
 
-    # The ray is skew, not axis-aligned, so it drifts in BOTH Y and Z as it crosses the mesh.
-    # Ignoring the Y drift silently dropped triangles one bucket away, flipping the parity and
-    # reporting 30 vertices inside where brute force found 27. Both margins are needed.
+    tri_data = _triangle_ray_data(mesh)
+    if tri_data is None:
+        return []
+    A, E1, E2, H, inv, tri_xmax, tri_y0, tri_y1, tri_z0, tri_z1 = tri_data
+    ray = np.asarray(_RAY, dtype=np.float64)
     reach = max(1e-6, high.x - low.x)
     z_margin = abs(_RAY[2] / _RAY[0]) * reach + 1e-4
     y_margin = abs(_RAY[1] / _RAY[0]) * reach + 1e-4
-    row_span = int(y_margin / height) + 1
 
-    inside: List[int] = []
-    for index, point in enumerate(points):
-        if not (
-            low.x <= point.x <= high.x
-            and low.y <= point.y <= high.y
-            and low.z <= point.z <= high.z
-        ):
-            continue
-        centre_row = int((point.y - low.y) / height)
-        crossings = 0
-        seen: set = set()
-        for row in range(centre_row - row_span, centre_row + row_span + 1):
-            if row < 0 or row >= buckets:
+    cand_pts = pts[cand_idx]
+    inside_all: List[int] = []
+    for p0 in range(0, len(cand_pts), 64):
+        pts_b = cand_pts[p0 : p0 + 64]
+        crossings = np.zeros(len(pts_b), dtype=np.int32)
+        bx_min = float(np.min(pts_b[:, 0])) - 1e-9
+        by_min = float(np.min(pts_b[:, 1])) - y_margin
+        by_max = float(np.max(pts_b[:, 1])) + y_margin
+        bz_min = float(np.min(pts_b[:, 2])) - z_margin
+        bz_max = float(np.max(pts_b[:, 2])) + z_margin
+        t_cand = np.flatnonzero(
+            (tri_xmax >= bx_min)
+            & (tri_y1 >= by_min) & (tri_y0 <= by_max)
+            & (tri_z1 >= bz_min) & (tri_z0 <= bz_max)
+        )
+        for t0 in range(0, len(t_cand), 4096):
+            sel = t_cand[t0 : t0 + 4096]
+            Ab = A[sel]
+            Hb = H[sel]
+            invb = inv[sel]
+            u = invb[None, :] * (
+                (pts_b[:, 0:1] - Ab[:, 0]) * Hb[:, 0]
+                + (pts_b[:, 1:2] - Ab[:, 1]) * Hb[:, 1]
+                + (pts_b[:, 2:3] - Ab[:, 2]) * Hb[:, 2]
+            )
+            pi, ti = np.nonzero((u >= 0.0) & (u <= 1.0))
+            if not len(pi):
                 continue
-            for triangle in by_row[row]:
-                a, b, c, z0, z1 = triangle
-                if z1 < point.z - z_margin or z0 > point.z + z_margin:
-                    continue
-                key = (a, b, c)
-                if key in seen:
-                    continue  # a triangle spanning several rows must count once
-                seen.add(key)
-                if _ray_hits_triangle(point, vertices[a], vertices[b], vertices[c]):
-                    crossings += 1
-        if crossings % 2 == 1:
-            inside.append(index)
-    return inside
+            orig_ti = sel[ti]
+            s = pts_b[pi] - A[orig_ti]
+            q = np.cross(s, E1[orig_ti])
+            v = inv[orig_ti] * (q @ ray)
+            keep = (v >= 0.0) & (u[pi, ti] + v <= 1.0)
+            if not np.any(keep):
+                continue
+            keep_ti = orig_ti[keep]
+            t_vals = inv[keep_ti] * np.einsum("ij,ij->i", E2[keep_ti], q[keep])
+            hits = pi[keep][t_vals > 1e-9]
+            if len(hits):
+                crossings += np.bincount(hits, minlength=len(pts_b))
+        for local_i in np.flatnonzero(crossings & 1).tolist():
+            inside_all.append(int(cand_idx[p0 + local_i]))
+    return inside_all
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,39 +397,69 @@ class ClippingReport:
         )
 
 
-def measure_clipping(placed_weapon: Mesh, body: Mesh) -> ClippingReport:
-    """Count weapon vertices inside the body and how far in the worst one sits."""
+def measure_clipping_with_indices(placed_weapon: Mesh, body: Mesh) -> Tuple[ClippingReport, List[int]]:
+    """Count weapon vertices inside the body, depth, and the inside vertex indices."""
 
     if placed_weapon.empty or body.empty:
-        return ClippingReport(weapon=placed_weapon.name, body=body.name)
+        return ClippingReport(weapon=placed_weapon.name, body=body.name), []
 
     overlap = _bounds_overlap(placed_weapon.bounds(), body.bounds())
     if not overlap:
-        return ClippingReport(
+        return (
+            ClippingReport(
+                weapon=placed_weapon.name,
+                body=body.name,
+                weapon_vertices=placed_weapon.vertex_count,
+                bounds_overlap=False,
+            ),
+            [],
+        )
+
+    weapon_pts = _vertices_array(placed_weapon)
+    inside = points_inside(weapon_pts, body)
+    deepest, deepest_point = 0.0, None
+    if inside:
+        in_pts = weapon_pts[inside]
+        body_pts = _vertices_array(body)
+        if len(body_pts):
+            best_d2 = np.full(len(in_pts), np.inf, dtype=np.float64)
+            bx, by, bz = body_pts[:, 0], body_pts[:, 1], body_pts[:, 2]
+            for start in range(0, len(in_pts), 128):
+                chunk = in_pts[start : start + 128]
+                min_chunk = best_d2[start : start + 128]
+                cx, cy, cz = chunk[:, 0:1], chunk[:, 1:2], chunk[:, 2:3]
+                for b0 in range(0, len(body_pts), 4096):
+                    b1 = b0 + 4096
+                    dx = cx - bx[b0:b1]
+                    dy = cy - by[b0:b1]
+                    dz = cz - bz[b0:b1]
+                    d2 = dx * dx + dy * dy + dz * dz
+                    min_chunk = np.minimum(min_chunk, np.min(d2, axis=1))
+                best_d2[start : start + 128] = min_chunk
+            dists = np.sqrt(best_d2)
+            max_i = int(np.argmax(dists))
+            deepest = float(dists[max_i])
+            deepest_point = placed_weapon.vertices[inside[max_i]]
+
+    return (
+        ClippingReport(
             weapon=placed_weapon.name,
             body=body.name,
             weapon_vertices=placed_weapon.vertex_count,
-            bounds_overlap=False,
-        )
-
-    inside = points_inside(placed_weapon.vertices, body)
-    deepest, deepest_point = 0.0, None
-    for index in inside:
-        point = placed_weapon.vertices[index]
-        # Distance to the nearest body vertex is a cheap, monotone stand-in for depth.
-        nearest = min(point.distance_to(vertex) for vertex in body.vertices)
-        if nearest > deepest:
-            deepest, deepest_point = nearest, point
-
-    return ClippingReport(
-        weapon=placed_weapon.name,
-        body=body.name,
-        weapon_vertices=placed_weapon.vertex_count,
-        inside_count=len(inside),
-        bounds_overlap=True,
-        deepest=deepest,
-        deepest_point=deepest_point,
+            inside_count=len(inside),
+            bounds_overlap=True,
+            deepest=deepest,
+            deepest_point=deepest_point,
+        ),
+        inside,
     )
+
+
+def measure_clipping(placed_weapon: Mesh, body: Mesh) -> ClippingReport:
+    """Count weapon vertices inside the body and how far in the worst one sits."""
+
+    report, _inside = measure_clipping_with_indices(placed_weapon, body)
+    return report
 
 
 # ── archive discovery ────────────────────────────────────────────────

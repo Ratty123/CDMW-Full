@@ -213,11 +213,15 @@ def _dialog_step_0132(_state):
         if _frame.root is None:
             return
         _populate_collision_tree_part_020(_state, _frame)
+        tree = _state.collision_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
         try:
             _populate_collision_tree_part_021(_state, _frame)
             if not _frame.shape_elements:
                 _frame.placeholder = _state.QTreeWidgetItem(('No decoded collision shapes found.', '', '', '', '', '', ''))
-                _state.collision_tree.addTopLevelItem(_frame.placeholder)
+                tree.addTopLevelItem(_frame.placeholder)
                 _state._set_hkx_editor_section_title(2, 'Collision Shapes')
                 _state.collision_status_label.setText('No decoded collision shapes found.')
                 return
@@ -231,6 +235,8 @@ def _dialog_step_0132(_state):
                     break
             _populate_collision_tree_part_025(_state, _frame)
         finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
             _state.syncing_collision_tree['active'] = False
     _state._populate_collision_tree = _populate_collision_tree
 

@@ -1979,8 +1979,12 @@ impl LabApplication {
             "ambient_occlusion": self.lighting_depth.ambient_occlusion,
             "ground": self.ground_visible,
             "ground_grid": self.ground_grid,
-            // One view mode and one background for every viewport (P4 V3).
-            "view_mode": crate::view_modes::shared_id(self.view_mode, self.cdmw_island_colours),
+            // One view mode and one background for every viewport (P4 V3). A session
+            // without textures draws Faces, but the mode asked for is what is shared.
+            "view_mode": crate::view_modes::shared_id(
+                self.cdmw_preferred_view_mode(),
+                self.cdmw_island_colours,
+            ),
             "background_color": crate::view_modes::hex_colour([background.r(), background.g(), background.b()]),
         })
     }
@@ -2010,12 +2014,19 @@ impl LabApplication {
             .get("view_mode")
             .and_then(serde_json::Value::as_str)
             .and_then(crate::view_modes::from_shared_id)
-            && (mode, islands) != (self.view_mode, self.cdmw_island_colours)
         {
-            if islands && self.cdmw_state["mesh_islands"]["color_faces"].is_array() {
-                self.set_cdmw_island_colours(true);
-            } else {
-                self.set_cdmw_display_mode(mode);
+            // The host's mode is the preference from here on, whatever this session
+            // fell back from.
+            self.cdmw_textured_view_mode_wanted = None;
+            if (mode, islands) != (self.view_mode, self.cdmw_island_colours) {
+                if islands && self.cdmw_state["mesh_islands"]["color_faces"].is_array() {
+                    self.set_cdmw_island_colours(true);
+                } else {
+                    self.set_cdmw_display_mode(mode);
+                }
+            }
+            if self.cdmw_mode() {
+                self.follow_cdmw_texture_availability();
             }
         }
         if let Some([r, g, b]) = settings
@@ -3487,9 +3498,7 @@ impl LabApplication {
         {
             self.view_mode = ViewMode::TexturedSolid;
         }
-        if cdmw_view_mode_needs_textures(self.view_mode) && !self.cdmw_textured_mode_available {
-            self.view_mode = ViewMode::Solid;
-        }
+        self.follow_cdmw_texture_availability();
         let display_label = ui.label(crate::localization::tr("Display"));
         ComboBox::from_id_salt("Display")
             .width(ui.available_width())
@@ -7367,5 +7376,164 @@ mod tests {
         application.view_mode = ViewMode::BaseColor;
         application.record_cdmw_texture_uploads(1, 1, 1, None);
         assert_eq!(application.view_mode, ViewMode::BaseColor);
+    }
+
+    /// An editor in a CDMW session that follows these shared Preview settings, its
+    /// session root (removed by the caller) and the messages it sends to the host.
+    fn editor_following_shared_view_mode(
+        name: &str,
+        view_mode: &str,
+    ) -> (
+        LabApplication,
+        std::path::PathBuf,
+        crossbeam_channel::Receiver<Value>,
+        Value,
+    ) {
+        let root = std::env::temp_dir().join(format!("cdmw-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("root");
+        let mut bridge = crate::cdmw_session::CdmwBridge::for_test(root.clone(), name, 1, 0);
+        let shared = json!({
+            "lighting_preset": "studio_fixed", "shadows": true, "ambient_occlusion": true,
+            "ground": true, "ground_grid": true, "view_mode": view_mode,
+            "background_color": "#3B3B3B",
+        });
+        bridge.set_theme_for_test(json!({"preview_settings": shared.clone()}));
+        let messages = bridge.capture_messages_for_test();
+        let mut application = LabApplication::new(None, None);
+        application.cdmw_bridge = Some(bridge);
+        application.apply_cdmw_theme();
+        (application, root, messages, shared)
+    }
+
+    fn shared_view_mode_of(application: &LabApplication) -> String {
+        application.current_shared_preview_settings()["view_mode"]
+            .as_str()
+            .expect("view mode")
+            .to_owned()
+    }
+
+    fn next_published_view_mode(messages: &crossbeam_channel::Receiver<Value>) -> String {
+        loop {
+            let message = messages
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("a published Preview setting");
+            if message["event"] == "preview_settings_changed" {
+                return message["settings"]["view_mode"]
+                    .as_str()
+                    .expect("view mode")
+                    .to_owned();
+            }
+        }
+    }
+
+    #[test]
+    fn a_session_without_textures_draws_faces_without_changing_the_shared_view_mode() {
+        // Fredric, 2026-11-22: a draft whose textures did not load made the editor
+        // fall back to Faces. The fallback was published as the shared view mode and
+        // saved, so Browse Archives and every later editor drew untextured.
+        let (mut application, root, messages, shared) =
+            editor_following_shared_view_mode("textureless-view", "textured");
+
+        application.record_cdmw_texture_uploads(0, 0, 0, None);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert!(!application.cdmw_textured_mode_reason.is_empty());
+        // What the host holds is still what this editor reports, so nothing is sent.
+        assert_eq!(application.current_shared_preview_settings(), shared);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(application.shared_preview_settings, Some(shared.clone()));
+
+        // The Viewport section keeps the fallback as it draws, and keeps it unshared.
+        application.follow_cdmw_texture_availability();
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert_eq!(application.current_shared_preview_settings(), shared);
+
+        // Textures arrive (a retry, a later upload): the mode asked for is back.
+        application.record_cdmw_texture_uploads(1, 1, 1, None);
+        assert_eq!(application.view_mode, ViewMode::TexturedSolid);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(application.shared_preview_settings, Some(shared));
+
+        // The first setting this editor ever publishes is a choice made in it.
+        application.set_cdmw_display_mode(ViewMode::Wireframe);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(next_published_view_mode(&messages), "wire");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_view_mode_chosen_while_textures_are_missing_is_shared_and_kept() {
+        let (mut application, root, messages, _shared) =
+            editor_following_shared_view_mode("textureless-choice", "base_color");
+        application.record_cdmw_texture_uploads(1, 0, 0, Some("DDS upload validation failed"));
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert_eq!(shared_view_mode_of(&application), "base_color");
+
+        // Faces picked on purpose is a choice: shared, and kept when textures return.
+        application.set_cdmw_display_mode(ViewMode::Solid);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(next_published_view_mode(&messages), "faces");
+        application.record_cdmw_texture_uploads(1, 1, 1, None);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert_eq!(shared_view_mode_of(&application), "faces");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn the_hosts_view_mode_replaces_what_a_textureless_session_fell_back_from() {
+        let (mut application, root, _messages, _shared) =
+            editor_following_shared_view_mode("textureless-host", "textured");
+        application.record_cdmw_texture_uploads(0, 0, 0, None);
+
+        // Another viewport picks a textured mode: drawn as Faces here, shared as picked.
+        application.apply_shared_preview_settings(&json!({"view_mode": "base_color"}));
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert_eq!(shared_view_mode_of(&application), "base_color");
+
+        // Another viewport picks Faces: that is the preference now, also with textures.
+        application.apply_shared_preview_settings(&json!({"view_mode": "faces"}));
+        assert_eq!(shared_view_mode_of(&application), "faces");
+        application.record_cdmw_texture_uploads(1, 1, 1, None);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+
+        application.apply_shared_preview_settings(&json!({"view_mode": "textured"}));
+        assert_eq!(application.view_mode, ViewMode::TexturedSolid);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn part_and_island_colours_go_back_to_the_mode_asked_for_not_to_the_fallback() {
+        // Part colors remembered the mode on screen. In a session without textures that
+        // is the Faces fallback, so turning the colours off again made it a choice.
+        let (mut application, root, messages, _shared) =
+            editor_following_shared_view_mode("textureless-colours", "textured");
+        application.record_cdmw_texture_uploads(0, 0, 0, None);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+
+        application.set_cdmw_display_mode(ViewMode::PartId);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(next_published_view_mode(&messages), "part_colors");
+        let before_colours = application.cdmw_part_colours_previous_mode;
+        assert_eq!(before_colours, ViewMode::TexturedSolid);
+        application.set_cdmw_display_mode(before_colours);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        application.publish_shared_preview_settings_if_changed();
+        assert_eq!(next_published_view_mode(&messages), "textured");
+
+        // Island colours, with textures arriving while they are shown.
+        application.set_cdmw_island_colours(true);
+        assert_eq!(application.view_mode, ViewMode::PartId);
+        assert_eq!(shared_view_mode_of(&application), "island_colors");
+        application.record_cdmw_texture_uploads(1, 1, 1, None);
+        application.set_cdmw_island_colours(false);
+        assert_eq!(application.view_mode, ViewMode::TexturedSolid);
+        assert_eq!(shared_view_mode_of(&application), "textured");
+
+        // And without textures again: off means the mode asked for, drawn as Faces.
+        application.record_cdmw_texture_uploads(0, 0, 0, None);
+        application.set_cdmw_island_colours(true);
+        application.set_cdmw_island_colours(false);
+        assert_eq!(application.view_mode, ViewMode::Solid);
+        assert_eq!(shared_view_mode_of(&application), "textured");
+        let _ = std::fs::remove_dir_all(root);
     }
 }

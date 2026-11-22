@@ -2,6 +2,36 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from PySide6.QtCore import QTimer
+
+
+def _connect_hkx_debounced_filter(_state, edit, callback, *, interval_ms: int = 150) -> None:
+    timer = QTimer(_state.dialog)
+    timer.setSingleShot(True)
+    timer.setInterval(interval_ms)
+    timer.timeout.connect(callback)
+    interactive = [False]
+
+    def on_edited(_text: str) -> None:
+        interactive[0] = True
+        timer.start()
+
+    def on_changed(_text: str) -> None:
+        if interactive[0]:
+            interactive[0] = False
+            return
+        timer.stop()
+        callback()
+
+    def flush() -> None:
+        if timer.isActive():
+            timer.stop()
+            callback()
+
+    edit.textEdited.connect(on_edited)
+    edit.textChanged.connect(on_changed)
+    edit.returnPressed.connect(flush)
+
 def _dialog_step_0143(_state):
     def _sync_scrollbars(value: int) -> None:
         _state.line_numbers.verticalScrollBar().setValue(value)
@@ -51,7 +81,11 @@ def _dialog_step_0148(_state):
     _state.browser_advanced_toggle.toggled.connect(_state._set_browser_advanced_visible)
     _state.refresh_structured_button.clicked.connect(_state._populate_tuning_tree)
     _state.workspace_task_combo.currentIndexChanged.connect(lambda _index: _state._refresh_modding_workspace_from_editor())
-    _state.workspace_filter_edit.textChanged.connect(lambda _text: _state._refresh_modding_workspace_from_editor())
+    _connect_hkx_debounced_filter(
+        _state,
+        _state.workspace_filter_edit,
+        _state._refresh_modding_workspace_from_editor,
+    )
     _state.modding_workspace_tree.currentItemChanged.connect(
         lambda current, _previous: _state._update_modding_workspace_detail(current)
     )
@@ -60,8 +94,8 @@ def _dialog_step_0148(_state):
     )
     _state.edit_tuning_value_button.clicked.connect(_state._edit_selected_tuning_value)
     _state.tuning_editable_only_checkbox.toggled.connect(_state._populate_tuning_tree)
-    _state.tuning_filter_edit.textChanged.connect(_state._apply_tuning_filter)
-    _state.collision_filter_edit.textChanged.connect(_state._apply_collision_filter)
+    _connect_hkx_debounced_filter(_state, _state.tuning_filter_edit, _state._apply_tuning_filter)
+    _connect_hkx_debounced_filter(_state, _state.collision_filter_edit, _state._apply_collision_filter)
     _state.refresh_collision_button.clicked.connect(_state._populate_collision_tree)
     _state.edit_collision_value_button.clicked.connect(_state._edit_selected_collision_value)
     _state.refresh_object_layout_button.clicked.connect(_state._populate_object_layout_tree)
@@ -69,10 +103,14 @@ def _dialog_step_0148(_state):
     _state.refresh_body_summary_button.clicked.connect(_state._populate_body_summary_tree)
     _state.refresh_constraint_summary_button.clicked.connect(_state._populate_constraint_summary_tree)
     _state.refresh_catalog_button.clicked.connect(_state._populate_editable_catalog_tree)
-    _state.editable_catalog_filter_edit.textChanged.connect(_state._apply_editable_catalog_filter)
+    _connect_hkx_debounced_filter(
+        _state, _state.editable_catalog_filter_edit, _state._apply_editable_catalog_filter
+    )
     _state.refresh_byte_map_button.clicked.connect(_state._populate_byte_map_tree)
-    _state.byte_map_filter_edit.textChanged.connect(_state._apply_byte_map_filter)
-    _state.connected_target_filter_edit.textChanged.connect(_state._apply_connected_physics_filter)
+    _connect_hkx_debounced_filter(_state, _state.byte_map_filter_edit, _state._apply_byte_map_filter)
+    _connect_hkx_debounced_filter(
+        _state, _state.connected_target_filter_edit, _state._apply_connected_physics_filter
+    )
     _state.connected_workflow_combo.currentIndexChanged.connect(_state._apply_connected_physics_filter)
     _state.connected_risk_combo.currentIndexChanged.connect(_state._apply_connected_physics_filter)
     _state.connected_open_button.clicked.connect(_state._focus_selected_connected_physics)

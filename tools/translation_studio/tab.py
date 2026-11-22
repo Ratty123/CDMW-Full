@@ -367,17 +367,24 @@ class TranslationStudioTab(QWidget):
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Text or key, e.g. Greymane or questdialog_main")
         self.search_box.setClearButtonEnabled(True)
-        self.search_box.textChanged.connect(self._refresh_view)
+        self._search_interactive = False
+        self._search_debounce_timer = QTimer(self)
+        self._search_debounce_timer.setSingleShot(True)
+        self._search_debounce_timer.setInterval(150)
+        self._search_debounce_timer.timeout.connect(self._refresh_view)
+        self.search_box.textEdited.connect(self._on_search_text_edited)
+        self.search_box.textChanged.connect(self._on_search_text_changed)
+        self.search_box.returnPressed.connect(self._flush_search_debounce)
         self.search_box.setEnabled(False)
         search.addWidget(self.search_box, 2)
         search.addWidget(QLabel("Group"))
         self.category_box = QComboBox()
         self.category_box.setMinimumContentsLength(14)
-        self.category_box.currentIndexChanged.connect(self._refresh_view)
+        self.category_box.currentIndexChanged.connect(self._refresh_view_immediate)
         self.category_box.setEnabled(False)
         search.addWidget(self.category_box, 1)
         self.edited_only = QCheckBox("Edited only")
-        self.edited_only.toggled.connect(self._refresh_view)
+        self.edited_only.toggled.connect(self._refresh_view_immediate)
         self.edited_only.setEnabled(False)
         search.addWidget(self.edited_only)
         self.hits_label = QLabel("")
@@ -405,10 +412,11 @@ class TranslationStudioTab(QWidget):
         self.table.setAlternatingRowColors(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Interactive)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         self.table.setColumnWidth(0, 260)
+        self.table.setColumnWidth(1, 140)
         self.table.selectionModel().selectionChanged.connect(self._on_selection)
         table_card_layout.addWidget(self.table)
         area.addWidget(table_card, 1)
@@ -908,9 +916,30 @@ class TranslationStudioTab(QWidget):
             return []
         return CatalogueLines(catalogue, indexes)
 
+    def _on_search_text_edited(self, _text: str = "") -> None:
+        self._search_interactive = True
+        self._search_debounce_timer.start()
+
+    def _on_search_text_changed(self, _text: str = "") -> None:
+        if self._search_interactive:
+            self._search_interactive = False
+            return
+        self._search_debounce_timer.stop()
+        self._refresh_view()
+
+    def _flush_search_debounce(self) -> None:
+        if self._search_debounce_timer.isActive():
+            self._search_debounce_timer.stop()
+            self._refresh_view()
+
+    def _refresh_view_immediate(self, *_args) -> None:
+        self._search_debounce_timer.stop()
+        self._refresh_view()
+
     def ai_scopes(self) -> list:
         """The choices the translate dialog offers, largest last and never preselected."""
 
+        self._flush_search_debounce()
         catalogue = self._catalogue
         if catalogue is None:
             return []

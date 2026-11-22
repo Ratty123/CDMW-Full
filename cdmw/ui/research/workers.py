@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -179,6 +180,27 @@ class ResearchRefreshWorker(QObject):
             self.finished.emit()
 
 
+def _throttled_progress_callback(emit):
+    last_emit_at = 0.0
+    last_stage = None
+
+    def callback(done: int, total: int, stage: str = "") -> None:
+        nonlocal last_emit_at, last_stage
+        now = time.monotonic()
+        if (
+            last_emit_at == 0.0
+            or total <= 0
+            or done >= total
+            or stage != last_stage
+            or (now - last_emit_at) >= 0.05
+        ):
+            last_emit_at = now
+            last_stage = stage
+            emit(done, total, stage)
+
+    return callback
+
+
 class ReferenceResolveWorker(QObject):
     progress_changed = Signal(int, int, str)
     completed = Signal(object)
@@ -205,7 +227,7 @@ class ReferenceResolveWorker(QObject):
             rows, stats = research_service.references.resolve_material_references(
                 self.archive_entries,
                 self.target_path,
-                on_progress=self.progress_changed.emit,
+                on_progress=_throttled_progress_callback(self.progress_changed.emit),
                 stop_event=self.stop_event,
             )
             if self.stop_event.is_set():
@@ -265,7 +287,7 @@ class UIConstraintRefreshWorker(QObject):
             rows = research_service.references.build_ui_constraint_rows(
                 archive_entries,
                 stop_event=self.stop_event,
-                on_progress=self.progress_changed.emit,
+                on_progress=_throttled_progress_callback(self.progress_changed.emit),
             )
             if self.stop_event.is_set():
                 raise RuntimeError("UI rect scan cancelled.")

@@ -53,6 +53,9 @@ class TextureWorkflowProfilesUiMixin:
         self.texture_rules_state: List[TextureRule] = []
         self.workflow_matched_processing_plan: List[TextureProcessingPlan] = []
         self._workflow_editor_syncing = False
+        self._workflow_match_request_id = 0
+        self._workflow_match_thread = None
+        self._workflow_match_worker = None
         self._workflow_match_refresh_timer = QTimer(self)
         self._workflow_match_refresh_timer.setSingleShot(True)
         self._workflow_match_refresh_timer.setInterval(300)
@@ -422,6 +425,7 @@ class TextureWorkflowProfilesUiMixin:
             "Scan or refresh workflow matching to see which DDS files use each profile.",
         )
         self.workflow_matched_files_tree.setRootIsDecorated(False)
+        self.workflow_matched_files_tree.setUniformRowHeights(True)
         self.workflow_matched_files_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.workflow_matched_files_tree.setHeaderLabels(
             ["Path", "Semantic", "Rule", "Workflow", "DDS Output", "NCNN", "Action"]

@@ -700,3 +700,50 @@ def test_a_new_draft_s_first_finish_can_be_undone_after_a_restart(tmp_path) -> N
         assert _x(service, session_id) == pytest.approx(opened)
     finally:
         service.close_edit_session(session_id)
+
+
+def test_a_saved_step_restored_after_the_cache_moved_draws_with_this_sessions_materials(tmp_path) -> None:
+    """A saved step holds its parts' material bindings as paths into the archive index and
+    preview caches. Restored after those were rebuilt (unfinished edits picked up, an Undo
+    step from an earlier session), its parts drew raw textures without their material layers."""
+    import shutil
+
+    from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
+    from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+    from cdmw.services.mesh_preview_material_source import (
+        bind_preview_core_material_source,
+        unedited_preview_core_material_source,
+    )
+    from tests.test_mesh_preview_material_source import _native
+
+    def bind(service: MeshService, session_id: str, cache: Path):
+        """Give the session's first part the material a cache generation prepared, as an open does."""
+        cache.mkdir(parents=True)
+        donor = decode_dotnet_native_preview_package(_native(cache)).submeshes[0]
+        part = service._session(session_id).working_mesh.submeshes[0]
+        part.material = donor.material
+        for name in _DOTNET_PREVIEW_MATERIAL_ATTRS:
+            if hasattr(donor, name) and not name.startswith("preview_vertex_") and name != "preview_role":
+                setattr(part, name, getattr(donor, name))
+        prepared = unedited_preview_core_material_source(donor)
+        bind_preview_core_material_source(part, prepared["package"], prepared["batch"], prepared["conservation"])
+        source = unedited_preview_core_material_source(part)
+        assert source is not None
+        return source
+
+    draft = tmp_path / "draft"
+    service, session_id = _open(draft)
+    bind(service, session_id, tmp_path / "generation-1")
+    _move(service, session_id, 0.25)
+    _move(service, session_id, 0.25)
+    service.close_edit_session(session_id)
+    shutil.rmtree(tmp_path / "generation-1")  # the archive index was rebuilt meanwhile
+
+    service, session_id = _open(draft)
+    source = bind(service, session_id, tmp_path / "generation-2")
+    result = service.step_history_journal(session_id, -1)
+    assert result.ok and _x(service, session_id) == pytest.approx(0.25)
+    part = service._session(session_id).working_mesh.submeshes[0]
+    assert unedited_preview_core_material_source(part) is source
+    assert str(part.preview_texture_dds_path).startswith(str(tmp_path / "generation-2"))
+    service.close_edit_session(session_id)

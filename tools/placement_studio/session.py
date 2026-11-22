@@ -7,7 +7,7 @@ complete a binding. Everything is read-only here — Phase 3 adds editing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -110,7 +110,7 @@ class PlacementSession:
     """Everything loaded for one character model."""
 
     __slots__ = ("model", "hierarchy", "_resolver", "_body_sockets", "_placed", "_weapon",
-                 "warnings", "_bind_hierarchy", "_usage_cache", "pose_matrices",
+                 "warnings", "_bind_hierarchy", "_usage_cache", "_report_cache", "pose_matrices",
                  "skeleton_path", "_equipment_models", "_equipment_model_errors")
 
     def __init__(
@@ -138,6 +138,7 @@ class PlacementSession:
         self._placed: Dict[str, PlacedSocket] = {}
         self._bind_hierarchy: Optional[BoneHierarchy] = None
         self._usage_cache: Optional[Dict[str, SocketUsage]] = None
+        self._report_cache = None
         #: World matrices from the last `apply_pose`, so skinning does not redo them.
         self.pose_matrices = None
         self._reposition()
@@ -240,6 +241,7 @@ class PlacementSession:
 
         self._weapon = weapon
         self._usage_cache = None
+        self._report_cache = None
         self._reposition()
 
     def add_socket_file(self, game_path: str, data: bytes) -> None:
@@ -248,7 +250,64 @@ class PlacementSession:
         self._resolver.add_socket_file(game_path, data)
         self._body_sockets = self._resolver.body_sockets(self.model)
         self._usage_cache = None
+        self._report_cache = None
         self._reposition()
+
+    def update_socket_transform(
+        self,
+        game_path: str,
+        name: str,
+        *,
+        translation: Optional[Vec3] = None,
+        rotation=None,
+    ) -> bool:
+        """Update one existing socket's transform in place during interactive drags."""
+
+        existing = self._body_sockets.get(name)
+        if existing is not None and existing.source_file == game_path:
+            updated = replace(
+                existing,
+                translation=translation if translation is not None else existing.translation,
+                rotation=rotation if rotation is not None else existing.rotation,
+            )
+            self._body_sockets[name] = updated
+            for index, body_file in enumerate(self._resolver._body):
+                if body_file.game_path == game_path and name in body_file.sockets:
+                    if isinstance(body_file.sockets, dict):
+                        body_file.sockets[name] = updated
+                    else:
+                        sockets = dict(body_file.sockets)
+                        sockets[name] = updated
+                        self._resolver._body[index] = replace(body_file, sockets=sockets)
+            self._report_cache = None
+            self._reposition()
+            return True
+
+        weapon = self._weapon
+        if weapon is not None and weapon.game_path == game_path and name in weapon.sockets:
+            existing = weapon.sockets[name]
+            updated = replace(
+                existing,
+                translation=translation if translation is not None else existing.translation,
+                rotation=rotation if rotation is not None else existing.rotation,
+            )
+            if isinstance(weapon.sockets, dict):
+                weapon.sockets[name] = updated
+            else:
+                sockets = dict(weapon.sockets)
+                sockets[name] = updated
+                self._weapon = replace(weapon, sockets=sockets)
+            for index, weapon_file in enumerate(self._resolver._weapons):
+                if weapon_file.game_path == game_path and name in weapon_file.sockets:
+                    if isinstance(weapon_file.sockets, dict):
+                        weapon_file.sockets[name] = updated
+                    else:
+                        sockets = dict(weapon_file.sockets)
+                        sockets[name] = updated
+                        self._resolver._weapons[index] = replace(weapon_file, sockets=sockets)
+            self._report_cache = None
+            return True
+        return False
 
     # ── animation playback ──────────────────────────────────────────
 
@@ -347,10 +406,12 @@ class PlacementSession:
         return sorted(self._placed.values(), key=lambda p: p.name)
 
     def bindings(self) -> List[PlacementBinding]:
-        return list(self._resolver.resolve(model=self.model, weapon=self._weapon).bindings)
+        return list(self.report().bindings)
 
     def report(self):
-        return self._resolver.resolve(model=self.model, weapon=self._weapon)
+        if self._report_cache is None:
+            self._report_cache = self._resolver.resolve(model=self.model, weapon=self._weapon)
+        return self._report_cache
 
     def conventional_child_socket(self, body_socket: str, *, held: bool = False) -> str:
         """The child socket vanilla pairs with a body socket, or "" if it pairs with none.

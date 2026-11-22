@@ -28,10 +28,12 @@ MAX_LOADED_DOCUMENTS = 4
 MAX_OPEN_DOCUMENTS = 12
 #: What a document's tab says while it has nothing open.
 EMPTY_DOCUMENT_LABEL = "Mesh Editor"
-#: Calls every document receives, not only the shown one.
-_BROADCAST = frozenset({"set_theme", "sync_ui_font", "set_archive_selection"})
+#: Calls every document receives immediately, not only the shown one.
+_BROADCAST = frozenset({"set_theme", "sync_ui_font"})
+#: Sentinel for an inactive document without a deferred archive selection.
+_NO_PENDING_SELECTION = object()
 #: The view's own attributes; every other write goes to the shown document.
-_OWN = frozenset({"_build_document", "_documents", "_shown", "_closing", "tab_bar", "stack"})
+_OWN = frozenset({"_build_document", "_documents", "_shown", "_closing", "_pending_archive_selections", "tab_bar", "stack"})
 
 
 class MeshDocumentsView(QWidget):
@@ -51,6 +53,7 @@ class MeshDocumentsView(QWidget):
         self._shown: list[QWidget] = []
         #: Closed documents whose threads are still running; deleted when they end.
         self._closing: list[QWidget] = []
+        self._pending_archive_selections: dict[int, object] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -151,6 +154,7 @@ class MeshDocumentsView(QWidget):
             self.refresh_labels()
             return True
         self._documents.pop(index)
+        self._pending_archive_selections.pop(id(document), None)
         if document in self._shown:
             self._shown.remove(document)
         self.stack.removeWidget(document)
@@ -260,6 +264,19 @@ class MeshDocumentsView(QWidget):
             return
         setattr(self.active, name, value)
 
+    def set_archive_selection(self, entry) -> None:
+        """Apply to the shown document now and defer updates for hidden tabs until shown."""
+
+        active = self.active if self._documents else None
+        for document in tuple(self._documents):
+            if document is active:
+                self._pending_archive_selections.pop(id(document), None)
+                setter = getattr(document, "set_archive_selection", None)
+                if callable(setter):
+                    setter(entry)
+            else:
+                self._pending_archive_selections[id(document)] = entry
+
     def _show_document(self, index: int) -> None:
         if 0 <= index < len(self._documents) and self.stack.currentIndex() != index:
             self.stack.setCurrentIndex(index)
@@ -268,6 +285,11 @@ class MeshDocumentsView(QWidget):
             if document in self._shown:
                 self._shown.remove(document)
             self._shown.append(document)
+            pending = self._pending_archive_selections.pop(id(document), _NO_PENDING_SELECTION)
+            if pending is not _NO_PENDING_SELECTION:
+                setter = getattr(document, "set_archive_selection", None)
+                if callable(setter):
+                    setter(pending)
             unpark = getattr(document, "unpark_rust_editor", None)
             if getattr(document, "standalone_rust_parked", False) and callable(unpark):
                 unpark()

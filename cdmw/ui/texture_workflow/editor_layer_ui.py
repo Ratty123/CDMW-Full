@@ -232,6 +232,19 @@ class TextureEditorLayerUiMixin:
             return
         self._refresh_editor_views(canvas=True, status=True, tool_visibility=False)
 
+    def _schedule_layer_opacity_preview(self) -> None:
+        if not self.layer_opacity_slider.isSliderDown():
+            if hasattr(self, "_layer_opacity_preview_timer") and self._layer_opacity_preview_timer.isActive():
+                self._layer_opacity_preview_timer.stop()
+            self.preview_selected_layer_opacity()
+            return
+        timer = getattr(self, "_layer_opacity_preview_timer", None)
+        if timer is not None:
+            if not timer.isActive():
+                timer.start()
+            return
+        self.preview_selected_layer_opacity()
+
     def preview_selected_layer_opacity(self) -> None:
         self.preview_selected_layer_properties()
         # Keys, the wheel and groove clicks never emit sliderReleased.
@@ -243,6 +256,10 @@ class TextureEditorLayerUiMixin:
         self._commit_pending_layer_property("change_blend_mode")
 
     def commit_selected_layer_opacity(self) -> None:
+        timer = getattr(self, "_layer_opacity_preview_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+            self.preview_selected_layer_properties()
         self._commit_pending_layer_property("change_opacity")
 
     def _commit_pending_layer_property(self, action: str) -> None:

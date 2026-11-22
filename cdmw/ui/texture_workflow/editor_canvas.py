@@ -6,8 +6,8 @@ import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QEvent, QLineF, QPoint, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QScrollArea, QSizePolicy, QWidget
 
 from cdmw.models import TextureEditorSelection
@@ -83,6 +83,15 @@ class TextureEditorCanvas(QWidget):
         self._transform_drag_start_offset = (0, 0)
         self._transform_drag_start_scale = (1.0, 1.0)
         self._transform_drag_start_rotation = 0.0
+        self._display_image_revision = 0
+        self._scaled_display_pixmap: Optional[QPixmap] = None
+        self._scaled_display_pixmap_key: Optional[tuple] = None
+        self._grid_lines_cache_key: Optional[tuple] = None
+        self._grid_lines_cache: Tuple[List[QLineF], List[QLineF]] = ([], [])
+        self._selection_paths_cache_key: Optional[tuple] = None
+        self._selection_paths_cache_source: Optional[TextureEditorSelection] = None
+        self._selection_paths_cache: List[QPainterPath] = []
+        self._last_hover_overlay_rect: Optional[QRect] = None
         self.setMouseTracking(True)
         self.setMinimumSize(1, 1)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -143,6 +152,9 @@ class TextureEditorCanvas(QWidget):
         self._original_image = None
         self._image = image.copy() if image is not None else None
         self._display_image = self._image.copy() if self._image is not None else None
+        self._display_image_revision += 1
+        self._scaled_display_pixmap = None
+        self._scaled_display_pixmap_key = None
         self._update_display_geometry()
         self.update()
 
@@ -166,6 +178,7 @@ class TextureEditorCanvas(QWidget):
             self._channel_mode = ""
         if not original_reused:
             self._original_image = _rgba_array_to_qimage(original, copy=False) if original is not None else None
+        self._display_image_revision += 1
         self._refresh_display_image(dirty_bounds=dirty_bounds if edited_reused else None)
 
     def set_view_mode(self, mode: str) -> None:
@@ -173,6 +186,9 @@ class TextureEditorCanvas(QWidget):
         if normalized == self._view_mode:
             return
         self._view_mode = normalized
+        self._display_image_revision += 1
+        self._scaled_display_pixmap = None
+        self._scaled_display_pixmap_key = None
         self._refresh_display_image()
 
     def set_compare_split_percent(self, percent: int) -> None:
@@ -299,17 +315,153 @@ class TextureEditorCanvas(QWidget):
         dirty_bounds: Optional[Tuple[int, int, int, int]],
     ) -> None:
         if dirty_bounds is None or self._view_mode == "original":
+            self._scaled_display_pixmap = None
+            self._scaled_display_pixmap_key = None
             self.update()
             return
         x, y, width, height = (int(value) for value in dirty_bounds)
         if width <= 0 or height <= 0:
             return
+        self._patch_scaled_display_pixmap(x, y, width, height)
         scale = max(0.0001, float(self._display_scale))
         left = int(math.floor(x * scale)) - 2
         top = int(math.floor(y * scale)) - 2
         right = int(math.ceil((x + width) * scale)) + 2
         bottom = int(math.ceil((y + height) * scale)) + 2
         self.update(QRect(left, top, max(1, right - left), max(1, bottom - top)))
+
+    def _patch_scaled_display_pixmap(self, x: int, y: int, width: int, height: int) -> None:
+        pixmap = self._scaled_display_pixmap
+        key = self._scaled_display_pixmap_key
+        image = self._display_image
+        if pixmap is None or key is None or image is None or self._view_mode == "split":
+            return
+        target_rect = self._display_target_rect()
+        dpr = max(1.0, float(self.devicePixelRatioF()))
+        if (
+            target_rect.isEmpty()
+            or abs(dpr - 1.0) > 1e-3
+            or key[:2] != (id(image), image.cacheKey())
+            or key[3:] != (target_rect.width(), target_rect.height(), dpr)
+        ):
+            self._scaled_display_pixmap = None
+            self._scaled_display_pixmap_key = None
+            return
+        img_w, img_h = image.width(), image.height()
+        if img_w <= 0 or img_h <= 0:
+            self._scaled_display_pixmap = None
+            self._scaled_display_pixmap_key = None
+            return
+        sx0 = max(0, x - 2)
+        sy0 = max(0, y - 2)
+        sx1 = min(img_w, x + width + 2)
+        sy1 = min(img_h, y + height + 2)
+        scale_x = float(target_rect.width()) / float(img_w)
+        scale_y = float(target_rect.height()) / float(img_h)
+        tx0 = float(sx0) * scale_x
+        ty0 = float(sy0) * scale_y
+        tw = float(sx1 - sx0) * scale_x
+        th = float(sy1 - sy0) * scale_y
+        patch_painter = QPainter(pixmap)
+        try:
+            patch_painter.setCompositionMode(QPainter.CompositionMode_Source)
+            patch_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            patch_painter.drawImage(
+                QRectF(tx0, ty0, tw, th),
+                image,
+                QRectF(float(sx0), float(sy0), float(sx1 - sx0), float(sy1 - sy0)),
+            )
+        finally:
+            patch_painter.end()
+        self._scaled_display_pixmap_key = (
+            id(image),
+            image.cacheKey(),
+            self._display_image_revision,
+            target_rect.width(),
+            target_rect.height(),
+            dpr,
+        )
+
+    def _scaled_display_pixmap_for(self, target_rect: QRect) -> Optional[QPixmap]:
+        image = self._display_image
+        if image is None or target_rect.isEmpty():
+            return None
+        dpr = max(1.0, float(self.devicePixelRatioF()))
+        key = (
+            id(image),
+            image.cacheKey(),
+            self._display_image_revision,
+            target_rect.width(),
+            target_rect.height(),
+            dpr,
+        )
+        if self._scaled_display_pixmap is not None and self._scaled_display_pixmap_key == key:
+            return self._scaled_display_pixmap
+        pix_w = max(1, int(round(target_rect.width() * dpr)))
+        pix_h = max(1, int(round(target_rect.height() * dpr)))
+        pixmap = QPixmap(pix_w, pix_h)
+        pixmap.setDevicePixelRatio(dpr)
+        pixmap.fill(Qt.transparent)
+        pix_painter = QPainter(pixmap)
+        try:
+            pix_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            pix_painter.drawImage(target_rect, image)
+        finally:
+            pix_painter.end()
+        self._scaled_display_pixmap = pixmap
+        self._scaled_display_pixmap_key = key
+        return pixmap
+
+    def _grid_lines_for(self, target_rect: QRect) -> Tuple[List[QLineF], List[QLineF]]:
+        grid_step = float(self._grid_size) * max(0.01, self._display_scale)
+        key = (target_rect.width(), target_rect.height(), self._grid_size, float(self._display_scale))
+        if self._grid_lines_cache_key == key:
+            return self._grid_lines_cache
+        minor: List[QLineF] = []
+        major: List[QLineF] = []
+        x = grid_step
+        line_index = 1
+        while x < target_rect.width():
+            line_x = float(int(round(x)))
+            line = QLineF(line_x, 0.0, line_x, float(target_rect.height()))
+            (major if (line_index % 4 == 0) else minor).append(line)
+            x += grid_step
+            line_index += 1
+        y = grid_step
+        line_index = 1
+        while y < target_rect.height():
+            line_y = float(int(round(y)))
+            line = QLineF(0.0, line_y, float(target_rect.width()), line_y)
+            (major if (line_index % 4 == 0) else minor).append(line)
+            y += grid_step
+            line_index += 1
+        self._grid_lines_cache_key = key
+        self._grid_lines_cache = (minor, major)
+        return self._grid_lines_cache
+
+    def _selection_paths_for(self, scale: float) -> List[QPainterPath]:
+        sel = self._selection
+        key = (id(sel), sel.mode, sel.rect, bool(sel.mask_polygons), bool(sel.polygon_points), float(scale))
+        if self._selection_paths_cache_source is sel and self._selection_paths_cache_key == key:
+            return self._selection_paths_cache
+        paths: List[QPainterPath] = []
+        polygons = sel.mask_polygons if sel.mask_polygons else (
+            (sel.polygon_points,) if sel.mode == "lasso" and sel.polygon_points else ()
+        )
+        for polygon_points in polygons:
+            if len(polygon_points) < 3:
+                continue
+            path = QPainterPath()
+            first = polygon_points[0]
+            path.moveTo(first[0] * scale, first[1] * scale)
+            for point in polygon_points[1:]:
+                path.lineTo(point[0] * scale, point[1] * scale)
+            path.closeSubpath()
+            paths.append(path)
+        self._selection_paths_cache_source = sel
+        self._selection_paths_cache_key = key
+        self._selection_paths_cache = paths
+        return paths
 
     def set_tool(self, tool: str) -> None:
         self._tool = tool
@@ -396,13 +548,16 @@ class TextureEditorCanvas(QWidget):
             )
         painter.restore()
 
-    def _draw_brush_hud(self, painter: QPainter, center_x: float, center_y: float) -> None:
+    def _brush_hud_text(self) -> str:
         tip_label = (
             translate_active_ui_text("Stamp")
             if (self._brush_tip or "").strip().lower() == "image_stamp"
             else self._brush_tip.title()
         )
-        hud_text = f"{max(0.25, self._brush_size):.2f}px  H{self._brush_hardness}%  {tip_label}  R{self._brush_roundness}%  A{self._brush_angle}°"
+        return f"{max(0.25, self._brush_size):.2f}px  H{self._brush_hardness}%  {tip_label}  R{self._brush_roundness}%  A{self._brush_angle}°"
+
+    def _draw_brush_hud(self, painter: QPainter, center_x: float, center_y: float) -> None:
+        hud_text = self._brush_hud_text()
         metrics = painter.fontMetrics()
         text_width = metrics.horizontalAdvance(hud_text) + 12
         text_height = metrics.height() + 8
@@ -415,6 +570,34 @@ class TextureEditorCanvas(QWidget):
         painter.setPen(QColor("#E7EDF7"))
         painter.drawText(hud_x + 6, hud_y + text_height - 5, hud_text)
         painter.restore()
+
+    def _hover_overlay_rect_for(self, hover_point: Optional[Tuple[int, int]]) -> QRect:
+        if hover_point is None or not self._editable or self._tool not in self._brush_tools():
+            return QRect()
+        scale = float(self._display_scale)
+        cx = float(hover_point[0]) * scale
+        cy = float(hover_point[1]) * scale
+        radius = int(math.ceil(max(1.0, float(self._brush_size) * scale) * 0.75)) + 6
+        rect = QRect(int(math.floor(cx)) - radius, int(math.floor(cy)) - radius, (radius * 2) + 2, (radius * 2) + 2)
+        metrics = self.fontMetrics()
+        hud_text = self._brush_hud_text()
+        hud_rect = QRect(
+            int(round(cx + 18)) - 4,
+            int(round(cy + 18)) - 4,
+            metrics.horizontalAdvance(hud_text) + 20,
+            metrics.height() + 16,
+        )
+        rect = rect.united(hud_rect)
+        if self._tool in {"clone", "heal"} and self._clone_source_point is not None:
+            sx = float(self._clone_source_point[0]) * scale
+            sy = float(self._clone_source_point[1]) * scale
+            if self._drag_points:
+                sx = float(self._clone_source_point[0] + (hover_point[0] - self._drag_points[0][0])) * scale
+                sy = float(self._clone_source_point[1] + (hover_point[1] - self._drag_points[0][1])) * scale
+            x0, x1 = int(math.floor(min(cx, sx))) - 8, int(math.ceil(max(cx, sx))) + 8
+            y0, y1 = int(math.floor(min(cy, sy))) - 8, int(math.ceil(max(cy, sy))) + 8
+            rect = rect.united(QRect(x0, y0, max(1, x1 - x0), max(1, y1 - y0)))
+        return rect.intersected(self.rect())
 
     def _emit_hover_info(self, point: Optional[Tuple[int, int]]) -> None:
         if point is None or self._image is None:
@@ -769,7 +952,11 @@ class TextureEditorCanvas(QWidget):
                 painter.setPen(QPen(QColor("#8ED0FF"), 2))
                 painter.drawLine(split_x, 0, split_x, target_rect.height())
             else:
-                painter.drawImage(target_rect, self._display_image)
+                scaled_pixmap = self._scaled_display_pixmap_for(target_rect)
+                if scaled_pixmap is not None:
+                    painter.drawPixmap(target_rect, scaled_pixmap)
+                else:
+                    painter.drawImage(target_rect, self._display_image)
             if self._quick_mask_image is not None:
                 painter.drawImage(target_rect, self._quick_mask_image)
             if self._grid_enabled and self._grid_size > 1:
@@ -781,22 +968,13 @@ class TextureEditorCanvas(QWidget):
                     major_color = QColor(base_color)
                     minor_color.setAlpha(max(8, int(round(255.0 * opacity_ratio * 0.38))))
                     major_color.setAlpha(max(minor_color.alpha() + 12, int(round(255.0 * opacity_ratio * 0.72))))
-                    minor_pen = QPen(minor_color, 1)
-                    major_pen = QPen(major_color, 1)
-                    x = grid_step
-                    line_index = 1
-                    while x < target_rect.width():
-                        painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
-                        painter.drawLine(int(round(x)), 0, int(round(x)), target_rect.height())
-                        x += grid_step
-                        line_index += 1
-                    y = grid_step
-                    line_index = 1
-                    while y < target_rect.height():
-                        painter.setPen(major_pen if (line_index % 4 == 0) else minor_pen)
-                        painter.drawLine(0, int(round(y)), target_rect.width(), int(round(y)))
-                        y += grid_step
-                        line_index += 1
+                    minor_lines, major_lines = self._grid_lines_for(target_rect)
+                    if minor_lines:
+                        painter.setPen(QPen(minor_color, 1))
+                        painter.drawLines(minor_lines)
+                    if major_lines:
+                        painter.setPen(QPen(major_color, 1))
+                        painter.drawLines(major_lines)
             if self._guides_enabled:
                 guide_pen = QPen(QColor(116, 193, 255, 165), 1)
                 guide_pen.setStyle(Qt.DashLine)
@@ -823,28 +1001,12 @@ class TextureEditorCanvas(QWidget):
             selection_pen.setStyle(Qt.DashLine)
             selection_pen.setWidth(2)
             painter.setPen(selection_pen)
-            if self._selection.mask_polygons:
-                for polygon_points in self._selection.mask_polygons:
-                    if len(polygon_points) < 3:
-                        continue
-                    path = QPainterPath()
-                    first = polygon_points[0]
-                    path.moveTo(first[0] * scale, first[1] * scale)
-                    for point in polygon_points[1:]:
-                        path.lineTo(point[0] * scale, point[1] * scale)
-                    path.closeSubpath()
+            if self._selection.mask_polygons or (self._selection.mode == "lasso" and self._selection.polygon_points):
+                for path in self._selection_paths_for(scale):
                     painter.drawPath(path)
             elif self._selection.mode == "rect" and self._selection.rect is not None:
                 x, y, w, h = self._selection.rect
                 painter.drawRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
-            elif self._selection.mode == "lasso" and self._selection.polygon_points:
-                path = QPainterPath()
-                first = self._selection.polygon_points[0]
-                path.moveTo(first[0] * scale, first[1] * scale)
-                for point in self._selection.polygon_points[1:]:
-                    path.lineTo(point[0] * scale, point[1] * scale)
-                path.closeSubpath()
-                painter.drawPath(path)
             overlay_pen = QPen(QColor("#F8D25C"))
             overlay_pen.setWidth(2)
             painter.setPen(overlay_pen)
@@ -940,6 +1102,7 @@ class TextureEditorCanvas(QWidget):
                 center_y = float(hover_point[1]) * scale
                 self._draw_brush_outline(painter, center_x, center_y)
                 self._draw_brush_hud(painter, center_x, center_y)
+            self._last_hover_overlay_rect = self._hover_overlay_rect_for(hover_point)
             if self._editable and self._tool in {"clone", "heal"} and self._clone_source_point is not None and hover_point is not None:
                 source_x = float(self._clone_source_point[0]) * scale
                 source_y = float(self._clone_source_point[1]) * scale
@@ -1043,12 +1206,24 @@ class TextureEditorCanvas(QWidget):
                 self.floating_transform_requested.emit(payload)
             return
         point = self._widget_to_image_point(event.position())
+        previous_hover = self._hover_point
         self._hover_point = point
-        self._emit_hover_info(point)
+        hover_info_key = (point, self._display_image_revision)
+        if hover_info_key != getattr(self, "_last_hover_info_key", None):
+            self._last_hover_info_key = hover_info_key
+            self._emit_hover_info(point)
         if not self._dragging:
             if self._tool == "move" and self._sample_target == "":
                 self.setCursor(self._cursor_for_floating_hit(self._floating_transform_hit(event.position())))
-            self.update()
+            prev_rect = self._last_hover_overlay_rect or QRect()
+            next_rect = self._hover_overlay_rect_for(point)
+            if next_rect != prev_rect:
+                dirty = prev_rect.united(next_rect)
+                self._last_hover_overlay_rect = next_rect
+                if not dirty.isEmpty():
+                    self.update(dirty)
+            elif point != previous_hover and not prev_rect.isEmpty():
+                self.update(prev_rect)
             return
         if self._tool == "lasso":
             precise_point = self._widget_to_image_point_float(event.position())
@@ -1102,11 +1277,15 @@ class TextureEditorCanvas(QWidget):
         self.update()
 
     def leaveEvent(self, event) -> None:  # type: ignore[override]
+        prev_rect = self._last_hover_overlay_rect or QRect()
         self._hover_point = None
+        self._last_hover_info_key = (None, self._display_image_revision)
         self._emit_hover_info(None)
         if self._pan_start is None and not self._transform_drag_mode and not self._sample_target:
             self.setCursor(Qt.ArrowCursor)
-        self.update()
+        self._last_hover_overlay_rect = None
+        if not prev_rect.isEmpty():
+            self.update(prev_rect)
         super().leaveEvent(event)
 
     def wheelEvent(self, event) -> None:  # type: ignore[override]

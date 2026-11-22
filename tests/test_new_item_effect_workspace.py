@@ -1415,6 +1415,26 @@ class EffectWorkspaceTests(unittest.TestCase):
             self._settle(lambda: not controller.iter_shutdown_workers())
         controller.request_shutdown()
 
+    def test_visible_thumbnails_reuse_cached_icons_without_redecoding_on_scroll(self) -> None:
+        from unittest.mock import patch
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as folder:
+            workspace = self._capture_workspace(Path(folder))
+            path = workspace._thumbnail_path("fx_fire_hit")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            img = QImage(20, 20, QImage.Format.Format_ARGB32)
+            img.fill(QColor("#33aa66"))
+            self.assertTrue(img.save(str(path)))
+            workspace.show()
+            workspace._load_visible_thumbnails()
+            first_icon = workspace.library_model._thumbnails.get("fx_fire_hit")
+            self.assertIsNotNone(first_icon)
+            with patch.object(workspace.library_model, "set_thumbnail") as set_thumb:
+                workspace._load_visible_thumbnails()
+                for call in set_thumb.call_args_list:
+                    self.assertNotEqual(call.args[0], "fx_fire_hit")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -114,6 +114,21 @@ class TextureEditorSelectionUiMixin:
             return
         self.selection_quick_mask_checkbox.setChecked(not self.selection_quick_mask_checkbox.isChecked())
 
+    def _schedule_selection_feather_preview(self) -> None:
+        if self.document is None:
+            return
+        if not self.selection_feather_slider.isSliderDown():
+            if hasattr(self, "_selection_feather_preview_timer") and self._selection_feather_preview_timer.isActive():
+                self._selection_feather_preview_timer.stop()
+            self.preview_selection_settings()
+            return
+        timer = getattr(self, "_selection_feather_preview_timer", None)
+        if timer is not None:
+            if not timer.isActive():
+                timer.start()
+            return
+        self.preview_selection_settings()
+
     def preview_selection_settings(self) -> None:
         if self.document is None:
             return
@@ -124,6 +139,9 @@ class TextureEditorSelectionUiMixin:
         self._refresh_canvas()
 
     def commit_selection_settings(self) -> None:
+        timer = getattr(self, "_selection_feather_preview_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
         if self.document is None:
             return
         before_document = dataclasses.replace(self.document)

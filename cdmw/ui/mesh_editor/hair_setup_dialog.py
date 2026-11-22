@@ -1,6 +1,9 @@
 """One cancellable setup surface shared by Finder and the Mesh Editor."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton,
+    QSizePolicy, QVBoxLayout, QWidget,
+)
 
 from cdmw.domain.hair_characters import HAIR_CHARACTERS, hair_character
 from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
@@ -9,7 +12,7 @@ from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
 _CREATE_MODE, _EDIT_MODE = "generated", "existing"
 
 class HairSetupDialog(QDialog):
-    def __init__(self, owner, *, character=None, mode="generated", preset="empty", target_path="", reuse_target=None, draft_root=None):
+    def __init__(self, owner, *, character=None, mode="generated", preset="empty", target_path="", reuse_target=None, reuse_scalp_cap=None, draft_root=None):
         super().__init__(owner)
         self._owner = owner
         self._service = owner.archive.archive_catalogue_service
@@ -18,7 +21,7 @@ class HairSetupDialog(QDialog):
         self._picker = None
         self.context = self.selected_entry = self.selected_dependencies = None
         self._target_path = target_path.casefold()
-        self._reuse_target, self._draft_root = reuse_target, draft_root
+        self._reuse_target, self._reuse_scalp_cap, self._draft_root = reuse_target, reuse_scalp_cap, draft_root
         self.prepared_result = None
         self._last_failure, self._retrying, self._retry_requested = "", False, False
         import threading
@@ -55,6 +58,24 @@ class HairSetupDialog(QDialog):
         self.status.setWordWrap(True)
         self.status.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(self.status)
+        self._create_options_row = QWidget(self)
+        create_options = QHBoxLayout(self._create_options_row)
+        create_options.setContentsMargins(0, 0, 0, 0)
+        self.choose_donor_material = QCheckBox("Choose donor material & textures...", self._create_options_row)
+        self.choose_donor_material.setObjectName("hair_choose_donor_material")
+        self.choose_donor_material.setToolTip(
+            "Open the hairstyle chooser in Create mode so you can select which donor material and textures to use."
+        )
+        self.keep_scalp_cap = QCheckBox("Keep donor scalp cap", self._create_options_row)
+        self.keep_scalp_cap.setObjectName("hair_keep_scalp_cap")
+        self.keep_scalp_cap.setChecked(True)
+        self.keep_scalp_cap.setToolTip(
+            "Retain the donor's fitted scalp base cap under drawn hair locks when the donor has one."
+        )
+        create_options.addWidget(self.choose_donor_material)
+        create_options.addWidget(self.keep_scalp_cap)
+        create_options.addStretch(1)
+        layout.addWidget(self._create_options_row)
         choices = QWidget(self)
         self._choices_layout = QVBoxLayout(choices)
         self._choices_layout.setContentsMargins(0, 0, 0, 0)
@@ -78,11 +99,18 @@ class HairSetupDialog(QDialog):
         self._service.session_published.connect(self._session_changed)
         self.character.currentIndexChanged.connect(self._load)
         self.mode.currentIndexChanged.connect(self._load)
+        self.choose_donor_material.toggled.connect(self._on_choose_donor_toggled)
         self.retry.clicked.connect(self._retry)
         self.cancel_button.clicked.connect(self.reject)
         if character:
             self.character.setCurrentIndex(max(0, self.character.findData(character)))
         else:
+            self._load()
+
+    def _on_choose_donor_toggled(self) -> None:
+        if self._closed or self.mode.currentData() != _CREATE_MODE:
+            return
+        if self._service.current_session is not None and self.character.currentData():
             self._load()
 
     def _start(self):
@@ -102,8 +130,12 @@ class HairSetupDialog(QDialog):
             return
         self._retrying, self._retry_requested = self._retry_requested, False
         self.waiting_start.setEnabled(False)
-        for control in (self.character, self.mode, self.preset, self.retry):
+        for control in (self.character, self.mode, self.preset, self.retry, self.choose_donor_material, self.keep_scalp_cap):
             control.setEnabled(True)
+        is_create = self.mode.currentData() == _CREATE_MODE
+        self._create_options_row.setVisible(is_create)
+        self.choose_donor_material.setVisible(is_create)
+        self.keep_scalp_cap.setVisible(is_create)
         self._generation += 1
         self._stop.set()
         import threading
@@ -168,9 +200,10 @@ class HairSetupDialog(QDialog):
                 return
             self._last_failure, self._retrying = "", False
             creating = self.mode.currentData() == "generated"
+            custom_donor = creating and self.choose_donor_material.isChecked()
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
                 styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
-                preferred_path=self._target_path, base_only=creating,
+                preferred_path=self._target_path, base_only=creating and not custom_donor,
                 icons={c.prefab_stem: c.icon_path for c in reversed(choices) if c.icon_path},
                 hidden=tuple(c.index for c in choices if not c.shown_in_game))
             self._picker = picker
@@ -178,7 +211,7 @@ class HairSetupDialog(QDialog):
             picker.choose.setText("Start")
             picker.finished.connect(lambda result: self._selected(picker, result))
             picker.preparation_failed.connect(self._failed)
-            if creating:
+            if creating and not custom_donor:
                 picker.hide()
                 def base_ready():
                     if not self._closed and generation == self._generation and picker is self._picker:
@@ -195,7 +228,11 @@ class HairSetupDialog(QDialog):
                 self._buttons_row.hide()
                 self._choices_layout.addWidget(picker)
                 picker.show()
-                self.status.setText("Choose an existing hairstyle to load and edit.")
+                self.status.setText(
+                    "Choose a donor hairstyle material to start from."
+                    if custom_donor
+                    else "Choose an existing hairstyle to load and edit."
+                )
                 self.resize(1060, 800)
         def failed(message):
             if generation == self._generation:
@@ -218,16 +255,23 @@ class HairSetupDialog(QDialog):
             self.waiting_start.setEnabled(False)
             self.layout().activate()
             self.resize(620, 220)
-            if (self._reuse_target == (self.context.character, self.selected_entry.identity)
+            if (not self.choose_donor_material.isChecked()
+                    and (self._reuse_scalp_cap is None or self.keep_scalp_cap.isChecked() == self._reuse_scalp_cap)
+                    and self._reuse_target == (self.context.character, self.selected_entry.identity)
                     and self.mode.currentData() == "generated"):
                 self.accept()
                 return
             self.status.setText("Preparing the new editor scene. Your current scene remains open…")
-            for control in (self.character, self.mode, self.preset, self.retry):
+            for control in (self.character, self.mode, self.preset, self.retry, self.choose_donor_material, self.keep_scalp_cap):
                 control.setEnabled(False)
             generation, stop = self._generation, self._stop
             entry, dependencies = self.selected_entry, self.selected_dependencies
-            arguments = {**self.context.arguments(), "mode": self.mode.currentData(), "start_preset": self.preset.currentData()}
+            arguments = {
+                **self.context.arguments(),
+                "mode": self.mode.currentData(),
+                "start_preset": self.preset.currentData(),
+                "keep_scalp_cap": self.keep_scalp_cap.isChecked() if self.mode.currentData() == _CREATE_MODE else False,
+            }
             def prepare(_log):
                 from cdmw.workers.mesh_archive_refit_worker import prepare_hair_editor_session
                 return prepare_hair_editor_session(entry, dependencies, arguments, self._draft_root, stop)
@@ -248,7 +292,7 @@ class HairSetupDialog(QDialog):
             return
         self._buttons_row.show()
         self.retry.show()
-        for control in (self.character, self.mode, self.preset, self.retry):
+        for control in (self.character, self.mode, self.preset, self.retry, self.choose_donor_material, self.keep_scalp_cap):
             control.setEnabled(True)
         text = str(message).strip()
         if hint:

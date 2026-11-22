@@ -851,6 +851,17 @@ def test_recovered_rows_are_labelled_by_their_file_name(qt_app: QApplication) ->
         assert "/" not in label
 
 
+def _wait_other_users(qt_app: QApplication, dialog: PrefabInspectorDialog) -> None:
+    import time
+
+    deadline = time.monotonic() + 2.0
+    while dialog._users_thread is not None and time.monotonic() < deadline:
+        qt_app.processEvents()
+        time.sleep(0.005)
+    qt_app.processEvents()
+    assert dialog._users_thread is None
+
+
 def test_the_row_menu_reports_what_else_uses_a_file(qt_app: QApplication) -> None:
     """One edit covering a set, or one of twenty, decides whether a mod works."""
     asked: list[str] = []
@@ -861,6 +872,7 @@ def test_the_row_menu_reports_what_else_uses_a_file(qt_app: QApplication) -> Non
 
     dialog = PrefabInspectorDialog(_build(), find_users=_find)
     dialog._show_other_users(PATH)
+    _wait_other_users(qt_app, dialog)
     assert asked == [PATH]
     log = dialog.log.toPlainText()
     assert "2 other prefabs" in log
@@ -870,6 +882,7 @@ def test_the_row_menu_reports_what_else_uses_a_file(qt_app: QApplication) -> Non
 def test_nothing_else_using_a_file_is_said_plainly(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build(), find_users=lambda _path: ())
     dialog._show_other_users(PATH)
+    _wait_other_users(qt_app, dialog)
     assert "No other prefab" in dialog.log.toPlainText()
 
 
@@ -881,6 +894,7 @@ def test_a_failing_lookup_is_reported_not_raised(qt_app: QApplication) -> None:
 
     dialog = PrefabInspectorDialog(_build(), find_users=_boom)
     dialog._show_other_users(PATH)
+    _wait_other_users(qt_app, dialog)
     assert "Could not check" in dialog.log.toPlainText()
 
 
@@ -889,6 +903,45 @@ def test_without_archive_access_the_menu_entry_is_absent(qt_app: QApplication) -
     assert dialog._find_users is None
     dialog._show_other_users(PATH)
     assert dialog.log.toPlainText() == ""
+
+
+def test_reinvoking_other_users_cancels_previous_lookup_and_drops_stale_results(
+    qt_app: QApplication,
+) -> None:
+    import threading
+    import time
+
+    first_started = threading.Event()
+    first_release = threading.Event()
+    stops: list[bool] = []
+
+    def _find(path: str, *, stop_event: threading.Event | None = None) -> tuple[str, ...]:
+        if path.endswith("first.dds"):
+            first_started.set()
+            assert first_release.wait(2.0)
+            stops.append(bool(stop_event is not None and stop_event.is_set()))
+            return ("object/bin/stale.prefab",)
+        return ("object/bin/current.prefab",)
+
+    dialog = PrefabInspectorDialog(_build(), find_users=_find)
+    try:
+        dialog._show_other_users("texture/first.dds")
+        assert first_started.wait(2.0)
+        dialog._show_other_users("texture/second.dds")
+        _wait_other_users(qt_app, dialog)
+        first_release.set()
+        deadline = time.monotonic() + 2.0
+        while not stops and time.monotonic() < deadline:
+            qt_app.processEvents()
+            time.sleep(0.005)
+        qt_app.processEvents()
+        log = dialog.log.toPlainText()
+        assert "object/bin/current.prefab" in log
+        assert "object/bin/stale.prefab" not in log
+        assert stops == [True]
+    finally:
+        first_release.set()
+        dialog.reject()
 
 
 def test_opening_reads_off_the_ui_thread_and_shows_archive_progress(

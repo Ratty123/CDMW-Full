@@ -16,6 +16,9 @@ class StudioLoadingMixin:
         self._mesh_task = LatestTask(self)
         self._mesh_task.setObjectName('mesh_preparation')
         self._mesh_task.ready.connect(self._meshes_prepared)
+        self._clipping_task = LatestTask(self)
+        self._clipping_task.setObjectName('clipping_check')
+        self._clipping_task.ready.connect(self._clipping_ready)
         self._mesh_requested = None
         self._mesh_ready = None
         self._mesh_body_ready = None
@@ -264,7 +267,7 @@ class StudioLoadingMixin:
             self._armour_status.setToolTip('\n'.join(errors))
 
     def _stop_loading(self):
-        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task", "_timing_task"):
+        for name in ("_model_task", "_mesh_task", "_chart_task", "_archive_task", "_timing_task", "_clipping_task"):
             task = getattr(self, name, None)
             if task is not None:
                 task.shutdown()

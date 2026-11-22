@@ -10,8 +10,10 @@ use std::thread;
 const MAX_PENDING_HAIR_EDITS: usize = 32;
 const MAX_PENDING_HAIR_BYTES: usize = 256 * 1024 * 1024;
 
+use cdmw_mesh::hair::Preset;
+
 #[cfg(test)]
-use cdmw_mesh::hair::{HairGroup, Preset};
+use cdmw_mesh::hair::HairGroup;
 
 #[cfg(test)]
 #[path = "cdmw_hair_tests.rs"]
@@ -63,7 +65,6 @@ enum Preparation {
     #[cfg_attr(not(test), expect(dead_code))]
     Bind(u32),
     Rebind,
-    #[cfg(test)]
     Fill(u32, Preset, f32),
 }
 type ErasedHairFaces = BTreeMap<u32, BTreeSet<[u32; 3]>>;
@@ -157,6 +158,7 @@ pub(super) struct HairEditor {
     draw_smoothing: f32,
     arc_bend: f32,
     move_reach: f32,
+    pub preset_length: f32,
     move_anchor: Option<(f32, Vec3)>,
     pub feedback: String,
     draw_revision: u64,
@@ -225,6 +227,7 @@ impl Default for HairEditor {
             draw_smoothing: 0.6,
             arc_bend: 0.5,
             move_reach: 0.5,
+            preset_length: 0.28,
             move_anchor: None,
             feedback: String::new(),
             draw_revision: 0,
@@ -237,6 +240,8 @@ impl Default for HairEditor {
 pub(super) enum HairAction {
     Prepare,
     Empty,
+    Fill(Preset),
+    LockUv(Option<[f32; 4]>),
     Rigid,
     Rebind,
     Convert,
@@ -369,6 +374,7 @@ impl LabApplication {
                 .groups
                 .iter()
                 .find(|g| g.id == self.hair.group)
+                .or_else(|| hair.groups.iter().find(|g| g.mode == GroupMode::Generated))
                 .or(hair.groups.first())
             {
                 self.hair.group = group.id;
@@ -401,8 +407,10 @@ impl LabApplication {
                 }
                 self.hair.tool = Some(HairTool::Select);
                 self.view_mode = ViewMode::TexturedSolid;
-                self.hair.pending_preset =
-                    hair.revision == 0 && hair.guides.is_empty() && hair.locks.is_empty();
+                self.hair.pending_preset = hair.revision == 0
+                    && hair.guides.is_empty()
+                    && (hair.locks.is_empty()
+                        || hair.groups.iter().any(|g| g.mode == GroupMode::Generated));
                 self.cdmw_orbit_mode = false;
             }
             if hair.converted {
@@ -495,7 +503,7 @@ impl LabApplication {
     pub(super) fn hair_draw_input_ready(&self) -> bool {
         matches!(self.hair.tool, Some(HairTool::Guide | HairTool::Paint))
             && self.hair.state.as_ref().is_some_and(|state| {
-                !state.converted && state.groups.iter().all(|g| g.mode == GroupMode::Generated)
+                !state.converted && !state.groups.is_empty()
             })
             && self.hair.pending_history.is_empty()
             && !self.hair.pending_finish
@@ -573,7 +581,7 @@ impl LabApplication {
                 self.hair.feedback =
                     "Hairstyle presets are no longer available. Use Draw to create hair.".into();
             } else if self.hair.state.as_ref().is_some_and(|s| {
-                !s.converted && s.groups.iter().all(|g| g.mode == GroupMode::Generated)
+                !s.converted && s.groups.iter().any(|g| g.mode == GroupMode::Generated)
             }) {
                 self.run_hair_action(HairAction::Empty);
             } else {
@@ -587,18 +595,18 @@ impl LabApplication {
             }
             if self.hair.pending_preset && self.hair.state.is_some() {
                 self.hair.pending_preset = false;
-                let existing = self
+                let has_generated = self
                     .hair
                     .state
                     .as_ref()
                     .unwrap()
                     .groups
                     .iter()
-                    .any(|g| g.mode == GroupMode::Existing);
-                self.run_hair_action(if existing {
-                    HairAction::Prepare
-                } else {
+                    .any(|g| g.mode == GroupMode::Generated);
+                self.run_hair_action(if has_generated {
                     HairAction::Empty
+                } else {
+                    HairAction::Prepare
                 });
             }
         }
@@ -757,8 +765,12 @@ impl LabApplication {
         if self.hair.saving() && !self.cdmw_busy() {
             self.status = "Saving completed actions in order…".into();
         }
-        if self.hair.job.is_some() || self.hair.playing || !self.hair.publications.is_empty() {
-            self.egui_context.request_repaint();
+        if self.hair.playing {
+            self.egui_context
+                .request_repaint_after(std::time::Duration::from_millis(16));
+        } else if self.hair.job.is_some() || !self.hair.publications.is_empty() {
+            self.egui_context
+                .request_repaint_after(std::time::Duration::from_millis(50));
         }
     }
 
@@ -815,6 +827,41 @@ impl LabApplication {
                 HairAction::Rebind => operation = Preparation::Rebind,
                 HairAction::Prepare => operation = Preparation::Analyze,
                 HairAction::Empty => operation = Preparation::Empty,
+                HairAction::Fill(preset) => {
+                    let group = state
+                        .groups
+                        .iter()
+                        .find(|g| g.id == self.hair.group && g.mode == GroupMode::Generated)
+                        .or_else(|| {
+                            state
+                                .groups
+                                .iter()
+                                .find(|g| g.mode == GroupMode::Generated)
+                        })
+                        .ok_or("Starter shapes create new hair in Create hairstyle.")?;
+                    operation = Preparation::Fill(
+                        group.id,
+                        preset,
+                        self.hair.preset_length.clamp(0.05, 0.8),
+                    );
+                }
+                HairAction::LockUv(uv_rect) => {
+                    if selected.is_empty() {
+                        return Err("Select generated hair locks before changing their strand card UV.".into());
+                    }
+                    let mut touched = false;
+                    for lock in state.locks.iter_mut().filter(|l| selected.contains(&l.id)) {
+                        if lock.kind != LockKind::Generated {
+                            return Err("Strand card UV strips apply only to generated hair locks.".into());
+                        }
+                        lock.uv_rect = uv_rect;
+                        touched = true;
+                    }
+                    if !touched {
+                        return Err("Select generated hair locks before changing their strand card UV.".into());
+                    }
+                    operation = Preparation::Generate;
+                }
                 HairAction::Registration => {
                     state.style_name = self.hair.style_name.trim().to_owned();
                     operation = Preparation::Metadata;
@@ -884,6 +931,8 @@ impl LabApplication {
                 HairAction::DeleteGuides => "Delete hair",
                 HairAction::Settings => "Change selected hair thickness and density",
                 HairAction::Empty => "Clear generated hairstyle",
+                HairAction::Fill(_) => "Create starter hair shape",
+                HairAction::LockUv(_) => "Change strand card UV",
                 HairAction::Prepare => "Prepare existing hair",
                 HairAction::Rigid => "Attach scalp section rigidly",
                 HairAction::Registration => "Name hairstyle",
@@ -1033,7 +1082,9 @@ impl LabApplication {
         }
         let ready = self.hair_input_ready() || self.hair_draw_input_ready();
         let state = self.hair.state.as_ref().unwrap();
-        let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
+        let has_generated = state.groups.iter().any(|g| g.mode == GroupMode::Generated);
+        let has_existing = state.groups.iter().any(|g| g.mode == GroupMode::Existing);
+        let can_draw = !state.groups.is_empty();
         let unresolved = state
             .locks
             .iter()
@@ -1041,6 +1092,49 @@ impl LabApplication {
             .count();
         let (min, max) = hair_bounds(state);
         let span = (max - min).max_element();
+        let groups_meta: Vec<(u32, u32, String, f32, u32, [f32; 4])> = state
+            .groups
+            .iter()
+            .map(|g| (g.id, g.part, g.name.clone(), g.width, g.cards_per_guide, g.uv_rect))
+            .collect();
+        let unrebound = state.bound_reference != state.scalp.identity;
+        let active_group_part = groups_meta
+            .iter()
+            .find(|(id, ..)| *id == self.hair.group)
+            .or_else(|| groups_meta.first())
+            .map_or(0, |(_, part, ..)| *part);
+        let selected_locks_meta: Vec<(u32, LockKind, Option<[f32; 4]>)> = state
+            .locks
+            .iter()
+            .filter(|l| self.hair.selected.contains(&(l.id as usize)))
+            .map(|l| (l.part, l.kind, l.uv_rect))
+            .collect();
+        let supported = selected_locks_meta.iter().all(|(_, kind, _)| *kind == LockKind::Generated);
+        let selected_single_part = selected_locks_meta
+            .first()
+            .map(|(part, ..)| *part)
+            .filter(|part| selected_locks_meta.iter().all(|(p, ..)| p == part));
+        let draw_uv_presets = hair_uv_presets(&self.cdmw_state, active_group_part);
+        let lock_uv_presets = selected_single_part
+            .map(|part| hair_uv_presets(&self.cdmw_state, part))
+            .unwrap_or_default();
+        let unprepared_groups: Vec<_> = state
+            .groups
+            .iter()
+            .filter_map(|g| {
+                let ids: Vec<_> = state
+                    .locks
+                    .iter()
+                    .filter(|l| l.part == g.part && !l.vertices.is_empty())
+                    .map(|l| l.id as usize)
+                    .collect();
+                if ids.is_empty() {
+                    None
+                } else {
+                    Some((g.name.clone(), ids))
+                }
+            })
+            .collect();
         ui.label(crate::localization::tr(format!(
             "{} · {} locks selected",
             self.hair.style_name,
@@ -1057,11 +1151,11 @@ impl LabApplication {
                 for (tool,name) in [(HairTool::Select,"Select"),(HairTool::Move,"Move"),(HairTool::Guide,"Draw"),
                     (HairTool::Erase,"Erase"),(HairTool::Cut,"Cut"),(HairTool::Lengthen,"Lengthen"),
                     (HairTool::Comb,"Comb"),(HairTool::Smooth,"Smooth"),(HairTool::Curl,"Curl"),(HairTool::Clump,"Clump"),(HairTool::Physics,"Physics")] {
-                    let enabled=generated || tool!=HairTool::Guide;
+                    let enabled = can_draw || tool != HairTool::Guide;
                     let help = match tool {
                         HairTool::Select => "Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
                         HairTool::Move => "Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
-                        HairTool::Guide => "Start on the scalp, then drag to shape the lock. Escape cancels.",
+                        HairTool::Guide => "Start on the scalp, then drag to shape the lock. Works in Create and Edit hairstyles. Escape cancels.",
                         HairTool::Erase => "Brush to remove only the visible area of imported hair. Drawn locks erase as a whole. Enable Whole locks to remove connected sections.",
                         HairTool::Cut => "Click or drag to cut every visible lock inside the brush. Each lock is cut nearest the brush centre. Escape cancels.",
                         HairTool::Lengthen => "Drag to extend the tips of every visible lock inside the brush. Roots stay fixed.",
@@ -1070,7 +1164,7 @@ impl LabApplication {
                     };
                     if ui.add_enabled(enabled,egui::Button::new(crate::localization::tr(name)).selected(self.hair.tool==Some(tool)))
                         .on_hover_text(crate::localization::tr(help))
-                        .on_disabled_hover_text(crate::localization::tr("Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.")).clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
+                        .on_disabled_hover_text(crate::localization::tr("No hair material section is available for drawing.")).clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
                 }
             });
             ui.separator();
@@ -1092,6 +1186,48 @@ impl LabApplication {
                 crate::cdmw_ui::cdmw_legend(ui, Color32::from_rgb(245, 155, 60), crate::localization::tr("Orange: physical"));
             }
             if self.hair.tool == Some(HairTool::Guide) {
+                if groups_meta.len() > 1 {
+                    let current_name = groups_meta
+                        .iter()
+                        .find(|(id, ..)| *id == self.hair.group)
+                        .map_or("Section", |(_, _, name, ..)| name.as_str());
+                    let section_label = ui.label(crate::localization::tr("Target section"));
+                    egui::ComboBox::from_id_salt("hair_draw_target_section")
+                        .width(ui.available_width())
+                        .truncate()
+                        .selected_text(current_name)
+                        .show_ui(ui, |ui| {
+                            for (gid, _part, name, width, density, uv_rect) in &groups_meta {
+                                if ui.selectable_label(self.hair.group == *gid, name).clicked() && self.hair.group != *gid {
+                                    self.hair.group = *gid;
+                                    self.hair.width = *width;
+                                    self.hair.density = *density;
+                                    self.hair.atlas = *uv_rect;
+                                }
+                            }
+                        })
+                        .response
+                        .labelled_by(section_label.id);
+                }
+                if !draw_uv_presets.is_empty() {
+                    let selected_label = matching_uv_preset_label(&draw_uv_presets, self.hair.atlas)
+                        .unwrap_or("Donor strip");
+                    let uv_label = ui.label(crate::localization::tr("Strand card"));
+                    egui::ComboBox::from_id_salt("hair_draw_strand_card")
+                        .width(ui.available_width())
+                        .truncate()
+                        .selected_text(crate::localization::tr(selected_label))
+                        .show_ui(ui, |ui| {
+                            for (label, rect) in &draw_uv_presets {
+                                let chosen = (0..4).all(|i| (self.hair.atlas[i] - rect[i]).abs() < 0.005);
+                                if ui.selectable_label(chosen, crate::localization::tr(label)).clicked() {
+                                    self.hair.atlas = *rect;
+                                }
+                            }
+                        })
+                        .response
+                        .labelled_by(uv_label.id);
+                }
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width, 0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Draw width")));
                 ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.density, 1..=32).text(crate::localization::tr("Draw cards")))
                     .on_hover_text(crate::localization::tr("Cards per new lock. Fewer cards make flatter, lighter locks; more add volume. Existing locks keep their settings."));
@@ -1133,14 +1269,10 @@ impl LabApplication {
                 ui.weak(crate::localization::tr(format!("{unresolved} original sections have no grooming guides")))
                     .on_hover_text(crate::localization::tr("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview."));
             }
-            if !generated {
+            if has_existing {
                 crate::localization::collapsing("Prepare sections for grooming").show(ui, |ui| {
-                let groups:Vec<_>=self.hair.state.as_ref().unwrap().groups.iter().filter_map(|g|{
-                    let ids:Vec<_>=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|l.part==g.part&&!l.vertices.is_empty()).map(|l|l.id as usize).collect();
-                    if ids.is_empty(){None}else{Some((g.name.clone(),ids))}
-                }).collect();
                 egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text(crate::localization::tr("Select sections to prepare")).show_ui(ui,|ui|{
-                    for (name,ids) in &groups {
+                    for (name,ids) in &unprepared_groups {
                         let label=if name.to_lowercase().contains("front"){"Front"}else if name.to_lowercase().contains("tail"){"Lengths"}else if name.to_lowercase().contains("top"){"Crown"}else{name};
                         if ui.button(crate::localization::tr(format!("{label} · {} sections",ids.len()))).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
                     }
@@ -1153,11 +1285,39 @@ impl LabApplication {
             crate::localization::collapsing("Setup").show(ui,|ui| {
                 ui.label(crate::localization::tr("Hairstyle name"));ui.text_edit_singleline(&mut self.hair.style_name);
                 if ui.button(crate::localization::tr("Apply name")).clicked(){actions.push(UiAction::Hair(HairAction::Registration));}
-                if generated {
+                if has_generated {
                     if ui.button(crate::localization::tr("Start empty")).clicked(){actions.push(UiAction::Hair(HairAction::Empty));}
-                } else if ui.button(crate::localization::tr("Prepare existing hair sections")).clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
+                    ui.label(crate::localization::tr("Starter shapes"));
+                    ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.preset_length, 0.08..=0.60).text(crate::localization::tr("Starter length")));
+                    ui.horizontal_wrapped(|ui| {
+                        for (preset, title) in [(Preset::Cropped, "Cropped"), (Preset::Bob, "Bob"), (Preset::Long, "Long"), (Preset::Ponytail, "Ponytail")] {
+                            if ui.button(crate::localization::tr(title)).clicked() {
+                                actions.push(UiAction::Hair(HairAction::Fill(preset)));
+                            }
+                        }
+                    });
+                }
+                if has_existing {
+                    if ui.button(crate::localization::tr("Prepare existing hair sections")).clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
+                }
                 if ui.button(crate::localization::tr("Change references…")).clicked(){actions.push(UiAction::CdmwCommand{command:"hair_begin",arguments:json!({"change_references":true}),label:"Change hair references"});}
-                if self.hair.state.as_ref().unwrap().bound_reference!=self.hair.state.as_ref().unwrap().scalp.identity
+                if ui
+                    .add_enabled(
+                        !self.hair.preparing(),
+                        egui::Button::new(crate::localization::tr("Import custom hair mesh…")),
+                    )
+                    .on_hover_text(crate::localization::tr(
+                        "Replace this hairstyle with an imported GLB, FBX, or OBJ mesh.",
+                    ))
+                    .clicked()
+                {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "hair_import_custom",
+                        arguments: json!({}),
+                        label: "Import custom hair mesh",
+                    });
+                }
+                if unrebound
                     && ui.button(crate::localization::tr("Rebind to changed head")).clicked(){actions.push(UiAction::Hair(HairAction::Rebind));}
             });
             crate::localization::collapsing("Appearance").show(ui,|ui| {
@@ -1177,11 +1337,40 @@ impl LabApplication {
                     .on_disabled_hover_text(crate::localization::tr("Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.")).clicked() {
                     actions.push(UiAction::CdmwCommand{command:"hair_color",arguments:json!({"color":self.hair.color.map(|v| v as f32 / 255.0)}),label:"Change hair color"});
                 }
-                let supported=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|self.hair.selected.contains(&(l.id as usize))).all(|l|l.kind==LockKind::Generated);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
                     ui.add_enabled(supported,crate::cdmw_ui::numeric::slider(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")))
                         .on_disabled_hover_text(crate::localization::tr("Existing locks preserve their source cards and UVs; follower density is available for generated locks."));
+                    if supported && !lock_uv_presets.is_empty() {
+                        let first_rect = selected_locks_meta
+                            .first()
+                            .and_then(|(_, _, uv)| *uv)
+                            .unwrap_or(self.hair.atlas);
+                        let all_same = selected_locks_meta
+                            .iter()
+                            .all(|(_, _, uv)| uv.unwrap_or(first_rect) == first_rect);
+                        let active_label = if all_same {
+                            matching_uv_preset_label(&lock_uv_presets, first_rect).unwrap_or("Donor strip")
+                        } else {
+                            "Mixed"
+                        };
+                        let lock_uv_label = ui.label(crate::localization::tr("Selected strand card"));
+                        egui::ComboBox::from_id_salt("hair_lock_uv_strip")
+                            .width(ui.available_width())
+                            .truncate()
+                            .selected_text(crate::localization::tr(active_label))
+                            .show_ui(ui, |ui| {
+                                for (label, rect) in &lock_uv_presets {
+                                    let chosen = all_same
+                                        && (0..4).all(|i| (first_rect[i] - rect[i]).abs() < 0.005);
+                                    if ui.selectable_label(chosen, crate::localization::tr(label)).clicked() {
+                                        actions.push(UiAction::Hair(HairAction::LockUv(Some(*rect))));
+                                    }
+                                }
+                            })
+                            .response
+                            .labelled_by(lock_uv_label.id);
+                    }
                     if ui.button(crate::localization::tr("Apply to selected locks")).clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
                 });
                 let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
@@ -1405,13 +1594,22 @@ fn hair_snapshot_bytes(state: &HairState, document: &MeshDocument) -> usize {
     let generated_vertices = state
         .guides
         .iter()
-        .filter_map(|guide| {
-            let group = state
-                .groups
+        .enumerate()
+        .filter_map(|(gi, guide)| {
+            let group = state.groups.iter().find(|g| g.id == guide.group)?;
+            let is_gen = group.mode == GroupMode::Generated
+                || state.locks.iter().any(|l| {
+                    l.guide == Some(gi as u32) && l.kind == LockKind::Generated
+                });
+            if !is_gen {
+                return None;
+            }
+            let cards = state
+                .locks
                 .iter()
-                .find(|g| g.id == guide.group && g.mode == GroupMode::Generated)?;
-            let cards = group.cards_per_guide.max(max_cards) as usize;
-            Some((guide.points.len().saturating_sub(1) * 3 + 1) * 2 * cards)
+                .find(|l| l.guide == Some(gi as u32) && l.cards > 0)
+                .map_or(group.cards_per_guide.max(max_cards), |l| l.cards);
+            Some((guide.points.len().saturating_sub(1) * 3 + 1) * 2 * cards as usize)
         })
         .sum::<usize>()
         .min(hair::MAX_HAIR_VERTICES);
@@ -1453,13 +1651,16 @@ fn build_scene(
         selected_vertices: vec![],
         fingerprint: format!("hair-{generation}"),
     };
-    let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
     let mut parts = vec![];
     for (index, part) in document.lods[0].submeshes.iter().enumerate() {
         if visible.is_some_and(|v| !v.contains(&(index as u32))) {
             continue;
         }
-        if generated
+        let is_generated_part = state
+            .groups
+            .iter()
+            .any(|g| g.part == index as u32 && g.mode == GroupMode::Generated);
+        if is_generated_part
             && !state.groups.iter().any(|g| {
                 g.part == index as u32 && state.guides.iter().any(|guide| guide.group == g.id)
             })
@@ -1594,4 +1795,34 @@ fn hair_bounds(state: &HairState) -> (Vec3, Vec3) {
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(min, max), p| (min.min(Vec3::from(*p)), max.max(Vec3::from(*p))),
     )
+}
+
+fn hair_uv_presets(state: &Value, part: u32) -> Vec<(String, [f32; 4])> {
+    let key = part.to_string();
+    state["hair"]["uv_presets"][key]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|row| {
+            let label = row["label"].as_str()?.to_owned();
+            let arr = row["uv_rect"].as_array()?;
+            if arr.len() != 4 {
+                return None;
+            }
+            let rect = [
+                arr[0].as_f64()? as f32,
+                arr[1].as_f64()? as f32,
+                arr[2].as_f64()? as f32,
+                arr[3].as_f64()? as f32,
+            ];
+            rect.iter().all(|v| v.is_finite()).then_some((label, rect))
+        })
+        .collect()
+}
+
+fn matching_uv_preset_label(presets: &[(String, [f32; 4])], rect: [f32; 4]) -> Option<&str> {
+    presets
+        .iter()
+        .find(|(_, preset)| (0..4).all(|i| (preset[i] - rect[i]).abs() < 0.005))
+        .map(|(label, _)| label.as_str())
 }

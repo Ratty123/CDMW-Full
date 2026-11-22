@@ -2652,6 +2652,10 @@ struct LabApplication {
     /// What CDMW was last told an edit shows on (source hash -> LOD 0 parts).
     cdmw_published_live_textures: Option<BTreeMap<String, BTreeSet<u32>>>,
     cdmw_textured_mode_available: bool,
+    /// The textured mode asked for while this session has no usable texture and
+    /// draws Faces in its place. It stays the shared preference: the fallback is
+    /// this session's state, never a choice to publish to the other viewports.
+    cdmw_textured_view_mode_wanted: Option<ViewMode>,
     cdmw_textured_mode_reason: String,
     cdmw_texture_package_reason: String,
     skeleton_entry: Option<SkeletonInspectorEntry>,
@@ -2926,6 +2930,7 @@ impl LabApplication {
             cdmw_layer_texture_edits: cdmw_live_textures::LayerTextureEdits::default(),
             cdmw_published_live_textures: None,
             cdmw_textured_mode_available: false,
+            cdmw_textured_view_mode_wanted: None,
             cdmw_textured_mode_reason:
                 "Solid (Textured) is unavailable because no usable DDS material texture has been uploaded."
                     .to_owned(),
@@ -3796,10 +3801,38 @@ impl LabApplication {
                 },
             )
         };
-        if !self.cdmw_textured_mode_available
-            && cdmw_ui::cdmw_view_mode_needs_textures(self.view_mode)
-        {
+        self.follow_cdmw_texture_availability();
+    }
+
+    /// Draw Faces while a mode that samples textures has none to sample, and go
+    /// back to the mode asked for once they are there.
+    ///
+    /// A session without textures (a draft whose files are gone, a failed upload)
+    /// used to overwrite the view mode itself. The editor publishes its view mode
+    /// as the shared Preview setting, so that one session's fallback was saved as
+    /// "Faces (No Textures)" for every viewport: Browse Archives and each later
+    /// editor then drew untextured until someone picked Solid (Textured) again
+    /// (Fredric, 2026-11-22). The mode asked for is kept here instead, and it is
+    /// what `current_shared_preview_settings` reports.
+    fn follow_cdmw_texture_availability(&mut self) {
+        if self.cdmw_textured_mode_available {
+            if let Some(wanted) = self.cdmw_textured_view_mode_wanted.take()
+                && self.view_mode == ViewMode::Solid
+            {
+                self.view_mode = wanted;
+            }
+        } else if cdmw_ui::cdmw_view_mode_needs_textures(self.view_mode) {
+            self.cdmw_textured_view_mode_wanted = Some(self.view_mode);
             self.view_mode = ViewMode::Solid;
+        }
+    }
+
+    /// The view mode this editor holds as its preference: the one asked for, even
+    /// while a session without textures draws Faces in its place.
+    fn cdmw_preferred_view_mode(&self) -> ViewMode {
+        match self.cdmw_textured_view_mode_wanted {
+            Some(wanted) if self.view_mode == ViewMode::Solid => wanted,
+            _ => self.view_mode,
         }
     }
 
@@ -8836,9 +8869,11 @@ impl LabApplication {
         let wire_colour = renderer_colour(self.overlay_wire_colour);
         let point_colour = renderer_colour(self.overlay_vertex_colour);
         let redraw_interval = self.redraw_interval();
+        let jiggle_playing =
+            self.cdmw_jiggle.preview.scene.is_some() && self.cdmw_jiggle.preview.playing;
         let render_error = if let Some(renderer) = &mut self.renderer {
             renderer.set_material_time(context.input(|input| input.time) as f32);
-            self.material_redraw_deadline = (renderer.has_material_animation()
+            self.material_redraw_deadline = ((renderer.has_material_animation() || jiggle_playing)
                 && window.is_visible() != Some(false)
                 && window.is_minimized() != Some(true))
             .then(|| Instant::now() + redraw_interval);
@@ -8903,17 +8938,13 @@ impl LabApplication {
             );
         }
         if repaint_delay.is_some_and(|delay| delay.is_zero()) {
-            if self.showing_view() {
-                // Nothing is edited while the session prepares (P4 V4): a slower
-                // frame rate leaves the CPU to the preparation.
-                let next = Instant::now() + self.redraw_interval();
-                self.material_redraw_deadline = Some(
-                    self.material_redraw_deadline
-                        .map_or(next, |deadline| deadline.min(next)),
-                );
-            } else {
-                window.request_redraw();
-            }
+            // Pace immediate egui repaints through redraw_interval rather than
+            // calling raw window.request_redraw(), which spins PresentMode::Mailbox.
+            let next = Instant::now() + self.redraw_interval();
+            self.material_redraw_deadline = Some(
+                self.material_redraw_deadline
+                    .map_or(next, |deadline| deadline.min(next)),
+            );
         }
     }
 

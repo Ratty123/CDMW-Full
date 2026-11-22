@@ -11,15 +11,18 @@ one item package) run here too.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import threading
 from typing import Callable, Mapping, Optional, Sequence
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from shiboken6 import isValid
 
 from cdmw.core.action_chart_binary import ActionChartError
+from cdmw.core.prefab_binary import decode_prefab_binary, walk_is_determined
 from cdmw.domain.archives.prefab_speed import CATEGORIES
 from cdmw.models import ArchiveEntry
 from cdmw.services.action_chart_edit_service import ChartArchiveIndex, chart_archive_index, chart_scan, mod_destination
@@ -49,8 +52,99 @@ COMMAND_ID = "browse.speed_tuning"
 COMMAND_LABEL = "Speed & Prefabs (Experimental)..."
 
 
+_READ_CACHE_LOCK = threading.Lock()
+_READ_CACHE: OrderedDict[tuple, bytes] = OrderedDict()
+_READ_CACHE_BYTES = 0
+_READ_CACHE_MAX_ENTRIES = 64
+_READ_CACHE_MAX_BYTES = 64 * 1024 * 1024
+_RETAINED_SPEED_PREFAB_THREADS: set[QThread] = set()
+
+
+def _read_cache_key(entry: object) -> Optional[tuple]:
+    package_path = getattr(entry, "package_path", None)
+    offset = getattr(entry, "offset", None)
+    if package_path is None or offset is None:
+        return None
+    return (
+        str(package_path),
+        int(offset),
+        int(getattr(entry, "compressed_size", -1)),
+        str(getattr(entry, "path", "")),
+    )
+
+
 def _read(entry: ArchiveEntry) -> bytes:
-    return read_archive_entry_data(entry)[0]
+    global _READ_CACHE_BYTES
+
+    key = _read_cache_key(entry)
+    if key is not None:
+        with _READ_CACHE_LOCK:
+            cached = _READ_CACHE.get(key)
+            if cached is not None:
+                _READ_CACHE.move_to_end(key)
+                return cached
+
+    data = read_archive_entry_data(entry)[0]
+    if key is not None and len(data) <= _READ_CACHE_MAX_BYTES:
+        with _READ_CACHE_LOCK:
+            previous = _READ_CACHE.pop(key, None)
+            if previous is not None:
+                _READ_CACHE_BYTES -= len(previous)
+            _READ_CACHE[key] = data
+            _READ_CACHE_BYTES += len(data)
+            while _READ_CACHE and (
+                len(_READ_CACHE) > _READ_CACHE_MAX_ENTRIES
+                or _READ_CACHE_BYTES > _READ_CACHE_MAX_BYTES
+            ):
+                _old_key, evicted = _READ_CACHE.popitem(last=False)
+                _READ_CACHE_BYTES -= len(evicted)
+    return data
+
+
+class _SpeedPrefabOpenWorker(QObject):
+    completed = Signal(int, str, object, bytes, object, bool)
+    failed = Signal(int, str, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        path: str,
+        entry: ArchiveEntry,
+        stop_event: threading.Event,
+    ) -> None:
+        super().__init__()
+        self.request_id = request_id
+        self.path = path
+        self.entry = entry
+        self.stop_event = stop_event
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                return
+            data = _read(self.entry)
+            if self.stop_event.is_set():
+                return
+            document = None
+            determined = True
+            try:
+                document = decode_prefab_binary(data)
+                if self.stop_event.is_set():
+                    return
+                determined = walk_is_determined(data)
+            except Exception:  # noqa: BLE001 - let PrefabInspectorDialog surface decode error banner
+                document = None
+                determined = True
+            if self.stop_event.is_set():
+                return
+            self.completed.emit(self.request_id, self.path, self.entry, data, document, determined)
+        except Exception as exc:  # noqa: BLE001 - reported in inspector panel
+            if not self.stop_event.is_set():
+                self.failed.emit(self.request_id, self.path, str(exc))
+        finally:
+            self.finished.emit()
 
 
 @dataclass(frozen=True, slots=True)
@@ -656,39 +750,90 @@ class ArchiveSpeedTuningActionsMixin:
         """Show ``path`` in the Prefab Inspector beside the search results, speed values first."""
 
         from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
 
         entry = index.entry_for_path(path)
+        prev_stop = getattr(workspace, "_speed_prefab_stop_event", None)
+        if prev_stop is not None:
+            prev_stop.set()
+        request_id = int(getattr(workspace, "_speed_prefab_request_id", 0)) + 1
+        workspace._speed_prefab_request_id = request_id
         if entry is None:
+            workspace._speed_prefab_stop_event = None
+            workspace._speed_prefab_thread = None
             workspace.show_prefab_inspector(path, None, note=f"{path} is not in the game archives.")
             return
-        try:
-            data = _read(entry)
-        except Exception as exc:  # noqa: BLE001 - shown to the user
-            workspace.show_prefab_inspector(path, None, note=f"Could not read {path}: {exc}")
-            return
 
-        def _save(patched: bytes, summary: str) -> bool:
-            # As the Inspector's own window: nothing to export when nothing changed. False when the
-            # user cancelled the export question, so the tab still counts the edits as unsaved.
-            return patched == data or self._offer_prefab_export(entry, data, patched, summary) is not False
+        stop_event = threading.Event()
+        workspace._speed_prefab_stop_event = stop_event
+        if not getattr(workspace, "_speed_prefab_destroy_hooked", False):
+            workspace._speed_prefab_destroy_hooked = True
 
-        users = getattr(self, "_prefab_users_finder", None)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
+            def _cancel_on_destroy(_obj=None, ws=workspace) -> None:
+                ws._speed_prefab_request_id = int(getattr(ws, "_speed_prefab_request_id", 0)) + 1
+                active_stop = getattr(ws, "_speed_prefab_stop_event", None)
+                if active_stop is not None:
+                    active_stop.set()
+
+            workspace.destroyed.connect(_cancel_on_destroy)
+
+        workspace.show_prefab_inspector(path, None, note=f"Opening {entry.basename}...")
+
+        def _on_completed(
+            rid: int,
+            req_path: str,
+            req_entry: ArchiveEntry,
+            data: bytes,
+            document: object | None,
+            determined: bool,
+        ) -> None:
+            if not isValid(workspace) or rid != getattr(workspace, "_speed_prefab_request_id", -1):
+                return
+
+            def _save(patched: bytes, summary: str) -> bool:
+                return patched == data or self._offer_prefab_export(req_entry, data, patched, summary) is not False
+
+            users = getattr(self, "_prefab_users_finder", None)
             inspector = PrefabInspectorDialog(
                 data,
-                title=f"Prefab Inspector - {entry.basename}",
+                title=f"Prefab Inspector - {req_entry.basename}",
                 parent=workspace,
                 on_save=_save,
-                find_users=users(entry) if callable(users) else None,
+                find_users=users(req_entry) if callable(users) else None,
                 speed_filter=True,
                 embedded=True,
+                document=document,
+                determined=determined,
             )
-        finally:
-            QApplication.restoreOverrideCursor()
-        inspector.setObjectName("speedPrefabInspector")
-        inspector.title_label.setToolTip(path)
-        workspace.show_prefab_inspector(path, inspector)
+            inspector.setObjectName("speedPrefabInspector")
+            inspector.title_label.setToolTip(req_path)
+            workspace.show_prefab_inspector(req_path, inspector)
+
+        def _on_failed(rid: int, req_path: str, error_text: str) -> None:
+            if not isValid(workspace) or rid != getattr(workspace, "_speed_prefab_request_id", -1):
+                return
+            workspace.show_prefab_inspector(req_path, None, note=f"Could not read {req_path}: {error_text}")
+
+        thread = QThread()
+        worker = _SpeedPrefabOpenWorker(request_id, path, entry, stop_event)
+        worker.moveToThread(thread)
+        _RETAINED_SPEED_PREFAB_THREADS.add(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(_on_completed, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(_on_failed, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(thread.quit, Qt.ConnectionType.QueuedConnection)
+        release_worker_after_thread(thread, worker)
+        thread.finished.connect(thread.deleteLater)
+
+        def _cleanup_thread(rid: int = request_id, t: QThread = thread) -> None:
+            _RETAINED_SPEED_PREFAB_THREADS.discard(t)
+            if isValid(workspace) and getattr(workspace, "_speed_prefab_thread", None) is t:
+                workspace._speed_prefab_thread = None
+
+        thread.finished.connect(_cleanup_thread, Qt.ConnectionType.QueuedConnection)
+        workspace._speed_prefab_thread = thread
+        workspace._speed_prefab_worker = worker
+        thread.start()
 
 
 class _LoadingRelay(QObject):

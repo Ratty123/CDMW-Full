@@ -867,9 +867,6 @@ impl LabApplication {
                 return Ok(());
             }
             if tool == HairTool::Guide || tool == HairTool::Paint {
-                if state.groups.iter().any(|g| g.mode == GroupMode::Existing) {
-                    return Err("Draw is available in Create hairstyle. Existing hair can be reshaped, cut or deleted.".into());
-                }
                 if self.hair.drawing.is_empty() {
                     let ray = self
                         .camera
@@ -894,13 +891,15 @@ impl LabApplication {
                             || state.scalp.normal(&root).normalize_or_zero(),
                             |(_, normal)| normal,
                         );
-                    let group = self.hair.group;
                     let draw_group = state
                         .groups
                         .iter()
-                        .find(|g| g.id == group)
+                        .find(|g| g.id == self.hair.group)
+                        .or_else(|| state.groups.first())
                         .ok_or("Missing hair material")?;
+                    let group = draw_group.id;
                     let part = draw_group.part;
+                    let lock_uv_rect = (self.hair.atlas != draw_group.uv_rect).then_some(self.hair.atlas);
                     let width_scale = (self.hair.width / draw_group.width).clamp(0.02, 20.0);
                     let guide = state.guides.len() as u32;
                     if guide as usize + if self.hair.symmetry { 2 } else { 1 } > hair::MAX_GUIDES {
@@ -923,6 +922,7 @@ impl LabApplication {
                         mirrored: None,
                         width_scale,
                         cards: self.hair.density,
+                        uv_rect: lock_uv_rect,
                     });
                     self.hair.drawing.push(id);
                     // The tiny seed keeps the in-progress state valid, but is
@@ -953,6 +953,7 @@ impl LabApplication {
                             mirrored: Some(id),
                             width_scale,
                             cards: self.hair.density,
+                            uv_rect: lock_uv_rect,
                         });
                         self.hair.drawing.push(pair);
                     }
@@ -1209,6 +1210,7 @@ impl LabApplication {
                         mirrored: None,
                         width_scale: 1.0,
                         cards: 0,
+                        uv_rect: None,
                     });
                     self.hair.selected = HashSet::from([id as usize]);
                 }

@@ -21,6 +21,7 @@ class MovePreview(QWidget):
         from .viewport import SkeletonViewport
         from .blend_playback import PreviewBlends
         self._blend_states = PreviewBlends()
+        self._faces_cache = {}
         self.scene = None
         self._stale_message = ''
         self.seconds = 0.0
@@ -367,6 +368,18 @@ class MovePreview(QWidget):
             target = frame_interval_ms(self._frame_update_seconds, self._frame_paint_seconds)
             self._timer.start(max(1, int(target - elapsed * 1000)))
 
+    def _cached_faces(self, binding):
+        faces = binding.mesh.faces
+        key = id(faces)
+        held = self._faces_cache.get(key)
+        if held is not None and held[0] is faces:
+            return held[1]
+        tup = tuple(map(tuple, faces.tolist() if hasattr(faces, "tolist") else faces))
+        if len(self._faces_cache) > 8:
+            self._faces_cache.clear()
+        self._faces_cache[key] = (faces, tup)
+        return tup
+
     def render(self):
         if self.scene is None:
             return
@@ -376,9 +389,12 @@ class MovePreview(QWidget):
         clips = self._clips()
         messages = []
         space = self._space()
+        mode = self.view_mode.currentData()
         # The shared clock owns looping. A shorter clip holds its endpoint;
         # seeking the end never wraps an individual character or attachment.
         for index, (view, session, clip) in enumerate(zip(self._views, (self.scene.before, self.scene.after), clips)):
+            if (index == 0 and mode == "After") or (index == 1 and mode == "Before"):
+                continue
             if space is not None and session.has_skeleton:
                 from .preview_pose import apply_space
                 try:
@@ -400,15 +416,25 @@ class MovePreview(QWidget):
                 session.clear_pose()
             view.set_scene(session.hierarchy, session.placed_sockets())
             view.set_moving(self._playing or self.slider.isSliderDown())
-            if (index == 0 and self.view_mode.currentData() == "After") or (index == 1 and self.view_mode.currentData() == "Before"):
-                continue
             body = None
             if self.scene.body and session.has_skeleton:
-                matrices = skin_matrices(session.hierarchy.parsed, session.pose_matrices) if session.pose_matrices is not None else None
-                points = []
-                for mesh in self.scene.body:
-                    points.append(deform(mesh, matrices) if matrices is not None else mesh.rest[:, :3])
-                body = PosedMesh(np.concatenate(points), self.scene.body_faces)
+                body_meshes = tuple(self.scene.body)
+                if session.pose_matrices is not None:
+                    matrices = skin_matrices(session.hierarchy.parsed, session.pose_matrices)
+
+                    def _skin_body(meshes=body_meshes, mat=matrices):
+                        blocks = [deform(mesh, mat) for mesh in meshes]
+                        return np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+
+                    body = PosedMesh(
+                        triangles=self.scene.body_faces,
+                        compute=_skin_body,
+                        pose_key=(tuple(map(id, body_meshes)), matrices),
+                    )
+                else:
+                    blocks = [mesh.rest[:, :3] for mesh in body_meshes]
+                    points = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+                    body = PosedMesh(points, self.scene.body_faces)
             part = session.descriptor_part(self.scene.prepared.plan.unit.primary_part)
             weapon = None
             if part:
@@ -435,7 +461,7 @@ class MovePreview(QWidget):
                         if binding and equipment_clip and space is None:
                             from .preview_pose import attachment_points
                             points = attachment_points(binding, equipment_clip, self.seconds, matrix, looping=False)
-                            weapon = PosedMesh(points, tuple(map(tuple, binding.mesh.faces)))
+                            weapon = PosedMesh(points, self._cached_faces(binding))
                             missing = binding.unmatched(equipment_clip)
                             messages.append(f"Equipment: {reason}" + (f" · {len(missing)} unmapped tracks: Unverified" if missing else " · track mapping Passed"))
                         elif binding and space and mapped in self.scene.relationships.spaces:
@@ -451,7 +477,7 @@ class MovePreview(QWidget):
                                 world = blend_matrices(binding.skeleton, samples)
                                 points = deform(binding.mesh,skin_matrices(binding.skeleton,world))
                                 points = (np.column_stack((points,np.ones(len(points)))) @ np.asarray(matrix).reshape(4,4))[:,:3]
-                                weapon = PosedMesh(points, tuple(map(tuple,binding.mesh.faces)))
+                                weapon = PosedMesh(points, self._cached_faces(binding))
                                 messages.extend(notes)
                                 unmatched = set(h for clip, _, _ in samples for h in binding.unmatched(clip))
                                 if unmatched:
@@ -464,7 +490,9 @@ class MovePreview(QWidget):
                 point = session.attachment_point(socket, child)
                 view.set_attachments({"held" if held else "stowed": point} if point else {})
             view.set_meshes(body, weapon)
-        anchor = self._views[0]._root_anchor(self.scene.before.hierarchy)
+        anchor_view = self._views[1] if mode == "After" else self._views[0]
+        anchor_session = self.scene.after if mode == "After" else self.scene.before
+        anchor = anchor_view._root_anchor(anchor_session.hierarchy)
         if anchor is not None and self._follow_anchor is not None and self.follow.isChecked():
             from .model import Vec3
             camera = self._views[0]._camera

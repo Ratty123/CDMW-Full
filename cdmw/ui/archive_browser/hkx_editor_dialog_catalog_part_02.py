@@ -7,6 +7,17 @@ def _dialog_step_0121(_state):
         root = _state._load_xml_root_from_editor()
         if root is None:
             return
+        tree = _state.editable_catalog_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_editable_catalog_tree_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_editable_catalog_tree_inner(root) -> None:
         max_catalog_rows = 2500
         _state.editable_catalog_tree.clear()
         field_elements = root.findall("./editableFieldCatalog/fields/field")
@@ -159,6 +170,17 @@ def _dialog_step_0126(_state):
         root = _state._load_xml_root_from_editor()
         if root is None:
             return
+        tree = _state.byte_map_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_byte_map_tree_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_byte_map_tree_inner(root) -> None:
         _state.byte_map_tree.clear()
         entry_elements = root.findall("./bytePatchMap/entries/entry")
         if not entry_elements:

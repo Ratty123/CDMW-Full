@@ -1275,7 +1275,7 @@ class MeshEditorRustProcessMixin:
                 preparation_error = "DDS selection cancelled."
             else:
                 event = {**event, "arguments": {**dict(event.get("arguments") or {}), "_dds_path": path}}
-        if event.get("command") in {"replacement_choose", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls"}:
+        if event.get("command") in {"replacement_choose", "hair_import_custom", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls"}:
             from cdmw.ui.mesh_editor.replacement_flow import prepare_replacement_event
             self._archive_refit_picker_active = True
             try:

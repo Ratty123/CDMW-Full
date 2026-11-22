@@ -73,8 +73,6 @@ class CharacterFinderDialog(QDialog):
         self._related_key = None
         self._select_after_search = None
         self._pending_package = None
-        self._hair_preparation = None
-        self._hair_handoff = None
         self._export_preparation = None
         self._export_pending = None
         self._export_token = 0
@@ -882,41 +880,6 @@ class CharacterFinderDialog(QDialog):
         shell._activate_tool_widget(tab)
         self.hide()
 
-    def _hair_failed(self, _token, message):
-        self._hair_handoff = None
-        if not self._closing:
-            self._status.setText(message)
-            self._buttons()
-
-    def _hair_prepared(self, token, inputs):
-        pending, self._hair_handoff = self._hair_handoff, None
-        if (pending is None or self._closing or self._invalid or token != self._bridge.controller.generation
-                or self._selected_key() != pending[0] or inputs.detail.session_id != self._session_id):
-            if not self._closing:
-                self._buttons()
-            return
-        if not inputs.dependencies_complete:
-            self._hair_failed(token, "The hairstyle's material dependencies are incomplete.")
-            return
-        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
-        target = inputs.entries_by_id[pending[1]]
-        paths, names = {}, {}
-        for entry in inputs.entries:
-            paths.setdefault(entry.path.casefold(), []).append(entry)
-            names.setdefault(entry.basename.casefold(), []).append(entry)
-        dependencies = ArchiveWorkflowDependencyContext(target, inputs.entries, paths, names, True)
-        shell = self._window.shell
-        if not shell._prepare_mesh_editor_archive_launch(target):
-            self._buttons()
-            return
-        tab = shell.mesh_editor_tab
-        tab._pending_hair_start = (target.identity, pending[2])
-        tab.open_archive_session(target, archive_dependencies=dependencies)
-        shell._activate_tool_widget(tab)
-        self._status.setText("Hair opened in Mesh Editor. Choose its head reference there.")
-        self._buttons()
-        self.hide()
-
     def _visible(self):
         if self._closing or self._invalid or "search" in self._requests:
             return
@@ -1100,7 +1063,7 @@ class CharacterFinderDialog(QDialog):
         for button in (self._create_hair, self._edit_hair):
             from cdmw.domain.hair_characters import character_for_appearance
             compatible = self._hair_model() is not None or (self._details is not None and character_for_appearance(self._details.appearance_path) is not None)
-            button.setEnabled(compatible and not busy and not self._invalid and self._hair_handoff is None)
+            button.setEnabled(compatible and not busy and not self._invalid)
 
     def _session_changed(self, session):
         if session.session_id != self._session_id or session.fingerprint != self._fingerprint:
@@ -1142,9 +1105,6 @@ class CharacterFinderDialog(QDialog):
         for kind in tuple(self._requests):
             self._cancel(kind)
         self._preview.shutdown()
-        if self._hair_preparation is not None:
-            self._hair_preparation.cancel()
-        self._hair_handoff = None
         if self._export_preparation is not None:
             self._export_preparation.cancel()
         if self._look_preparation is not None:

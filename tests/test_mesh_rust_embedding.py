@@ -22,6 +22,7 @@ from cdmw.services.mesh_rust_contract import (
 )
 from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
+from cdmw.ui.preview.child_window_mover import child_window_mover
 
 
 class _FakeUser32:
@@ -565,6 +566,7 @@ def test_host_resizes_hides_focuses_and_reparents_the_owned_child() -> None:
         host.event(QEvent(QEvent.Type.WinIdChange))
         host.host_hwnd = lambda: launch_parent + 20  # type: ignore[method-assign]
         application.sendEvent(host._surface, QEvent(QEvent.Type.WinIdChange))
+        assert child_window_mover(lambda: api).wait_idle(5)
 
     assert api.positions
     assert api.positions[-1][:2] == (800, 600)
@@ -586,21 +588,26 @@ def test_prewarmed_host_uses_native_size_settled_after_show_and_resize() -> None
         assert host.attach_child_window(123, 77, launch_parent) == (True, "")
         assert not host.isVisible()
         host.show()
+        assert child_window_mover(lambda: api).wait_idle(5)
         assert api.positions[-1][:2] == (800, 600)
         # Windows finishes its parent resize after Qt sends Show/Resize.
         api.client_size = (1600, 900)
         application.processEvents()
+        assert child_window_mover(lambda: api).wait_idle(5)
         assert api.positions[-1][:2] == (1600, 900)
 
         host.resize(1100, 720)
         api.client_size = (1650, 1080)
         application.processEvents()
+        assert child_window_mover(lambda: api).wait_idle(5)
         assert api.positions[-1][:2] == (1650, 1080)
 
         host.resize(1200, 800)
+        assert child_window_mover(lambda: api).wait_idle(5)
         host.hide()
         positions = len(api.positions)
         application.processEvents()
+        assert child_window_mover(lambda: api).wait_idle(5)
         assert len(api.positions) == positions
         host.detach_child_window()
     host.deleteLater()

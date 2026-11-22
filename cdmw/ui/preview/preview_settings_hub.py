@@ -76,6 +76,11 @@ class PreviewSettingsHub(QObject):
     def __init__(self, settings: QSettings, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._settings = settings
+        # Before the first read: no viewport may start from a view mode an editor
+        # session without textures left behind (0.12.0-alpha.6).
+        from cdmw.domain.preview_view_modes import repair_leaked_view_mode
+
+        repair_leaked_view_mode(settings)
         self._last = self._read()
 
     def _read(self) -> dict[str, object]:

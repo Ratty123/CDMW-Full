@@ -381,25 +381,29 @@ class PrefabEditingMixin:
         speed_box = getattr(self, "speed_only_box", None)
         speed_only = bool(speed_box is not None and speed_box.isChecked())
         shown = 0
-        for index in range(self.tree.topLevelItemCount()):
-            parent = self.tree.topLevelItem(index)
-            parent_matches = not needle or any(
-                needle in parent.text(column).lower() for column in range(3)
-            )
-            visible_children = 0
-            for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                matches = parent_matches or any(
-                    needle in child.text(column).lower() for column in range(3)
+        self.tree.setUpdatesEnabled(False)
+        try:
+            for index in range(self.tree.topLevelItemCount()):
+                parent = self.tree.topLevelItem(index)
+                parent_matches = not needle or any(
+                    needle in parent.text(column).lower() for column in range(3)
                 )
-                if changeable_only and not self._row_is_changeable(child):
-                    matches = False
-                if speed_only and not self._is_speed_row(child):
-                    matches = False
-                child.setHidden(not matches)
-                visible_children += int(matches)
-            parent.setHidden(visible_children == 0 and not (parent_matches and not changeable_only and not speed_only))
-            shown += visible_children
+                visible_children = 0
+                for child_index in range(parent.childCount()):
+                    child = parent.child(child_index)
+                    matches = parent_matches or any(
+                        needle in child.text(column).lower() for column in range(3)
+                    )
+                    if changeable_only and not self._row_is_changeable(child):
+                        matches = False
+                    if speed_only and not self._is_speed_row(child):
+                        matches = False
+                    child.setHidden(not matches)
+                    visible_children += int(matches)
+                parent.setHidden(visible_children == 0 and not (parent_matches and not changeable_only and not speed_only))
+                shown += visible_children
+        finally:
+            self.tree.setUpdatesEnabled(True)
         if not needle and not changeable_only and not speed_only:
             self.match_count.setText("")
             return

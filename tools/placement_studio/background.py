@@ -1,12 +1,15 @@
 """One cancellable task plus one newest pending request, with nonblocking teardown."""
 from __future__ import annotations
 
-from threading import Event
+from threading import Condition, Event
+import time
+import weakref
 
-from PySide6.QtCore import QObject, QThread, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QThread, QTimer, Signal
 
 
 _retained = set()
+_IDLE_TIMEOUT = 0.5
 
 
 def _release(thread):
@@ -25,30 +28,108 @@ def others_busy(*, excluding: str = "") -> bool:
     the viewport uses this to move its playback frames off the UI thread only then.
     """
 
-    # Not only _Task: window_carry retains its plain QThread here while it stops.
-    return any(getattr(thread, "owner", "") != excluding and thread.isRunning() for thread in tuple(_retained))
+    # Sleeping persistent LatestTask threads set _active_work=False; plain retained QThreads
+    # (such as window_carry stopping threads) fall back to thread.isRunning().
+    return any(
+        getattr(thread, "owner", "") != excluding
+        and bool(getattr(thread, "_active_work", thread.isRunning()))
+        for thread in tuple(_retained)
+    )
 
 
-class _Task(QThread):
-    completed = Signal(int, object, str)
+def _stop_thread_ref(thread_ref) -> None:
+    thread = thread_ref()
+    if thread is not None:
+        thread.request_stop()
+
+
+class _WorkerThread(QThread):
+    completed = Signal(int, int, object, str, bool)
     progress = Signal(int, int, int)
 
-    def __init__(self, generation, work, owner=""):
+    def __init__(self, owner: str = ""):
         super().__init__()  # Never parent a running native thread to a closing widget.
-        self.generation = generation
-        self.work = work
         self.owner = owner
-        self.cancelled = Event()
+        self._cond = Condition()
+        self._job = None
+        self._stop = False
+        self._exiting = False
+        self._active_work = False
+        self._idle_event = Event()
+        self._idle_event.set()
+
+    def submit_job(self, generation: int, seq: int, work, cancel_event: Event) -> bool:
+        with self._cond:
+            if self._exiting or self._stop:
+                return False
+            self._job = (generation, seq, work, cancel_event)
+            self._active_work = True
+            self._idle_event.clear()
+            self._cond.notify_all()
+            return True
+
+    def cancel_queued(self) -> None:
+        with self._cond:
+            if self._job is not None:
+                _gen, _seq, _work, cancel_event = self._job
+                cancel_event.set()
+                self._job = (_gen, _seq, None, cancel_event)
+
+    def request_stop(self) -> None:
+        with self._cond:
+            self._stop = True
+            self._exiting = True
+            self._job = None
+            self._cond.notify_all()
+
+    def wait_idle(self, msecs: int) -> bool:
+        return self._idle_event.wait(max(0, int(msecs)) / 1000.0)
 
     def run(self):
-        result, error = None, ""
         try:
-            result = self.work(self.cancelled.is_set,
-                               lambda a, b: self.progress.emit(self.generation, a, b))
-        except Exception as exc:  # report to the owning UI thread
-            error = str(exc)
-        self.work = None
-        self.completed.emit(self.generation, result, error)
+            while True:
+                with self._cond:
+                    deadline = None
+                    while self._job is None and not self._stop:
+                        self._active_work = False
+                        self._idle_event.set()
+                        if deadline is None:
+                            deadline = time.monotonic() + _IDLE_TIMEOUT
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0.0:
+                            self._exiting = True
+                            return
+                        self._cond.wait(remaining)
+                    if self._stop:
+                        self._active_work = False
+                        self._idle_event.set()
+                        self._exiting = True
+                        return
+                    generation, seq, work, cancelled = self._job
+                    self._job = None
+                    self._active_work = True
+                    self._idle_event.clear()
+                result, error = None, ""
+                try:
+                    if work is not None and not cancelled.is_set():
+                        result = work(
+                            cancelled.is_set,
+                            lambda a, b, gen=generation: self.progress.emit(gen, a, b),
+                        )
+                except Exception as exc:  # report to the owning UI thread
+                    error = str(exc)
+                work = None
+                with self._cond:
+                    idle_now = self._job is None or self._stop
+                    if idle_now:
+                        self._active_work = False
+                        self._idle_event.set()
+                self.completed.emit(generation, seq, result, error, idle_now)
+        finally:
+            with self._cond:
+                self._active_work = False
+                self._idle_event.set()
+                self._exiting = True
 
 
 class LatestTask(QObject):
@@ -60,59 +141,87 @@ class LatestTask(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._generation = 0
+        self._submitted_seq = 0
         self._thread = None
-        self._pending = None
+        self._current_cancel = None
+        self._busy = False
         self._closed = False
 
     @property
     def busy(self):
-        return self._thread is not None or self._pending is not None
+        return bool(self._busy)
+
+    def _create_thread(self) -> _WorkerThread:
+        thread = self._thread = _WorkerThread(self.objectName())
+        _retained.add(thread)
+        thread.completed.connect(self._completed)
+        thread.progress.connect(self._progress)
+        thread.finished.connect(lambda t=thread: self._thread_finished(t))
+        thread.finished.connect(lambda t=thread: _release(t))
+        ref = weakref.ref(thread)
+        self.destroyed.connect(lambda _obj=None, r=ref: _stop_thread_ref(r))
+        app = QCoreApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(lambda r=ref: _stop_thread_ref(r))
+        return thread
 
     def submit(self, work):
         if self._closed:
             return
         self.cancel()
-        self._pending = (self._generation, work)
-        self._start_pending()
+        self._submitted_seq += 1
+        seq = self._submitted_seq
+        cancel_event = Event()
+        self._current_cancel = cancel_event
+        self._busy = True
+        thread = self._thread
+        if thread is not None:
+            thread.owner = self.objectName()
+            if thread.submit_job(self._generation, seq, work, cancel_event):
+                if not thread.isRunning():
+                    thread.start()
+                return
+        thread = self._create_thread()
+        thread.submit_job(self._generation, seq, work, cancel_event)
+        thread.start()
 
     def cancel(self):
         self._generation += 1
-        self._pending = None
+        if self._current_cancel is not None:
+            self._current_cancel.set()
+            self._current_cancel = None
         if self._thread is not None:
-            self._thread.cancelled.set()
+            self._thread.cancel_queued()
 
     def shutdown(self):
         self._closed = True
         self.cancel()
+        self._busy = False
+        if self._thread is not None:
+            self._thread.request_stop()
 
     def wait(self, msecs: int) -> bool:
         """Block until the running work returns, at most `msecs`; True when nothing runs."""
         thread = self._thread
-        return thread is None or thread.wait(msecs)
+        if thread is None:
+            return True
+        if self._closed:
+            return thread.wait(msecs)
+        return thread.wait_idle(msecs)
 
-    def _start_pending(self):
-        if self._thread is not None or self._pending is None or self._closed:
-            return
-        generation, work = self._pending
-        self._pending = None
-        thread = self._thread = _Task(generation, work, self.objectName())
-        _retained.add(thread)
-        thread.completed.connect(self._completed)
-        thread.progress.connect(self._progress)
-        thread.finished.connect(self._finished)
-        thread.finished.connect(lambda: _release(thread))
-        thread.start()
-
-    def _completed(self, generation, result, error):
+    def _completed(self, generation, seq, result, error, idle_now):
+        became_idle = bool(idle_now) and seq == self._submitted_seq
+        if became_idle:
+            self._busy = False
         if not self._closed and generation == self._generation:
             self.ready.emit(result, error)
+        if became_idle and not self._busy and not self._closed:
+            self.idle.emit()
 
     def _progress(self, generation, done, total):
         if not self._closed and generation == self._generation:
             self.progress.emit(done, total)
 
-    def _finished(self):
-        self._thread = None
-        self._start_pending()
-        if self._thread is None:
-            self.idle.emit()
+    def _thread_finished(self, thread):
+        if self._thread is thread:
+            self._thread = None

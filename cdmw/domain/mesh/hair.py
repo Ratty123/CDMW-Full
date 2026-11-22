@@ -199,6 +199,9 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
                 or not integer(lock.get("cards", 0), 33)
                 or type(lock.get("width_scale")) not in (float, int) or not .02 <= lock["width_scale"] <= 20):
             raise ValueError("Invalid hair lock identity or material assignment.")
+        uv = lock.get("uv_rect")
+        if uv is not None and (not rows([uv], 4, 1) or uv[2] <= uv[0] or uv[3] <= uv[1]):
+            raise ValueError("Invalid hair lock UV strip region.")
         guide = lock.get("guide")
         if guide is not None and (not integer(guide, len(guides)) or by_id[guides[guide]["group"]]["part"] != lock["part"]):
             raise ValueError("Hair lock refers to a missing or incompatible guide.")

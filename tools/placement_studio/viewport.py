@@ -18,11 +18,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as _np
 
-from PySide6.QtCore import QByteArray, QDataStream, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QByteArray, QDataStream, QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
-from cdmw.services.active_ui_translation import translate_active_ui_text
+from cdmw.services.active_ui_translation import active_ui_localizer, translate_active_ui_text
 
 from .gizmo import GizmoMixin
 from .model import Vec3
@@ -561,13 +561,10 @@ def _paint_layer(width: int, height: int, ratio: float, rect: QRect, frame: tupl
 
     image = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
     image.setDevicePixelRatio(ratio)
-    # Fractional display scaling can leave a partially covered edge
-    # pixel; initialize it before compositing onto the widget.
-    image.fill(Qt.transparent)
+    image.fill(_BACKGROUND)
     layer = QPainter(image)
     try:
         layer.setRenderHint(QPainter.Antialiasing, antialias)
-        layer.fillRect(rect, _BACKGROUND)
         _paint_ground(layer, frame, extent, near)
         if plan is not None:
             _paint_plan(layer, plan, colours, cache)
@@ -751,9 +748,21 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._follow = True
         self._follow_anchor: Optional[Vec3] = None
         self._dragging_view = False
+        self._wheel_zooming = False
+        self._settle_in_background = False
+        self._legend_cache = None
+        self._wheel_settle_timer = QTimer(self)
+        self._wheel_settle_timer.setSingleShot(True)
+        self._wheel_settle_timer.setInterval(140)
+        self._wheel_settle_timer.timeout.connect(self._on_wheel_settled)
         # Set while the playhead runs: heavy geometry thins out so the frame keeps up.
         self._moving = False
         self.last_paint_seconds = 0.0
+
+    def _on_wheel_settled(self) -> None:
+        self._wheel_zooming = False
+        self._settle_in_background = True
+        self.update()
 
     # ── inputs ──────────────────────────────────────────────────────
 
@@ -1103,15 +1112,19 @@ class SkeletonViewport(GizmoMixin, QWidget):
         """Reuse stationary geometry while sockets, selection and gizmos stay live."""
         ratio = self.devicePixelRatioF()
         width, height = math.ceil(self.width() * ratio), math.ceil(self.height() * ratio)
-        # One image, at most 16 MiB. Moving frames and larger viewports draw
-        # directly; neither needs an extra image allocation or a reduced resolution.
-        if self._moving or self._dragging_view or width * height > 4 * 1024 * 1024:
+        pixels = width * height
+        scale_cap = math.sqrt((4 * 1024 * 1024) / pixels) if pixels > 4 * 1024 * 1024 else 1.0
+        layer_width = max(1, int(width * scale_cap))
+        layer_height = max(1, int(height * scale_cap))
+        layer_ratio = ratio * scale_cap
+        # Interactive view moves, playback, or wheel zooms draw thinned geometry immediately.
+        if self._moving or self._dragging_view or self._wheel_zooming:
             idle, self._scene_background = self._scene_background, None
             self._shown_layer = None
-            if self._moving_in_background(width, height):
+            if self._moving_in_background(layer_width, layer_height):
                 if self._moving_layer is None and idle is not None:
                     self._moving_layer = idle  # the still picture, until the first pose lands
-                self._draw_moving_layer(painter, width, height, ratio)
+                self._draw_moving_layer(painter, layer_width, layer_height, layer_ratio)
                 return
             self._pending_layer = None
             self._moving_layer = None
@@ -1120,9 +1133,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
             if self._show_meshes:
                 self._draw_meshes(painter)
             return
+        settle = self._settle_in_background
+        self._settle_in_background = False
         camera = self._camera
-        view = (width, height, ratio, camera.yaw, camera.pitch, camera.distance, camera.fov,
-                camera.target.x, camera.target.y, camera.target.z,
+        view = (layer_width, layer_height, layer_ratio, camera.yaw, camera.pitch, camera.distance,
+                camera.fov, camera.target.x, camera.target.y, camera.target.z,
                 self._solid, self._show_meshes, self.GROUND_EXTENT)
         key = (view, self._mesh_generation)
         held = self._scene_background
@@ -1132,47 +1147,56 @@ class SkeletonViewport(GizmoMixin, QWidget):
             # screen stays up, and painted here when the plan lands. On the UI thread the
             # whole draw measured 40 ms alone and 2.7 s while the loaders ran Python, because
             # every NumPy pass in it gives the GIL away and then queues to get it back; the
-            # Qt part left here keeps the GIL and costs about 20 ms. A camera change still draws here and now: the old
-            # picture would be from the wrong side, and orbiting has to answer at once.
-            #
-            # A resize is the exception among view changes. Switching tabs or filling a
-            # table reflows the panel and resizes the view, and with a fixed field of view
-            # the new picture is the old one scaled about its centre, exactly. So the old
-            # picture is shown scaled until the new one is drawn.
+            # Qt part left here keeps the GIL and costs about 20 ms. A programmatic camera
+            # change still draws here and now so non-interactive updates answer immediately,
+            # while settling after drag/wheel settles via the background worker.
             scene = self._mesh_scene() if self._show_meshes else None
             on_screen = held is not None and held[0] == self._shown_layer
             same_view = on_screen and held[0][0] == view
-            resized = on_screen and not same_view and held[0][0][2:] == view[2:]
+            resized = on_screen and not same_view and held[0][0][3:] == view[3:]
             if self.background_layers and scene is not None and scene.meshes and (
-                same_view or resized or not self._layer_shown_once
+                same_view or resized or settle or not self._layer_shown_once
             ):
-                if not (same_view or resized):
+                self._request_layer(key, layer_width, layer_height, layer_ratio, scene)
+                if same_view:
+                    self._draw_layer_image(painter, held[1])
+                    self._shown_layer = held[0]
+                elif resized:
+                    self._draw_resized(painter, held[1])
+                    self._shown_layer = held[0]
+                elif settle:
+                    painter.fillRect(self.rect(), _BACKGROUND)
+                    self._draw_ground(painter)
+                    self._draw_meshes(painter, thin_override=True)
+                    self._shown_layer = None
+                else:
                     # The very first picture: the floor now, the meshes when they are ready.
                     image, _body, _weapon = _render_layer(
-                        width, height, ratio, QRect(self.rect()), self._view_frame(),
-                        self.GROUND_EXTENT, self._NEAR, None, self._paint_cache,
+                        layer_width, layer_height, layer_ratio, QRect(self.rect()),
+                        self._view_frame(), self.GROUND_EXTENT, self._NEAR, None, self._paint_cache,
                     )
                     held = self._scene_background = (view, -1), image
-                    same_view = True
-                self._request_layer(key, width, height, ratio, scene)
-                if same_view:
-                    painter.drawImage(0, 0, held[1])
-                else:
-                    self._draw_resized(painter, held[1])
-                self._shown_layer = held[0]
+                    self._draw_layer_image(painter, held[1])
+                    self._shown_layer = held[0]
                 self._layer_shown_once = True
                 return
             self._pending_layer = None
             self._scene_background = None
             image, body_screen, weapon_screen = _render_layer(
-                width, height, ratio, QRect(self.rect()), self._view_frame(),
+                layer_width, layer_height, layer_ratio, QRect(self.rect()), self._view_frame(),
                 self.GROUND_EXTENT, self._NEAR, scene, self._paint_cache,
             )
             self._keep_screens(scene, body_screen, weapon_screen)
             self._scene_background = key, image
-        painter.drawImage(0, 0, self._scene_background[1])
+        self._draw_layer_image(painter, self._scene_background[1])
         self._shown_layer = self._scene_background[0]
         self._layer_shown_once = True
+
+    def _draw_layer_image(self, painter: QPainter, image: QImage) -> None:
+        if abs((image.devicePixelRatio() or 1.0) - self.devicePixelRatioF()) > 1e-6:
+            painter.drawImage(self.rect(), image)
+        else:
+            painter.drawImage(0, 0, image)
 
     def _moving_in_background(self, width: int, height: int) -> bool:
         """Whether this playback frame is planned (and skinned) on the worker.
@@ -1186,7 +1210,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
         from .background import others_busy
 
         return (
-            self._moving and not self._dragging_view and self.background_layers
+            self._moving and not self._dragging_view and not self._wheel_zooming
+            and self.background_layers
             and self._show_meshes and width * height <= 4 * 1024 * 1024
             and (self._body is not None or self._weapon is not None)
             and others_busy(excluding="viewport_layer")
@@ -1204,7 +1229,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
             painter.fillRect(self.rect(), _BACKGROUND)
             self._draw_ground(painter)
         elif held[1].width() == width and held[1].height() == height:
-            painter.drawImage(0, 0, held[1])
+            self._draw_layer_image(painter, held[1])
         else:
             self._draw_resized(painter, held[1])
         self._frame_complete = held is not None and held[0] == key
@@ -1291,6 +1316,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
     def stop_rendering(self) -> None:
         """Drop the layer worker; for the window's close. Later paints draw here instead."""
 
+        self._wheel_settle_timer.stop()
+        self._wheel_zooming = False
+        self._settle_in_background = False
         if self._layer_task is not None:
             self._layer_task.shutdown()
             # A plan is NumPy for a fraction of a second. Waiting for it here keeps a worker
@@ -1300,7 +1328,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self.background_layers = False
         self._pending_layer = None
 
-    def _mesh_scene(self) -> _MeshScene:
+    def _mesh_scene(self, *, thin_override: bool = False) -> _MeshScene:
         """What the face pass needs, taken now, so it can be planned on another thread."""
 
         inputs = []
@@ -1342,7 +1370,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
             meshes=tuple(inputs),
             clipping=frozenset(self._clipping),
             moving=self._moving,
-            thin=self._moving or self._dragging_view,
+            thin=self._moving or self._dragging_view or self._wheel_zooming or thin_override,
             body=self._body,
             colours=colours,
         )
@@ -1412,10 +1440,10 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._points_cache[id(vertices)] = (vertices, array)
         return array
 
-    def _draw_meshes(self, painter: QPainter) -> None:
+    def _draw_meshes(self, painter: QPainter, *, thin_override: bool = False) -> None:
         """Body proxy then weapon, depth-sorted back to front, drawn here and now."""
 
-        scene = self._mesh_scene()
+        scene = self._mesh_scene(thin_override=thin_override)
         body_screen, weapon_screen = _paint_meshes(painter, scene, self._paint_cache)
         self._keep_screens(scene, body_screen, weapon_screen)
 
@@ -1549,16 +1577,43 @@ class SkeletonViewport(GizmoMixin, QWidget):
             painter.drawLine(position + QPointF(-size, size), position + QPointF(size, -size))
             painter.drawText(position + QPointF(size + 2, -size), role)
 
+    def _legend_strings(self) -> dict:
+        localizer = active_ui_localizer()
+        locale_key = (
+            id(localizer),
+            getattr(localizer, "language", ""),
+            getattr(localizer, "_language", ""),
+        )
+        cached = self._legend_cache
+        if cached is not None and cached[0] == locale_key:
+            return cached[1]
+        strings = {
+            "rows": (
+                (_SOCKET_USED, translate_active_ui_text("attach point in use")),
+                (_SOCKET_UNUSED, translate_active_ui_text("spare attach point")),
+                (_SOCKET_SELECTED, translate_active_ui_text("selected")),
+                (_ATTACH_STOWED, translate_active_ui_text("where it hangs when put away")),
+                (_ATTACH_HELD, translate_active_ui_text("where it is held")),
+                (_WEAPON_FILL, translate_active_ui_text("weapon")),
+                (_CLIP_FILL, translate_active_ui_text("inside the body")),
+            ),
+            "snap": translate_active_ui_text("snap"),
+            "no_item_axis": translate_active_ui_text("no item axis - select a weapon"),
+            "mode": translate_active_ui_text("MODE"),
+            "drag_edits": translate_active_ui_text("drag edits"),
+            "select_socket": translate_active_ui_text("(select a socket)"),
+            "axis": translate_active_ui_text("axis"),
+            "hint_edit": translate_active_ui_text(
+                "Alt+drag or right-drag: turn view   middle-drag: pan   wheel: zoom   "
+            ),
+            "hint_orbit": translate_active_ui_text("drag: orbit   middle-drag: pan   wheel: zoom   "),
+        }
+        self._legend_cache = (locale_key, strings)
+        return strings
+
     def _draw_legend(self, painter: QPainter) -> None:
-        rows = [
-            (_SOCKET_USED, translate_active_ui_text("attach point in use")),
-            (_SOCKET_UNUSED, translate_active_ui_text("spare attach point")),
-            (_SOCKET_SELECTED, translate_active_ui_text("selected")),
-            (_ATTACH_STOWED, translate_active_ui_text("where it hangs when put away")),
-            (_ATTACH_HELD, translate_active_ui_text("where it is held")),
-            (_WEAPON_FILL, translate_active_ui_text("weapon")),
-            (_CLIP_FILL, translate_active_ui_text("inside the body")),
-        ]
+        strings = self._legend_strings()
+        rows = strings["rows"]
         painter.setPen(QPen(_TEXT))
         y = 18
         for color, label in rows:
@@ -1570,29 +1625,26 @@ class SkeletonViewport(GizmoMixin, QWidget):
             y += 15
         if self._edit_mode != "off":
             snap = (
-                f"{translate_active_ui_text('snap')} {self._snap:.3f}"
+                f"{strings['snap']} {self._snap:.3f}"
                 if self._edit_mode == "move"
-                else f"{translate_active_ui_text('snap')} {self._angle_snap:.0f}°"
+                else f"{strings['snap']} {self._angle_snap:.0f}°"
             )
             if self._edit_mode == "tilt" and self._blade_axis is None:
-                snap += f"   [{translate_active_ui_text('no item axis - select a weapon')}]"
+                snap += f"   [{strings['no_item_axis']}]"
             painter.setPen(QPen(_SOCKET_SELECTED))
             painter.drawText(
                 QPointF(14, self.height() - 26),
-                f"{self._edit_mode.upper()} {translate_active_ui_text('MODE')} — "
-                f"{translate_active_ui_text('drag edits')} "
-                f"{self._selected or translate_active_ui_text('(select a socket)')}   {snap}"
+                f"{self._edit_mode.upper()} {strings['mode']} — "
+                f"{strings['drag_edits']} "
+                f"{self._selected or strings['select_socket']}   {snap}"
                 + (f"   [{self._grabbed_axis or self._hovered_axis} "
-                   f"{translate_active_ui_text('axis')}]"
+                   f"{strings['axis']}]"
                    if (self._grabbed_axis or self._hovered_axis) else ""),
             )
         painter.setPen(QPen(_TEXT))
         painter.drawText(
             QPointF(14, self.height() - 10),
-            (translate_active_ui_text(
-                "Alt+drag or right-drag: turn view   middle-drag: pan   wheel: zoom   ")
-             if self._edit_mode != "off"
-             else translate_active_ui_text("drag: orbit   middle-drag: pan   wheel: zoom   "))
+            (strings["hint_edit"] if self._edit_mode != "off" else strings["hint_orbit"])
             + f"yaw {self._camera.yaw:.0f}  pitch {self._camera.pitch:.0f}",
         )
 
@@ -1663,7 +1715,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         return self._mouse_press_default(event)
 
     def _mouse_press_default(self, event) -> None:
-        self._dragging_view = True
+        self._dragging_view = False
         self._last_mouse = event.position().toPoint()
         self._drag_button = event.button()
         self._drag_residual = Vec3()
@@ -1752,6 +1804,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
             else:
                 self._drag_socket(dx, dy)
         elif self._drag_button == Qt.LeftButton or turning:
+            if dx or dy:
+                self._dragging_view = True
             # Turning left-right used to move the camera with the pointer, so the character
             # turned against it, while up-down followed it: the mixed reading that felt
             # inverted. Both axes now agree, either way round (`set_orbit_follows_pointer`).
@@ -1759,6 +1813,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
             self._camera.yaw += sign * dx * 0.4
             self._camera.pitch -= sign * dy * 0.4
         elif self._drag_button == Qt.MiddleButton:
+            if dx or dy:
+                self._dragging_view = True
             right, up, _forward = self._camera.basis()
             scale = self._camera.distance * 0.0022
             self._camera.target = Vec3(
@@ -1825,8 +1881,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
         if pending is not None and (event.position().toPoint() - pending[1]).manhattanLength() <= 4:
             self.set_picked_bone(pending[0])
             self.bone_clicked.emit(pending[0])
-        # Full detail comes back as soon as the drag ends.
+        # Full detail comes back asynchronously as soon as a view drag ends.
+        was_dragging_view = self._dragging_view
         self._dragging_view = False
+        if was_dragging_view:
+            self._settle_in_background = True
         self.update()
         edited = bool(self._dragging_socket)
         self._drag_button = Qt.NoButton
@@ -1845,6 +1904,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._orbit_follows_pointer = bool(follows)
 
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        self._wheel_zooming = True
+        self._wheel_settle_timer.start()
         self._camera.distance *= 0.88 if event.angleDelta().y() > 0 else 1.14
         self._camera.clamp()
         self.update()

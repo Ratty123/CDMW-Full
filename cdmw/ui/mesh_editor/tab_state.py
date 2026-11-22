@@ -42,14 +42,36 @@ class MeshEditorStateMixin(
         return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").strip()
     def _entry_label(self, entry: object) -> str:
         return str(getattr(entry, "basename", "") or Path(self._entry_path(entry)).name or self._entry_path(entry) or "mesh").strip()
+    def _archive_selection_key(self, entry: object):
+        if entry is None:
+            return None
+        return (
+            id(entry),
+            getattr(entry, "path", None),
+            str(getattr(entry, "pamt_path", "") or ""),
+            str(getattr(entry, "paz_file", "") or ""),
+            getattr(entry, "offset", None),
+            getattr(entry, "paz_index", None),
+        )
+
     def set_archive_selection(self, entry: Optional[_tab.ArchiveEntry]) -> None:
+        selection_state = (
+            self._archive_selection_key(entry),
+            self.has_active_builder(),
+            self.has_active_standalone_session(),
+            id(self.current_request) if self.current_request is not None else None,
+        )
+        if getattr(self, "_last_archive_selection_state", None) == selection_state:
+            return
         self.current_archive_selection = entry
         self._set_mesh_editor_character_context_source(entry)
         if self.has_active_builder():
             self._sync_state()
+            self._last_archive_selection_state = selection_state
             return
         if self.has_active_standalone_session():
             self._sync_state()
+            self._last_archive_selection_state = selection_state
             return
         if (
             entry is not None
@@ -63,6 +85,12 @@ class MeshEditorStateMixin(
         ):
             self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self._sync_state()
+        self._last_archive_selection_state = (
+            self._archive_selection_key(entry),
+            self.has_active_builder(),
+            self.has_active_standalone_session(),
+            id(self.current_request) if self.current_request is not None else None,
+        )
     def open_session(self, request: _tab.MeshEditorSessionRequest) -> None:
         """Compatibility wrapper for the former session-request entry point."""
         if not isinstance(request, _tab.MeshEditorSessionRequest):

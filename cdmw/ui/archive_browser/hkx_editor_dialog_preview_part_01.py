@@ -518,7 +518,10 @@ def _dialog_step_0039(_state):
 
 def _dialog_step_0040(_state):
     def _update_line_numbers() -> None:
-        _state.line_numbers.setPlainText("\n".join(str(index) for index in range(1, _state.editor.blockCount() + 1)))
+        block_count = _state.editor.blockCount()
+        if block_count != getattr(_state, "_last_line_number_blocks", -1):
+            _state._last_line_number_blocks = block_count
+            _state.line_numbers.setPlainText("\n".join(str(index) for index in range(1, block_count + 1)))
         _state.line_numbers.verticalScrollBar().setValue(_state.editor.verticalScrollBar().value())
     _state._update_line_numbers = _update_line_numbers
 
@@ -549,10 +552,18 @@ def _dialog_step_0043(_state):
 
 def _dialog_step_0044(_state):
     def _silent_xml_root_from_editor() -> Optional[ET.Element]:
+        doc = _state.editor.document()
+        cache_key = (id(doc), doc.revision()) if doc is not None else None
+        cached = getattr(_state, "_silent_xml_root_cache", None)
+        if cache_key is not None and cached is not None and cached[0] == cache_key:
+            return cached[1]
         try:
-            return _state.ET.fromstring(_state.editor.toPlainText())
+            root = _state.ET.fromstring(_state.editor.toPlainText())
         except _state.ET.ParseError:
-            return None
+            root = None
+        if cache_key is not None:
+            _state._silent_xml_root_cache = (cache_key, root)
+        return root
     _state._silent_xml_root_from_editor = _silent_xml_root_from_editor
 
 def _dialog_step_0045(_state):

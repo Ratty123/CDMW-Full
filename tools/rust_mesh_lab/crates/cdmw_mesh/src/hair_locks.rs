@@ -29,6 +29,8 @@ pub struct HairLock {
     pub width_scale: f32,
     #[serde(default)]
     pub cards: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uv_rect: Option<[f32; 4]>,
 }
 
 impl HairLock {
@@ -61,6 +63,12 @@ pub fn validate(state: &HairState) -> Result<()> {
             lock.width_scale.is_finite() && (0.02..=20.0).contains(&lock.width_scale),
             "invalid lock width",
         )?;
+        if let Some(uv) = lock.uv_rect {
+            require(
+                uv.iter().all(|v| v.is_finite()) && uv[2] > uv[0] && uv[3] > uv[1],
+                "invalid lock texture atlas region",
+            )?;
+        }
         require(
             state.groups.iter().any(|g| g.part == lock.part),
             "lock has no material part",
@@ -255,9 +263,15 @@ pub fn synchronize_generated(state: &mut HairState) {
         .filter(|g| g.mode == GroupMode::Generated)
         .map(|g| g.part)
         .collect();
+    let hybrid_guides: BTreeSet<(u32, u32)> = state
+        .locks
+        .iter()
+        .filter(|l| !generated.contains(&l.part) && l.kind == LockKind::Generated)
+        .filter_map(|l| l.guide.map(|g| (l.part, g)))
+        .collect();
     let mut ownership: BTreeMap<(u32, u32), Vec<u32>> = BTreeMap::new();
     for binding in &state.bindings {
-        if generated.contains(&binding.part) {
+        if generated.contains(&binding.part) || hybrid_guides.contains(&(binding.part, binding.guide)) {
             ownership
                 .entry((binding.part, binding.guide))
                 .or_default()
@@ -265,7 +279,7 @@ pub fn synchronize_generated(state: &mut HairState) {
         }
     }
     state.locks.retain(|l| {
-        !generated.contains(&l.part)
+        (!generated.contains(&l.part) && l.kind != LockKind::Generated)
             || l.guide
                 .is_some_and(|g| ownership.contains_key(&(l.part, g)))
     });
@@ -288,6 +302,7 @@ pub fn synchronize_generated(state: &mut HairState) {
                 mirrored: None,
                 width_scale: 1.0,
                 cards: 0,
+                uv_rect: None,
             });
         }
     }
@@ -532,6 +547,7 @@ pub fn prepare_existing(
             mirrored: None,
             width_scale: 1.0,
             cards: 0,
+            uv_rect: None,
         };
         // UV seams split source cards already. Trace their longest geometric
         // endpoint direction; require a distinctly scalp-facing endpoint.

@@ -715,16 +715,20 @@ def extract_archive_entries(
     if total:
         emit_progress(0, f"Extracting 0 / {total:,} archive file(s)...", force=True)
 
+    throttle_extract_logs = total > 200
+    last_log_emit_at = 0.0
     for index, entry in enumerate(entries, start=1):
         raise_if_cancelled(stop_event)
         try:
             target_path = sanitize_archive_entry_output_path(
                 entry, output_root, include_package_directory=include_package_directory,
             )
+            renamed_here = False
             if collision_mode == "rename":
                 resolved_path = find_available_output_path(target_path, used_targets)
                 if resolved_path != target_path:
                     renamed += 1
+                    renamed_here = True
             else:
                 resolved_path = target_path
             used_targets.add(str(resolved_path).lower())
@@ -737,15 +741,24 @@ def extract_archive_entries(
             if was_decompressed:
                 decompressed += 1
             if on_log:
-                flags = []
-                if note and note not in flags:
-                    flags.append(note)
-                elif was_decompressed:
-                    flags.append("Decompressed")
-                if collision_mode == "rename" and out_path != target_path:
-                    flags.append("Renamed")
-                extra = f" [{' '.join(flags)}]" if flags else ""
-                on_log(f"[{index}/{total}] EXTRACT {entry.path}{extra} -> {out_path}")
+                now_log = time.monotonic()
+                if (
+                    not throttle_extract_logs
+                    or index == 1
+                    or index >= total
+                    or renamed_here
+                    or (now_log - last_log_emit_at) >= 0.1
+                ):
+                    last_log_emit_at = now_log
+                    flags = []
+                    if note and note not in flags:
+                        flags.append(note)
+                    elif was_decompressed:
+                        flags.append("Decompressed")
+                    if collision_mode == "rename" and out_path != target_path:
+                        flags.append("Renamed")
+                    extra = f" [{' '.join(flags)}]" if flags else ""
+                    on_log(f"[{index}/{total}] EXTRACT {entry.path}{extra} -> {out_path}")
             emit_progress(index, f"Extracted {index:,} / {total:,}: {entry.path}")
         except Exception as exc:
             failed += 1

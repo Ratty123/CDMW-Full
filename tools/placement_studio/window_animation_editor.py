@@ -193,6 +193,7 @@ class AnimationEditorMixin:
         # Under the view, on the playback bar's time scale, while this tab is open.
         self._key_timeline = KeyTimeline()
         self._key_timeline.seek_requested.connect(self._seek_from_timeline)
+        self._key_timeline.scrub_state_changed.connect(self._on_timeline_scrub_state_changed)
         self._key_timeline.key_moved.connect(self._move_key_on_timeline)
         self._key_timeline.key_removed.connect(self._remove_key_on_timeline)
         self._key_timeline.setVisible(False)
@@ -596,8 +597,22 @@ class AnimationEditorMixin:
     def _init_animation_editor(self) -> None:
         """Wire the tab to the window once both exist: bone picking follows the open tab."""
 
-        self._lower.currentChanged.connect(lambda _index: self._sync_bone_picking())
+        self._lower.currentChanged.connect(lambda _index: self._on_animation_editor_tab_changed())
         self._viewport.bone_clicked.connect(self._on_bone_clicked)
+
+    def _on_animation_editor_tab_changed(self) -> None:
+        from .layout_util import is_current_page
+
+        self._sync_bone_picking()
+        if is_current_page(self._built_attr("_animation_editor_page")):
+            self._on_editor_frame()
+
+    def _on_timeline_scrub_state_changed(self, active: bool) -> None:
+        viewport = getattr(self, "_viewport", None)
+        if viewport is None:
+            return
+        playing = bool(getattr(getattr(self, "_playback", None), "playing", False))
+        viewport.set_moving(bool(active or playing))
 
     def _sync_bone_picking(self) -> None:
         from .layout_util import is_current_page
@@ -855,7 +870,12 @@ class AnimationEditorMixin:
         skeleton = self._editor_skeleton()
         if skeleton is None:
             return (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, -1.0)
-        return character_axes(skeleton)
+        cached = getattr(self, "_reach_axes_cache", None)
+        if cached is not None and cached[0] is skeleton:
+            return cached[1]
+        axes = character_axes(skeleton)
+        self._reach_axes_cache = (skeleton, axes)
+        return axes
 
     def _reach_offset_from_controls(self):
         left, up, forward = self._reach_axes()
@@ -1195,10 +1215,14 @@ class AnimationEditorMixin:
         """The playhead moved: show the selected bone's offset at the new moment."""
 
         if getattr(self, "_clip_edit", None) is not None:
+            self._key_timeline.set_playhead(self._playback.frame if self._playback.loaded else 0.0)
+            from .layout_util import is_current_page
+
+            if not is_current_page(self._built_attr("_animation_editor_page")):
+                return
             self._sync_pose_values()
             self._sync_reach_values()
             self._show_edited_bone()
-            self._key_timeline.set_playhead(self._playback.frame if self._playback.loaded else 0.0)
 
     def _show_edited_bone(self) -> None:
         from .model import Vec3

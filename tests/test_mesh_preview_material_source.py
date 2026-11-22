@@ -359,3 +359,64 @@ def test_binding_signature_survives_json_int_float_round_trip_for_v1_and_v2(tmp_
         # Real material edits must still invalidate both v1 and v2 signatures.
         target.preview_color = [0.5, 1.0, 1.0]
         assert unedited_preview_core_material_source(target) is None
+
+
+def _decoded(root):
+    """A mesh whose parts are bound to a native package under ``root``, as one cache generation holds it."""
+    root.mkdir(parents=True)
+    return decode_dotnet_native_preview_package(_native(root))
+
+
+def test_a_restored_part_takes_this_sessions_bindings_when_only_the_cache_moved(tmp_path):
+    """A saved editor state stores its material bindings as paths into the archive index and
+    preview caches. After those were rebuilt the stored native source no longer counted as
+    unedited, and Continue Editing drew the draft's raw textures without their layers."""
+    import shutil
+
+    from cdmw.services.mesh_preview_material_source import adopt_current_material_bindings
+
+    saved = _decoded(tmp_path / "generation-1")
+    current = _decoded(tmp_path / "generation-2")
+    restored, bound = saved.submeshes[0], current.submeshes[0]
+    source = unedited_preview_core_material_source(bound)
+    stored = unedited_preview_core_material_source(restored)
+    assert source is not None and stored is not None and stored is not source
+    # While the saved state's own files exist it keeps what it stored.
+    assert adopt_current_material_bindings(saved, current) == 0
+    assert unedited_preview_core_material_source(restored) is stored
+
+    shutil.rmtree(tmp_path / "generation-1")  # the cache generation it points into is gone
+    assert unedited_preview_core_material_source(restored) is None
+    assert adopt_current_material_bindings(saved, current) >= 1
+    assert unedited_preview_core_material_source(restored) is source
+    assert str(restored.preview_texture_dds_path).startswith(str(tmp_path / "generation-2"))
+    # Nothing of the session's own part is shared but the read-only source.
+    restored.preview_native_material_overrides["roughness"] = 0.91
+    assert unedited_preview_core_material_source(bound) is source
+
+
+@pytest.mark.parametrize("difference", ["tint", "override", "renamed", "unbound_session", "ambiguous"])
+def test_a_restored_part_keeps_its_stored_material_when_more_than_the_cache_moved(tmp_path, difference):
+    import shutil
+
+    from cdmw.services.mesh_preview_material_source import adopt_current_material_bindings
+
+    saved = _decoded(tmp_path / "generation-1")
+    current = _decoded(tmp_path / "generation-2")
+    restored, bound = saved.submeshes[0], current.submeshes[0]
+    if difference == "tint":
+        restored.preview_texture_tint = (0.1, 0.2, 0.3)  # an edit made before the state was saved
+    elif difference == "override":
+        restored.preview_native_material_overrides["roughness"] = 0.91
+    elif difference == "renamed":
+        restored.name = "Renamed part"
+    elif difference == "unbound_session":
+        bound.preview_native_material_overrides.pop("preview_core_material_source")
+    else:
+        current.submeshes.append(copy.copy(bound))
+    kept = copy.deepcopy({name: getattr(restored, name, None) for name in (
+        "preview_texture_tint", "preview_texture_dds_path", "preview_native_material_overrides")})
+    shutil.rmtree(tmp_path / "generation-1")
+    adopt_current_material_bindings(saved, current)
+    assert unedited_preview_core_material_source(restored) is None
+    assert {name: getattr(restored, name, None) for name in kept} == kept

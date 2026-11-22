@@ -155,7 +155,11 @@ def prepare_hair_editor_session(entry, dependencies, args, draft_root, stop_even
     """Prepare target, mounted references and materials without replacing live work."""
     from dataclasses import replace
     from cdmw.services.mesh_rust_hair import prepare_hair_setup, validate_hair_donor
+    from cdmw.ui.mesh_editor.saved_work_launch import default_session_draft_request
+
+    draft_request = default_session_draft_request(entry, dependencies) if draft_root is not None else None
     loader = MeshArchiveSessionLoadWorker(1, entry, draft_root=draft_root,
+        draft_request=draft_request,
         archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
         archive_entries_by_basename=dependencies.entries_by_basename)
     loaded = _run(loader, loader.loaded, stop_event)

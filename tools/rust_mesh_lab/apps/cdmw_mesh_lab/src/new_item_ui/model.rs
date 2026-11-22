@@ -147,6 +147,7 @@ pub struct State {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ImageAsset {
+    #[serde(default)]
     pub png_hex: String,
     pub width: u32,
     pub height: u32,

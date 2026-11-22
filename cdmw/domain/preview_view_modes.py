@@ -76,8 +76,40 @@ def write_view_mode(settings: object, value: object) -> str:
     return mode
 
 
+#: The mode a Mesh Editor session without textures draws in place of a textured one.
+TEXTURELESS_FALLBACK_VIEW_MODE = "faces"
+VIEW_MODE_REPAIR_VERSION_KEY = "preview/view_mode_repair_version"
+# Version 1: in 0.12.0-alpha.6 a Mesh Editor session whose textures did not load fell
+# back to Faces (No Textures), and the editor saved that fallback as the shared view
+# mode. Browse Archives and every later editor then drew untextured, across restarts,
+# until Solid (Textured) was picked again. The editor no longer shares its fallback.
+# A stored "faces" cannot be told from a deliberate choice, so it is moved to the
+# default once; picked again afterwards, it is kept.
+VIEW_MODE_REPAIR_VERSION = 1
+
+
+def repair_leaked_view_mode(settings: object) -> bool:
+    """Move a stored Faces (No Textures) back to the default, once per profile.
+
+    Returns True when this call changed the stored view mode.
+    """
+
+    try:
+        version = int(settings.value(VIEW_MODE_REPAIR_VERSION_KEY, 0) or 0)  # type: ignore[attr-defined]
+    except (TypeError, ValueError):
+        version = 0
+    if version >= VIEW_MODE_REPAIR_VERSION:
+        return False
+    changed = read_view_mode(settings) == TEXTURELESS_FALLBACK_VIEW_MODE
+    if changed:
+        write_view_mode(settings, DEFAULT_VIEW_MODE)
+    settings.setValue(VIEW_MODE_REPAIR_VERSION_KEY, VIEW_MODE_REPAIR_VERSION)  # type: ignore[attr-defined]
+    return changed
+
+
 __all__ = [
     "DEFAULT_VIEW_MODE", "LEGACY_VIEW_MODES", "LEGACY_VIEW_MODE_KEY", "SHARED_VIEW_MODES",
-    "SHARED_VIEW_MODE_IDS", "SHARED_VIEW_MODE_LABELS", "VIEW_MODE_KEY", "read_view_mode",
-    "shared_view_mode", "write_view_mode",
+    "SHARED_VIEW_MODE_IDS", "SHARED_VIEW_MODE_LABELS", "TEXTURELESS_FALLBACK_VIEW_MODE",
+    "VIEW_MODE_KEY", "VIEW_MODE_REPAIR_VERSION", "VIEW_MODE_REPAIR_VERSION_KEY",
+    "read_view_mode", "repair_leaked_view_mode", "shared_view_mode", "write_view_mode",
 ]

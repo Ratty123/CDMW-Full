@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QMenu, QSizePolicy, QWidget
 
@@ -49,6 +49,7 @@ class Band:
 
 class KeyTimeline(QWidget):
     seek_requested = Signal(float)
+    scrub_state_changed = Signal(bool)
     #: lane key, from frame, to frame
     key_moved = Signal(str, int, int)
     #: lane key, frame
@@ -63,6 +64,12 @@ class KeyTimeline(QWidget):
         self._drag: Optional[Tuple[str, int]] = None
         self._drag_to: Optional[int] = None
         self._scrubbing = False
+        self._pending_seek_frame: Optional[float] = None
+        self._last_scrub_frame: Optional[float] = None
+        self._scrub_timer = QTimer(self)
+        self._scrub_timer.setSingleShot(True)
+        self._scrub_timer.setInterval(16)
+        self._scrub_timer.timeout.connect(self._flush_scrub_seek)
         self.setMouseTracking(True)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip(translate_active_ui_text(
@@ -244,9 +251,19 @@ class KeyTimeline(QWidget):
         if hit is not None:
             self._drag, self._drag_to = hit, hit[1]
         else:
+            frame = float(self.frame_at(point.x()))
             self._scrubbing = True
-            self.seek_requested.emit(float(self.frame_at(point.x())))
+            self._last_scrub_frame = frame
+            self._pending_seek_frame = None
+            self._scrub_timer.stop()
+            self.scrub_state_changed.emit(True)
+            self.seek_requested.emit(frame)
         self.update()
+
+    def _flush_scrub_seek(self) -> None:
+        frame, self._pending_seek_frame = self._pending_seek_frame, None
+        if frame is not None:
+            self.seek_requested.emit(frame)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
         point = event.position()
@@ -256,7 +273,12 @@ class KeyTimeline(QWidget):
                 self._drag_to = frame
                 self.update()
         elif self._scrubbing:
-            self.seek_requested.emit(float(self.frame_at(point.x())))
+            frame = float(self.frame_at(point.x()))
+            if self._last_scrub_frame is None or abs(frame - self._last_scrub_frame) > 1e-6:
+                self._last_scrub_frame = frame
+                self._pending_seek_frame = frame
+                if not self._scrub_timer.isActive():
+                    self._scrub_timer.start()
         else:
             self.setCursor(Qt.SizeHorCursor if self.key_at(point) is not None else Qt.ArrowCursor)
 
@@ -269,7 +291,13 @@ class KeyTimeline(QWidget):
             else:
                 self.seek_requested.emit(float(frame))
             self.update()
+        was_scrubbing = self._scrubbing
+        self._scrub_timer.stop()
+        self._flush_scrub_seek()
         self._scrubbing = False
+        self._last_scrub_frame = None
+        if was_scrubbing:
+            self.scrub_state_changed.emit(False)
 
 
 __all__ = ["Band", "KeyTimeline", "Lane"]

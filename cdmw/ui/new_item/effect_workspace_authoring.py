@@ -1,6 +1,7 @@
 """Library preferences and recipe inspector integration for the resident workspace."""
 from __future__ import annotations
 
+from collections import OrderedDict
 import hashlib
 from dataclasses import replace
 
@@ -20,6 +21,8 @@ class EffectWorkspaceAuthoringMixin:
         self.recipe_panel = None
         self._thumbnail_request = None
         self._thumbnail_generation = None
+        self._thumbnail_icon_cache = OrderedDict()
+        self._loaded_thumbnail_keys = {}
         row = WrappingLayout()
         row.setSpacing(4)
         self.library_tools = row
@@ -68,6 +71,37 @@ class EffectWorkspaceAuthoringMixin:
         self.library_view.verticalHeader().setDefaultSectionSize(56 if large else 24)
         self._thumbnail_timer.start()
 
+    def _apply_thumbnail_from_path(self, stem, path, *, refresh_cache: bool = False):
+        if not stem or not path:
+            return False
+        try:
+            stat = path.stat()
+        except OSError:
+            return False
+        thumb_size = 48 if self.large_thumbnails.isChecked() else 20
+        cache_key = (str(path), int(stat.st_mtime_ns), int(stat.st_size), thumb_size)
+        if (
+            not refresh_cache
+            and self._loaded_thumbnail_keys.get(stem) == cache_key
+            and stem in self.library_model._thumbnails
+        ):
+            return True
+        icon = None if refresh_cache else self._thumbnail_icon_cache.get(cache_key)
+        if icon is None:
+            image = QImage(str(path))
+            if image.isNull():
+                return False
+            icon = QIcon(QPixmap.fromImage(image))
+            self._thumbnail_icon_cache[cache_key] = icon
+            self._thumbnail_icon_cache.move_to_end(cache_key)
+            while len(self._thumbnail_icon_cache) > 512:
+                self._thumbnail_icon_cache.popitem(last=False)
+        else:
+            self._thumbnail_icon_cache.move_to_end(cache_key)
+        self.library_model.set_thumbnail(stem, icon)
+        self._loaded_thumbnail_keys[stem] = cache_key
+        return True
+
     def _load_visible_thumbnails(self):
         if self._library_closed or not self.isVisible():
             return
@@ -76,9 +110,7 @@ class EffectWorkspaceAuthoringMixin:
         last = self.library_model.rowCount() - 1 if last < 0 else last
         for index in range(first, min(last + 1, first + 40)):
             row = self.library_model.row(index)
-            path = self._thumbnail_path(row.stem)
-            if path and path.is_file():
-                self.library_model.set_thumbnail(row.stem, QIcon(QPixmap.fromImage(QImage(str(path)))))
+            self._apply_thumbnail_from_path(row.stem, self._thumbnail_path(row.stem))
 
     @staticmethod
     def _effect_family(stem):
@@ -119,9 +151,7 @@ class EffectWorkspaceAuthoringMixin:
         self.favourite.setEnabled(bool(stem))
         self.family_only.setEnabled(bool(stem))
         # Only read the small selected thumbnail, never thousands of images while indexing.
-        path = self._thumbnail_path(stem)
-        if path and path.is_file():
-            self.library_model.set_thumbnail(stem, QIcon(QPixmap.fromImage(QImage(str(path)))))
+        self._apply_thumbnail_from_path(stem, self._thumbnail_path(stem))
 
     def _toggle_favourite(self):
         stem = self._staged.stem
@@ -164,11 +194,13 @@ class EffectWorkspaceAuthoringMixin:
         if str(payload.get('requested_output_path') or payload.get('output_path') or '') != path:
             return
         self._thumbnail_request = None
+        from pathlib import Path
+
         # Decode fresh pixels; filename-based QIcon caching can retain the old
         # thumbnail when a new capture replaces the same PNG.
-        image = QImage(path) if payload.get('status') == 'captured' else QImage()
-        if not image.isNull():
-            self.library_model.set_thumbnail(stem, QIcon(QPixmap.fromImage(image)))
+        captured = payload.get('status') == 'captured'
+        loaded = self._apply_thumbnail_from_path(stem, Path(path), refresh_cache=True) if captured else False
+        if loaded:
             if stem == self._staged.stem:
                 self.large_thumbnails.setChecked(True)
                 self.thumbnail_status.setText('Thumbnail saved.')

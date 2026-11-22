@@ -472,6 +472,10 @@ class MeshDirectOutputWorker(QObject):
         texture_outputs: tuple = (),
         texture_work_root: Path | str | None = None,
         textures_only: bool = False,
+        hair_export_mode: str = "add_additive",
+        hair_target_stem: str = "",
+        hair_custom_icon_path: Path | str | None = None,
+        send_to_dmm_mods: Path | str | None = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -496,6 +500,10 @@ class MeshDirectOutputWorker(QObject):
         self.inherited_archive_outputs = inherited_archive_outputs
         self.include_refit_body = bool(include_refit_body)
         self.keep_layers = tuple(str(name) for name in keep_layers)
+        self.hair_export_mode = str(hair_export_mode or "add_additive").strip().lower()
+        self.hair_target_stem = str(hair_target_stem or "").strip()
+        self.hair_custom_icon_path = Path(hair_custom_icon_path) if hair_custom_icon_path else None
+        self.send_to_dmm_mods = Path(send_to_dmm_mods) if send_to_dmm_mods is not None else None
         # Step 8: textures edited from the Mesh Editor's Textures panel, already planned
         # (cdmw.services.mesh_live_texture_output); encoded here, off the UI thread.
         self.texture_outputs = tuple(texture_outputs)
@@ -545,15 +553,137 @@ class MeshDirectOutputWorker(QObject):
                     kind=self.kind, output_path=prepared.root, archive_result=prepared))
                 return
             if snapshot.hair_state is not None:
-                if self.kind != "overlay_package" or self.manager_profile != "dmm" or self.output_path is None:
-                    raise ValueError("Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.")
-                from cdmw.services.mesh_hair_output import export_hair_package
+                if self.manager_profile != "dmm":
+                    raise ValueError("Hairstyles currently support only DMM output.")
+                from cdmw.services.mesh_hair_output import (
+                    export_hair_package, export_hair_to_dmm, validate_hair_output,
+                )
+                entry_path = str(getattr(self.entry, "path", "") or "").strip()
+                self._built_target_paths = (entry_path,) if entry_path else ()
+                if self.kind == "loose_mod":
+                    from cdmw.core.pathc_format import PathcError, with_stored_mip_sizes
+                    from cdmw.services.mesh_replacement_import import archive_entry
+                    validate_hair_output(snapshot)
+                    rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
+                    state = getattr(snapshot, "replacement_state", None)
+                    target_entry = self.entry
+                    requests = []
+                    additions = []
+                    if state is not None:
+                        replacement_baselines = tempfile.TemporaryDirectory(prefix="cdmw-hair-loose-baselines-")
+
+                        def captured_entry(item, data):
+                            digest = hashlib.sha256(data).hexdigest()
+                            path = Path(replacement_baselines.name) / digest
+                            path.write_bytes(data)
+                            return replace(item, prepared_path=path, prepared_sha256=digest, prepared_size=len(data))
+
+                        target_entry = captured_entry(target_entry, snapshot.original_data)
+                        for file in rebuilt.companion_files:
+                            file_data = file.data
+                            if file.path.casefold().endswith(".dds") and file_data[:4] == b"DDS ":
+                                try:
+                                    file_data = with_stored_mip_sizes(file_data)
+                                except PathcError:
+                                    pass
+                            companion_entry = archive_entry(file)
+                            if companion_entry is not None:
+                                baseline = next(
+                                    (item for item in state.dependencies if item.path.casefold() == file.path.casefold()),
+                                    None,
+                                )
+                                if baseline is None:
+                                    raise ValueError(f"Hair companion has no captured baseline: {file.path}")
+                                companion_entry = captured_entry(companion_entry, baseline.data)
+                                requests.append(ArchivePatchRequest(companion_entry, file_data))
+                            else:
+                                additions.append(ArchiveAddRequest(Path(target_entry.pamt_path), file.path, file_data))
+                    requests.append(ArchivePatchRequest(target_entry, rebuilt.data))
+                    metadata = self._metadata(snapshot, report)
+                    if self.send_to_dmm_mods is not None:
+                        title = (
+                            str(getattr(self.package_info, "title", "") or "").strip()
+                            or f"{snapshot.hair_state.payload['template']['character']} - "
+                               f"{snapshot.hair_state.payload.get('style_name', 'Hair')}"
+                        )
+                        saved_output, saved_zip = self.output_path, self.create_zip
+
+                        def _write_staged(staged_dir: Path) -> None:
+                            self.output_path = staged_dir
+                            self.create_zip = False
+                            self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions))
+
+                        try:
+                            folder, _replaced = export_hair_to_dmm(
+                                self.send_to_dmm_mods, title, _write_staged, stop_event=self.stop_event,
+                            )
+                        finally:
+                            self.output_path = saved_output
+                            self.create_zip = saved_zip
+                        result = MeshDirectOutputResult(
+                            kind=self.kind, output_path=folder, manager_profile="dmm", rebuild_report=report,
+                        )
+                    else:
+                        result = self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions))
+                    result = self._register_saved_work(snapshot, result)
+                    self.completed.emit(self.request_id, result)
+                    return
+                if self.kind != "overlay_package":
+                    raise ValueError("Hairstyles require Build Mod → DMM Archive Group or DMM Loose Mod.")
                 rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
-                output = export_hair_package(snapshot, rebuilt, self.entry, self.output_path,
-                    stop_event=self.stop_event,
-                    on_log=lambda message: self.progress_changed.emit(self.request_id, 25, message))
-                self.completed.emit(self.request_id, MeshDirectOutputResult(
-                    kind=self.kind, output_path=output, manager_profile="dmm", rebuild_report=report))
+                use_additive = self.hair_export_mode != "add_full"
+                if self.send_to_dmm_mods is not None:
+                    title = (
+                        str(getattr(self.package_info, "title", "") or "").strip()
+                        or f"{snapshot.hair_state.payload['template']['character']} - "
+                           f"{snapshot.hair_state.payload.get('style_name', 'Hair')}"
+                    )
+
+                    def _export_staged(staged_dir: Path) -> None:
+                        export_kwargs = {
+                            "stop_event": self.stop_event,
+                            "on_log": lambda message: self.progress_changed.emit(self.request_id, 25, message),
+                        }
+                        if self.package_info is not None:
+                            export_kwargs["package_info"] = self.package_info
+                        if not use_additive:
+                            export_kwargs["use_dmm_additive_tables"] = False
+                        if self.hair_target_stem:
+                            export_kwargs["target_stem_override"] = self.hair_target_stem
+                        if self.hair_custom_icon_path is not None:
+                            export_kwargs["custom_icon_path"] = self.hair_custom_icon_path
+                        export_hair_package(snapshot, rebuilt, self.entry, staged_dir, **export_kwargs)
+
+                    output, _replaced = export_hair_to_dmm(
+                        self.send_to_dmm_mods, title, _export_staged, stop_event=self.stop_event,
+                    )
+                    zip_path = None
+                else:
+                    if self.output_path is None:
+                        raise ValueError("Hairstyles require an output folder.")
+                    export_kwargs = {
+                        "stop_event": self.stop_event,
+                        "on_log": lambda message: self.progress_changed.emit(self.request_id, 25, message),
+                    }
+                    if self.package_info is not None:
+                        export_kwargs["package_info"] = self.package_info
+                    if self.create_zip:
+                        export_kwargs["create_zip"] = True
+                    if not use_additive:
+                        export_kwargs["use_dmm_additive_tables"] = False
+                    if self.hair_target_stem:
+                        export_kwargs["target_stem_override"] = self.hair_target_stem
+                    if self.hair_custom_icon_path is not None:
+                        export_kwargs["custom_icon_path"] = self.hair_custom_icon_path
+                    output = export_hair_package(snapshot, rebuilt, self.entry, self.output_path, **export_kwargs)
+                    candidate_zip = output.with_name(output.name + ".zip")
+                    zip_path = candidate_zip if (self.create_zip and candidate_zip.is_file()) else None
+                result = MeshDirectOutputResult(
+                    kind=self.kind, output_path=output, manager_profile="dmm",
+                    rebuild_report=report, zip_path=zip_path,
+                )
+                result = self._register_saved_work(snapshot, result)
+                self.completed.emit(self.request_id, result)
                 return
             if snapshot.texture_resources or int(snapshot.material_generation) > 0:
                 raise RuntimeError(

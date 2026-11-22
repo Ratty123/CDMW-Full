@@ -29,12 +29,20 @@ class ChildWindowMover:
     def __init__(self, user32_loader: Callable[[], object]) -> None:
         self._user32_loader = user32_loader
         self._condition = threading.Condition()
-        #: hwnd -> (owner process id, width, height, flags), oldest first.
-        self._pending: dict[int, tuple[int, int, int, int]] = {}
+        #: hwnd -> (owner process id, width, height, flags, user32_loader), oldest first.
+        self._pending: dict[int, tuple[int, int, int, int, Callable[[], object] | None]] = {}
         self._busy = False
         self._thread: threading.Thread | None = None
 
-    def move(self, hwnd: int, owner_pid: int, width: int, height: int, flags: int) -> None:
+    def move(
+        self,
+        hwnd: int,
+        owner_pid: int,
+        width: int,
+        height: int,
+        flags: int,
+        user32_loader: Callable[[], object] | None = None,
+    ) -> None:
         """Ask for ``hwnd`` at (0, 0, width, height); returns without waiting."""
 
         hwnd = int(hwnd)
@@ -42,7 +50,9 @@ class ChildWindowMover:
             previous = self._pending.pop(hwnd, None)
             if previous is not None:
                 flags |= previous[3] & SWP_FRAMECHANGED
-            self._pending[hwnd] = (int(owner_pid), int(width), int(height), int(flags))
+                if user32_loader is None:
+                    user32_loader = previous[4]
+            self._pending[hwnd] = (int(owner_pid), int(width), int(height), int(flags), user32_loader)
             if self._thread is None or not self._thread.is_alive():
                 self._thread = threading.Thread(target=self._run, name="cdmw-child-window-mover", daemon=True)
                 self._thread.start()
@@ -59,10 +69,10 @@ class ChildWindowMover:
             with self._condition:
                 self._condition.wait_for(lambda: bool(self._pending))
                 hwnd = next(iter(self._pending))
-                owner_pid, width, height, flags = self._pending.pop(hwnd)
+                owner_pid, width, height, flags, user32_loader = self._pending.pop(hwnd)
                 self._busy = True
             try:
-                self._send(hwnd, owner_pid, width, height, flags)
+                self._send(hwnd, owner_pid, width, height, flags, user32_loader)
             except Exception:  # noqa: BLE001 - one bad window must not stop the others
                 _LOGGER.debug("embedded window move failed", exc_info=True)
             finally:
@@ -70,11 +80,19 @@ class ChildWindowMover:
                     self._busy = False
                     self._condition.notify_all()
 
-    def _send(self, hwnd: int, owner_pid: int, width: int, height: int, flags: int) -> None:
+    def _send(
+        self,
+        hwnd: int,
+        owner_pid: int,
+        width: int,
+        height: int,
+        flags: int,
+        user32_loader: Callable[[], object] | None = None,
+    ) -> None:
         import ctypes
         from ctypes import wintypes
 
-        user32 = self._user32_loader()
+        user32 = (user32_loader or self._user32_loader)()
         handle = wintypes.HWND(hwnd)
         # Checked again here: the window may have closed, and its handle been
         # reused, since the request was made.

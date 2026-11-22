@@ -297,14 +297,25 @@ class EditSession:
         if self._undo_group:
             command = replace(command, undo_group=self._undo_group)
         # A new edit discards any redo tail, as in every editor.
+        trimmed_redo = self._cursor < len(self._commands)
         self._commands = self._commands[: self._cursor]
         last = self._commands[-1] if self._commands else None
+        coalesced = False
         if (last is not None and last.coalesce_key == command.coalesce_key
                 and last.undo_group == command.undo_group):
             self._commands[-1] = command  # a drag is one edit, not one per mouse event
+            coalesced = True
         else:
             self._commands.append(command)
         self._cursor = len(self._commands)
+        if (
+            coalesced
+            and not trimmed_redo
+            and command.kind in ("translate", "rotate")
+            and isinstance(self._documents.get(command.game_path), SocketDocument)
+        ):
+            self._apply(command)
+            return
         self._replay()
 
     # ── operations ──────────────────────────────────────────────────

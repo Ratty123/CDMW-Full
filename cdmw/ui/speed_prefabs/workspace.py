@@ -528,7 +528,9 @@ class SpeedPrefabsWorkspace(QWidget):
         self.set_filter_edit.setObjectName("speedSetFilterEdit")
         self.set_filter_edit.setPlaceholderText("Search sets...")
         self.set_filter_edit.setClearButtonEnabled(True)
-        self.set_filter_edit.textChanged.connect(lambda _text: self._filter_sets())
+        self._set_filter_timer = self._connect_debounced_line_edit(
+            self.set_filter_edit, self._filter_sets
+        )
         left_layout.addWidget(self.set_filter_edit)
         self.set_list = QListWidget()
         self.set_list.setObjectName("speedSetList")
@@ -642,8 +644,9 @@ class SpeedPrefabsWorkspace(QWidget):
             text = QLabel(label + ":", row_widget)
             text.setMinimumWidth(148)
             spin = _spin(f"speedKindFactor_{kind}")
-            spin.valueChanged.connect(lambda _value: self._kind_changed())
+            spin.valueChanged.connect(lambda _value: self._on_kind_slider_or_spin_changed())
             slider = _factor_slider(spin)
+            slider.sliderReleased.connect(self._flush_kind_changed)
             net_label = _hint("")
             net_label.setObjectName(f"speedKindNet_{kind}")
             net_label.setWordWrap(False)
@@ -692,7 +695,9 @@ class SpeedPrefabsWorkspace(QWidget):
         self.named_edit.setPlaceholderText("part of a move name, such as finish, takedown")
         self.named_edit.setClearButtonEnabled(True)
         self.named_edit.setToolTip(named_tip)
-        self.named_edit.textChanged.connect(lambda _text: self._kind_changed())
+        self._named_edit_timer = self._connect_debounced_line_edit(
+            self.named_edit, self._kind_changed
+        )
         named_left_layout.addWidget(self.named_edit, 1)
         named_grid.addWidget(named_left, 0, 0)
 
@@ -709,8 +714,9 @@ class SpeedPrefabsWorkspace(QWidget):
         named_right_layout.addWidget(self.named_factor_label)
         self.named_spin = _spin("speedNamedFactorSpin")
         self.named_spin.setToolTip(named_tip)
-        self.named_spin.valueChanged.connect(lambda _value: self._kind_changed())
+        self.named_spin.valueChanged.connect(lambda _value: self._on_kind_slider_or_spin_changed())
         self.named_slider = _factor_slider(self.named_spin)
+        self.named_slider.sliderReleased.connect(self._flush_kind_changed)
         self.named_slider.setToolTip(named_tip)
         named_right_layout.addWidget(self.named_slider, 1)
         named_right_layout.addWidget(self.named_spin)
@@ -722,6 +728,10 @@ class SpeedPrefabsWorkspace(QWidget):
         named_right_layout.addWidget(self.named_net_label)
         named_grid.addWidget(named_right, 0, 1)
         self._enable_named_factor(False)
+        factor_labels = (*self.kind_labels.values(), self.named_label, self.named_factor_label)
+        factor_label_width = max(148, *(label.sizeHint().width() for label in factor_labels))
+        for label in factor_labels:
+            label.setMinimumWidth(factor_label_width)
         factors_layout.addWidget(named_row_widget)
         right_layout.addWidget(factors)
 
@@ -735,7 +745,9 @@ class SpeedPrefabsWorkspace(QWidget):
         self.move_filter_edit.setObjectName("speedMoveFilterEdit")
         self.move_filter_edit.setPlaceholderText("Filter moves...")
         self.move_filter_edit.setClearButtonEnabled(True)
-        self.move_filter_edit.textChanged.connect(lambda _text: self._filter_moves())
+        self._move_filter_timer = self._connect_debounced_line_edit(
+            self.move_filter_edit, self._filter_moves
+        )
         moves_layout.addWidget(self.move_filter_edit)
         self.move_table = QTableWidget(0, len(_MOVE_COLUMNS))
         self.move_table.setObjectName("speedMoveTable")
@@ -1032,6 +1044,10 @@ class SpeedPrefabsWorkspace(QWidget):
     def listed_sets(self) -> tuple[str, ...]:
         """The paths of the sets the list shows now: what "All listed sets" stands for."""
 
+        timer = getattr(self, "_set_filter_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+            self._filter_sets()
         return tuple(str(self.set_list.item(number).data(_PATH_ROLE)) for number in range(self.set_list.count())
                      if not self.set_list.item(number).isHidden())
 
@@ -1217,33 +1233,37 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def _fill_moves(self) -> None:
         chart = self._chart
-        self.move_table.setRowCount(0)
-        if chart is None:
-            return
-        self.move_table.setRowCount(len(chart.moves))
-        for row, move in enumerate(chart.moves):
-            name = QTableWidgetItem(move.label)
-            name.setToolTip(move.clip)
-            name.setData(_PATH_ROLE, move.clip)
-            name.setFlags(name.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.move_table.setItem(row, 0, name)
-            for column, text in ((1, KIND_LABELS[move.kind]), (2, f"{move.seconds:g}"), (3, str(move.windows))):
-                cell = QTableWidgetItem(text)
-                cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self.move_table.setItem(row, column, cell)
-            spin = _spin(f"speedMoveFactor_{row}", self._shown_factor(move.clip, move.kind))
-            spin.setProperty("inCell", True)
-            spin.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            spin.lineEdit().setTextMargins(2, 0, 0, 2)
-            spin.setMinimumWidth(0)
-            spin.setMaximumWidth(16777215)
-            spin.setToolTip("Type a factor for this move.")
-            spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            spin.installEventFilter(self._wheel_guard)
-            spin.setEnabled(move.windows > 0)
-            spin.valueChanged.connect(lambda value, clip=move.clip: self._move_changed(clip, value))
-            self.move_table.setCellWidget(row, 4, spin)
-        self._filter_moves()
+        self.move_table.setUpdatesEnabled(False)
+        try:
+            self.move_table.setRowCount(0)
+            if chart is None:
+                return
+            self.move_table.setRowCount(len(chart.moves))
+            for row, move in enumerate(chart.moves):
+                name = QTableWidgetItem(move.label)
+                name.setToolTip(move.clip)
+                name.setData(_PATH_ROLE, move.clip)
+                name.setFlags(name.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.move_table.setItem(row, 0, name)
+                for column, text in ((1, KIND_LABELS[move.kind]), (2, f"{move.seconds:g}"), (3, str(move.windows))):
+                    cell = QTableWidgetItem(text)
+                    cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.move_table.setItem(row, column, cell)
+                spin = _spin(f"speedMoveFactor_{row}", self._shown_factor(move.clip, move.kind))
+                spin.setProperty("inCell", True)
+                spin.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                spin.lineEdit().setTextMargins(2, 0, 0, 2)
+                spin.setMinimumWidth(0)
+                spin.setMaximumWidth(16777215)
+                spin.setToolTip("Type a factor for this move.")
+                spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                spin.installEventFilter(self._wheel_guard)
+                spin.setEnabled(move.windows > 0)
+                spin.valueChanged.connect(lambda value, clip=move.clip: self._move_changed(clip, value))
+                self.move_table.setCellWidget(row, 4, spin)
+            self._filter_moves()
+        finally:
+            self.move_table.setUpdatesEnabled(True)
 
     def _named(self) -> tuple[str, ...]:
         return named_texts(self.named_edit.text().split(","))
@@ -1292,11 +1312,73 @@ class SpeedPrefabsWorkspace(QWidget):
             self._move_factors[clip.lower()] = float(value)
         self._changed()
 
+    def _connect_debounced_line_edit(
+        self,
+        edit: QLineEdit,
+        callback: Callable[[], None],
+        *,
+        interval_ms: int = 150,
+    ) -> QTimer:
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(interval_ms)
+        timer.timeout.connect(callback)
+        interactive = [False]
+
+        def on_edited(_text: str) -> None:
+            interactive[0] = True
+            timer.start()
+
+        def on_changed(_text: str) -> None:
+            if interactive[0]:
+                interactive[0] = False
+                return
+            timer.stop()
+            callback()
+
+        def flush() -> None:
+            if timer.isActive():
+                timer.stop()
+                callback()
+
+        edit.textEdited.connect(on_edited)
+        edit.textChanged.connect(on_changed)
+        edit.returnPressed.connect(flush)
+        return timer
+
+    def _on_kind_slider_or_spin_changed(self) -> None:
+        if self._filling:
+            return
+        timer = getattr(self, "_kind_change_timer", None)
+        if timer is None:
+            timer = self._kind_change_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(33)
+            timer.timeout.connect(self._kind_changed)
+        dragging = any(slider.isSliderDown() for slider in self.kind_sliders.values()) or (
+            getattr(self, "named_slider", None) is not None and self.named_slider.isSliderDown()
+        )
+        if dragging:
+            if not timer.isActive():
+                timer.start()
+            return
+        timer.stop()
+        self._kind_changed()
+
+    def _flush_kind_changed(self) -> None:
+        timer = getattr(self, "_kind_change_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+            self._kind_changed()
+
     def _kind_changed(self) -> None:
         """A kind's or the Moves named factor (or its texts) changed: the moves show what they now get."""
 
         if self._filling:
             return
+        timer = getattr(self, "_kind_change_timer", None)
+        if timer is not None:
+            timer.stop()
         self._refresh_named_label()
         self._refresh_net_labels()
         if self._chart is None:
@@ -1315,6 +1397,11 @@ class SpeedPrefabsWorkspace(QWidget):
     def factors(self) -> SpeedFactors:
         """What the page asks for: move factors only where they differ from their kind's."""
 
+        self._flush_kind_changed()
+        named_timer = getattr(self, "_named_edit_timer", None)
+        if named_timer is not None and named_timer.isActive():
+            named_timer.stop()
+            self._kind_changed()
         clips = {move.clip.lower(): move.clip for move in (self._chart.moves if self._chart else ())}
         kinds = {kind: round(float(spin.value()), 2) for kind, spin in self.kind_spins.items()
                  if abs(spin.value() - 1.0) > 1e-6}
@@ -1433,6 +1520,12 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def refresh_review(self) -> None:
         self._review_timer.stop()
+        self._flush_kind_changed()
+        for attr, flush in (("_named_edit_timer", self._kind_changed), ("_set_filter_timer", self._filter_sets)):
+            timer = getattr(self, attr, None)
+            if timer is not None and timer.isActive():
+                timer.stop()
+                flush()
         if self._batch:
             return
         if self._chart is None:
@@ -1585,40 +1678,44 @@ class SpeedPrefabsWorkspace(QWidget):
         self._prefab_searching = False
         self._prefab_scaling = False
         self.prefab_progress.setVisible(False)
-        self.prefab_table.setRowCount(len(rows))
-        scalable: list[str] = []
-        counted = 0
-        for number, row in enumerate(rows):
-            full = str(row.get("path", ""))
-            path = QTableWidgetItem(full.rsplit("/", 1)[-1])
-            path.setData(_PATH_ROLE, full)
-            path.setToolTip(full)
-            self.prefab_table.setItem(number, 0, path)
-            category = QTableWidgetItem(str(row.get("category_label", row.get("category", ""))))
-            self.prefab_table.setItem(number, 1, category)
-            if "values" not in row:
-                path.setData(_SCALABLE_ROLE, None)
-                members = [str(m) for m in row.get("members", ())]
-                cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
-                cell.setToolTip("\n".join(members))
+        self.prefab_table.setUpdatesEnabled(False)
+        try:
+            self.prefab_table.setRowCount(len(rows))
+            scalable: list[str] = []
+            counted = 0
+            for number, row in enumerate(rows):
+                full = str(row.get("path", ""))
+                path = QTableWidgetItem(full.rsplit("/", 1)[-1])
+                path.setData(_PATH_ROLE, full)
+                path.setToolTip(full)
+                self.prefab_table.setItem(number, 0, path)
+                category = QTableWidgetItem(str(row.get("category_label", row.get("category", ""))))
+                self.prefab_table.setItem(number, 1, category)
+                if "values" not in row:
+                    path.setData(_SCALABLE_ROLE, None)
+                    members = [str(m) for m in row.get("members", ())]
+                    cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
+                    cell.setToolTip("\n".join(members))
+                    self.prefab_table.setItem(number, 2, cell)
+                    continue
+                counted += 1
+                count, state = int(row.get("values") or 0), str(row.get("state") or "")
+                labels = [str(label) for label in row.get("labels", ())]
+                is_scalable = bool(count and not state)
+                path.setData(_SCALABLE_ROLE, is_scalable)
+                if is_scalable:
+                    scalable.append(full)
+                    cell = QTableWidgetItem(f"{count}: {', '.join(labels)}")
+                    cell.setToolTip("\n".join(labels))
+                else:
+                    cell = QTableWidgetItem(state or "none reached")
+                    cell.setToolTip(f"Cannot be scaled: {state}." if state
+                                    else "The prefab names a speed type and holds no value of it.")
+                    for item in (path, category, cell):
+                        item.setForeground(Qt.GlobalColor.gray)
                 self.prefab_table.setItem(number, 2, cell)
-                continue
-            counted += 1
-            count, state = int(row.get("values") or 0), str(row.get("state") or "")
-            labels = [str(label) for label in row.get("labels", ())]
-            is_scalable = bool(count and not state)
-            path.setData(_SCALABLE_ROLE, is_scalable)
-            if is_scalable:
-                scalable.append(full)
-                cell = QTableWidgetItem(f"{count}: {', '.join(labels)}")
-                cell.setToolTip("\n".join(labels))
-            else:
-                cell = QTableWidgetItem(state or "none reached")
-                cell.setToolTip(f"Cannot be scaled: {state}." if state
-                                else "The prefab names a speed type and holds no value of it.")
-                for item in (path, category, cell):
-                    item.setForeground(Qt.GlobalColor.gray)
-            self.prefab_table.setItem(number, 2, cell)
+        finally:
+            self.prefab_table.setUpdatesEnabled(True)
         self._prefab_scalable = tuple(scalable)
         if note:
             self.prefab_status_label.setText(note)
@@ -1676,7 +1773,13 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def eventFilter(self, watched, event):  # noqa: N802 - Qt override
         if event.type() == QEvent.Type.Resize and watched is self.prefab_table.viewport():
-            self._fit_prefab_columns()
+            timer = getattr(self, "_prefab_fit_timer", None)
+            if timer is None:
+                timer = self._prefab_fit_timer = QTimer(self)
+                timer.setSingleShot(True)
+                timer.setInterval(60)
+                timer.timeout.connect(self._fit_prefab_columns)
+            timer.start()
         return super().eventFilter(watched, event)
 
     def _fit_prefab_columns(self) -> None:

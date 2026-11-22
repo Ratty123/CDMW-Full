@@ -46,14 +46,22 @@ use cdmw_texture::{
     ColorSpace, DdsFormat, TextureRole, plan_2d_upload, plan_2d_upload_with_verified_sha256,
 };
 use glam::{Mat4, Quat, Vec2, Vec3};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
+
+static NEXT_GPU_RESOURCE_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_gpu_resource_id() -> u64 {
+    NEXT_GPU_RESOURCE_ID.fetch_add(1, Ordering::Relaxed)
+}
 
 const SHADER: &str = r#"
 struct CameraUniform {
@@ -666,8 +674,11 @@ fn shade_surface_ex(
     // layers) replaces the base colour and nothing else.
     let layer_colour_only = material_layers_colour_only();
     let gpu_layered = (material.flags & MATERIAL_GPU_LAYERS) != 0u && !layer_colour_only;
-    let layer_surface = evaluate_material_layers(sample_uv, texel, view_ts);
-    if gpu_layered || layer_colour_only { texel = vec4<f32>(layer_surface.color, texel.a); }
+    var layer_surface = LayerSurface(texel.rgb, vec3<f32>(0.0, 0.0, 1.0), vec3<f32>(1.0, 0.66, 0.0), vec3<f32>(0.0));
+    if (camera.view_mode != 5u || material.translucency_factors.z > 0.5) && (gpu_layered || layer_colour_only) {
+        layer_surface = evaluate_material_layers(sample_uv, texel, view_ts);
+        texel = vec4<f32>(layer_surface.color, texel.a);
+    }
     if (material.flags & MATERIAL_TEXTURE_TINT) != 0u && !gpu_layered {
         let texture_tint = max(
             material.texture_tint_and_strength.rgb,
@@ -876,6 +887,52 @@ fn shade_surface_ex(
         }
         return present_srgb(vec3<f32>(layer_mask), 1.0);
     }
+    let gltf_pbr = (material.flags & MATERIAL_GLTF_PBR) != 0u;
+    var emission_colour = material.emissive_color_and_intensity.rgb;
+    var emission_strength = material.emissive_color_and_intensity.a;
+    if (material.flags & MATERIAL_EMISSIVE) != 0u {
+        let emissive_sample = textureSampleBias(
+            emissive_texture, material_sampler, sample_uv + camera.material_time * material.emission_animation.xy, MATERIAL_MIP_LOD_BIAS);
+        let emissive_rgb = select(
+            emissive_sample.rgb,
+            emissive_sample.rrr,
+            (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
+        if (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u {
+            emission_strength *= emissive_sample.r;
+        } else {
+            emission_colour *= emissive_rgb;
+        }
+        if material.emission_reveal.w >= 0.0 {
+            // RGB uses an sRGB view; the reveal mask reads the same file as linear data in game.
+            let red = select(linear_to_srgb_scalar(emissive_sample.r), emissive_sample.r,
+                (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
+            let mask = select(red, 1.0 - red, material.emission_reveal.z > 0.5);
+            let progress = material.emission_reveal.x;
+            let x = clamp((progress - 1.0 + mask) / material.emission_reveal.y, 0.0, 1.0);
+            var reveal = x * x * (3.0 - 2.0 * x);
+            if progress <= 0.0 { reveal = 0.0; }
+            if progress >= 1.0 { reveal = 1.0; }
+            emission_colour = material.emissive_color_and_intensity.rgb * emissive_rgb;
+            emission_strength = emissive_sample.a * material.emission_reveal.w * reveal;
+        }
+    }
+    if material.emission_animation.z > 0.0 {
+        // The shipped shader floors scalar intensity, preserving the glow's hue.
+        let floor = min(emission_strength, material.emission_animation.w);
+        emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
+    }
+    // Archive materials lack the game's exposure context. Use a conservative
+    // preview exposure instead of the old 2.2x boost, retaining texture detail
+    // at ordinary strengths. Imported glTF keeps its authored radiance scale.
+    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr || camera.lighting_preset >= 3u) + shader_glow;
+    if emission_only {
+        // The game's translucent shaders never read their declared glow inputs.
+        if eye_cover || layered || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
+        // Preserve HDR emission before surface tone mapping; diffuse white and
+        // specular highlights must never become glow sources.
+        return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
+            select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
+    }
     let geometry_normal = facing_normal(input.normal, front_facing);
     let tangent = normalize(input.tangent.xyz - geometry_normal * dot(geometry_normal, input.tangent.xyz));
     let bitangent = normalize(cross(geometry_normal, tangent)) * input.tangent.w;
@@ -956,7 +1013,6 @@ fn shade_surface_ex(
         return present_srgb(surface_normal * 0.5 + vec3<f32>(0.5), 1.0);
     }
 
-    let gltf_pbr = (material.flags & MATERIAL_GLTF_PBR) != 0u;
     let category_code = select(min(u32(material.relief_factors.z + 0.5), 14u), 0u, gltf_pbr || eye_cover);
     let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
     let is_metal = category_code == 1u;
@@ -1162,6 +1218,92 @@ fn shade_surface_ex(
     }
 
     let game_outdoor = camera.view_mode == 9u;
+    if camera.lighting_preset >= 3u && camera.view_mode != 6u {
+        let dx = dpdx(surface_normal);
+        let dy = dpdy(surface_normal);
+        let variance = max(dot(dx, dx), dot(dy, dy));
+        let studio_roughness = sqrt(clamp(roughness * roughness + min(variance, 0.08), 0.0, 1.0));
+        let studio_spec = select(1.0, material.surface_factors.z, (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
+        let studio_view = studio_view_direction(input.world_position);
+        var studio_tangent = safe_normalize(tangent - surface_normal * dot(tangent, surface_normal), tangent);
+        if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
+            let flow = textureSampleBias(flow_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
+            let flow_len_sq = dot(flow, flow);
+            let flow_dir = select(vec2<f32>(0.0, 1.0), flow * inverseSqrt(max(flow_len_sq, 1e-6)), flow_len_sq > 0.0004);
+            let flow_tan = safe_normalize(tangent * flow_dir.x + bitangent * flow_dir.y, studio_tangent);
+            studio_tangent = safe_normalize(flow_tan - surface_normal * dot(flow_tan, surface_normal), studio_tangent);
+        }
+        let studio_bitangent = safe_normalize(cross(surface_normal, studio_tangent), bitangent);
+        // Combine authored AO with subtle physical micro-cavity from normal/height relief
+        // so engraved metal, stitched leather, cloth weave, and skin pores read with crisp depth.
+        var studio_occlusion = select(raw_occlusion, layer_surface.orm.r, gpu_layered);
+        let normal_cavity = mix(0.88, 1.0, clamp(dot(surface_normal, geometry_normal), 0.0, 1.0));
+        studio_occlusion *= normal_cavity;
+        if (material.flags & MATERIAL_HEIGHT) != 0u {
+            let height_cavity = 1.0 - (1.0 - clamp(height_value, 0.0, 1.0)) * 0.18 * clamp(material.relief_factors.x, 0.0, 1.0);
+            studio_occlusion *= height_cavity;
+        }
+        var terms: StudioTerms;
+        if camera.lighting_preset == 4u {
+            let icon_shadow = shadow_visibility(input.world_position, surface_normal);
+            terms = icon_studio_lighting(texel.rgb, surface_normal, studio_view, studio_tangent,
+                studio_roughness, metalness, studio_spec, studio_occlusion, is_skin, is_hair,
+                is_eye || eye_cover || is_glass || shader_kind == 10.0, icon_shadow);
+        } else {
+            let studio_key_dir = studio_rotate_world_light(normalize(vec3<f32>(-0.45, 0.8, -0.55)));
+            let studio_shadow = shadow_visibility_screen(input.world_position, surface_normal, input.position.xy, studio_key_dir);
+            let surface = StudioSurface(
+                texel.rgb,
+                surface_normal,
+                geometry_normal,
+                studio_view,
+                studio_tangent,
+                studio_bitangent,
+                studio_roughness,
+                metalness,
+                studio_spec,
+                studio_occlusion,
+                skin_subsurface_multiplier,
+                is_skin,
+                is_hair,
+                is_cloth,
+                is_leather,
+                is_eye,
+                shader_kind == 4.0,
+                game_outdoor,
+                studio_shadow,
+            );
+            terms = fixed_studio_lighting(surface);
+        }
+        let ao = studio_ambient_visibility(input.position.xy);
+        // Physically-based multi-bounce AO (Jimenez 2016) preserves accurate colour
+        // saturation in skin/cloth/gold crevices; indirect specular uses Lagarde occlusion.
+        let studio_nv = clamp(dot(surface_normal, studio_view), 0.0, 1.0);
+        let diffuse_ao = studio_multi_bounce_ao(ao, texel.rgb);
+        let spec_ao = studio_specular_occlusion(studio_nv, ao, studio_roughness);
+        let total_diffuse = terms.direct_diffuse + terms.indirect_diffuse * diffuse_ao;
+        let total_specular = terms.direct_specular + terms.indirect_specular * spec_ao;
+        let reflection = studio_tone(total_specular);
+        let lit = studio_tone(total_diffuse + total_specular);
+        if eye_cover {
+            return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection * eye_surface_alpha, material_alpha);
+        }
+        if layered {
+            if shader_kind == 10.0 {
+                return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection, material_alpha);
+            }
+            let veil_rim = pow(1.0 - studio_nv, 2.0);
+            let veil_light = texel.rgb * veil_rim * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
+            let veil_lit = studio_tone(total_diffuse + total_specular + veil_light);
+            return present(veil_lit * layered_colour_coverage, material_alpha);
+        }
+        if material.translucency_factors.z > 0.5 {
+            return present(studio_tone(total_diffuse * (vec3<f32>(1.0) - transmission) + total_specular), material_alpha);
+        }
+        let studio_alpha = select(select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u), cutout_coverage, a2c_cutout && is_plain_cutout);
+        return present(studio_tone(total_diffuse + total_specular + emissive), studio_alpha);
+    }
+
     let showcase = camera.lighting_preset == 1u && !game_outdoor;
     let neutral_studio = !showcase && !game_outdoor;
     let view_direction = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
@@ -1553,135 +1695,6 @@ fn shade_surface_ex(
             * pow(1.0 - ndotv, 2.0)
             * category_feedback,
         is_glass);
-    var emission_colour = material.emissive_color_and_intensity.rgb;
-    var emission_strength = material.emissive_color_and_intensity.a;
-    if (material.flags & MATERIAL_EMISSIVE) != 0u {
-        let emissive_sample = textureSampleBias(
-            emissive_texture, material_sampler, sample_uv + camera.material_time * material.emission_animation.xy, MATERIAL_MIP_LOD_BIAS);
-        let emissive_rgb = select(
-            emissive_sample.rgb,
-            emissive_sample.rrr,
-            (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
-        if (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u {
-            emission_strength *= emissive_sample.r;
-        } else {
-            emission_colour *= emissive_rgb;
-        }
-        if material.emission_reveal.w >= 0.0 {
-            // RGB uses an sRGB view; the reveal mask reads the same file as linear data in game.
-            let red = select(linear_to_srgb_scalar(emissive_sample.r), emissive_sample.r,
-                (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
-            let mask = select(red, 1.0 - red, material.emission_reveal.z > 0.5);
-            let progress = material.emission_reveal.x;
-            let x = clamp((progress - 1.0 + mask) / material.emission_reveal.y, 0.0, 1.0);
-            var reveal = x * x * (3.0 - 2.0 * x);
-            if progress <= 0.0 { reveal = 0.0; }
-            if progress >= 1.0 { reveal = 1.0; }
-            emission_colour = material.emissive_color_and_intensity.rgb * emissive_rgb;
-            emission_strength = emissive_sample.a * material.emission_reveal.w * reveal;
-        }
-    }
-    if material.emission_animation.z > 0.0 {
-        // The shipped shader floors scalar intensity, preserving the glow's hue.
-        let floor = min(emission_strength, material.emission_animation.w);
-        emission_strength = floor + (emission_strength - floor) * (0.5 + 0.5 * sin(3.14159265359 * material.emission_animation.z * camera.material_time));
-    }
-    // Archive materials lack the game's exposure context. Use a conservative
-    // preview exposure instead of the old 2.2x boost, retaining texture detail
-    // at ordinary strengths. Imported glTF keeps its authored radiance scale.
-    let emissive = emission_colour * emission_strength * select(0.5, 1.0, gltf_pbr || camera.lighting_preset >= 3u) + shader_glow;
-    if emission_only {
-        // The game's translucent shaders never read their declared glow inputs.
-        if eye_cover || layered || material.translucency_factors.z > 0.5 { return vec4<f32>(0.0); }
-        // Preserve HDR emission before surface tone mapping; diffuse white and
-        // specular highlights must never become glow sources.
-        return vec4<f32>(min(max(emissive, vec3<f32>(0.0)), vec3<f32>(64.0)),
-            select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
-    }
-    if camera.lighting_preset >= 3u {
-        let dx = dpdx(surface_normal);
-        let dy = dpdy(surface_normal);
-        let variance = max(dot(dx, dx), dot(dy, dy));
-        let studio_roughness = sqrt(clamp(roughness * roughness + min(variance, 0.08), 0.0, 1.0));
-        let studio_spec = select(1.0, material.surface_factors.z, (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u);
-        let studio_view = studio_view_direction(input.world_position);
-        var studio_tangent = safe_normalize(tangent - surface_normal * dot(tangent, surface_normal), tangent);
-        if (material.flags & MATERIAL_HAIR_FLOW) != 0u {
-            let flow = textureSampleBias(flow_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).xy * 2.0 - vec2<f32>(1.0);
-            let flow_len_sq = dot(flow, flow);
-            let flow_dir = select(vec2<f32>(0.0, 1.0), flow * inverseSqrt(max(flow_len_sq, 1e-6)), flow_len_sq > 0.0004);
-            let flow_tan = safe_normalize(tangent * flow_dir.x + bitangent * flow_dir.y, studio_tangent);
-            studio_tangent = safe_normalize(flow_tan - surface_normal * dot(flow_tan, surface_normal), studio_tangent);
-        }
-        let studio_bitangent = safe_normalize(cross(surface_normal, studio_tangent), bitangent);
-        // Combine authored AO with subtle physical micro-cavity from normal/height relief
-        // so engraved metal, stitched leather, cloth weave, and skin pores read with crisp depth.
-        var studio_occlusion = select(raw_occlusion, layer_surface.orm.r, gpu_layered);
-        let normal_cavity = mix(0.88, 1.0, clamp(dot(surface_normal, geometry_normal), 0.0, 1.0));
-        studio_occlusion *= normal_cavity;
-        if (material.flags & MATERIAL_HEIGHT) != 0u {
-            let height_cavity = 1.0 - (1.0 - clamp(height_value, 0.0, 1.0)) * 0.18 * clamp(material.relief_factors.x, 0.0, 1.0);
-            studio_occlusion *= height_cavity;
-        }
-        let studio_key_dir = studio_rotate_world_light(normalize(vec3<f32>(-0.45, 0.8, -0.55)));
-        let studio_shadow = shadow_visibility_screen(input.world_position, surface_normal, input.position.xy, studio_key_dir);
-        var terms: StudioTerms;
-        if camera.lighting_preset == 4u {
-            terms = icon_studio_lighting(texel.rgb, surface_normal, studio_view, studio_tangent,
-                studio_roughness, metalness, studio_spec, studio_occlusion, is_skin, is_hair,
-                is_eye || eye_cover || is_glass || shader_kind == 10.0, key_shadow);
-        } else {
-            let surface = StudioSurface(
-                texel.rgb,
-                surface_normal,
-                geometry_normal,
-                studio_view,
-                studio_tangent,
-                studio_bitangent,
-                studio_roughness,
-                metalness,
-                studio_spec,
-                studio_occlusion,
-                skin_subsurface_multiplier,
-                is_skin,
-                is_hair,
-                is_cloth,
-                is_leather,
-                is_eye,
-                shader_kind == 4.0,
-                game_outdoor,
-                studio_shadow,
-            );
-            terms = fixed_studio_lighting(surface);
-        }
-        let ao = studio_ambient_visibility(input.position.xy);
-        // Physically-based multi-bounce AO (Jimenez 2016) preserves accurate colour
-        // saturation in skin/cloth/gold crevices; indirect specular uses Lagarde occlusion.
-        let studio_nv = clamp(dot(surface_normal, studio_view), 0.0, 1.0);
-        let diffuse_ao = studio_multi_bounce_ao(ao, texel.rgb);
-        let spec_ao = studio_specular_occlusion(studio_nv, ao, studio_roughness);
-        let total_diffuse = terms.direct_diffuse + terms.indirect_diffuse * diffuse_ao;
-        let total_specular = terms.direct_specular + terms.indirect_specular * spec_ao;
-        let reflection = studio_tone(total_specular);
-        let lit = studio_tone(total_diffuse + total_specular);
-        if eye_cover {
-            return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection * eye_surface_alpha, material_alpha);
-        }
-        if layered {
-            if shader_kind == 10.0 {
-                return present(max(lit - reflection, vec3<f32>(0.0)) * material_alpha + reflection, material_alpha);
-            }
-            let veil_rim = pow(1.0 - studio_nv, 2.0);
-            let veil_light = texel.rgb * veil_rim * (shader_value(7u) * 0.5 + shader_value(6u) * 0.35);
-            let veil_lit = studio_tone(total_diffuse + total_specular + veil_light);
-            return present(veil_lit * layered_colour_coverage, material_alpha);
-        }
-        if material.translucency_factors.z > 0.5 {
-            return present(studio_tone(total_diffuse * (vec3<f32>(1.0) - transmission) + total_specular), material_alpha);
-        }
-        let studio_alpha = select(select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u), cutout_coverage, a2c_cutout && is_plain_cutout);
-        return present(studio_tone(total_diffuse + total_specular + emissive), studio_alpha);
-    }
     // Keep enough fill to read the base texture under glow in the dark preview.
     let light_scale = select(1.0, 0.15, camera.lighting_preset == 2u);
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
@@ -2441,6 +2454,7 @@ pub enum RenderError {
 }
 
 pub struct GpuMeshBuffers {
+    unique_id: u64,
     vertex: wgpu::Buffer,
     triangle_index: wgpu::Buffer,
     wire_index: wgpu::Buffer,
@@ -2467,6 +2481,7 @@ pub struct GpuMeshBuffers {
 struct GpuOverlayLines {
     vertices: wgpu::Buffer,
     vertex_count: u32,
+    vertex_capacity: u32,
     signature: u64,
 }
 
@@ -2488,35 +2503,42 @@ struct GpuEffectBatch {
 
 impl GpuOverlayLines {
     fn upload(device: &wgpu::Device, positions: &[[f32; 3]]) -> Result<Option<Self>, RenderError> {
-        if positions.is_empty() {
+        let vertices = overlay_gpu_vertices(positions)?;
+        if vertices.is_empty() {
             return Ok(None);
         }
-        if !positions.len().is_multiple_of(2) {
-            return Err(RenderError::InvalidOverlay(
-                "line-list vertex count must be even".to_owned(),
-            ));
-        }
-        if positions.iter().flatten().any(|value| !value.is_finite()) {
-            return Err(RenderError::InvalidOverlay(
-                "line-list positions must be finite".to_owned(),
-            ));
-        }
-        let vertices = positions
-            .iter()
-            .copied()
-            .map(Vec3::from_array)
-            .map(GpuVertex::overlay)
-            .collect::<Vec<_>>();
+        let vertex_count = u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?;
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab skeleton lines"),
             contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         Ok(Some(Self {
             vertices: buffer,
-            vertex_count: u32::try_from(vertices.len()).map_err(|_| RenderError::ResourceLimit)?,
+            vertex_count,
+            vertex_capacity: vertex_count,
             signature: overlay_position_signature(positions),
         }))
+    }
+
+    fn update_positions(
+        &mut self,
+        queue: &wgpu::Queue,
+        positions: &[[f32; 3]],
+        signature: u64,
+    ) -> Result<bool, RenderError> {
+        if positions.is_empty()
+            || u32::try_from(positions.len())
+                .ok()
+                .is_none_or(|count| count > self.vertex_capacity)
+        {
+            return Ok(false);
+        }
+        let vertices = overlay_gpu_vertices(positions)?;
+        queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&vertices));
+        self.vertex_count = vertices.len() as u32;
+        self.signature = signature;
+        Ok(true)
     }
 
     fn upload_effects(
@@ -2527,6 +2549,8 @@ impl GpuOverlayLines {
             return Ok(None);
         }
         let gpu_vertices = effect_gpu_vertices(vertices)?;
+        let vertex_count =
+            u32::try_from(gpu_vertices.len()).map_err(|_| RenderError::ResourceLimit)?;
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab effect lines"),
             contents: bytemuck::cast_slice(&gpu_vertices),
@@ -2534,8 +2558,8 @@ impl GpuOverlayLines {
         });
         Ok(Some(Self {
             vertices: buffer,
-            vertex_count: u32::try_from(gpu_vertices.len())
-                .map_err(|_| RenderError::ResourceLimit)?,
+            vertex_count,
+            vertex_capacity: vertex_count,
             signature: effect_line_signature(vertices),
         }))
     }
@@ -2545,14 +2569,40 @@ impl GpuOverlayLines {
         queue: &wgpu::Queue,
         vertices: &[EffectLineVertex],
     ) -> Result<bool, RenderError> {
-        if usize::try_from(self.vertex_count).ok() != Some(vertices.len()) {
+        if u32::try_from(vertices.len())
+            .ok()
+            .is_none_or(|count| count > self.vertex_capacity)
+        {
             return Ok(false);
         }
         let gpu_vertices = effect_gpu_vertices(vertices)?;
         queue.write_buffer(&self.vertices, 0, bytemuck::cast_slice(&gpu_vertices));
+        self.vertex_count = gpu_vertices.len() as u32;
         self.signature = effect_line_signature(vertices);
         Ok(true)
     }
+}
+
+fn overlay_gpu_vertices(positions: &[[f32; 3]]) -> Result<Vec<GpuVertex>, RenderError> {
+    if positions.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !positions.len().is_multiple_of(2) {
+        return Err(RenderError::InvalidOverlay(
+            "line-list vertex count must be even".to_owned(),
+        ));
+    }
+    if positions.iter().flatten().any(|value| !value.is_finite()) {
+        return Err(RenderError::InvalidOverlay(
+            "line-list positions must be finite".to_owned(),
+        ));
+    }
+    Ok(positions
+        .iter()
+        .copied()
+        .map(Vec3::from_array)
+        .map(GpuVertex::overlay)
+        .collect())
 }
 
 fn effect_gpu_vertices(vertices: &[EffectLineVertex]) -> Result<Vec<GpuVertex>, RenderError> {
@@ -2637,6 +2687,7 @@ struct DefaultMaterialTextures {
 }
 
 struct GpuMaterialBinding {
+    id: u64,
     bind_group: wgpu::BindGroup,
     layers: Option<Arc<material_layers::GpuLayers>>,
     flags: u32,
@@ -2644,6 +2695,8 @@ struct GpuMaterialBinding {
     alpha_blend: bool,
     translucent: bool,
     emits_light: bool,
+    can_discard: bool,
+    shader_discards: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2981,6 +3034,7 @@ impl GpuMeshBuffers {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         Ok(Self {
+            unique_id: next_gpu_resource_id(),
             vertex,
             triangle_index,
             wire_index,
@@ -3090,6 +3144,7 @@ impl GpuMeshBuffers {
             0,
             bytemuck::cast_slice(&bounds_line_vertices),
         );
+        self.unique_id = next_gpu_resource_id();
         self.draw_revision = snapshot.draw_revision;
         self.deformation_signature = deformation_signature;
         self.role_signature = role_signature;
@@ -3100,6 +3155,7 @@ impl GpuMeshBuffers {
 }
 
 struct DepthTarget {
+    id: u64,
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
 }
@@ -3424,6 +3480,7 @@ pub struct WindowRenderer {
     effect_quad: wgpu::Buffer,
     effect_texture_bind_group_layout: wgpu::BindGroupLayout,
     effect_depth_layout: wgpu::BindGroupLayout,
+    effect_depth_cache: effect_depth::EffectDepthCache,
     effect_sampler: wgpu::Sampler,
     effect_textures: Vec<GpuEffectTexture>,
     effect_batches: Vec<GpuEffectBatch>,
@@ -3431,6 +3488,7 @@ pub struct WindowRenderer {
     effect_instance_buffer: Option<(Arc<wgpu::Buffer>, usize)>,
     mesh: Option<GpuMeshBuffers>,
     skeleton_lines: Option<GpuOverlayLines>,
+    skeleton_lines_signature: u64,
     preview_lines: Option<GpuOverlayLines>,
     preview_lines_xray: bool,
     effect_lines: Option<GpuOverlayLines>,
@@ -3443,9 +3501,12 @@ pub struct WindowRenderer {
     material_layers: BTreeMap<(usize, u32), Arc<material_layers::GpuLayers>>,
     material_factors: Vec<MaterialFactorOwnership>,
     active_material_bindings: BTreeMap<u32, GpuMaterialBinding>,
+    material_revision: u64,
+    prepared_transparency: RefCell<Option<material_transparency::CachedTransparency>>,
     /// The LOD whose materials are bound, so a replaced texture can be bound again.
     active_material_lod: Option<usize>,
     mesh_viewport: Option<[f32; 4]>,
+    pending_size: Option<PhysicalSize<u32>>,
     depth_target: DepthTarget,
     multisample_target: Option<MultisampleTarget>,
     sample_count: u32,
@@ -3710,6 +3771,7 @@ impl WindowRenderer {
     /// Move this renderer's scene aside, leaving it empty, so another scene can be
     /// drawn and this one put back without uploading it again (section 8.7 C1).
     pub fn set_scene_aside(&mut self) -> KeptScene {
+        self.material_revision = self.material_revision.wrapping_add(1);
         KeptScene {
             mesh: self.mesh.take(),
             material_textures: std::mem::take(&mut self.material_textures),
@@ -3732,6 +3794,7 @@ impl WindowRenderer {
         self.material_textures = kept.material_textures;
         self.material_factors = kept.material_factors;
         self.active_material_bindings = kept.active_material_bindings;
+        self.material_revision = self.material_revision.wrapping_add(1);
         self.material_layers = kept.material_layers;
         self.effect_textures.truncate(1);
         self.effect_textures.extend(kept.effects);
@@ -3754,6 +3817,7 @@ impl WindowRenderer {
         let textures = std::mem::take(&mut self.material_textures);
         let factors = std::mem::take(&mut self.material_factors);
         let bindings = std::mem::take(&mut self.active_material_bindings);
+        self.material_revision = self.material_revision.wrapping_add(1);
         let layers = std::mem::take(&mut self.material_layers);
         let staged = self.staged_texture.take();
         let retained = std::mem::take(&mut self.retained_upload_textures);
@@ -3772,6 +3836,7 @@ impl WindowRenderer {
             self.material_textures = textures;
             self.material_factors = factors;
             self.active_material_bindings = bindings;
+            self.material_revision = self.material_revision.wrapping_add(1);
             self.material_layers = layers;
             self.staged_texture = staged;
             self.retained_upload_textures = retained;
@@ -3913,27 +3978,8 @@ impl WindowRenderer {
         size: winit::dpi::PhysicalSize<u32>,
     ) -> Result<Self, RenderError> {
         material_layers::record_device_support(&device);
-        let capabilities = surface.get_capabilities(&adapter);
-        let format =
-            preferred_surface_format(&capabilities.formats).ok_or(RenderError::SurfaceFormat)?;
-        let present_mode = preferred_present_mode(&capabilities.present_modes)
-            .ok_or(RenderError::SurfaceFormat)?;
-        let alpha_mode = capabilities
-            .alpha_modes
-            .first()
-            .copied()
-            .ok_or(RenderError::SurfaceFormat)?;
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            color_space: wgpu::SurfaceColorSpace::Auto,
-            width: size.width.max(1),
-            height: size.height.max(1),
-            present_mode,
-            alpha_mode,
-            view_formats: Vec::new(),
-            desired_maximum_frame_latency: 2,
-        };
+        let config = build_surface_config(&surface, &adapter, size)?;
+        let format = config.format;
         surface.configure(&device, &config);
         let sample_count = preferred_sample_count(&adapter, format);
         let anisotropy_clamp =
@@ -3982,6 +4028,7 @@ impl WindowRenderer {
             &effect_sampler,
         )];
         let effect_depth_layout = effect_depth::layout(&device, sample_count);
+        let effect_depth_cache = effect_depth::EffectDepthCache::new(&device);
         let effect_mesh = effect_mesh::MeshParticles::new(
             &device,
             format,
@@ -4121,6 +4168,7 @@ impl WindowRenderer {
             effect_quad,
             effect_texture_bind_group_layout,
             effect_depth_layout,
+            effect_depth_cache,
             effect_sampler,
             effect_textures,
             effect_batches: Vec::new(),
@@ -4128,6 +4176,7 @@ impl WindowRenderer {
             effect_instance_buffer: None,
             mesh: None,
             skeleton_lines: None,
+            skeleton_lines_signature: 0,
             preview_lines: None,
             preview_lines_xray: false,
             effect_lines: None,
@@ -4140,8 +4189,11 @@ impl WindowRenderer {
             material_layers: BTreeMap::new(),
             material_factors: Vec::new(),
             active_material_bindings: BTreeMap::new(),
+            material_revision: 0,
+            prepared_transparency: RefCell::new(None),
             active_material_lod: None,
             mesh_viewport: None,
+            pending_size: None,
             depth_target,
             multisample_target,
             sample_count,
@@ -4526,7 +4578,28 @@ impl WindowRenderer {
     }
 
     pub fn set_skeleton_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
+        if positions.is_empty() {
+            self.skeleton_lines = None;
+            self.skeleton_lines_signature = 0;
+            self.show_bones = false;
+            return Ok(());
+        }
+        let signature = overlay_position_signature(positions);
+        if self.skeleton_lines_signature == signature && self.skeleton_lines.is_some() {
+            return Ok(());
+        }
+        if let Some(lines) = self.skeleton_lines.as_mut()
+            && lines.update_positions(&self.queue, positions, signature)?
+        {
+            self.skeleton_lines_signature = signature;
+            return Ok(());
+        }
         self.skeleton_lines = GpuOverlayLines::upload(&self.device, positions)?;
+        self.skeleton_lines_signature = if self.skeleton_lines.is_some() {
+            signature
+        } else {
+            0
+        };
         if self.skeleton_lines.is_none() {
             self.show_bones = false;
         }
@@ -4832,6 +4905,7 @@ impl WindowRenderer {
     pub fn reset_material_factors(&mut self) {
         self.material_factors.clear();
         self.active_material_bindings.clear();
+        self.material_revision = self.material_revision.wrapping_add(1);
     }
 
     pub fn set_material_lod(&mut self, lod_index: usize) -> Result<usize, RenderError> {
@@ -4885,6 +4959,7 @@ impl WindowRenderer {
                 (material, binding)
             })
             .collect();
+        self.material_revision = self.material_revision.wrapping_add(1);
         Ok(bound)
     }
 
@@ -4965,6 +5040,14 @@ impl WindowRenderer {
         if size.width == 0 || size.height == 0 {
             return;
         }
+        self.pending_size = (self.config.width != size.width || self.config.height != size.height)
+            .then_some(size);
+    }
+
+    fn apply_pending_resize(&mut self) {
+        let Some(size) = self.pending_size.take() else {
+            return;
+        };
         if self.config.width == size.width && self.config.height == size.height {
             return;
         }
@@ -5018,7 +5101,7 @@ impl WindowRenderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        depth: &wgpu::TextureView,
+        depth: &DepthTarget,
         multisample: Option<&MultisampleTarget>,
         output_width: u32,
         output_height: u32,
@@ -5027,6 +5110,7 @@ impl WindowRenderer {
         let shadow = self.mesh.as_ref().map(|mesh| {
             self.shadow_resources.frame(
                 &self.device,
+                &self.queue,
                 encoder,
                 mesh,
                 &self.default_material_binding,
@@ -5040,12 +5124,14 @@ impl WindowRenderer {
             )
         });
         let transparency = self.mesh.as_ref().and_then(|mesh| {
-            material_transparency::prepare(
+            material_transparency::resolve_cached(
+                &self.prepared_transparency,
                 &self.device,
                 mesh,
                 &self.active_material_bindings,
                 &self.camera_uniform,
                 self.view_mode,
+                self.material_revision,
             )
         });
         {
@@ -5076,7 +5162,7 @@ impl WindowRenderer {
                     depth_slice: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: depth,
+                    view: &depth.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -5124,7 +5210,7 @@ impl WindowRenderer {
                     self.view_mode == ViewMode::XRay,
                 );
                 if let Some(shadow) = &shadow {
-                    pass.set_bind_group(3, &shadow.binding, &[]);
+                    pass.set_bind_group(3, shadow.binding, &[]);
                     if self.ground_visible {
                         let (low, high) = mesh
                             .lighting_bounds
@@ -5222,10 +5308,12 @@ impl WindowRenderer {
                 multisample.map_or((view, None), |target| (&target.view, Some(view)));
             self.ambient_occlusion.record(
                 &self.device,
+                &self.queue,
                 encoder,
                 color,
                 resolve,
-                depth,
+                &depth.view,
+                depth.id,
                 &self.camera_uniform,
                 shadow.radius,
                 [output_width, output_height],
@@ -5257,9 +5345,9 @@ impl WindowRenderer {
                 &self.default_material_binding,
                 &self.active_material_bindings,
                 &self.camera_bind_group,
-                &self.camera_uniform,
                 self.view_mode,
                 &shadow.binding,
+                transparency.as_ref(),
             );
         }
     }
@@ -5332,7 +5420,7 @@ impl WindowRenderer {
         self.record_scene(
             &mut encoder,
             &view,
-            &depth.view,
+            &depth,
             multisample.as_ref(),
             width,
             height,
@@ -5380,31 +5468,13 @@ impl WindowRenderer {
         egui_frame: Option<(&egui::TexturesDelta, f32)>,
     ) -> Result<(), RenderError> {
         self.check_health()?;
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                self.surface.configure(&self.device, &self.config);
-                frame
-            }
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                return Err(RenderError::SurfaceFrame("timeout".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Occluded => {
-                return Err(RenderError::SurfaceFrame("occluded".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return Err(RenderError::SurfaceFrame("outdated".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                self.check_health()?;
-                self.surface.configure(&self.device, &self.config);
-                return Err(RenderError::SurfaceFrame("lost".to_owned()));
-            }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(RenderError::SurfaceFrame("validation".to_owned()));
-            }
-        };
+        self.apply_pending_resize();
+        let frame = acquire_surface_frame(
+            &self.surface,
+            &self.device,
+            &self.config,
+            &self.gpu_faults,
+        )?;
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -5439,7 +5509,7 @@ impl WindowRenderer {
         self.record_scene(
             &mut encoder,
             &view,
-            &self.depth_target.view,
+            &self.depth_target,
             self.multisample_target.as_ref(),
             self.config.width,
             self.config.height,
@@ -5472,6 +5542,267 @@ impl WindowRenderer {
             for id in &textures.free {
                 self.egui_renderer.free_texture(id);
             }
+        }
+        Ok(())
+    }
+}
+
+fn build_surface_config(
+    surface: &wgpu::Surface<'static>,
+    adapter: &wgpu::Adapter,
+    size: PhysicalSize<u32>,
+) -> Result<wgpu::SurfaceConfiguration, RenderError> {
+    let capabilities = surface.get_capabilities(adapter);
+    let format =
+        preferred_surface_format(&capabilities.formats).ok_or(RenderError::SurfaceFormat)?;
+    let present_mode =
+        preferred_present_mode(&capabilities.present_modes).ok_or(RenderError::SurfaceFormat)?;
+    let alpha_mode = capabilities
+        .alpha_modes
+        .first()
+        .copied()
+        .ok_or(RenderError::SurfaceFormat)?;
+    Ok(wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format,
+        color_space: wgpu::SurfaceColorSpace::Auto,
+        width: size.width.max(1),
+        height: size.height.max(1),
+        present_mode,
+        alpha_mode,
+        view_formats: Vec::new(),
+        desired_maximum_frame_latency: 2,
+    })
+}
+
+fn acquire_surface_frame(
+    surface: &wgpu::Surface<'static>,
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    gpu_faults: &GpuFaults,
+) -> Result<wgpu::SurfaceTexture, RenderError> {
+    match surface.get_current_texture() {
+        wgpu::CurrentSurfaceTexture::Success(frame) => Ok(frame),
+        wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+            surface.configure(device, config);
+            Ok(frame)
+        }
+        wgpu::CurrentSurfaceTexture::Timeout => Err(RenderError::SurfaceFrame("timeout".to_owned())),
+        wgpu::CurrentSurfaceTexture::Occluded => {
+            Err(RenderError::SurfaceFrame("occluded".to_owned()))
+        }
+        wgpu::CurrentSurfaceTexture::Outdated => {
+            surface.configure(device, config);
+            Err(RenderError::SurfaceFrame("outdated".to_owned()))
+        }
+        wgpu::CurrentSurfaceTexture::Lost => {
+            gpu_faults.check()?;
+            surface.configure(device, config);
+            Err(RenderError::SurfaceFrame("lost".to_owned()))
+        }
+        wgpu::CurrentSurfaceTexture::Validation => {
+            Err(RenderError::SurfaceFrame("validation".to_owned()))
+        }
+    }
+}
+
+/// Lightweight 2D-only egui swapchain renderer for embedded tool panels that do
+/// not need 3D shadow maps, IBL cubemaps, MSAA targets, or mesh pipelines.
+pub struct EguiWindowRenderer {
+    gpu_faults: GpuFaults,
+    _instance: wgpu::Instance,
+    surface: wgpu::Surface<'static>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    config: wgpu::SurfaceConfiguration,
+    pending_size: Option<PhysicalSize<u32>>,
+    egui_renderer: egui_wgpu::Renderer,
+    clear_colour: wgpu::Color,
+}
+
+impl EguiWindowRenderer {
+    pub async fn new(window: Arc<Window>) -> Result<Self, RenderError> {
+        let instance = wgpu::Instance::new(gpu_lifecycle::interactive_instance_descriptor());
+        let surface = instance
+            .create_surface(window.clone())
+            .map_err(|error| RenderError::Surface(error.to_string()))?;
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
+                apply_limit_buckets: false,
+            })
+            .await
+            .map_err(|_| RenderError::NoAdapter)?;
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("CDMW New Item UI device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
+                trace: wgpu::Trace::Off,
+            })
+            .await
+            .map_err(|error| RenderError::Device(error.to_string()))?;
+        let gpu_faults = GpuFaults::default();
+        let faults = gpu_faults.clone();
+        let wake = window.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            faults.record(format!("device lost ({reason:?}): {message}"));
+            wake.request_redraw();
+        });
+        let faults = gpu_faults.clone();
+        let wake = window.clone();
+        device.on_uncaptured_error(Arc::new(move |error: wgpu::Error| {
+            faults.record(error.to_string());
+            wake.request_redraw();
+        }));
+        Self::with_device(
+            instance,
+            surface,
+            adapter,
+            device,
+            queue,
+            gpu_faults,
+            window.inner_size(),
+        )
+    }
+
+    pub fn new_on(gpu: &SharedGpu, window: Arc<Window>) -> Result<Self, RenderError> {
+        gpu.faults.check()?;
+        let surface = gpu
+            .instance
+            .create_surface(window.clone())
+            .map_err(|error| RenderError::Surface(error.to_string()))?;
+        if !gpu.adapter.is_surface_supported(&surface) {
+            return Err(RenderError::Surface(
+                "the shared adapter cannot present to this window".to_owned(),
+            ));
+        }
+        Self::with_device(
+            gpu.instance.clone(),
+            surface,
+            gpu.adapter.clone(),
+            gpu.device.clone(),
+            gpu.queue.clone(),
+            gpu.faults.clone(),
+            window.inner_size(),
+        )
+    }
+
+    fn with_device(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        gpu_faults: GpuFaults,
+        size: PhysicalSize<u32>,
+    ) -> Result<Self, RenderError> {
+        let config = build_surface_config(&surface, &adapter, size)?;
+        surface.configure(&device, &config);
+        let egui_renderer =
+            egui_wgpu::Renderer::new(&device, config.format, egui_wgpu::RendererOptions::default());
+        let clear_colour =
+            clear_colour_for_target([0.025, 0.03, 0.04, 1.0], config.format.is_srgb());
+        gpu_faults.check()?;
+        Ok(Self {
+            gpu_faults,
+            _instance: instance,
+            surface,
+            device,
+            queue,
+            config,
+            pending_size: None,
+            egui_renderer,
+            clear_colour,
+        })
+    }
+
+    pub fn check_health(&self) -> Result<(), RenderError> {
+        self.gpu_faults.check()
+    }
+
+    pub fn resize(&mut self, size: PhysicalSize<u32>) {
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        self.pending_size = (self.config.width != size.width || self.config.height != size.height)
+            .then_some(size);
+    }
+
+    pub fn render_egui(
+        &mut self,
+        paint_jobs: &[egui::ClippedPrimitive],
+        textures: &egui::TexturesDelta,
+        pixels_per_point: f32,
+    ) -> Result<(), RenderError> {
+        self.check_health()?;
+        if let Some(size) = self.pending_size.take()
+            && (self.config.width != size.width || self.config.height != size.height)
+        {
+            self.config.width = size.width;
+            self.config.height = size.height;
+            self.surface.configure(&self.device, &self.config);
+        }
+        let frame = acquire_surface_frame(
+            &self.surface,
+            &self.device,
+            &self.config,
+            &self.gpu_faults,
+        )?;
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("CDMW New Item UI frame"),
+            });
+        let descriptor = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.config.width, self.config.height],
+            pixels_per_point,
+        };
+        for (id, deltas) in &textures.set {
+            for delta in deltas {
+                self.egui_renderer
+                    .update_texture(&self.device, &self.queue, *id, delta);
+            }
+        }
+        let mut command_buffers = self.egui_renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            paint_jobs,
+            &descriptor,
+        );
+        {
+            let ui_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("CDMW New Item UI egui"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(self.clear_colour),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.egui_renderer
+                .render(&mut ui_pass.forget_lifetime(), paint_jobs, &descriptor);
+        }
+        command_buffers.push(encoder.finish());
+        self.queue.submit(command_buffers);
+        self.queue.present(frame);
+        for id in &textures.free {
+            self.egui_renderer.free_texture(id);
         }
         Ok(())
     }
@@ -7274,10 +7605,11 @@ async fn run_headless_render_smoke_internal(
             record_headless_pass(
                 &mut encoder,
                 &device,
+                &queue,
                 &camera_uniform,
                 multisample.as_ref().map_or(&view, |target| &target.view),
                 multisample.as_ref().map(|_| &view),
-                &depth.view,
+                &depth,
                 &mesh,
                 &default_material_binding,
                 &active_material_bindings,
@@ -8496,10 +8828,11 @@ fn material_proof_sphere_snapshot() -> DrawSnapshot {
 fn record_headless_pass(
     encoder: &mut wgpu::CommandEncoder,
     device: &wgpu::Device,
+    queue: &wgpu::Queue,
     camera_uniform: &CameraUniform,
     color: &wgpu::TextureView,
     resolve_target: Option<&wgpu::TextureView>,
-    depth: &wgpu::TextureView,
+    depth: &DepthTarget,
     mesh: &GpuMeshBuffers,
     default_material_bind_group: &GpuMaterialBinding,
     active_material_bindings: &BTreeMap<u32, GpuMaterialBinding>,
@@ -8514,6 +8847,7 @@ fn record_headless_pass(
 ) {
     let shadow = pipelines.shadow_resources.frame(
         device,
+        queue,
         encoder,
         mesh,
         default_material_bind_group,
@@ -8554,7 +8888,7 @@ fn record_headless_pass(
             depth_slice: None,
         })],
         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-            view: depth,
+            view: &depth.view,
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Clear(1.0),
                 store: wgpu::StoreOp::Store,
@@ -8565,7 +8899,7 @@ fn record_headless_pass(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    pass.set_bind_group(3, &shadow.binding, &[]);
+    pass.set_bind_group(3, shadow.binding, &[]);
     draw_mesh(
         &mut pass,
         mesh,
@@ -8597,10 +8931,12 @@ fn record_headless_pass(
     drop(pass);
     pipelines.ambient_occlusion.record(
         device,
+        queue,
         encoder,
         color,
         resolve_target,
-        depth,
+        &depth.view,
+        depth.id,
         camera_uniform,
         shadow.radius,
         size,
@@ -8618,9 +8954,9 @@ fn record_headless_pass(
         default_material_bind_group,
         active_material_bindings,
         camera_bind_group,
-        camera_uniform,
         mode,
         &shadow.binding,
+        transparency.as_ref(),
     );
 }
 
@@ -8783,10 +9119,11 @@ fn render_headless_readback_at(
     record_headless_pass(
         &mut encoder,
         device,
+        queue,
         camera_uniform,
         multisample.as_ref().map_or(&view, |target| &target.view),
         multisample.as_ref().map(|_| &view),
-        &depth.view,
+        &depth,
         mesh,
         default_material_bind_group,
         active_material_bindings,
@@ -10051,6 +10388,7 @@ fn create_depth_target_with_sample_count(
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
     DepthTarget {
+        id: next_gpu_resource_id(),
         _texture: texture,
         view,
     }
@@ -11789,7 +12127,14 @@ fn create_material_bind_group(
             },
         ],
     });
+    let shader_discards = factors
+        .shader_controls
+        .is_some_and(|v| matches!(v[0] as u32, 1 | 2) || (v[0] == 6.0 && v[7] >= 1.0));
+    let can_discard =
+        ((uniform.flags & MATERIAL_ALPHA_CUTOUT) != 0 && !translucent && !eye_cover && !layered)
+            || shader_discards;
     GpuMaterialBinding {
+        id: next_gpu_resource_id(),
         bind_group,
         layers: defaults.layers.clone(),
         flags: uniform.flags,
@@ -11805,6 +12150,8 @@ fn create_material_bind_group(
                     .iter()
                     .any(|value| *value > 0.0))
                 || matches!(uniform.shader_controls[0][0] as u32, 5 | 6)),
+        can_discard,
+        shader_discards,
     }
 }
 
@@ -12252,9 +12599,9 @@ mod emission_bloom {
             default_binding: &GpuMaterialBinding,
             materials: &BTreeMap<u32, GpuMaterialBinding>,
             camera: &wgpu::BindGroup,
-            uniform: &CameraUniform,
             mode: ViewMode,
             shadow: &wgpu::BindGroup,
+            transparency: Option<&material_transparency::PreparedTransparency>,
         ) {
             if !matches!(mode, ViewMode::TexturedSolid | ViewMode::GameOutdoor)
                 || mesh.vertex_count == 0
@@ -12275,8 +12622,6 @@ mod emission_bloom {
                 });
             }
             let targets = storage.as_ref().expect("bloom targets");
-            let transparency =
-                material_transparency::prepare(device, mesh, materials, uniform, mode);
             {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Visible emission only"),
@@ -12327,7 +12672,7 @@ mod emission_bloom {
                     None,
                     &self.blended,
                     None,
-                    transparency.as_ref(),
+                    transparency,
                 );
             }
             for (pipeline, source, target, composite) in [
@@ -12387,7 +12732,10 @@ mod material_transparency {
     //! Draw authored blended surfaces after opaque geometry, ordered in the current view.
     use super::{CameraUniform, GpuMaterialBinding, GpuMeshBuffers, GpuVertex, ViewMode};
     use glam::{Mat4, Vec3};
-    use std::collections::BTreeMap;
+    use std::cell::RefCell;
+    use std::collections::{BTreeMap, hash_map::DefaultHasher};
+    use std::hash::{Hash, Hasher};
+    use std::sync::Arc;
     use wgpu::util::DeviceExt;
 
     pub(super) struct SortTriangle {
@@ -12441,6 +12789,7 @@ mod material_transparency {
             .collect()
     }
 
+    #[derive(Clone)]
     pub(super) struct DrawBatch {
         pub(super) material: u32,
         pub(super) part_id: u32,
@@ -12448,9 +12797,65 @@ mod material_transparency {
         pub(super) end_index: u32,
     }
 
+    #[derive(Clone)]
     pub(super) struct PreparedTransparency {
-        pub(super) index: wgpu::Buffer,
+        pub(super) index: Arc<wgpu::Buffer>,
         pub(super) batches: Vec<DrawBatch>,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    struct TransparencyCacheKey {
+        mesh_id: u64,
+        draw_revision: u64,
+        topology_generation: u64,
+        material_revision: u64,
+        mode: u32,
+        vp_bits: [[u32; 4]; 4],
+        scene_model_bits: [[u32; 4]; 4],
+        ranges_sig: u64,
+    }
+
+    pub(super) struct CachedTransparency {
+        key: TransparencyCacheKey,
+        prepared: Option<PreparedTransparency>,
+    }
+
+    pub(super) fn resolve_cached(
+        cache: &RefCell<Option<CachedTransparency>>,
+        device: &wgpu::Device,
+        mesh: &GpuMeshBuffers,
+        bindings: &BTreeMap<u32, GpuMaterialBinding>,
+        camera: &CameraUniform,
+        mode: ViewMode,
+        material_revision: u64,
+    ) -> Option<PreparedTransparency> {
+        let mut hasher = DefaultHasher::new();
+        mesh.material_ranges.len().hash(&mut hasher);
+        for range in &mesh.material_ranges {
+            range.material.hash(&mut hasher);
+            range.part_id.hash(&mut hasher);
+            range.first_index.hash(&mut hasher);
+            range.index_count.hash(&mut hasher);
+        }
+        let key = TransparencyCacheKey {
+            mesh_id: mesh.unique_id,
+            draw_revision: mesh.draw_revision,
+            topology_generation: mesh.topology_generation,
+            material_revision,
+            mode: mode.shader_mode(),
+            vp_bits: camera.view_projection.map(|col| col.map(f32::to_bits)),
+            scene_model_bits: camera.scene_model.map(|col| col.map(f32::to_bits)),
+            ranges_sig: hasher.finish(),
+        };
+        if let Some(cached) = cache.borrow().as_ref().filter(|c| c.key == key) {
+            return cached.prepared.clone();
+        }
+        let prepared = prepare(device, mesh, bindings, camera, mode);
+        *cache.borrow_mut() = Some(CachedTransparency {
+            key,
+            prepared: prepared.clone(),
+        });
+        prepared
     }
 
     pub(super) fn prepare(
@@ -12512,11 +12917,11 @@ mod material_transparency {
         }
         // Each recorded view owns its sorted indices. A later capture or split view
         // cannot overwrite indices still referenced by an earlier command buffer.
-        let index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let index = Arc::new(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW blended material indices"),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
-        });
+        }));
         Some(PreparedTransparency { index, batches })
     }
 

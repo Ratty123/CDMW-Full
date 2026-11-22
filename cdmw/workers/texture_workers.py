@@ -138,9 +138,18 @@ class _TextureWorkflowWorkerBase(QObject):
     @Slot()
     def run(self) -> None:
         breadcrumb_state = _texture_workflow_breadcrumb_base(self.config, self.worker_name)
+        last_breadcrumb_write = 0.0
+        last_current_emit = 0.0
+        last_progress_emit = 0.0
+        last_phase_progress_emit = 0.0
 
-        def write_breadcrumb(**updates: object) -> None:
+        def write_breadcrumb(*, force: bool = False, **updates: object) -> None:
+            nonlocal last_breadcrumb_write
             breadcrumb_state.update(updates)
+            now = time.monotonic()
+            if not force and last_breadcrumb_write != 0.0 and (now - last_breadcrumb_write) < 0.5:
+                return
+            last_breadcrumb_write = now
             breadcrumb_state["timestamp"] = time.time()
             _write_texture_workflow_breadcrumb(
                 self.crash_reports_dir,
@@ -151,35 +160,55 @@ class _TextureWorkflowWorkerBase(QObject):
         def emit_log(message: str) -> None:
             self.log_message.emit(message)
             if _is_texture_workflow_tool_log(message):
-                write_breadcrumb(last_external_tool_step=str(message))
+                write_breadcrumb(force=True, last_external_tool_step=str(message))
 
         def emit_total(total: int) -> None:
-            write_breadcrumb(total_files=total)
+            write_breadcrumb(force=True, total_files=total)
             self.total_found.emit(total)
 
         def emit_current_file(current_file: str) -> None:
+            nonlocal last_current_emit
             write_breadcrumb(current_file=current_file)
-            self.current_file.emit(current_file)
+            now = time.monotonic()
+            if last_current_emit == 0.0 or (now - last_current_emit) >= 0.05:
+                last_current_emit = now
+                self.current_file.emit(current_file)
 
         def emit_progress(processed: int, total: int, converted: int, skipped: int, failed: int) -> None:
+            nonlocal last_progress_emit
+            terminal = total <= 0 or processed >= total or processed <= 1
             write_breadcrumb(
+                force=terminal,
                 processed=processed,
                 total_files=total,
                 converted=converted,
                 skipped=skipped,
                 failed=failed,
             )
-            self.progress.emit(processed, total, converted, skipped, failed)
+            now = time.monotonic()
+            if terminal or last_progress_emit == 0.0 or (now - last_progress_emit) >= 0.05:
+                last_progress_emit = now
+                self.progress.emit(processed, total, converted, skipped, failed)
 
         def emit_phase(phase_name: str, detail: str, indeterminate: bool) -> None:
-            write_breadcrumb(phase=phase_name, phase_detail=detail, phase_indeterminate=indeterminate)
+            write_breadcrumb(force=True, phase=phase_name, phase_detail=detail, phase_indeterminate=indeterminate)
             self.phase_changed.emit(phase_name, detail, indeterminate)
 
         def emit_phase_progress(current: int, total: int, detail: str) -> None:
-            write_breadcrumb(phase_current=current, phase_total=total, phase_progress_detail=detail)
-            self.phase_progress_changed.emit(current, total, detail)
+            nonlocal last_phase_progress_emit
+            terminal = total <= 0 or current >= total or current <= 1
+            write_breadcrumb(
+                force=terminal,
+                phase_current=current,
+                phase_total=total,
+                phase_progress_detail=detail,
+            )
+            now = time.monotonic()
+            if terminal or last_phase_progress_emit == 0.0 or (now - last_phase_progress_emit) >= 0.05:
+                last_phase_progress_emit = now
+                self.phase_progress_changed.emit(current, total, detail)
 
-        write_breadcrumb(phase="starting", phase_detail=self.starting_detail)
+        write_breadcrumb(force=True, phase="starting", phase_detail=self.starting_detail)
         try:
             summary = self._run_pipeline(
                 on_log=emit_log,
@@ -191,10 +220,11 @@ class _TextureWorkflowWorkerBase(QObject):
                 stop_event=self.stop_event,
             )
             if getattr(summary, "cancelled", False):
-                write_breadcrumb(status="cancelled", phase_detail=self.cancelled_message)
+                write_breadcrumb(force=True, status="cancelled", phase_detail=self.cancelled_message)
                 self.cancelled.emit(self.cancelled_message)
             else:
                 write_breadcrumb(
+                    force=True,
                     status="completed",
                     total_files=getattr(summary, "total_files", 0),
                     converted=getattr(summary, "converted", 0),
@@ -203,13 +233,13 @@ class _TextureWorkflowWorkerBase(QObject):
                 )
                 self.completed.emit(summary)
         except Exception as exc:
-            write_breadcrumb(status="error", error=str(exc))
+            write_breadcrumb(force=True, status="error", error=str(exc))
             self.error.emit(str(exc))
         finally:
             if breadcrumb_state.get("status") == "running":
-                write_breadcrumb(status="finished")
+                write_breadcrumb(force=True, status="finished")
             else:
-                write_breadcrumb()
+                write_breadcrumb(force=True)
             self.finished.emit()
 
 

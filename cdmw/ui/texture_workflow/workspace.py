@@ -96,3 +96,16 @@ class TexturesWorkspace(
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         QTimer.singleShot(0, self, self._fit_upscale_sidebar)
+
+    def iter_shutdown_workers(self) -> tuple[tuple[str, object, object], ...]:
+        thread = getattr(self, "_workflow_match_thread", None)
+        worker = getattr(self, "_workflow_match_worker", None)
+        return (("workflow_match_thread", thread, worker),) if thread is not None or worker is not None else ()
+
+    def request_shutdown(self) -> None:
+        timer = getattr(self, "_workflow_match_refresh_timer", None)
+        if timer is not None:
+            timer.stop()
+        cancel_match = getattr(self, "_cancel_workflow_match_worker", None)
+        if callable(cancel_match):
+            cancel_match()

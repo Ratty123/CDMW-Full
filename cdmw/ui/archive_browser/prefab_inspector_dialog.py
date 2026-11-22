@@ -18,10 +18,13 @@ byte length.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
+import threading
 from typing import Callable, Mapping, Sequence
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QBrush, QColor, QGuiApplication, QKeySequence, QShortcut
+from shiboken6 import isValid
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -124,6 +127,83 @@ def _retarget_warning(original: str, replacement: str) -> str:
     return ""
 
 
+_RETAINED_USERS_THREADS: set[QThread] = set()
+
+
+class _PrefabUsersWorker(QObject):
+    completed = Signal(int, str, object)
+    failed = Signal(int, str, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        path: str,
+        find_users: Callable[..., Sequence[str]],
+        accepts_stop: bool,
+        stop_event: threading.Event,
+    ) -> None:
+        super().__init__()
+        self.request_id = request_id
+        self.path = path
+        self.find_users = find_users
+        self.accepts_stop = accepts_stop
+        self.stop_event = stop_event
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                return
+            if self.accepts_stop:
+                users = tuple(self.find_users(self.path, stop_event=self.stop_event))
+            else:
+                users = tuple(self.find_users(self.path))
+            if self.stop_event.is_set():
+                return
+            self.completed.emit(self.request_id, self.path, users)
+        except Exception as exc:  # noqa: BLE001 - reported, never raised at a modal
+            if not self.stop_event.is_set():
+                self.failed.emit(self.request_id, self.path, str(exc))
+        finally:
+            self.finished.emit()
+
+
+def _connect_debounced_edit(
+    parent: QWidget,
+    edit: QLineEdit,
+    callback: Callable[[], None],
+    *,
+    interval_ms: int = 150,
+) -> QTimer:
+    timer = QTimer(parent)
+    timer.setSingleShot(True)
+    timer.setInterval(interval_ms)
+    timer.timeout.connect(callback)
+    interactive = [False]
+
+    def on_edited(_text: str) -> None:
+        interactive[0] = True
+        timer.start()
+
+    def on_changed(_text: str) -> None:
+        if interactive[0]:
+            interactive[0] = False
+            return
+        timer.stop()
+        callback()
+
+    def flush() -> None:
+        if timer.isActive():
+            timer.stop()
+            callback()
+
+    edit.textEdited.connect(on_edited)
+    edit.textChanged.connect(on_changed)
+    edit.returnPressed.connect(flush)
+    return timer
+
+
 @dataclass(frozen=True, slots=True)
 class PrefabInspectorResult:
     """What the dialog produced, if the user applied anything."""
@@ -147,6 +227,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         speed_filter: bool = False,
         embedded: bool = False,
         heading: str = "",
+        document: object | None = None,
+        determined: bool | None = None,
     ) -> None:
         super().__init__(parent)
         # Embedded, the inspector is a page inside another tool (Speed & Prefabs) rather than
@@ -177,12 +259,21 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self._saved_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
+        self._users_request_id = 0
+        self._users_stop_event: threading.Event | None = None
+        self._users_thread: QThread | None = None
+        self._users_worker: _PrefabUsersWorker | None = None
+        self._closing_users = False
         # It costs a second decode, so it is computed once per payload: here,
         # and again by _adopt_payload when a structural edit replaces the bytes.
         self._determined = True
         try:
-            self._document = decode_prefab_binary(self._original)
-            self._determined = walk_is_determined(self._original)
+            if document is not None:
+                self._document = document
+                self._determined = bool(determined) if determined is not None else walk_is_determined(self._original)
+            else:
+                self._document = decode_prefab_binary(self._original)
+                self._determined = walk_is_determined(self._original)
         except Exception as exc:  # noqa: BLE001 - surfaced in the banner
             self._error = str(exc)
         self._speed_filter_requested = bool(speed_filter)
@@ -193,7 +284,14 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         # Esc, Enter and anything else that closes a dialog would hide an embedded inspector
         # and leave an empty space in its host; there it stays until the host replaces it.
         if not self._embedded:
+            self._closing_users = True
+            self._cancel_other_users()
             super().done(result)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        self._closing_users = True
+        self._cancel_other_users()
+        super().closeEvent(event)
 
     def has_unsaved_changes(self) -> bool:
         """Edited rows or object changes that Save changes has not handed over yet."""
@@ -426,13 +524,15 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.object_filter = QLineEdit()
         self.object_filter.setPlaceholderText("Filter by name, field, value or path...")
         self.object_filter.setClearButtonEnabled(True)
-        self.object_filter.textChanged.connect(lambda _text: self._apply_object_filter())
+        self._object_filter_timer = _connect_debounced_edit(
+            self, self.object_filter, self._apply_object_filter, interval_ms=150
+        )
         controls.addWidget(self.object_filter, 1)
         self.changeable_only_box = QCheckBox("Only rows I can change")
         self.changeable_only_box.setToolTip(
             "Hide everything that is read-only, so what is left is what you can edit."
         )
-        self.changeable_only_box.toggled.connect(lambda _on: self._apply_object_filter())
+        self.changeable_only_box.toggled.connect(lambda _on: (self._object_filter_timer.stop(), self._apply_object_filter()))
         controls.addWidget(self.changeable_only_box)
         self.speed_only_box = QCheckBox("Speed values (experimental)")
         self.speed_only_box.setObjectName("prefabSpeedOnlyBox")
@@ -440,7 +540,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             "Show only the speed values Speed & Prefabs knows: camera speeds, spin and wind speed-up, cloud drift. "
             "Prefab speed edits have not been tested in game."
         )
-        self.speed_only_box.toggled.connect(lambda _on: self._apply_object_filter())
+        self.speed_only_box.toggled.connect(lambda _on: (self._object_filter_timer.stop(), self._apply_object_filter()))
         controls.addWidget(self.speed_only_box)
         self.scale_button = QPushButton("Scale by factor...")
         self.scale_button.setObjectName("prefabScaleButton")
@@ -449,11 +549,12 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         controls.addWidget(self.scale_button)
         box.addLayout(controls)
         self.tree = QTreeWidget()
+        self.tree.setUniformRowHeights(True)
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Object / field", "What it is", "Value"])
         header = self.tree.header()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         # Several value rows can be selected for Scale by factor; one row still drives the buttons.
         self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
@@ -732,21 +833,26 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         if picker.exec() and picker.chosen:
             item.setText(2, picker.chosen)
 
-    def _show_other_users(self, path: str) -> None:
-        """Report which other prefabs reference the same file.
+    def _cancel_other_users(self) -> None:
+        self._users_request_id += 1
+        if self._users_stop_event is not None:
+            self._users_stop_event.set()
+            self._users_stop_event = None
+        self._users_thread = None
+        self._users_worker = None
 
-        Retargeting one prefab tells a modder nothing about whether the change
-        covers a set or is one of twenty, and the answer decides whether the
-        mod works.
-        """
-        if self._find_users is None:
+    def _finish_users_thread(self, request_id: int, thread: QThread) -> None:
+        _RETAINED_USERS_THREADS.discard(thread)
+        if not isValid(self):
             return
-        try:
-            users = tuple(self._find_users(path))
-        except Exception as exc:  # noqa: BLE001 - reported, never raised at a modal
-            self._log(f"Could not check what else uses {path}: {exc}")
+        if self._users_thread is thread and request_id == self._users_request_id:
+            self._users_thread = None
+            self._users_worker = None
+
+    def _handle_other_users_completed(self, request_id: int, path: str, users: object) -> None:
+        if not isValid(self) or self._closing_users or request_id != self._users_request_id:
             return
-        others = tuple(item for item in users if item)
+        others = tuple(item for item in (users or ()) if item)
         name = path.rsplit("/", 1)[-1]
         if not others:
             self._log(f"No other prefab in the archives references {name}.")
@@ -756,6 +862,51 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
             self._log(f"    {item}")
         if len(others) > 40:
             self._log(f"    ... and {len(others) - 40:,} more")
+
+    def _handle_other_users_failed(self, request_id: int, path: str, exc_text: str) -> None:
+        if not isValid(self) or self._closing_users or request_id != self._users_request_id:
+            return
+        self._log(f"Could not check what else uses {path}: {exc_text}")
+
+    def _show_other_users(self, path: str) -> None:
+        """Report which other prefabs reference the same file asynchronously."""
+        find_users = self._find_users
+        if find_users is None or self._closing_users:
+            return
+        self._cancel_other_users()
+        request_id = self._users_request_id
+        stop_event = threading.Event()
+        self._users_stop_event = stop_event
+        try:
+            sig = inspect.signature(find_users)
+            accepts_stop = "stop_event" in sig.parameters or any(
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
+            )
+        except (TypeError, ValueError):
+            accepts_stop = False
+
+        name = path.rsplit("/", 1)[-1]
+        self._log(f"Checking which other prefabs reference {name}...")
+
+        from cdmw.workers.thread_lifetime import release_worker_after_thread
+
+        thread = QThread()
+        worker = _PrefabUsersWorker(request_id, path, find_users, accepts_stop, stop_event)
+        worker.moveToThread(thread)
+        _RETAINED_USERS_THREADS.add(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_other_users_completed, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self._handle_other_users_failed, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(thread.quit, Qt.ConnectionType.QueuedConnection)
+        release_worker_after_thread(thread, worker)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda rid=request_id, t=thread: self._finish_users_thread(rid, t),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._users_thread = thread
+        self._users_worker = worker
+        thread.start()
 
     def _refresh_pending_state(self) -> None:
         self._saved_payload = None  # an edit since the last Save changes
@@ -829,22 +980,30 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         self.used_only_box.setToolTip(
             "A prefab declares far more fields than it sets. Untick to see the full declaration."
         )
-        self.used_only_box.toggled.connect(lambda _checked: self._apply_filter(self.filter_box.text()))
+        self.used_only_box.toggled.connect(
+            lambda _checked: (self._schema_filter_timer.stop(), self._apply_filter(self.filter_box.text()))
+        )
         controls.addWidget(self.used_only_box)
         controls.addStretch(1)
         box.addLayout(controls)
 
         self.filter_box = QLineEdit()
         self.filter_box.setPlaceholderText("Search fields...")
-        self.filter_box.textChanged.connect(self._apply_filter)
+        self._schema_filter_timer = _connect_debounced_edit(
+            self,
+            self.filter_box,
+            lambda: self._apply_filter(self.filter_box.text()),
+            interval_ms=150,
+        )
         box.addWidget(self.filter_box)
 
         self.schema_tree = QTreeWidget()
+        self.schema_tree.setUniformRowHeights(True)
         self.schema_tree.setColumnCount(4)
         self.schema_tree.setHeaderLabels(["Field", "What it controls", "Holds", "Declared as"])
         header = self.schema_tree.header()
         for column in (0, 1, 2):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
         self._populate_schema()
         box.addWidget(self.schema_tree, 1)
@@ -865,42 +1024,52 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
         if document is None:
             return
         used = self._used_field_names()
-        for declared in document.types:
-            label = declared.type_name
-            if declared.is_nested_prefab:
-                label = f"{declared.type_name}  (another prefab)"
-            node = QTreeWidgetItem([label, describe_component(declared.type_name), "", f"{len(declared.members)} fields"])
-            self.schema_tree.addTopLevelItem(node)
-            for member in declared.members:
-                meaning = describe_field(member.name)
-                child = QTreeWidgetItem(
-                    [
-                        meaning.label,
-                        meaning.detail,
-                        value_kind_hint(member.type_name, member.kind_label),
-                        f"{member.name}  ({member.type_name})",
-                    ]
-                )
-                child.setData(0, _USED_ROLE, member.name in used)
-                node.addChild(child)
-            node.setExpanded(True)
+        self.schema_tree.setUpdatesEnabled(False)
+        try:
+            for declared in document.types:
+                label = declared.type_name
+                if declared.is_nested_prefab:
+                    label = f"{declared.type_name}  (another prefab)"
+                node = QTreeWidgetItem([label, describe_component(declared.type_name), "", f"{len(declared.members)} fields"])
+                self.schema_tree.addTopLevelItem(node)
+                for member in declared.members:
+                    meaning = describe_field(member.name)
+                    child = QTreeWidgetItem(
+                        [
+                            meaning.label,
+                            meaning.detail,
+                            value_kind_hint(member.type_name, member.kind_label),
+                            f"{member.name}  ({member.type_name})",
+                        ]
+                    )
+                    child.setData(0, _USED_ROLE, member.name in used)
+                    node.addChild(child)
+                node.setExpanded(True)
+        finally:
+            self.schema_tree.setUpdatesEnabled(True)
+        for column in (0, 1, 2):
+            self.schema_tree.resizeColumnToContents(column)
 
     def _apply_filter(self, text: str) -> None:
         needle = str(text or "").strip().lower()
         used_only = getattr(self, "used_only_box", None) is not None and self.used_only_box.isChecked()
-        for index in range(self.schema_tree.topLevelItemCount()):
-            parent = self.schema_tree.topLevelItem(index)
-            shown = 0
-            for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                matches = not needle or any(
-                    needle in child.text(column).lower() for column in range(4)
-                )
-                if used_only and not bool(child.data(0, _USED_ROLE)):
-                    matches = False
-                child.setHidden(not matches)
-                shown += int(matches)
-            parent.setHidden(shown == 0)
+        self.schema_tree.setUpdatesEnabled(False)
+        try:
+            for index in range(self.schema_tree.topLevelItemCount()):
+                parent = self.schema_tree.topLevelItem(index)
+                shown = 0
+                for child_index in range(parent.childCount()):
+                    child = parent.child(child_index)
+                    matches = not needle or any(
+                        needle in child.text(column).lower() for column in range(4)
+                    )
+                    if used_only and not bool(child.data(0, _USED_ROLE)):
+                        matches = False
+                    child.setHidden(not matches)
+                    shown += int(matches)
+                parent.setHidden(shown == 0)
+        finally:
+            self.schema_tree.setUpdatesEnabled(True)
 
     # -- editing ---------------------------------------------------------
     def collect_path_edits(self) -> tuple[PrefabPathEdit, ...]:

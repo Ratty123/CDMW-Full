@@ -23,7 +23,6 @@ pub(super) fn prepare(
             .rebind_cancellable(state.scalp.clone(), cancelled)
             .map_err(|e| e.to_string())?;
     }
-    #[cfg(test)]
     if let Preparation::Fill(group, preset, length) = operation {
         let generated = state
             .groups
@@ -145,6 +144,7 @@ pub(super) fn prepare(
                 mirrored: None,
                 width_scale: 1.0,
                 cards: 0,
+                uv_rect: None,
             });
             let lock_index = state.locks.len() - 1;
             locks::bind_lock(&mut state, lock_index, &part.positions, &part.normals)
@@ -235,17 +235,22 @@ pub(super) fn prepare(
             .collect();
         locks::remove_guides(&mut state, &removed);
     }
+    let has_hybrid_sharp = state.bindings.iter().any(|binding| {
+        !binding.smooth
+            && (state
+                .groups
+                .iter()
+                .any(|group| group.part == binding.part && group.mode == GroupMode::Generated)
+                || state.locks.iter().any(|lock| {
+                    lock.part == binding.part
+                        && lock.guide == Some(binding.guide)
+                        && lock.kind == LockKind::Generated
+                }))
+    });
     let rebuild = !matches!(
         operation,
         Preparation::Deform | Preparation::Metadata | Preparation::Analyze | Preparation::Bind(_)
-    ) || (matches!(operation, Preparation::Deform)
-        && state.bindings.iter().any(|binding| {
-            !binding.smooth
-                && state
-                    .groups
-                    .iter()
-                    .any(|group| group.part == binding.part && group.mode == GroupMode::Generated)
-        }));
+    ) || (matches!(operation, Preparation::Deform) && has_hybrid_sharp);
     if rebuild {
         let generated: BTreeSet<_> = state
             .groups
@@ -253,18 +258,69 @@ pub(super) fn prepare(
             .filter(|g| g.mode == GroupMode::Generated)
             .map(|g| g.part)
             .collect();
+        let hybrid_parts: BTreeSet<_> = state
+            .groups
+            .iter()
+            .filter(|g| g.mode == GroupMode::Existing)
+            .filter(|g| {
+                state
+                    .locks
+                    .iter()
+                    .any(|l| l.part == g.part && l.kind == LockKind::Generated)
+                    || document
+                        .lods[0]
+                        .submeshes
+                        .get(g.part as usize)
+                        .is_some_and(|part| part.source_vertex_indices.iter().any(|&src| src == -1))
+            })
+            .map(|g| g.part)
+            .collect();
         state.bindings.retain(|b| !generated.contains(&b.part));
+        for part_id in &hybrid_parts {
+            let prev_generated: BTreeSet<u32> = document.lods[0]
+                .submeshes
+                .get(*part_id as usize)
+                .map(|part| {
+                    part.source_vertex_indices
+                        .iter()
+                        .enumerate()
+                        .filter(|&(_, &src)| src == -1)
+                        .map(|(v, _)| v as u32)
+                        .collect()
+                })
+                .unwrap_or_default();
+            if !prev_generated.is_empty() {
+                compact_part(&mut state, &mut document, *part_id, &prev_generated);
+            }
+        }
         for geometry in hair::generate(&state, cancelled).map_err(|e| e.to_string())? {
             let part = &mut document.lods[0].submeshes[geometry.part as usize];
-            part.positions = geometry.positions;
-            part.normals = geometry.normals;
-            part.uvs = geometry.uvs;
-            part.shader_masks.clear();
-            // Generated hair has no authored tangents; they are derived from its UVs.
-            part.tangents.clear();
-            part.indices = geometry.indices;
-            part.source_vertex_indices = vec![-1; part.positions.len()];
-            state.bindings.extend(geometry.bindings);
+            if generated.contains(&geometry.part) {
+                part.positions = geometry.positions;
+                part.normals = geometry.normals;
+                part.uvs = geometry.uvs;
+                part.shader_masks.clear();
+                // Generated hair has no authored tangents; they are derived from its UVs.
+                part.tangents.clear();
+                part.indices = geometry.indices;
+                part.source_vertex_indices = vec![-1; part.positions.len()];
+                state.bindings.extend(geometry.bindings);
+            } else {
+                let base = part.positions.len() as u32;
+                let added = geometry.positions.len();
+                part.positions.extend(geometry.positions);
+                part.normals.extend(geometry.normals);
+                part.uvs.extend(geometry.uvs);
+                part.shader_masks.clear();
+                part.tangents.clear();
+                part.indices.extend(geometry.indices.into_iter().map(|i| i + base));
+                part.source_vertex_indices
+                    .extend(std::iter::repeat_n(-1, added));
+                state.bindings.extend(geometry.bindings.into_iter().map(|mut b| {
+                    b.vertex += base;
+                    b
+                }));
+            }
         }
         for group in &state.groups {
             if group.mode == GroupMode::Generated

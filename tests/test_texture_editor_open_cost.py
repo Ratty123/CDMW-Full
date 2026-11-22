@@ -146,3 +146,41 @@ def test_opening_a_texture_flattens_it_on_the_worker_and_not_again_on_the_window
         assert tuple(original[0, 0]) == (180, 180, 180, 180)
     finally:
         _close(editor)
+
+
+def test_transformed_floating_pixels_memoizes_offset_only_moves(monkeypatch) -> None:
+    from cdmw.models import TextureEditorFloatingSelection
+    from cdmw.ui.texture_workflow import editor_floating_state
+
+    pixels = np.full((16, 16, 4), 120, dtype=np.uint8)
+    warp_calls = []
+    real_warp = editor_floating_state.image_ops.warp_affine_linear
+
+    def counted_warp(*args, **kwargs):
+        warp_calls.append(len(warp_calls))
+        return real_warp(*args, **kwargs)
+
+    monkeypatch.setattr(editor_floating_state.image_ops, "warp_affine_linear", counted_warp)
+    first = TextureEditorFloatingSelection(
+        source_layer_id="layer-1",
+        label="Float",
+        bounds=(4, 4, 16, 16),
+        offset_x=0,
+        offset_y=0,
+        rotation_degrees=15.0,
+    )
+    out_a = editor_floating_state.transformed_texture_editor_floating_pixels(first, pixels)
+    out_b = editor_floating_state.transformed_texture_editor_floating_pixels(
+        TextureEditorFloatingSelection(
+            source_layer_id="layer-1",
+            label="Float",
+            bounds=(4, 4, 16, 16),
+            offset_x=18,
+            offset_y=-7,
+            rotation_degrees=15.0,
+        ),
+        pixels,
+    )
+    assert len(warp_calls) == 1
+    assert out_a is out_b
+    assert not out_a.flags.writeable

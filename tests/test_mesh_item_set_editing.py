@@ -663,3 +663,103 @@ def test_head_companion_appearance_uses_the_head_descriptor_only_for_declared_pi
     assert calls == [(eye, descriptor)]
     assert head_companion_appearance(contexts, contexts[2], source, None) is None  # not declared by the head
     assert head_companion_appearance(contexts, contexts[0], source, None) is None  # the head keeps its own
+
+
+@pytest.mark.parametrize("orphaned", [False, True], ids=["fresh", "orphaned-by-alpha6"])
+def test_a_set_s_unfinished_edits_come_back_every_time_the_draft_reopens(tmp_path, monkeypatch, orphaned):
+    """A set draft that only restored its unfinished edits reopened as its first file:
+    closing that session published the first file untouched as the draft's state, and
+    the recovery point holding the whole set was then refused. ``orphaned``: a draft
+    0.12.0-alpha.6 already did that to gets the whole set back as well."""
+    import hashlib
+    import json
+    from cdmw.services import mesh_service
+    from cdmw.services.mesh_asset_context import is_item_set
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from cdmw.services.mesh_saved_work_service import MeshDraftRequest, plan_session_draft
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+    from cdmw.workers.mesh_editor_aux_workers import MeshArchiveMaterialContextWorker
+    from tests.test_mesh_pac_topology_serializer import _pac_fixture
+    from tests.test_mesh_rust_authoring import _Settings, _prepared_dds_entry
+
+    monkeypatch.setattr(MeshArchiveMaterialContextWorker, "run", lambda worker:
+        worker.context_resolved.emit(worker.request_id, SimpleNamespace(
+            preview_model=None, material_package_path="", material_package_lease=None)))
+    source = _pac_fixture()
+    entries = [_prepared_dds_entry(tmp_path, name, source) for name in ("upper.pac", "lower.pac")]
+    contexts = tuple(ArchiveWorkflowDependencyContext(entry, (entry,),
+        {entry.path: entry}, {entry.basename: (entry,)}, True) for entry in entries)
+    plan = plan_session_draft(tmp_path / "drafts", entries[0],
+                              source_sha256=hashlib.sha256(source).hexdigest(), request=MeshDraftRequest())
+    project = plan.project_path.parent
+    descriptor = plan.project_path
+
+    def open_draft(*, first):
+        """The set's first file over its draft, as the tab opens it: planned, then resumed."""
+
+        mesh = parse_pac(source, entries[0].path)
+        mesh._cdmw_original_data = source
+        setattr(mesh, "_cdmw_modify_original_workspace_manifest_path", str(plan.manifest_path))
+        setattr(mesh, "_cdmw_mesh_layer_project_path", str(plan.project_path))
+        setattr(mesh, "_cdmw_modify_original_workspace_mode", plan.manifest["workspace_mode"])
+        if first:
+            setattr(mesh, "_cdmw_mesh_draft_plan", plan)
+        service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+        view = service.open_edit_session(mesh, mode="edit")
+        return service, SimpleNamespace(mesh_service=service, active_session_id=view.session_id)
+
+    def moved_x(editor):
+        mesh = editor.shadow_service.working_mesh(editor.shadow_session_id, clone=False)
+        return mesh.submeshes[1].vertices[0][0]
+
+    service, controller = open_draft(first=True)
+    editor = RustMeshAuthoringSession.create(controller, tmp_path / "authoring", process_generation=1,
+                                             item_set_contexts=contexts, edit_item_set=True)
+    try:
+        original_x = moved_x(editor)
+        # An edit in the second file, the one a reopen as the first file alone would lose.
+        assert editor.shadow_service.apply_command(editor.shadow_session_id, MeshEditCommand(
+            "transform", mode="edit", selection=MeshEditSelection.from_maps(vertices_by_submesh={1: (0,)}),
+            params={"translate": (0.25, 0.0, 0.0)})).ok
+        editor.shadow_service.retry_mesh_layer_autosave(editor.shadow_session_id)
+        saved = read_editor_recovery(project)
+        assert saved is not None and saved["base_generation"] == ""
+    finally:
+        editor.close()  # the tab closes without Finish Edit Mesh
+        service.close_edit_session(controller.active_session_id)
+    assert not descriptor.exists()
+    untouched = ""
+    if orphaned:
+        with monkeypatch.context() as patched:
+            patched.setattr(mesh_service, "_draft_holds_only_unfinished_edits", lambda _project: False)
+            service, controller = open_draft(first=False)
+            RustMeshAuthoringSession.create(controller, tmp_path / "authoring-alpha6", process_generation=2).close()
+            service.close_edit_session(controller.active_session_id)
+        untouched = json.loads(descriptor.read_text(encoding="utf-8"))["current_generation"]
+
+    for attempt in ("second", "third"):
+        # Continue Editing opens the draft's own file; the set comes from the recovery point.
+        service, controller = open_draft(first=False)
+        again = RustMeshAuthoringSession.create(controller, tmp_path / f"authoring-{attempt}", process_generation=2)
+        try:
+            assert again.recovery_problem == "", again.recovery_problem
+            assert again.recovered_edits_at > 0.0, f"the {attempt} open lost the set's unfinished edits"
+            shadow = again.shadow_service._session(again.shadow_session_id)
+            assert len(shadow.working_mesh.submeshes) == 2, "the set reopened as its first file only"
+            assert is_item_set(shadow.archive_refit_context)
+            assert [asset.entry.path for asset in shadow.archive_refit_context.assets] == ["upper.pac", "lower.pac"]
+            assert moved_x(again) == pytest.approx(original_x + 0.25, abs=2e-5)
+            assert len(service.working_mesh(controller.active_session_id).submeshes) == 1
+            # No save of the draft is waiting on its timer: close is the only publisher.
+            host = service._session(controller.active_session_id)
+            assert host.mesh_layer_autosave_requested_key == (-1, -1)
+        finally:
+            again.close()
+            service.close_edit_session(controller.active_session_id)
+    if orphaned:
+        assert json.loads(descriptor.read_text(encoding="utf-8"))["current_generation"] == untouched
+    else:
+        assert not descriptor.exists(), "closing a draft that only restored its edits published its untouched state"
+    kept = read_editor_recovery(project)
+    assert kept is not None and kept["base_generation"] == "" and kept["generation"] == saved["generation"]

@@ -32,6 +32,17 @@ def _dialog_step_0066(_state):
 
 def _dialog_step_0067(_state):
     def _populate_modding_workspace(root: ET.Element) -> None:
+        tree = _state.modding_workspace_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_modding_workspace_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_modding_workspace_inner(root) -> None:
         _state.modding_workspace_tree.clear()
         selected_key = str(_state.workspace_task_combo.currentData() or "collision_size")
         text_filter = str(_state.workspace_filter_edit.text() or "").strip().casefold()
@@ -680,8 +691,13 @@ def _populate_hkx_browser_tree_part_005(_state, _frame):
 
 def _dialog_step_0079(_state):
     def _populate_hkx_browser_tree(root: ET.Element) -> None:
-        _frame = SimpleNamespace(root=root)
-        _populate_hkx_browser_tree_part_005(_state, _frame)
+        tree = _state.hkx_browser_tree
+        tree.setUpdatesEnabled(False)
+        try:
+            _frame = SimpleNamespace(root=root)
+            _populate_hkx_browser_tree_part_005(_state, _frame)
+        finally:
+            tree.setUpdatesEnabled(True)
     _state._populate_hkx_browser_tree = _populate_hkx_browser_tree
 
 def _dialog_step_0080(_state):

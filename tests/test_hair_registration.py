@@ -140,3 +140,31 @@ def test_a_copy_of_a_hidden_hairstyle_is_offered_by_the_barber_with_a_borrowed_i
     assert appended.data == written[DAMIANE_MESH_PARAM]
     assert appended.data[:appended.insertion_offset] + appended.data[appended.insertion_offset + len(appended.inserted_bytes):] == source
     assert read_hair_choices(appended.data)[:-1] == read_hair_choices(source)
+
+
+def test_hair_stem_from_style_name_generates_character_stems_and_fallbacks():
+    from cdmw.domain.hair_registration import hair_stem_from_style_name
+    assert hair_stem_from_style_name("Silver Waves 02!", "Damiane") == "cd_phw_00_hair_00_silver_waves_02_player"
+    assert hair_stem_from_style_name("Long Mane", "Kliff") == "cd_phm_00_hair_00_long_mane_player"
+    assert hair_stem_from_style_name("Wild Mane", "Oongka") == "cd_phm_00_hair_00_wild_mane_player"
+    assert hair_stem_from_style_name("!!!", "Damiane", fallback_stem=NEW) == NEW
+    with pytest.raises(HairRegistrationError, match="ASCII"):
+        hair_stem_from_style_name("!!!", "Damiane")
+
+
+@pytest.mark.parametrize("slot_key", [b"Hair", b"hairShape"])
+def test_build_and_apply_hair_choice_xml_patch_for_both_slot_keys(slot_key):
+    from cdmw.domain.hair_registration import apply_hair_choice_xml_patch, build_hair_choice_xml_patch
+    source = game_table(shown(0), slot=f'Index="2" UIKey="{slot_key.decode()}" Category="Hair"')
+    appended = append_hair_choice(source, template_index=0, prefab_stem=NEW, icon_path=OTHER_ICON)
+    patch = build_hair_choice_xml_patch(source, appended.data)
+    assert b'into="ParamDesc"' in patch and b'match-Index="2"' in patch
+    assert f'match-UIKey="{slot_key.decode()}"'.encode() in patch
+    replayed = apply_hair_choice_xml_patch(source, patch)
+    assert read_hair_choices(replayed) == read_hair_choices(appended.data)
+    # Uniqueness check rejects ambiguous targets.
+    start = source.index(b'<ParamDesc Index="2"')
+    end = source.index(b"</ParamDesc>", start) + len(b"</ParamDesc>")
+    duplicated = source[:end] + source[start:end] + source[end:]
+    with pytest.raises(HairRegistrationError, match="1 matching"):
+        apply_hair_choice_xml_patch(duplicated, patch)

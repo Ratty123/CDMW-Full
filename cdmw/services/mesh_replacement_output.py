@@ -301,8 +301,18 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             preserved = tuple(part.target_index for part in state.parts if part.included and
                 _pac_submesh_channels_unchanged(skin_reference.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
         hair = getattr(snapshot, "hair_state", None)
-        preserve_hair_records = (original.format.lower() == "pac" and hair is not None
-            and all(group["mode"] == "existing" for group in hair.payload["groups"])
+        hair_payload = hair.payload if hair is not None else None
+        hair_converted = bool(hair_payload is not None and hair_payload.get("converted"))
+        hair_has_generated = bool(hair_payload is not None and any(
+            lock.get("kind") == "generated" for lock in hair_payload.get("locks", ())
+        ))
+        hair_all_existing = bool(
+            hair_payload is not None
+            and not hair_converted
+            and not hair_has_generated
+            and all(group["mode"] == "existing" for group in hair_payload["groups"])
+        )
+        preserve_hair_records = (original.format.lower() == "pac" and hair_all_existing
             and all(part.included for part in state.parts)
             and all(len(before.vertices) == len(after.vertices) and before.faces == after.faces
                     and before.uvs == after.uvs and before.bone_indices == after.bone_indices
@@ -317,8 +327,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             # records rather than passing them through a weight writer.
             from cdmw.modding.mesh_pac_builder import build_pac
             data = build_pac(snapshot.mesh, snapshot.original_data)
-        elif (original_parts or (original.format.lower() == "pac" and hair is not None
-                and all(group["mode"] == "existing" for group in hair.payload["groups"]))):
+        elif (original_parts or (original.format.lower() == "pac" and hair_all_existing)):
             from cdmw.modding.mesh_pac_builder import _build_pac_full_rebuild
             from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
             from cdmw.modding.static_mesh_runtime_builder import _build_removed_runtime_placeholder_submesh
@@ -394,7 +403,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             raise ValueError("Jiggle editing is supported only for PAC meshes.")
         from cdmw.modding.pac_jiggle import apply_pac_jiggle_rules
         data = apply_pac_jiggle_rules(data, jiggle_rules, appearance=state.neutral_appearance)
-    if getattr(snapshot, "hair_state", None) is not None:
+    if getattr(snapshot, "hair_state", None) is not None and not snapshot.hair_state.payload.get("converted"):
         from cdmw.services.mesh_hair_output import apply_hair_physics_paint
         data = apply_hair_physics_paint(data, snapshot)
     island_exclusions = {part.target_index: part.excluded_island_faces for part in state.parts

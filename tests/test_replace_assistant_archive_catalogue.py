@@ -419,3 +419,68 @@ def test_remote_picker_fetches_only_one_bounded_dds_page(tmp_path: Path) -> None
         assert "Showing 1 of 700" in dialog.status_label.text()
     finally:
         dialog.reject()
+
+
+def test_local_archive_original_picker_ranks_basenames_and_debounces_interactive_typing(tmp_path: Path) -> None:
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QDialog, QLineEdit, QListWidget
+
+    app = _app()
+    session = _session(tmp_path)
+    tab = _tab(tmp_path, _CatalogueService(session))
+    entries = [
+        ArchiveCatalogueService.compatibility_entry(_entry(tmp_path, 1, "ui/hero_folder/other_panel.dds")),
+        ArchiveCatalogueService.compatibility_entry(_entry(tmp_path, 2, "ui/misc/hero_diffuse.dds")),
+    ]
+    entries.extend(
+        ArchiveCatalogueService.compatibility_entry(_entry(tmp_path, 10 + i, f"ui/hero_bulk/extra_{i:03d}.dds"))
+        for i in range(520)
+    )
+    tab.archive_entries = entries
+    source = tmp_path / "hero.png"
+    source.write_bytes(b"png")
+    item = ReplaceAssistantItem(source, "png")
+    observed: dict[str, object] = {}
+
+    def fake_exec(dialog: QDialog) -> int:
+        filter_edit = dialog.findChild(QLineEdit)
+        results_list = dialog.findChild(QListWidget)
+        assert filter_edit is not None and results_list is not None
+        observed["initial_count"] = results_list.count()
+        observed["initial_first"] = results_list.item(0).text()
+
+        filter_edit.setText("other_panel")
+        observed["programmatic_count"] = results_list.count()
+        observed["programmatic_first"] = results_list.item(0).text()
+
+        filter_edit.selectAll()
+        QTest.keyClicks(filter_edit, "diffuse")
+        observed["immediately_after_keyclicks"] = [results_list.item(i).text() for i in range(results_list.count())]
+
+        _wait_until(
+            lambda: results_list.count() == 1 and "hero_diffuse.dds" in results_list.item(0).text(),
+            timeout=1.5,
+        )
+        observed["after_debounce"] = results_list.item(0).text()
+
+        filter_edit.selectAll()
+        QTest.keyClicks(filter_edit, "other_panel")
+        filter_edit.returnPressed.emit()
+        app.processEvents()
+        observed["after_return"] = results_list.item(0).text()
+        return int(QDialog.DialogCode.Accepted)
+
+    try:
+        with patch.object(QDialog, "exec", fake_exec):
+            picked = tab._pick_archive_original(item)
+        assert picked is not None
+        assert picked.path == "ui/hero_folder/other_panel.dds"
+        assert observed["initial_count"] == 500
+        assert str(observed["initial_first"]).endswith("ui/misc/hero_diffuse.dds")
+        assert observed["programmatic_count"] == 1
+        assert str(observed["programmatic_first"]).endswith("ui/hero_folder/other_panel.dds")
+        assert observed["immediately_after_keyclicks"] == [str(observed["programmatic_first"])]
+        assert str(observed["after_debounce"]).endswith("ui/misc/hero_diffuse.dds")
+        assert str(observed["after_return"]).endswith("ui/hero_folder/other_panel.dds")
+    finally:
+        tab.request_shutdown()

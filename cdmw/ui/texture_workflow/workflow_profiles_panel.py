@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import QComboBox, QFrame, QGridLayout, QInputDialog, QLabel, QTreeWidgetItem, QVBoxLayout
+from shiboken6 import isValid
 
 from cdmw.constants import REALESRGAN_NCNN_TILE_SIZE, UPSCALE_BACKEND_REALESRGAN_NCNN
+from cdmw.core.common import RunCancelled
 from cdmw.services.texture_workflow_service import collect_dds_files
 from cdmw.services.texture_workflow_service import build_texture_processing_plan
 from cdmw.services.texture_workflow_service import normalize_config_for_planning
+from cdmw.workers.thread_lifetime import release_worker_after_thread
 from cdmw.domain.textures.output import (
     summarize_effective_dds_override,
     summarize_effective_ncnn_settings,
@@ -29,6 +33,46 @@ from cdmw.domain.textures.rules import (
     migrate_legacy_texture_rules_to_structured,
 )
 from cdmw.models import AppConfig, TextureRule, TextureWorkflowProfile
+
+
+class _WorkflowMatchWorker(QObject):
+    completed = Signal(int, object, object, str)
+    finished = Signal()
+
+    def __init__(self, request_id: int, normalized: object) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.normalized = normalized
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            dds_files = collect_dds_files(
+                self.normalized.original_dds_root,
+                self.normalized.include_filter_patterns,
+                stop_event=self.stop_event,
+            )
+            if self.stop_event.is_set():
+                return
+            processing_plan = (
+                build_texture_processing_plan(self.normalized, dds_files, stop_event=self.stop_event)
+                if dds_files
+                else []
+            )
+            if self.stop_event.is_set():
+                return
+            self.completed.emit(self.request_id, self.normalized, processing_plan, "")
+        except RunCancelled:
+            return
+        except Exception as exc:  # noqa: BLE001 - reported via summary label on UI thread
+            if not self.stop_event.is_set():
+                self.completed.emit(self.request_id, self.normalized, None, str(exc))
+        finally:
+            self.finished.emit()
 
 
 class TextureWorkflowProfilesPanelMixin:
@@ -394,44 +438,109 @@ class TextureWorkflowProfilesPanelMixin:
             return
         self._workflow_match_refresh_timer.start()
 
+    def _cancel_workflow_match_worker(self) -> None:
+        worker = getattr(self, "_workflow_match_worker", None)
+        thread = getattr(self, "_workflow_match_thread", None)
+        if worker is not None:
+            worker.stop()
+            try:
+                worker.completed.disconnect(self._on_workflow_match_ready)
+            except (RuntimeError, TypeError):
+                pass
+        if thread is not None:
+            try:
+                thread.requestInterruption()
+            except RuntimeError:
+                pass
+            try:
+                thread.quit()
+            except RuntimeError:
+                pass
+        self._workflow_match_worker = None
+        self._workflow_match_thread = None
+
+    def _on_workflow_match_thread_finished(self, thread: QThread) -> None:
+        if getattr(self, "_workflow_match_thread", None) is thread:
+            self._workflow_match_thread = None
+            self._workflow_match_worker = None
+
     def _refresh_workflow_matched_files_view(self, *_args) -> None:
-        self.workflow_matched_files_tree.clear()
-        self.workflow_matched_processing_plan = []
+        if getattr(self.shell, "_shutting_down", False):
+            return
+        self._workflow_match_request_id = int(getattr(self, "_workflow_match_request_id", 0)) + 1
+        request_id = self._workflow_match_request_id
+        self._cancel_workflow_match_worker()
         try:
             config = self.collect_config()
             normalized = normalize_config_for_planning(config)
-            dds_files = collect_dds_files(
-                normalized.original_dds_root,
-                normalized.include_filter_patterns,
-            )
-            if not dds_files:
-                self.workflow_matched_summary_label.setText(
-                    "No DDS files matched the current Original DDS root and filter."
-                )
-                self._sync_workflow_editor_state()
-                return
-            processing_plan = build_texture_processing_plan(normalized, dds_files)
-            self.workflow_matched_processing_plan = list(processing_plan)
-            self.workflow_matched_summary_label.setText(
-                f"{len(processing_plan):,} matched DDS file(s). Last matching rule wins. "
-                "Use Assign Profile to append exact-path rules for the selected rows."
-            )
-            for entry in processing_plan:
-                item = QTreeWidgetItem(
-                    [
-                        entry.relative_path.as_posix(),
-                        f"{entry.decision.texture_type}/{entry.decision.semantic_subtype}",
-                        summarize_texture_workflow_rule(entry.matched_rule),
-                        entry.workflow_profile.label if entry.workflow_profile is not None else "(none)",
-                        summarize_effective_dds_override(entry),
-                        summarize_effective_ncnn_settings(normalized, entry),
-                        f"{entry.action} | {entry.action_reason}",
-                    ]
-                )
-                item.setData(0, Qt.UserRole, entry.relative_path.as_posix())
-                self.workflow_matched_files_tree.addTopLevelItem(item)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - surfaced directly when invalid config
+            self.workflow_matched_files_tree.clear()
+            self.workflow_matched_processing_plan = []
             self.workflow_matched_summary_label.setText(f"Matched files preview unavailable: {exc}")
+            self._sync_workflow_editor_state()
+            return
+        self.workflow_matched_summary_label.setText("Matching DDS files...")
+        worker = _WorkflowMatchWorker(request_id, normalized)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._on_workflow_match_ready)
+        worker.finished.connect(thread.quit)
+        release_worker_after_thread(thread, worker)
+        thread.finished.connect(lambda t=thread: self._on_workflow_match_thread_finished(t))
+        thread.finished.connect(thread.deleteLater)
+        self._workflow_match_worker = worker
+        self._workflow_match_thread = thread
+        thread.start()
+
+    @Slot(int, object, object, str)
+    def _on_workflow_match_ready(self, request_id: int, normalized: object, processing_plan: object, error: str) -> None:
+        if (
+            not isValid(self)
+            or getattr(self.shell, "_shutting_down", False)
+            or request_id != getattr(self, "_workflow_match_request_id", 0)
+        ):
+            return
+        if error:
+            self.workflow_matched_files_tree.clear()
+            self.workflow_matched_processing_plan = []
+            self.workflow_matched_summary_label.setText(f"Matched files preview unavailable: {error}")
+            self._sync_workflow_editor_state()
+            return
+        plan_list = list(processing_plan or ())
+        self.workflow_matched_processing_plan = plan_list
+        if not plan_list:
+            self.workflow_matched_files_tree.clear()
+            self.workflow_matched_summary_label.setText(
+                "No DDS files matched the current Original DDS root and filter."
+            )
+            self._sync_workflow_editor_state()
+            return
+        self.workflow_matched_summary_label.setText(
+            f"{len(plan_list):,} matched DDS file(s). Last matching rule wins. "
+            "Use Assign Profile to append exact-path rules for the selected rows."
+        )
+        items: List[QTreeWidgetItem] = []
+        for entry in plan_list:
+            item = QTreeWidgetItem(
+                [
+                    entry.relative_path.as_posix(),
+                    f"{entry.decision.texture_type}/{entry.decision.semantic_subtype}",
+                    summarize_texture_workflow_rule(entry.matched_rule),
+                    entry.workflow_profile.label if entry.workflow_profile is not None else "(none)",
+                    summarize_effective_dds_override(entry),
+                    summarize_effective_ncnn_settings(normalized, entry),
+                    f"{entry.action} | {entry.action_reason}",
+                ]
+            )
+            item.setData(0, Qt.UserRole, entry.relative_path.as_posix())
+            items.append(item)
+        self.workflow_matched_files_tree.setUpdatesEnabled(False)
+        try:
+            self.workflow_matched_files_tree.clear()
+            self.workflow_matched_files_tree.addTopLevelItems(items)
+        finally:
+            self.workflow_matched_files_tree.setUpdatesEnabled(True)
         self._sync_workflow_editor_state()
 
     def _apply_selected_workflow_profile_edits(self, *_args) -> None:

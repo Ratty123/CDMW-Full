@@ -856,19 +856,19 @@ def test_finder_hair_button_routes_to_shared_setup_without_loading(finder, monke
     assert dialog._create_hair.isEnabled()
     dialog._create_hair.click()
     assert calls == [((editor, "generated"), {"character": "Damiane", "target_path": MESH})]
-    assert dialog._hair_handoff is None
     assert not dialog.isVisible()
 
 
-def test_finder_stale_hair_preparation_restores_actions(finder):
-    dialog,catalogue,_=finder
-    selected=row(1,role='hair',path=MESH)
-    publish_rows(dialog,catalogue,[selected])
-    dialog._details=replace(detail(selected),models=(SimpleNamespace(entry_id=8,path=MESH),))
-    dialog._hair_handoff=(selected.key,8,'generated')
+def test_finder_hair_buttons_disable_when_invalid_and_enable_when_compatible(finder):
+    dialog, catalogue, _ = finder
+    selected = row(1, role="hair", path=MESH)
+    publish_rows(dialog, catalogue, [selected])
+    dialog._details = replace(detail(selected), models=(SimpleNamespace(entry_id=8, path=MESH),))
     dialog._buttons()
-    dialog._hair_prepared(-1,SimpleNamespace())
-    assert dialog._hair_handoff is None and dialog._create_hair.isEnabled()
+    assert dialog._create_hair.isEnabled() and dialog._edit_hair.isEnabled()
+    dialog._invalid = True
+    dialog._buttons()
+    assert not dialog._create_hair.isEnabled() and not dialog._edit_hair.isEnabled()
 
 
 @pytest.mark.parametrize("operation", ["reshape", "cut", "cut_and_weight_edit", "delete"])
@@ -1056,7 +1056,8 @@ def test_hair_output_worker_uses_validated_revision_and_complete_package(editor,
 
 @pytest.mark.parametrize("changed", [False, True])
 def test_hair_output_folder_picker_rejects_changed_revision(editor, tmp_path, monkeypatch, changed):
-    from PySide6.QtWidgets import QFileDialog
+    from cdmw.ui.mesh_editor import tab_direct_output
+    from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
     from tests.test_mesh_rust_editor_selection import _tab, _dispose
     _, session = editor
     tab = _tab(tmp_path)
@@ -1064,23 +1065,30 @@ def test_hair_output_folder_picker_rejects_changed_revision(editor, tmp_path, mo
     tab.standalone_controller = SimpleNamespace(mesh_service=session.shadow_service,
                                                active_session_id=session.shadow_session_id)
     tab.standalone_export_validation_revision = 5
+    tab.settings.setValue("mesh_editor/last_mod_output_dir", str(tmp_path))
     calls, errors = [], []
     monkeypatch.setattr(tab, "_mesh_output_target", lambda: target)
     monkeypatch.setattr(tab, "_current_target_entry", lambda: target)
     monkeypatch.setattr(tab, "_standalone_export_validation_ok", lambda: True)
     monkeypatch.setattr(tab, "_start_mesh_direct_output_worker", lambda *args, **kw: calls.append((args, kw)))
     tab.status_message_requested.connect(lambda message, error: errors.append(message) if error else None)
-    def choose(*args):
-        if changed:
-            tab.standalone_export_validation_revision += 1
-        return str(tmp_path)
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", choose)
+
+    class AcceptedHairDialog(MeshModExportDialog):
+        def exec(self):
+            assert self._hair_mode
+            assert self.target_stem() == NEW
+            if changed:
+                tab.standalone_export_validation_revision += 1
+            return self.DialogCode.Accepted
+
+    monkeypatch.setattr(tab_direct_output, "MeshModExportDialog", AcceptedHairDialog)
     try:
         tab._start_mesh_mod_build_requested()
         if changed:
             assert not calls and errors and "changed while choosing output" in errors[0]
         else:
             assert not errors and calls[0][0] == ("overlay_package", target)
+            assert calls[0][1]["hair_target_stem"] == NEW
     finally:
         tab.standalone_controller = None
         _dispose(tab)
@@ -1277,3 +1285,773 @@ def test_incremental_protocol_acknowledges_without_document_and_finish_keeps_the
     assert ack["history_entries"][-1]["label"] == "Rename hairstyle"
     session.finish(_fixtures._request(session, "finish_request", 904))
     assert authority._session(session.authoritative_session_id).hair_state.payload["style_name"] == "Finished name"
+
+
+def test_hair_color_and_dds_update_staged_material_payload_and_undo(editor, monkeypatch, tmp_path):
+    from pathlib import Path
+    from cdmw.services import mesh_hair_color
+    from cdmw.services.mesh_rust_hair import hair_color_command, hair_texture_command
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    source = tmp_path / "base_hair.dds"
+    source.write_bytes(dds())
+    part = live.working_mesh.submeshes[0]
+    part.texture = TEXTURE
+    part.preview_texture_dds_path = str(source)
+    part.preview_texture_path = str(source)
+    material = (f'<Material _pbdSimulationMaterialName="Hair"><MaterialParameterTexture _name="_baseColorTexture">'
+                f'<ResourceReferencePath_ITexture _path="{TEXTURE}"/></MaterialParameterTexture></Material>').encode()
+    live.replacement_state = replace(live.replacement_state, dependencies=(
+        ReplacementFile(MATERIAL, material), ReplacementFile(TEXTURE, dds())))
+
+    baseline_state = authoring.state_payload(include_document=False)
+    assert baseline_state["archive_refit_materials"]["key"] == "base"
+
+    recolored = io.BytesIO()
+    Image.new("RGBA", (4, 4), (40, 140, 210, 255)).save(recolored, format="DDS", pixel_format="DXT5")
+    recolored_bytes = recolored.getvalue()
+    monkeypatch.setattr(mesh_hair_color, "recolor_hair_dds", lambda *_args: recolored_bytes)
+    hair_color_command(authoring, {"color": [0.2, 0.55, 0.85]}, threading.Event())
+
+    colored_state = authoring.state_payload(include_document=False)
+    colored_mat = colored_state["archive_refit_materials"]
+    assert colored_mat["key"] != "base"
+    staged_json = json.loads((authoring.root / colored_mat["file"]["path"]).read_text(encoding="utf-8"))
+    staged_hashes = {
+        hashlib.sha256((authoring.root / row["file"]["path"]).read_bytes()).hexdigest()
+        for row in staged_json["textures"]
+    }
+    assert hashlib.sha256(recolored_bytes).hexdigest() in staged_hashes
+
+    edited = tmp_path / "custom_hair.dds"
+    Image.new("RGBA", (4, 4), (200, 90, 50, 255)).save(edited, format="DDS", pixel_format="DXT5")
+    edited_bytes = edited.read_bytes()
+    hair_texture_command(authoring, {"texture_path": TEXTURE, "_dds_path": str(edited)}, threading.Event())
+
+    edited_state = authoring.state_payload(include_document=False)
+    edited_mat = edited_state["archive_refit_materials"]
+    assert edited_mat["key"] not in {"base", colored_mat["key"]}
+    edited_json = json.loads((authoring.root / edited_mat["file"]["path"]).read_text(encoding="utf-8"))
+    edited_hashes = {
+        hashlib.sha256((authoring.root / row["file"]["path"]).read_bytes()).hexdigest()
+        for row in edited_json["textures"]
+    }
+    assert hashlib.sha256(edited_bytes).hexdigest() in edited_hashes
+
+    service.undo(sid)
+    assert authoring.state_payload(include_document=False)["archive_refit_materials"]["key"] == colored_mat["key"]
+    service.undo(sid)
+    assert authoring.state_payload(include_document=False)["archive_refit_materials"]["key"] == "base"
+
+
+def test_prepare_hair_editor_session_creates_draft_and_worker_registers_saved_work(tmp_path, monkeypatch):
+    from cdmw.models import ArchiveEntry
+    from cdmw.services.mesh_saved_work_service import list_saved_work
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+    from cdmw.workers import mesh_archive_refit_worker as refit_worker
+    from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
+
+    pac_bytes = _fixtures._pac_fixture(skinned=True)
+    pamt = tmp_path / "game" / "0001" / "0.pamt"
+    paz = pamt.with_suffix(".paz")
+    pamt.parent.mkdir(parents=True)
+    pamt.write_bytes(b"pamt")
+    paz.write_bytes(b"paz")
+    entry = ArchiveEntry(
+        path=MESH, pamt_path=pamt, paz_file=paz, offset=0,
+        orig_size=len(pac_bytes), comp_size=len(pac_bytes), flags=0, paz_index=0,
+    )
+    material = f'<Material _pbdSimulationMaterialName="Hair"><Texture _path="{TEXTURE}"/></Material>'.encode()
+    dds_bytes = dds()
+    mat_entry = ArchiveEntry(
+        path=MATERIAL, pamt_path=pamt, paz_file=paz, offset=1,
+        orig_size=len(material), comp_size=len(material), flags=0, paz_index=0,
+    )
+    tex_entry = ArchiveEntry(
+        path=TEXTURE, pamt_path=pamt, paz_file=paz, offset=2,
+        orig_size=len(dds_bytes), comp_size=len(dds_bytes), flags=0, paz_index=0,
+    )
+    head_entry = SimpleNamespace(identity="head", path="character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0001.pac")
+    body_entry = SimpleNamespace(identity="body", path="character/model/1_pc/2_phw/nude/phw_00_nude_00_0001.pac")
+    by_norm = {item.path.casefold(): (item,) for item in (entry, mat_entry, tex_entry)}
+    by_base = {}
+    for item in (entry, mat_entry, tex_entry):
+        by_base.setdefault(item.basename.casefold(), []).append(item)
+    dependencies = ArchiveWorkflowDependencyContext(
+        entry, (entry, mat_entry, tex_entry), by_norm, {k: tuple(v) for k, v in by_base.items()}, remote=False,
+    )
+
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_mesh
+    donor_mesh = parse_mesh(pac_bytes, MESH)
+    from cdmw.workers import mesh_editor_aux_workers as aux_workers
+    monkeypatch.setattr(aux_workers, "read_archive_entry_data",
+                        lambda item, *_args, **_kwargs: ({MESH: pac_bytes, MATERIAL: material, TEXTURE: dds_bytes}[item.path], False, ""))
+
+    head_mesh = ParsedMesh(
+        path=head_entry.path, format="pac",
+        submeshes=[SubMesh(
+            name="Head", material="Head",
+            vertices=[(-0.05, 0.01, 0.0), (0.05, 0.01, 0.0), (0.0, 0.11, 0.0)],
+            normals=[(0.0, 0.0, 1.0)] * 3, uvs=[(0.0, 0.0)] * 3, faces=[(0, 1, 2)],
+        )],
+    )
+    body_mesh = ParsedMesh(
+        path=body_entry.path, format="pac",
+        submeshes=[SubMesh(
+            name="Body", material="Body",
+            vertices=[(-0.05, 0.02, 0.0), (0.05, 0.02, 0.0), (0.0, 0.08, 0.0),
+                      (-0.05, 0.00, 0.0), (0.05, 0.00, 0.0), (0.0, -0.05, 0.0)],
+            normals=[(0.0, 0.0, 1.0)] * 6, uvs=[(0.0, 0.0)] * 6, faces=[(0, 1, 2), (3, 4, 5)],
+        )],
+    )
+    monkeypatch.setattr(refit_worker, "prepare_hair_reference_source", lambda args, _stop: {
+        **args,
+        "_archive_snapshot": SimpleNamespace(
+            mesh=copy.deepcopy(body_mesh if "nude" in args["_archive_entry"].path else head_mesh),
+            original_data=pac_bytes,
+        ),
+        "_archive_neutral_appearance": None, "_archive_skeleton": None,
+        "_archive_preview_lease": None, "_archive_appearance_warning": "", "_archive_material_reason": "",
+    })
+
+    draft_root = tmp_path / "drafts"
+    args = {
+        "character": "Damiane", "mode": "generated", "start_preset": "empty",
+        "_archive_entry": head_entry, "_archive_dependencies": dependencies,
+        "_body_archive_entry": body_entry, "_body_archive_dependencies": dependencies,
+    }
+    loaded = refit_worker.prepare_hair_editor_session(entry, dependencies, args, draft_root, threading.Event())
+    try:
+        sid = loaded.view.session_id
+        assert loaded.draft_manifest_path is not None
+        assert loaded.service._session(sid).mesh_layer_project_path is not None
+        loaded.service.retry_mesh_layer_autosave(sid)
+        assert loaded.draft_manifest_path.is_file()
+
+        def fake_export(snapshot, rebuilt, _entry, out_path, **kwargs):
+            (out_path / "0036").mkdir(parents=True, exist_ok=True)
+            (out_path / "0036" / "0.pamt").write_bytes(b"pamt")
+            (out_path / "0036" / "0.paz").write_bytes(b"paz")
+            (out_path / "manifest.json").write_text(json.dumps({"name": "Test Hair"}), encoding="utf-8")
+            return out_path
+
+        monkeypatch.setattr("cdmw.services.mesh_hair_output.export_hair_package", fake_export)
+        mod_out = tmp_path / "built-hair-mod"
+        completed, errors = [], []
+        worker = MeshDirectOutputWorker(
+            1, loaded.service, sid, entry, kind="overlay_package",
+            output_path=mod_out, manager_profile="dmm", saved_work_root=draft_root,
+        )
+        worker.completed.connect(lambda _id, res: completed.append(res))
+        worker.error.connect(lambda _id, msg: errors.append(msg))
+        worker.run()
+        assert not errors and len(completed) == 1
+        result = completed[0]
+        assert result.saved_work_error == ""
+        assert result.saved_work_record is not None
+        assert list_saved_work(draft_root)
+    finally:
+        loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)
+
+
+@pytest.mark.parametrize("additive", [True, False])
+def test_export_hair_package_normalizes_partial_dds_and_cleans_mod_root(tmp_path, monkeypatch, additive):
+    from cdmw.app import app_folder
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
+    from cdmw.core.mod_export_history import mod_metadata_path
+    from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, PapgtDirectory, serialize_papgt
+    from cdmw.core.pappt_format import PartPrefabPart, PartPrefabRecord, PartPrefabTable, encode_pappt
+    from cdmw.core.pathc_format import encode_pathc, register_dds, with_stored_mip_sizes
+    from cdmw.domain.hair_registration import apply_hair_choice_xml_patch, read_hair_choices
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services import mesh_hair_output as hair_out
+    from cdmw.services.dmm_send import OPERATIONS_FILE
+    from cdmw.services.hair_registration import DAMIANE_MESH_PARAM
+    from tests.test_pathc_format import build_table
+    from tests.test_prefab_binary_edit import _build
+
+    workspace_root = tmp_path / "workspace"
+    monkeypatch.setattr(app_folder, "workspace_folder", lambda: workspace_root)
+    monkeypatch.setattr(hair_out, "parse_pbd_config_materials", lambda _: {"hair": SimpleNamespace(filename="hair.xml")})
+
+    pac_bytes = _fixtures._pac_fixture(skinned=True)
+    base_dds = dds()
+    # PartialDDS (0x1701): stale compressed dwReserved1 sizes in header.
+    partial_dds = bytearray(base_dds)
+    partial_dds[32:48] = struct.pack("<4I", 4, 4, 0, 0)
+    partial_dds = bytes(partial_dds)
+    # Tiny uncompressed 0x1700 texture with zeroed dwReserved1.
+    tiny_sp_dds = bytearray(base_dds)
+    tiny_sp_dds[32:76] = bytes(44)
+    tiny_sp_dds = bytes(tiny_sp_dds)
+    icon_dds = dds()
+
+    sp_tex = "character/texture/hair_sp.dds"
+    material_xml = (
+        f'<Material _pbdSimulationMaterialName="Hair">'
+        f'<Texture _path="{TEXTURE}"/><Texture _path="{sp_tex}"/></Material>'
+    ).encode()
+    record = PartPrefabRecord(STEM, "1_pc/02_phw/head/hair", "", flag=0, parts=(PartPrefabPart("Hair"),))
+    pappt_bytes = encode_pappt(PartPrefabTable((record,), tag_prefix=b"\x01"))
+    prefab_bytes = _build(MESH)
+    hkx_bytes = b"opaque physics"
+    pbd_config = b"<PbdConfig/>"
+    hair_xml = b"<HairPbd/>"
+    param_xml = registration_fixture()[DAMIANE_MESH_PARAM]
+
+    overlay_files = [
+        OverlayFile(MESH, pac_bytes, len(pac_bytes), 0),
+        OverlayFile(MATERIAL, material_xml, len(material_xml), 0),
+        OverlayFile(TEXTURE, partial_dds, len(partial_dds), 0x1701),
+        OverlayFile(sp_tex, tiny_sp_dds, len(tiny_sp_dds), 0x1700),
+        OverlayFile(ICON, icon_dds, len(icon_dds), 0x301),
+        OverlayFile(hair_out.PART_PREFAB_TABLE, pappt_bytes, len(pappt_bytes), 0),
+        OverlayFile(record.prefab_path, prefab_bytes, len(prefab_bytes), 0),
+        OverlayFile(MESH.replace("character/model/", "character/bin__/meshphysics/")[:-4] + ".hkx", hkx_bytes, len(hkx_bytes), 0),
+        OverlayFile("character/descriptors/customizationmeta/meshparam_example_damian.xml", param_xml, len(param_xml), 0),
+        OverlayFile(hair_out.PBD_CONFIG, pbd_config, len(pbd_config), 0),
+        OverlayFile("character/descriptors/pbd/hair.xml", hair_xml, len(hair_xml), 0),
+    ]
+    built = build_overlay_archive(overlay_files)
+    game = tmp_path / "game"
+    (game / "meta").mkdir(parents=True)
+    (game / "0001").mkdir(parents=True)
+    pamt_path = game / "0001" / "0.pamt"
+    paz_path = game / "0001" / "0.paz"
+    pamt_path.write_bytes(built.pamt_bytes)
+    paz_path.write_bytes(built.paz_bytes)
+    (game / "meta" / "0.papgt").write_bytes(serialize_papgt((PapgtDirectory("0001", PAPGT_DEFAULT_FLAGS, built.pamt_checksum),)))
+    (game / "meta" / "0.paver").write_bytes(b"1.0.0.0")
+    pathc = build_table(headers=[], entries=[])
+    for tex_path, tex_bytes in ((TEXTURE, base_dds), (sp_tex, base_dds), (ICON, icon_dds)):
+        pathc = register_dds(pathc, tex_path, tex_bytes)
+    (game / "meta" / "0.pathc").write_bytes(encode_pathc(pathc))
+
+    # Build snapshot referencing the synthetic game PAC.
+    mesh = parse_mesh(pac_bytes, MESH)
+    target_entry = next(item for item in parse_archive_pamt(pamt_path) if item.path == MESH)
+    state = payload(hashlib.sha256(pac_bytes).hexdigest())
+    state["bindings"] = [dict(part=0, vertex=i, guide=0, segment=0, t=0., offset=[0, 0, 0])
+                         for i in range(len(mesh.submeshes[0].vertices))]
+    raw_snap = SimpleNamespace(
+        mesh=mesh, original_data=pac_bytes, replacement_state=None,
+        archive_refit_context=None,
+        hair_state=hair_state_from_payload(state),
+        texture_resources=(), material_generation=0,
+        mesh_revision=1, native_edit_revision=0, mesh_asset_source_hash=state["template"]["sha256"],
+    )
+    deps = (ReplacementFile(MATERIAL, material_xml), ReplacementFile(TEXTURE, base_dds), ReplacementFile(sp_tex, tiny_sp_dds))
+    rep_state = initial_replacement_state(raw_snap, target_entry, deps)
+    raw_snap.mesh = mesh_with_part_ids(raw_snap, rep_state)
+    raw_snap.replacement_state = rep_state
+    snap = raw_snap
+    rebuilt = SimpleNamespace(data=pac_bytes, companion_files=())
+
+    custom_stem = "cd_phw_00_hair_00_named_style_player"
+    custom_icon_file = tmp_path / "custom_icon.dds"
+    custom_icon_bytes = bytearray(base_dds)
+    custom_icon_bytes[128:136] = b"\xAA\xBB\xCC\xDD\xEE\xFF\x11\x22"
+    custom_icon_file.write_bytes(bytes(custom_icon_bytes))
+
+    out_dir = tmp_path / "exported-hair"
+    hair_out.export_hair_package(
+        snap, rebuilt, target_entry, out_dir, create_zip=True,
+        use_dmm_additive_tables=additive, target_stem_override=custom_stem,
+        custom_icon_path=custom_icon_file,
+    )
+    assert out_dir.is_dir()
+    assert out_dir.with_name(out_dir.name + ".zip").is_file()
+    for internal_name in ("modinfo.json", "hair-authoring.json", "cdmw-compatibility.json", "cdmw-baseline.zip", "README.txt"):
+        assert not (out_dir / internal_name).exists()
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["generator"] == "Crimson Desert Mod Workbench"
+    assert mod_metadata_path(out_dir, "hair-authoring.json").is_file()
+
+    packaged = {item.path: item for item in parse_archive_pamt(out_dir / "0036" / "0.pamt")}
+    if additive:
+        assert manifest["table_mode"] == "dmm_additive"
+        assert hair_out.PART_PREFAB_TABLE not in packaged
+        assert DAMIANE_MESH_PARAM not in packaged
+        ops_path = out_dir / OPERATIONS_FILE
+        assert ops_path.is_file()
+        ops = json.loads(ops_path.read_text(encoding="utf-8"))
+        assert ops["format"] == 3 and ops["targets"][0]["file"] == hair_out.PART_PREFAB_TABLE
+        assert ops["targets"][0]["intents"][0]["op"] == "list_append"
+        assert ops["targets"][0]["intents"][0]["new"]["key_a"] == custom_stem
+        patch_file = out_dir / (DAMIANE_MESH_PARAM + ".patch")
+        assert patch_file.is_file()
+        replayed = apply_hair_choice_xml_patch(param_xml, patch_file.read_bytes())
+        choices = read_hair_choices(replayed)
+        assert choices[-1].prefab_stem == custom_stem
+    else:
+        assert manifest["table_mode"] == "full_tables"
+        assert hair_out.PART_PREFAB_TABLE in packaged
+        assert DAMIANE_MESH_PARAM in packaged
+        assert not (out_dir / OPERATIONS_FILE).exists()
+        assert not (out_dir / (DAMIANE_MESH_PARAM + ".patch")).exists()
+
+    exported_icon_path = f"ui/texture/image/customizeimage/{custom_stem}.dds"
+    assert exported_icon_path in packaged
+    exported_icon_data, *_ = read_archive_entry_data(packaged[exported_icon_path])
+    assert exported_icon_data == with_stored_mip_sizes(bytes(custom_icon_bytes))
+
+    tex_items = sorted([k for k in packaged if k.endswith(".dds") and k.startswith("character/texture/")])
+    assert len(tex_items) == 2 and all(custom_stem in k for k in tex_items)
+    by_donor = {}
+    for k in tex_items:
+        data, *_ = read_archive_entry_data(packaged[k])
+        by_donor[k] = (packaged[k], data)
+    # Match each exported file to its donor by flags/payload.
+    partial_out = next((item, data) for item, data in by_donor.values() if item.flags == 0x201)
+    assert partial_out[1] == with_stored_mip_sizes(base_dds)
+    sp_out = next((item, data) for item, data in by_donor.values() if item.flags == 0x1700)
+    assert sp_out[1] == tiny_sp_dds
+
+
+def test_converted_existing_hair_allows_topology_edit_after_physics_paint(editor):
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    snap0 = service.capture_export_snapshot(sid)
+    st = snap0.hair_state.payload
+    st["groups"][0]["mode"] = "existing"
+    st["guides"][0]["pinned"] = [True, False]
+    st["converted"] = True
+    st["revision"] += 1
+    st["bindings"] = [b for b in st["bindings"] if b["vertex"] < len(snap0.mesh.submeshes[0].vertices)]
+    # Change vertex count / faces after conversion so it must bypass cloth preserve & existing topology lock.
+    changed_mesh = copy.deepcopy(snap0.mesh)
+    part = changed_mesh.submeshes[0]
+    part.vertices = list(part.vertices) + [part.vertices[0]]
+    part.normals = list(part.normals) + [part.normals[0]]
+    part.uvs = list(part.uvs) + [part.uvs[0]]
+    if part.tangents:
+        part.tangents = list(part.tangents) + [part.tangents[0]]
+    part.bone_indices = list(part.bone_indices) + [part.bone_indices[0]]
+    part.bone_weights = list(part.bone_weights) + [part.bone_weights[0]]
+    part.faces = list(part.faces) + [(0, 1, len(part.vertices) - 1)]
+    part.vertex_count = len(part.vertices)
+    part.face_count = len(part.faces)
+    rep_part = replace(snap0.replacement_state.parts[0],
+                       import_positions=tuple(part.vertices), import_normals=tuple(part.normals))
+    rep = replace(snap0.replacement_state, parts=(rep_part,), revision=snap0.replacement_state.revision + 1)
+    prepared = service.prepare_working_mesh_replacement(
+        sid, changed_mesh, replacement_state=rep, hair_state=hair_state_from_payload(st),
+        replace_hair_state=True, validation_output_policy=REPLACEMENT_POLICY,
+    )
+    service.commit_prepared_working_mesh_replacement(
+        prepared, history_action="hair_convert", history_label="Edit converted",
+        output_policy=REPLACEMENT_POLICY, require_reversible_history=True,
+    )
+    final_snap = service.capture_export_snapshot(sid)
+    validate_hair_output(final_snap)
+    rebuilt = prepare_replacement_output(final_snap)
+    assert rebuilt.data and len(rebuilt.data) != len(final_snap.original_data) or rebuilt.data != final_snap.original_data
+
+
+def test_encode_hair_icon_dds_encodes_png_to_matching_donor_shape(tmp_path):
+    from cdmw.core.dds_native import inspect_dds_native
+    from cdmw.core.pathc_format import dds_shape, with_stored_mip_sizes
+    from cdmw.core.texture_native import find_directxtex_texture_binary
+    from cdmw.services.mesh_hair_output import encode_hair_icon_dds
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("Native DirectXTex helper is not available")
+    donor_stream = io.BytesIO()
+    Image.new("RGBA", (16, 16), (30, 30, 30, 255)).save(donor_stream, format="DDS", pixel_format="DXT5")
+    donor_dds = donor_stream.getvalue()
+    png_path = tmp_path / "icon.png"
+    Image.new("RGBA", (64, 64), (210, 80, 40, 255)).save(png_path, format="PNG")
+    encoded = encode_hair_icon_dds(png_path, donor_dds, threading.Event())
+    info = inspect_dds_native(encoded)
+    assert not info.reason and info.width == 16 and info.height == 16
+    assert dds_shape(encoded) == dds_shape(donor_dds)
+    assert encoded == with_stored_mip_sizes(encoded)
+
+
+def test_hair_mod_export_dialog_modes_validation_and_send_to_dmm(tmp_path):
+    from PySide6.QtWidgets import QApplication, QWidget
+    from cdmw.ui.mesh_editor.mod_export_dialog import MeshModExportDialog
+
+    _app = QApplication.instance() or QApplication([])
+    dmm = tmp_path / "DMM"
+    (dmm / "mods").mkdir(parents=True)
+    (dmm / "DMM.exe").write_bytes(b"MZ")
+    parent = QWidget()
+    try:
+        dialog = MeshModExportDialog(
+            parent,
+            title="Damiane - Silver Waves",
+            description="Test hair mod",
+            output_parent=str(tmp_path / "out"),
+            output_choice="hair_add",
+            manager_profile="dmm",
+            hair_mode=True,
+            hair_stem=NEW,
+            hair_character="Damiane",
+            dmm_install=dmm,
+        )
+        choices = [dialog.manager.itemData(i)[0] for i in range(dialog.manager.count())]
+        assert choices == ["hair_add", "hair_replace_loose", "hair_add_full"]
+        assert dialog.build_button.isEnabled()
+        dialog.hair_stem.setText("Invalid Stem With Spaces!")
+        assert not dialog.build_button.isEnabled()
+        # Switching to Replace Existing hides stem/icon and re-enables build.
+        dialog.manager.setCurrentIndex(dialog.manager.findData("hair_replace_loose", role=0)
+                                        if False else 1)
+        assert dialog.hair_export_choice() == "hair_replace_loose"
+        assert dialog.hair_stem.isHidden() and dialog.custom_icon_path.isHidden()
+        assert dialog.build_button.isEnabled()
+        # Send to DMM points directly to DMM/mods/<Title>.
+        dialog.manager.setCurrentIndex(0)
+        dialog.hair_stem.setText(NEW)
+        dialog.send_to_dmm.setChecked(True)
+        assert dialog.send_to_dmm_enabled()
+        assert not dialog.output_parent.isEnabled() and not dialog.create_zip.isEnabled()
+        assert dialog.output_path() == (dmm / "mods" / "Damiane - Silver Waves")
+        dialog.reject()
+    finally:
+        parent.deleteLater()
+
+
+def test_hair_loose_mod_replace_and_send_to_dmm_atomic_publish(editor, tmp_path, monkeypatch):
+    from cdmw.app import app_folder
+    from cdmw.core.pathc_format import with_stored_mip_sizes
+    from cdmw.models import ArchiveEntry, ModPackageInfo
+    from cdmw.services.mesh_hair_color import recolor_hair_dds
+    from cdmw.services.mesh_rust_hair import hair_texture_command
+    from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
+
+    del recolor_hair_dds  # sanity
+    workspace_root = tmp_path / "workspace"
+    monkeypatch.setattr(app_folder, "workspace_folder", lambda: workspace_root)
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+
+    pamt = tmp_path / "game" / "0001" / "0.pamt"
+    paz = tmp_path / "game" / "0001" / "0.paz"
+    pamt.parent.mkdir(parents=True)
+    pamt.write_bytes(b"pamt")
+    paz.write_bytes(b"paz")
+    target = ArchiveEntry(
+        path=MESH, pamt_path=pamt, paz_file=paz, offset=0,
+        orig_size=len(live.original_data), comp_size=len(live.original_data), flags=0, paz_index=0,
+    )
+    edited_dds_raw = bytearray(dds())
+    edited_dds_raw[32:48] = struct.pack("<4I", 3, 3, 0, 0)
+    edited_dds_path = tmp_path / "edited_loose.dds"
+    edited_dds_path.write_bytes(bytes(edited_dds_raw))
+    src = tmp_path / "src.dds"
+    src.write_bytes(dds())
+    live.working_mesh.submeshes[0].texture = TEXTURE
+    live.working_mesh.submeshes[0].preview_texture_dds_path = str(src)
+    live.working_mesh.submeshes[0].preview_texture_path = str(src)
+    tex_dep = next(d for d in live.replacement_state.dependencies if d.path == TEXTURE)
+    tex_dep_with_loc = ReplacementFile(TEXTURE, tex_dep.data, archive_location=(str(pamt), str(paz), 1, len(tex_dep.data), len(tex_dep.data), 0x1701, 0))
+    live.replacement_state = replace(
+        live.replacement_state,
+        dependencies=tuple(tex_dep_with_loc if d.path == TEXTURE else d for d in live.replacement_state.dependencies),
+    )
+    hair_texture_command(authoring, {"texture_path": TEXTURE, "_dds_path": str(edited_dds_path)}, threading.Event())
+    # Re-attach archive location on companion dependency if replacement needed.
+    snap = service.capture_export_snapshot(sid)
+    assert snap.replacement_state.companion_files
+
+    mods_dir = tmp_path / "DMM" / "mods"
+    mods_dir.mkdir(parents=True)
+    worker = MeshDirectOutputWorker(
+        1, service, sid, target, kind="loose_mod",
+        output_path=mods_dir / "Replaced Hair", manager_profile="dmm",
+        package_info=ModPackageInfo(title="Replaced Hair", version="1.0", description="Replace existing hair"),
+        send_to_dmm_mods=mods_dir,
+    )
+    completed, errors = [], []
+    worker.completed.connect(lambda _id, res: completed.append(res))
+    worker.error.connect(lambda _id, msg: errors.append(msg))
+    worker.run()
+    assert not errors and len(completed) == 1
+    out_folder = mods_dir / "Replaced Hair"
+    assert completed[0].output_path == out_folder
+    assert (out_folder / MESH).is_file()
+    assert (out_folder / TEXTURE).is_file()
+    assert (out_folder / TEXTURE).read_bytes() == with_stored_mip_sizes(bytes(edited_dds_raw))
+    assert json.loads((out_folder / "manifest.json").read_text(encoding="utf-8"))["generator"] == "Crimson Desert Mod Workbench"
+    # Second send replaces CDMW-written folder cleanly.
+    (out_folder / "stale.txt").write_text("stale", encoding="utf-8")
+    completed.clear()
+    worker2 = MeshDirectOutputWorker(
+        2, service, sid, target, kind="loose_mod",
+        output_path=mods_dir / "Replaced Hair", manager_profile="dmm",
+        package_info=ModPackageInfo(title="Replaced Hair", version="1.0", description="Replace existing hair"),
+        send_to_dmm_mods=mods_dir,
+    )
+    worker2.completed.connect(lambda _id, res: completed.append(res))
+    worker2.error.connect(lambda _id, msg: errors.append(msg))
+    worker2.run()
+    assert not errors and not (out_folder / "stale.txt").exists()
+    # Foreign mod folder with same name is never overwritten.
+    foreign = mods_dir / "Foreign Hair"
+    foreign.mkdir()
+    (foreign / "manifest.json").write_text(json.dumps({"generator": "Other Tool"}), encoding="utf-8")
+    errors.clear()
+    worker3 = MeshDirectOutputWorker(
+        3, service, sid, target, kind="loose_mod",
+        output_path=foreign, manager_profile="dmm",
+        package_info=ModPackageInfo(title="Foreign Hair", version="1.0", description="Should refuse"),
+        send_to_dmm_mods=mods_dir,
+    )
+    worker3.error.connect(lambda _id, msg: errors.append(msg))
+    worker3.run()
+    assert errors and "CDMW did not write" in errors[0]
+
+
+def test_hair_lock_uv_rect_validation():
+    value = payload()
+    value["version"] = 2
+    value["locks"] = [{
+        "id": 1, "part": 0, "guide": 0, "vertices": [], "kind": "generated",
+        "mirrored": None, "width_scale": 1.0, "cards": 6, "uv_rect": [0.25, 0.5, 0.5, 1.0],
+    }]
+    value["next_lock_id"] = 2
+    state = hair_state_from_payload(value)
+    assert state.payload["locks"][0]["uv_rect"] == [0.25, 0.5, 0.5, 1.0]
+
+    for bad_uv in ([0.6, 0.2, 0.4, 0.8], [0.0, 0.8, 1.0, 0.2], [0.0, 1.0]):
+        invalid = copy.deepcopy(value)
+        invalid["locks"][0]["uv_rect"] = bad_uv
+        with pytest.raises(ValueError, match="UV strip"):
+            hair_state_from_payload(invalid)
+
+
+def test_extract_donor_card_uv_presets_filters_negative_u_outliers_and_uses_base_mesh(editor):
+    from cdmw.modding.mesh_parser import SubMesh
+    from cdmw.services.mesh_rust_hair import extract_donor_card_uv_presets, template_card_uv_rect
+
+    # Island 0 (largest): negative-U outlier; Island 1 & 2: duplicate Top strip; Island 3: Lower strip.
+    part = SubMesh(
+        name="cards",
+        vertices=[(0.0, 0.0, 0.0)] * 16,
+        normals=[(0.0, 0.0, 1.0)] * 16,
+        uvs=[
+            (-0.86, 0.10), (-0.40, 0.10), (-0.86, 0.90), (-0.40, 0.90), (-0.60, 0.50),
+            (0.05, 0.05), (0.30, 0.05), (0.30, 0.40),
+            (0.06, 0.06), (0.29, 0.06), (0.29, 0.39),
+            (0.50, 0.55), (0.85, 0.55), (0.85, 0.95), (0.50, 0.95), (0.65, 0.75),
+        ],
+        faces=[
+            (0, 1, 2), (1, 3, 2), (0, 1, 4),
+            (5, 6, 7),
+            (8, 9, 10),
+            (11, 12, 13), (11, 13, 14), (11, 12, 15),
+        ],
+    )
+    rect = template_card_uv_rect(part)
+    assert 0.0 <= rect[0] < rect[2] <= 1.0 and 0.0 <= rect[1] < rect[3] <= 1.0
+    presets = extract_donor_card_uv_presets(part)
+    assert len(presets) == 2
+    assert [row["label"] for row in presets] == ["Strip 1 (Top)", "Strip 2 (Lower)"]
+    assert all(row["uv_rect"][0] >= 0.0 and row["uv_rect"][2] <= 1.0 for row in presets)
+
+    _, authoring = editor
+    live = authoring.shadow_service._session(authoring.shadow_session_id)
+    live.base_mesh.submeshes[0].uvs = list(part.uvs)
+    live.base_mesh.submeshes[0].faces = list(part.faces)
+    live.base_mesh.submeshes[0].vertices = list(part.vertices)
+    live.base_mesh.submeshes[0].normals = list(part.normals)
+    live.working_mesh.submeshes[0].vertices = []
+    live.working_mesh.submeshes[0].uvs = []
+    live.working_mesh.submeshes[0].faces = []
+    ui = hair_ui_state(authoring)
+    assert ui["uv_presets"]["0"] == presets
+
+
+def test_prepare_hair_setup_keeps_donor_scalp_cap_when_enabled(editor):
+    from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    scalp_part = copy.deepcopy(live.working_mesh.submeshes[0])
+    scalp_part.name = "phw_00_Hair_Base_01"
+    setattr(scalp_part, PART_ID_ATTRIBUTE, "scalp-cap-part")
+    live.working_mesh.submeshes[0].name = "phw_00_Hair_01"
+    live.working_mesh.submeshes.append(scalp_part)
+    live.base_mesh.submeshes = copy.deepcopy(live.working_mesh.submeshes)
+    first_part = live.replacement_state.parts[0]
+    scalp_binding = replace(first_part, part_id="scalp-cap-part", target_index=1, included=True)
+    live.replacement_state = replace(live.replacement_state, parts=(first_part, scalp_binding))
+    live.hair_state = None
+
+    head = service.working_mesh(sid, clone=True)
+    head.submeshes = head.submeshes[:1]
+    head.submeshes[0].vertices = [(-0.1, 1.5, 0.0), (0.1, 1.5, 0.0), (0.0, 1.8, 0.0)]
+    head.submeshes[0].faces = [(0, 1, 2)]
+    args = dict(
+        character="Damiane", mode="generated", keep_scalp_cap=True,
+        _archive_snapshot=SimpleNamespace(mesh=head, original_data=live.original_data),
+        _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+    )
+    prepare_hair_setup(service, sid, args, None)
+    st = live.hair_state.payload
+    assert [(g["part"], g["mode"]) for g in st["groups"]] == [(0, "generated"), (1, "existing")]
+    assert len(st["locks"]) == 1 and st["locks"][0]["part"] == 1 and st["locks"][0]["kind"] == "rigid"
+    assert st["prepared_parts"] == [1]
+
+    # Emptying drawn cards keeps the scalp cap included while excluding the empty card part.
+    empty_payload = copy.deepcopy(st)
+    empty_payload["revision"] += 1
+    scalp_mesh = live.working_mesh.submeshes[1]
+    apply_hair_candidate(
+        authoring,
+        {
+            "hair": empty_payload,
+            "submeshes": [
+                {"positions": [], "normals": [], "uvs": [], "indices": []},
+                {
+                    "positions": [list(v) for v in scalp_mesh.vertices],
+                    "normals": [list(n) for n in scalp_mesh.normals],
+                    "uvs": [list(u) for u in scalp_mesh.uvs],
+                    "indices": [i for face in scalp_mesh.faces for i in face],
+                    "source_vertices": list(range(len(scalp_mesh.vertices))),
+                },
+            ],
+        },
+        "Empty with scalp cap",
+    )
+    assert [p.included for p in live.replacement_state.parts] == [False, True]
+    validate_hair_output(service.capture_export_snapshot(sid))
+
+
+def test_hybrid_existing_hair_draw_preserves_donor_skinning_and_validates(editor):
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    pac_bytes = live.original_data
+    donor = parse_mesh(pac_bytes, MESH)
+    donor_sub = donor.submeshes[0]
+    n_donor = len(donor_sub.vertices)
+    assert n_donor >= 3
+
+    head = copy.deepcopy(donor)
+    head.submeshes = head.submeshes[:1]
+    head.submeshes[0].vertices = [(-0.1, 1.5, 0.0), (0.1, 1.5, 0.0), (0.0, 1.8, 0.0)]
+    head.submeshes[0].faces = [(0, 1, 2)]
+    live.hair_state = None
+    prepare_hair_setup(
+        service, sid,
+        dict(
+            character="Damiane", mode="existing",
+            _archive_snapshot=SimpleNamespace(mesh=head, original_data=pac_bytes),
+            _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+        ),
+        None,
+    )
+
+    # Keep exact donor vertices 0..n_donor-1 + append 3 generated vertices (-1).
+    st = copy.deepcopy(live.hair_state.payload)
+    st["revision"] += 1
+    st["locks"] = [
+        {
+            "id": 1, "part": 0, "guide": None,
+            "vertices": list(range(n_donor)), "kind": "rigid",
+            "mirrored": None, "width_scale": 1.0, "cards": 0,
+        },
+        {
+            "id": 2, "part": 0, "guide": 0,
+            "vertices": [n_donor, n_donor + 1, n_donor + 2], "kind": "generated",
+            "mirrored": None, "width_scale": 1.0, "cards": 6,
+            "uv_rect": [0.1, 0.2, 0.4, 0.8],
+        },
+    ]
+    st["next_lock_id"] = 3
+    st["prepared_parts"] = [0]
+    src_map = list(range(n_donor)) + [-1, -1, -1]
+    st["vertex_sources"] = {"0": src_map}
+    root_pos = list(st["scalp"]["positions"][st["scalp"]["triangles"][0][0]])
+    st["guides"] = [{"root": {"triangle": 0, "barycentric": [1.0, 0.0, 0.0]}, "group": 0,
+                     "points": [root_pos, [root_pos[0], root_pos[1] - 0.1, root_pos[2]]]}]
+    st["bindings"] = [
+        {"part": 0, "vertex": n_donor + k, "guide": 0, "segment": 0, "t": 0.5, "smooth": True, "offset": [0.01 * k, 0.0, 0.0], "normal": [0.0, 0.0, 1.0]}
+        for k in range(3)
+    ]
+
+    sub = donor.submeshes[0]
+    positions = [list(v) for v in sub.vertices] + [[0.0, 1.5, 0.0], [0.05, 1.5, 0.0], [0.02, 1.4, 0.0]]
+    normals = [list(n) for n in sub.normals] + [[0.0, 0.0, 1.0]] * 3
+    uvs = [list(u) for u in sub.uvs] + [[0.1, 0.2], [0.4, 0.2], [0.4, 0.8]]
+    indices = [i for face in sub.faces for i in face] + [n_donor, n_donor + 1, n_donor + 2]
+
+    apply_hair_candidate(
+        authoring,
+        {
+            "hair": st,
+            "submeshes": [{
+                "positions": positions, "normals": normals, "uvs": uvs,
+                "indices": indices, "source_vertices": src_map,
+            }],
+        },
+        "Hybrid draw",
+    )
+    snap = service.capture_export_snapshot(sid)
+    part = snap.mesh.submeshes[0]
+    assert part.source_vertex_map == src_map
+    assert part.bone_indices[:n_donor] == list(donor_sub.bone_indices)
+    assert part.bone_weights[:n_donor] == list(donor_sub.bone_weights)
+    if donor_sub.source_vertex_offsets:
+        assert part.source_vertex_offsets[:n_donor] == list(donor_sub.source_vertex_offsets)
+        assert part.source_vertex_offsets[n_donor:] == [-1, -1, -1]
+    validate_hair_output(snap)
+    rebuilt = service._replacement_output_for_snapshot(snap)
+    assert rebuilt.data
+
+
+def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
+    from cdmw.services.mesh_rust_hair import hair_import_custom_command
+    from cdmw.services.mesh_rust_replacement import run_replacement_command
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+
+    cancelled = hair_import_custom_command(authoring, {"cancelled": True}, threading.Event())
+    assert cancelled == {"status": "cancelled"}
+    assert not live.hair_state.payload["converted"]
+
+    with pytest.raises(Exception):
+        hair_import_custom_command(authoring, {"source_path": str(tmp_path / "missing.obj")}, threading.Event())
+    assert not live.hair_state.payload["converted"]
+
+    custom_obj = tmp_path / "custom_hair.obj"
+    custom_obj.write_text(
+        "v 0.0 1.5 0.0\nv 0.1 1.5 0.0\nv 0.05 1.7 0.0\n"
+        "vt 0.1 0.1\nvt 0.4 0.1\nvt 0.25 0.6\n"
+        "vn 0.0 0.0 1.0\nvn 0.0 0.0 1.0\nvn 0.0 0.0 1.0\n"
+        "f 1/1/1 2/2/2 3/3/3\n",
+        encoding="utf-8",
+    )
+    choose = hair_import_custom_command(authoring, {"source_path": str(custom_obj)}, threading.Event())
+    assert choose["status"] == "choose_mapping"
+    assert live.hair_state.payload["converted"] is True
+    assert authoring.pending_replacement is not None
+    assert authoring.pending_replacement.snapshot.mesh_revision == live.revision
+
+    part_id = live.replacement_state.parts[0].part_id
+    run_replacement_command(
+        authoring,
+        "replacement_apply",
+        {"token": authoring.pending_replacement.token, "targets": [part_id], "materials": "original"},
+        threading.Event(),
+    )
+    snap = service.capture_export_snapshot(sid)
+    validate_hair_output(snap)
+    rebuilt = service._replacement_output_for_snapshot(snap)
+    assert rebuilt.data
+
+

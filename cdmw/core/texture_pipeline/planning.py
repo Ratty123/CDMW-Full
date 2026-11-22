@@ -259,6 +259,7 @@ def build_texture_processing_plan(
     dds_files: Sequence[Path],
     *,
     backend_matrix: Optional[BackendCapabilityMatrix] = None,
+    stop_event: Optional[object] = None,
 ) -> List[TextureProcessingPlan]:
     resolved_backend_matrix = backend_matrix or _build_backend_capability_matrix(normalized)
     (
@@ -267,13 +268,15 @@ def build_texture_processing_plan(
         sidecars_by_texture_path,
         sidecars_by_texture_basename,
         sidecar_text_cache,
-    ) = _build_loose_sidecar_index(normalized.original_dds_root)
+    ) = _build_loose_sidecar_index(normalized.original_dds_root, stop_event=stop_event)
     family_members_by_group: Dict[str, List[str]] = defaultdict(list)
     for dds_path in dds_files:
+        raise_if_cancelled(stop_event)
         rel_text = dds_path.relative_to(normalized.original_dds_root).as_posix()
         family_members_by_group[derive_texture_group_key(rel_text)].append(rel_text)
     plan: List[TextureProcessingPlan] = []
     for dds_path in dds_files:
+        raise_if_cancelled(stop_event)
         rel_path = dds_path.relative_to(normalized.original_dds_root)
         rel_display = rel_path.as_posix()
         family_members = tuple(family_members_by_group.get(derive_texture_group_key(rel_display), ()))
@@ -287,6 +290,7 @@ def build_texture_processing_plan(
             sidecars_by_texture_path=sidecars_by_texture_path,
             sidecars_by_texture_basename=sidecars_by_texture_basename,
             text_cache=sidecar_text_cache,
+            stop_event=stop_event,
         )
         preview_sample = _preview_sample_for_unknown_dds(dds_path, coarse_texture_type)
         decision = suggest_texture_upscale_decision(

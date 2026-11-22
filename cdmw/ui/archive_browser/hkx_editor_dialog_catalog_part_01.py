@@ -15,6 +15,10 @@ def _dialog_step_0110(_state):
         if _frame.root is None:
             return
         _populate_tuning_tree_part_014(_state, _frame)
+        tree = _state.tuning_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
         try:
             _state.tuning_tree.clear()
             _frame.group_elements = _frame.root.findall('./physicsTuning/groups/group')
@@ -86,6 +90,8 @@ def _dialog_step_0110(_state):
                 _state.tuning_tree.setCurrentItem(_frame.first_visible)
             _state._update_tuning_guidance(_state.tuning_tree.currentItem())
         finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
             _state.syncing_tree['active'] = False
     _state._populate_tuning_tree = _populate_tuning_tree
 
@@ -202,6 +208,17 @@ def _dialog_step_0115(_state):
         root = _state._load_xml_root_from_editor()
         if root is None:
             return
+        tree = _state.object_layout_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_object_layout_tree_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_object_layout_tree_inner(root) -> None:
         _state.object_layout_tree.clear()
         object_elements = root.findall("./objects/object")
         if not object_elements:
@@ -459,14 +476,22 @@ def _dialog_step_0116(_state):
         _populate_context_hints_tree_part_015(_state, _frame)
         if _frame.root is None:
             return
-        _populate_context_hints_tree_part_016(_state, _frame)
-        if not _frame.descriptors and _frame.body_context is None and (_frame.physics_material_context is None) and (_frame.physics_names is None) and (_frame.physics_body_summary is None):
-            _frame.placeholder = _state.QTreeWidgetItem(('No companion descriptor hints found.', '', '', '', ''))
-            _state.context_tree.addTopLevelItem(_frame.placeholder)
-            _state._set_hkx_editor_section_title(4, 'Context Hints')
-            return
-        _populate_context_hints_tree_part_017(_state, _frame)
-        _populate_context_hints_tree_part_018(_state, _frame)
+        tree = _state.context_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_context_hints_tree_part_016(_state, _frame)
+            if not _frame.descriptors and _frame.body_context is None and (_frame.physics_material_context is None) and (_frame.physics_names is None) and (_frame.physics_body_summary is None):
+                _frame.placeholder = _state.QTreeWidgetItem(('No companion descriptor hints found.', '', '', '', ''))
+                tree.addTopLevelItem(_frame.placeholder)
+                _state._set_hkx_editor_section_title(4, 'Context Hints')
+                return
+            _populate_context_hints_tree_part_017(_state, _frame)
+            _populate_context_hints_tree_part_018(_state, _frame)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
     _state._populate_context_hints_tree = _populate_context_hints_tree
 
 def _dialog_step_0117(_state):
@@ -474,6 +499,17 @@ def _dialog_step_0117(_state):
         root = _state._load_xml_root_from_editor()
         if root is None:
             return
+        tree = _state.body_summary_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_body_summary_tree_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_body_summary_tree_inner(root) -> None:
         _state.body_summary_tree.clear()
         body_elements = root.findall("./physicsBodySummary/bodies/body")
         if not body_elements:
@@ -540,6 +576,17 @@ def _dialog_step_0118(_state):
         root = _state._load_xml_root_from_editor()
         if root is None:
             return
+        tree = _state.constraint_summary_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_constraint_summary_tree_inner(root)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
+
+    def _populate_constraint_summary_tree_inner(root) -> None:
         _state.constraint_summary_tree.clear()
         constraint_elements = root.findall("./physicsConstraintSummary/constraints/constraint")
         if not constraint_elements:

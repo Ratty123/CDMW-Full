@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path, PurePosixPath
 from time import strftime
 from typing import Dict, List, Optional, Sequence
@@ -454,7 +455,7 @@ class TextSearchControllerMixin:
 
     def _clear_pending_result_population(self) -> None:
         self._results_population_timer.stop()
-        self._pending_result_indexes = []
+        self._pending_result_indexes.clear()
         self._pending_result_total = 0
         self._pending_auto_preview_enabled = False
 
@@ -498,7 +499,7 @@ class TextSearchControllerMixin:
         if self.search_results and not auto_preview_enabled:
             summary += " Auto-preview was skipped because the result set is very large."
         self.results_summary_label.setText(summary)
-        self._pending_result_indexes = list(range(len(self.search_results)))
+        self._pending_result_indexes = deque(range(len(self.search_results)))
         self._pending_result_total = len(self._pending_result_indexes)
         self._pending_auto_preview_enabled = auto_preview_enabled
         if self._pending_result_total:
@@ -548,15 +549,16 @@ class TextSearchControllerMixin:
         if not self._pending_result_indexes:
             self._finalize_result_population()
             return
-        batch_indexes = self._pending_result_indexes[: self.RESULT_POPULATION_BATCH_SIZE]
-        del self._pending_result_indexes[: self.RESULT_POPULATION_BATCH_SIZE]
+        count = min(self.RESULT_POPULATION_BATCH_SIZE, len(self._pending_result_indexes))
+        batch_indexes = [self._pending_result_indexes.popleft() for _ in range(count)]
         batch = [self._build_result_item(index, self.search_results[index]) for index in batch_indexes]
         self.results_tree.setUpdatesEnabled(False)
         self.results_tree.addTopLevelItems(batch)
         self.results_tree.setUpdatesEnabled(True)
         self.results_stack.setCurrentWidget(self.results_tree)
-        self._column_autofit_timer.start()
         populated = self._pending_result_total - len(self._pending_result_indexes)
+        if populated == len(batch_indexes):
+            self._column_autofit_timer.start()
         self.search_progress_label.setText(f"Populating results... {populated} / {self._pending_result_total}")
         self.search_progress_bar.setRange(0, max(1, self._pending_result_total))
         self.search_progress_bar.setValue(populated)

@@ -245,8 +245,6 @@ def apply_app_theme(
         layout_scale=screen_scale,
     )
     if app.styleSheet() != stylesheet:
-        if app.styleSheet():
-            app.setStyleSheet("")
         app.setStyleSheet(stylesheet)
     return resolved_theme
 
@@ -505,8 +503,7 @@ class ThemeControllerMixin:
         self._theme_change_in_progress = True
         if hasattr(self, "theme_change_overlay"):
             self._show_appearance_change_overlay(payload)
-            self.theme_change_overlay.repaint()
-        app.processEvents()
+            self.theme_change_overlay.update()
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self._prepare_appearance_apply_steps(payload, app)
         self._appearance_apply_step_timer.setInterval(0)
@@ -589,13 +586,11 @@ class ThemeControllerMixin:
         if app is None:
             self._finish_appearance_apply_steps(delay_ms=0)
             return
-        if hasattr(self, "theme_change_overlay"):
-            self.theme_change_overlay.raise_()
-            self.theme_change_overlay.repaint()
-        app.processEvents()
         if not self._appearance_apply_steps:
             self._finish_appearance_apply_steps()
             return
+        if hasattr(self, "theme_change_overlay"):
+            self.theme_change_overlay.raise_()
         _label, callback = self._appearance_apply_steps.popleft()
         try:
             callback()
@@ -604,8 +599,7 @@ class ThemeControllerMixin:
             raise
         if hasattr(self, "theme_change_overlay"):
             self.theme_change_overlay.raise_()
-            self.theme_change_overlay.repaint()
-        app.processEvents()
+            self.theme_change_overlay.update()
         if self._appearance_apply_steps:
             self._appearance_apply_step_timer.start()
         else:

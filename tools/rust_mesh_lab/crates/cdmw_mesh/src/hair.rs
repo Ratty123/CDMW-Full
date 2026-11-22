@@ -848,18 +848,21 @@ pub fn generate_cached(
                 .any(|l| l.guide == Some(i as u32) && ids.contains(&l.id))
         })
     };
+    let is_generated = |gi: usize, group: &HairGroup| -> bool {
+        group.mode == GroupMode::Generated
+            || state
+                .locks
+                .iter()
+                .any(|l| l.guide == Some(gi as u32) && l.kind == locks::LockKind::Generated)
+    };
     let mut count = 0;
     let mut spans = 0;
-    for group in state
-        .groups
-        .iter()
-        .filter(|g| g.mode == GroupMode::Generated)
-    {
+    for group in &state.groups {
         for (i, guide) in state
             .guides
             .iter()
             .enumerate()
-            .filter(|(i, guide)| guide.group == group.id && included(*i))
+            .filter(|(i, guide)| guide.group == group.id && included(*i) && is_generated(*i, group))
         {
             let edges = 2 * state
                 .locks
@@ -878,11 +881,16 @@ pub fn generate_cached(
     // physics work. Dense older styles can still be edited within their budget.
     let subdivisions = 1 + ((MAX_HAIR_VERTICES - count) / spans.max(1)).min(2);
     let mut result = Vec::new();
-    for group in state
-        .groups
-        .iter()
-        .filter(|g| g.mode == GroupMode::Generated)
-    {
+    for group in &state.groups {
+        let matching: Vec<_> = state
+            .guides
+            .iter()
+            .enumerate()
+            .filter(|(i, g)| g.group == group.id && included(*i) && is_generated(*i, group))
+            .collect();
+        if matching.is_empty() && group.mode != GroupMode::Generated {
+            continue;
+        }
         let mut mesh = HairGeometry {
             part: group.part,
             positions: vec![],
@@ -891,12 +899,7 @@ pub fn generate_cached(
             indices: vec![],
             bindings: vec![],
         };
-        for (gi, guide) in state
-            .guides
-            .iter()
-            .enumerate()
-            .filter(|(i, g)| g.group == group.id && included(*i))
-        {
+        for (gi, guide) in matching {
             require(
                 guide.points.len() >= 2,
                 "a hair guide needs at least two points",
@@ -923,6 +926,7 @@ pub fn generate_cached(
             let length = *lengths.last().unwrap();
             let lock = state.locks.iter().find(|l| l.guide == Some(gi as u32));
             let width_scale = lock.map_or(1.0, |l| l.width_scale);
+            let uv_rect = lock.and_then(|l| l.uv_rect).unwrap_or(group.uv_rect);
             let density = lock
                 .filter(|l| l.cards > 0)
                 .map_or(group.cards_per_guide, |l| l.cards);
@@ -972,11 +976,11 @@ pub fn generate_cached(
                         mesh.normals.push(normal.to_array());
                         mesh.uvs.push([
                             if edge < 0.0 {
-                                group.uv_rect[0]
+                                uv_rect[0]
                             } else {
-                                group.uv_rect[2]
+                                uv_rect[2]
                             },
-                            group.uv_rect[1] + (group.uv_rect[3] - group.uv_rect[1]) * t,
+                            uv_rect[1] + (uv_rect[3] - uv_rect[1]) * t,
                         ]);
                         mesh.bindings.push(VertexBinding {
                             part: group.part,
@@ -1279,17 +1283,15 @@ impl Simulation {
             .collect();
         for (i, guide) in state.guides.iter().enumerate() {
             let group = state.groups.iter().find(|g| g.id == guide.group).unwrap();
-            let width = group.width
-                * state
-                    .locks
-                    .iter()
-                    .find(|l| l.guide == Some(i as u32))
-                    .map_or(1.0, |l| l.width_scale);
+            let lock = state.locks.iter().find(|l| l.guide == Some(i as u32));
+            let width = group.width * lock.map_or(1.0, |l| l.width_scale);
+            let guide_generated = group.mode == GroupMode::Generated
+                || lock.is_some_and(|l| l.kind == locks::LockKind::Generated);
             let mut distance = 0.0;
             let mut scales = vec![0.0];
             for pair in guide.points.windows(2) {
                 distance += Vec3::from(pair[0]).distance(Vec3::from(pair[1]));
-                scales.push(if group.mode == GroupMode::Generated {
+                scales.push(if guide_generated {
                     root_blend(distance, width)
                 } else {
                     1.0
@@ -1304,7 +1306,13 @@ impl Simulation {
                 .iter()
                 .find(|g| g.id == state.guides[gi].group)
                 .unwrap();
-            if group.mode == GroupMode::Generated {
+            let binding_generated = group.mode == GroupMode::Generated
+                || state.locks.iter().any(|l| {
+                    l.part == binding.part
+                        && l.guide == Some(binding.guide)
+                        && l.kind == locks::LockKind::Generated
+                });
+            if binding_generated {
                 let row = binding.segment as usize + usize::from(binding.t >= 0.5);
                 let (side, up, tangent) = if binding.smooth {
                     curves[gi].sample(binding.segment as usize, binding.t).1
@@ -1785,6 +1793,7 @@ mod tests {
             mirrored: None,
             width_scale: 1.0,
             cards: 6,
+            uv_rect: None,
         });
         s.next_lock_id = 2;
         let wide = generate(&s, &AtomicBool::new(false)).unwrap();
@@ -2256,6 +2265,7 @@ mod tests {
                 mirrored: None,
                 width_scale: 1.0,
                 cards: 0,
+                uv_rect: None,
             },
             locks::HairLock {
                 id: 2,
@@ -2266,6 +2276,7 @@ mod tests {
                 mirrored: None,
                 width_scale: 1.0,
                 cards: 0,
+                uv_rect: None,
             },
         ];
         s.next_lock_id = 3;

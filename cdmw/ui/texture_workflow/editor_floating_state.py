@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Floating-selection image helpers for the standalone Texture Editor UI."""
 
+from collections import OrderedDict
 import dataclasses
 import math
 from dataclasses import dataclass
@@ -382,25 +383,44 @@ def clear_texture_editor_selection_from_layer_pixels(
     return updated
 
 
+_TRANSFORMED_FLOATING_CACHE: "OrderedDict[tuple, tuple[np.ndarray, np.ndarray]]" = OrderedDict()
+_TRANSFORMED_FLOATING_CACHE_LIMIT = 4
+
+
 def transformed_texture_editor_floating_pixels(
     floating: Optional[TextureEditorFloatingSelection],
     floating_pixels: Optional[np.ndarray],
 ) -> Optional[np.ndarray]:
     if floating is None or floating_pixels is None:
         return None
-    pixels = floating_pixels.copy()
-    if floating.flip_x:
-        pixels = np.ascontiguousarray(np.flip(pixels, axis=1))
-    if floating.flip_y:
-        pixels = np.ascontiguousarray(np.flip(pixels, axis=0))
+    flip_x = bool(floating.flip_x)
+    flip_y = bool(floating.flip_y)
     scale_x = max(0.05, float(floating.scale_x))
     scale_y = max(0.05, float(floating.scale_y))
+    angle = float(floating.rotation_degrees)
+    cache_key = (
+        id(floating_pixels),
+        floating_pixels.shape,
+        flip_x,
+        flip_y,
+        round(scale_x, 6),
+        round(scale_y, 6),
+        round(angle, 6),
+    )
+    cached = _TRANSFORMED_FLOATING_CACHE.get(cache_key)
+    if cached is not None and cached[0] is floating_pixels:
+        _TRANSFORMED_FLOATING_CACHE.move_to_end(cache_key)
+        return cached[1]
+    pixels = floating_pixels.copy()
+    if flip_x:
+        pixels = np.ascontiguousarray(np.flip(pixels, axis=1))
+    if flip_y:
+        pixels = np.ascontiguousarray(np.flip(pixels, axis=0))
     if abs(scale_x - 1.0) > 1e-3 or abs(scale_y - 1.0) > 1e-3:
         new_w = max(1, int(round(pixels.shape[1] * scale_x)))
         new_h = max(1, int(round(pixels.shape[0] * scale_y)))
         interpolation = "cubic" if (new_w >= pixels.shape[1] and new_h >= pixels.shape[0]) else "area"
         pixels = image_ops.resize(pixels, new_w, new_h, interpolation)
-    angle = float(floating.rotation_degrees)
     if abs(angle) > 1e-3:
         height, width = pixels.shape[:2]
         center = (width / 2.0, height / 2.0)
@@ -412,7 +432,12 @@ def transformed_texture_editor_floating_pixels(
         matrix[0, 2] += (bound_w / 2.0) - center[0]
         matrix[1, 2] += (bound_h / 2.0) - center[1]
         pixels = image_ops.warp_affine_linear(pixels, matrix, bound_w, bound_h)
-    return np.ascontiguousarray(pixels, dtype=np.uint8)
+    result = np.ascontiguousarray(pixels, dtype=np.uint8)
+    result.setflags(write=False)
+    _TRANSFORMED_FLOATING_CACHE[cache_key] = (floating_pixels, result)
+    while len(_TRANSFORMED_FLOATING_CACHE) > _TRANSFORMED_FLOATING_CACHE_LIMIT:
+        _TRANSFORMED_FLOATING_CACHE.popitem(last=False)
+    return result
 
 
 def texture_editor_snapshot_floating_pixels(floating_pixels: Optional[np.ndarray]) -> Optional[np.ndarray]:

@@ -1035,6 +1035,120 @@ def test_continue_editing_waits_for_archive_browser_to_prepare_the_source(game, 
         app.processEvents()
 
 
+def _texture_wait_shell(game, tmp_path, monkeypatch, *, selected):
+    """A shell whose Archive Browser has the draft's file selected, or not yet, and no
+    textured preview of it. Returns the shell, the archive and the draft's row."""
+
+    from cdmw.ui.mesh_editor import saved_work_bridge
+
+    scopes = []
+    shown = [game.entry] if selected else []
+    bridge = SimpleNamespace(displays_v2=True, apply_entry_id_scope=lambda ids, label: scopes.append(ids) or True)
+    archive = SimpleNamespace(archive_remote_bridge=bridge, archive_preview_worker=None,
+                              _archive_texture_request_loading=False, texture_requests=[], shown=shown,
+                              _current_archive_mesh_entry=lambda: shown[0] if shown else None)
+    archive._request_archive_preview_textures = (
+        lambda automatic=False: archive.texture_requests.append(automatic) or True)
+    shell = _Shell(tmp_path, archive)
+    shell.packages = []
+    shell.interim = []
+    shell._mesh_editor_active_textured_package_for_entry = lambda _entry: shell.packages[0] if shell.packages else None
+    shell._archive_preview_interim_for = lambda _entry: bool(shell.interim)
+    shell._mesh_saved_work_source_resolver = SimpleNamespace(
+        entry_ids={_PAC_PATH.casefold(): 42}, cancel=lambda: None,
+        resolve=lambda paths, callback: callback({_PAC_PATH.casefold(): game.entry}))
+    monkeypatch.setattr(saved_work_bridge, "archive_workflow_dependency_context", lambda _owner, _entry: game.context)
+    _draft_on_disk(shell._mesh_saved_work_root(), game.entry, game.source, "Fit", now=100.0)
+    return shell, archive, list_saved_work(shell._mesh_saved_work_root())[0]
+
+
+def test_continue_editing_waits_for_the_textured_preview_as_open_in_mesh_editor_does(game, tmp_path, monkeypatch):
+    """After a restart Browse has no preview of the draft's file yet. The editor takes its
+    layered materials from that preview, so opening before it exists gave the draft its
+    raw textures in the wrong colours (Fredric, 2026-11-22)."""
+
+    shell, archive, row = _texture_wait_shell(game, tmp_path, monkeypatch, selected=False)
+    app = QApplication.instance() or QApplication([])
+    shell._continue_mesh_saved_work(row)
+    try:
+        assert shell.opened == []
+        archive.shown.append(game.entry)
+        # The file is prepared, but its preview is still being built.
+        archive.archive_preview_worker = object()
+        shell._poll_mesh_saved_work_source()
+        assert shell.opened == [] and archive.texture_requests == []
+        assert shell.statuses[-1] == ("Resolving this mesh's textures before Mesh Editor opens...", False)
+        # A quick preview is shown first; the full one follows.
+        archive.archive_preview_worker = None
+        shell.interim.append(True)
+        shell._poll_mesh_saved_work_source()
+        assert shell.opened == [] and archive.texture_requests == []
+        shell.interim.clear()
+        shell.packages.append(tmp_path / "textured-package")
+        shell._poll_mesh_saved_work_source()
+        (entry, dependencies, options), = shell.opened
+        assert entry is game.entry and dependencies is game.context
+        assert options["resume_manifest_path"] == row.manifest_path
+        assert shell._mesh_saved_work_pending is None
+    finally:
+        shell._cancel_mesh_saved_work_source_wait()
+        app.processEvents()
+
+
+def test_continue_editing_asks_browse_for_textures_once_and_opens_without_them_if_none_come(
+        game, tmp_path, monkeypatch):
+    """Browse shows the file without textures (Load textures is off, or it has none):
+    ask for them once, as Open in Mesh Editor does, and never wait on a model without any."""
+
+    shell, archive, row = _texture_wait_shell(game, tmp_path, monkeypatch, selected=True)
+    app = QApplication.instance() or QApplication([])
+    shell._continue_mesh_saved_work(row)
+    try:
+        # Already selected, so nothing is revealed; the wait is for its textures alone.
+        assert shell.opened == [] and archive.texture_requests == [True]
+        archive._archive_texture_request_loading = True
+        shell._poll_mesh_saved_work_source()
+        assert shell.opened == [] and archive.texture_requests == [True]
+        # The request ended and Browse still has no textured preview: open on what there is.
+        archive._archive_texture_request_loading = False
+        shell._poll_mesh_saved_work_source()
+        assert len(shell.opened) == 1 and archive.texture_requests == [True]
+        assert shell._mesh_saved_work_pending is None
+    finally:
+        shell._cancel_mesh_saved_work_source_wait()
+        app.processEvents()
+
+
+def test_continue_editing_opens_at_once_when_browse_already_shows_the_file_textured(game, tmp_path, monkeypatch):
+    shell, archive, row = _texture_wait_shell(game, tmp_path, monkeypatch, selected=True)
+    shell.packages.append(tmp_path / "textured-package")
+    shell._continue_mesh_saved_work(row)
+    assert len(shell.opened) == 1 and archive.texture_requests == []
+    assert getattr(shell, "_mesh_saved_work_pending", None) is None
+
+
+def test_continue_editing_stops_waiting_for_textures_after_its_limit(game, tmp_path, monkeypatch):
+    from cdmw.ui.mesh_editor import saved_work_bridge
+
+    shell, archive, row = _texture_wait_shell(game, tmp_path, monkeypatch, selected=True)
+    archive.archive_preview_worker = object()  # a preview that never finishes
+    app = QApplication.instance() or QApplication([])
+    clock = [1000.0]
+    monkeypatch.setattr(saved_work_bridge.time, "monotonic", lambda: clock[0])
+    shell._continue_mesh_saved_work(row)
+    try:
+        assert shell.opened == []
+        clock[0] += saved_work_bridge.TEXTURE_WAIT_SECONDS - 1.0
+        shell._poll_mesh_saved_work_source()
+        assert shell.opened == []
+        clock[0] += 2.0
+        shell._poll_mesh_saved_work_source()
+        assert len(shell.opened) == 1
+    finally:
+        shell._cancel_mesh_saved_work_source_wait()
+        app.processEvents()
+
+
 def test_archive_context_menu_opens_saved_work_for_the_selected_file(tmp_path, monkeypatch):
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QMenu
@@ -1413,3 +1527,232 @@ def test_a_recovery_point_that_cannot_be_restored_is_reported(game, tmp_path):
         assert again.recovery_problem, "the editor opened without its unfinished edits and said nothing"
     finally:
         resumed.service.close_edit_session(resumed.view.session_id, force_without_saving=True)
+
+
+def _continue_editing(game):
+    """Drafts & Mods > Continue Editing on the one saved draft."""
+
+    rows = list_saved_work(game.drafts)
+    launch = prepare_saved_work_launch(game.drafts, rows[0], game.entry, edited_note=EDITED_RESULT_NOTE)
+    return _load(launch.selected_entry, game.context, game.drafts, draft_request=launch.draft_request)
+
+
+def _replace_first_x(loaded, x: float) -> None:
+    """A change the draft itself receives and saves, with no Mesh Editor open."""
+
+    service, session_id = loaded.service, loaded.view.session_id
+    mesh = service.working_mesh(session_id, clone=True)
+    vertices = list(mesh.submeshes[0].vertices)
+    vertices[0] = (x, *vertices[0][1:])
+    mesh.submeshes[0].vertices = vertices
+    service.replace_working_mesh(session_id, mesh)
+    service.retry_mesh_layer_autosave(session_id)
+
+
+def test_unfinished_editor_edits_come_back_every_time_the_draft_reopens(game, tmp_path):
+    """A draft that only restored its unfinished edits lost them on the next reopen:
+    closing that session published the draft's untouched state, and the recovery
+    point was then refused as made from an earlier state."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    descriptor = project / "mesh_layer_project.json"
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    saved = _wait_for_recovery(project)
+    # The tab closes without Finish Edit Mesh, as the app closes it.
+    editor.close()
+    _close(first)
+    assert not descriptor.exists()
+
+    for attempt in ("second", "third"):
+        resumed = _continue_editing(game)
+        again = _editor(resumed, tmp_path / f"rust-{attempt}")
+        try:
+            assert again.recovery_problem == ""
+            assert again.recovered_edits_at > 0.0, f"the {attempt} open lost the unfinished edits"
+            assert _shadow_x(again) == pytest.approx(original_x + 0.25, abs=2e-5)
+            assert not descriptor.exists(), "opening the draft published a state nobody finished"
+            # Nor is a save of the draft waiting on its timer: close is the only publisher.
+            host = resumed.service._session(resumed.view.session_id)
+            assert host.mesh_layer_autosave_requested_key == (-1, -1)
+        finally:
+            again.close()
+            _close(resumed)
+    assert not descriptor.exists(), "closing a draft that only restored its edits published its untouched state"
+    kept = read_editor_recovery(project)
+    assert kept is not None and kept["base_generation"] == ""
+    assert kept["generation"] == saved["generation"] and (project / kept["generation"]).is_dir()
+
+    resumed = _continue_editing(game)
+    try:
+        last = _editor(resumed, tmp_path / "rust-last")
+        assert last.recovered_edits_at > 0.0
+        last.finish(_request(last, "finish_request", 2))
+        _wait_for_autosave(resumed)
+        assert _first_x(resumed) == pytest.approx(original_x + 0.25, abs=2e-5)
+        assert read_editor_recovery(project) is None  # finished: the draft holds the edits now
+    finally:
+        _close(resumed)
+
+
+
+def _orphan_the_recovery_point(game, tmp_path, monkeypatch, project: Path) -> str:
+    """Continue Editing and close without Finish as 0.12.0-alpha.6 did: the close
+    published the untouched draft, so its recovery point was refused afterwards."""
+    from cdmw.services import mesh_service
+
+    with monkeypatch.context() as patched:
+        patched.setattr(mesh_service, "_draft_holds_only_unfinished_edits", lambda _project: False)
+        resumed = _continue_editing(game)
+        again = _editor(resumed, tmp_path / "rust-alpha6")
+        assert again.recovered_edits_at > 0.0
+        again.close()
+        _close(resumed)
+    descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
+    return str(descriptor["current_generation"])
+
+
+def test_unfinished_edits_a_draft_lost_on_its_second_reopen_come_back(game, tmp_path, monkeypatch):
+    """A draft already hit by the bug: its only saved state is the game's file, which a
+    close that changed nothing wrote. Its unfinished edits are restored over it."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    saved = _wait_for_recovery(project)
+    editor.close()
+    _close(first)
+    untouched = _orphan_the_recovery_point(game, tmp_path, monkeypatch, project)
+    assert read_editor_recovery(project)["base_generation"] == ""
+
+    for attempt in ("second", "third"):
+        resumed = _continue_editing(game)
+        try:
+            assert _first_x(resumed) == pytest.approx(original_x, abs=2e-5)
+            again = _editor(resumed, tmp_path / f"rust-{attempt}")
+            try:
+                assert again.recovery_problem == "", again.recovery_problem
+                assert again.recovered_edits_at > 0.0, f"the {attempt} open did not rescue the unfinished edits"
+                assert _shadow_x(again) == pytest.approx(original_x + 0.25, abs=2e-5)
+            finally:
+                again.close()
+        finally:
+            _close(resumed)
+    descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
+    assert descriptor["current_generation"] == untouched
+    assert read_editor_recovery(project)["generation"] == saved["generation"]
+
+    resumed = _continue_editing(game)
+    try:
+        last = _editor(resumed, tmp_path / "rust-last")
+        assert last.recovered_edits_at > 0.0
+        last.finish(_request(last, "finish_request", 2))
+        _wait_for_autosave(resumed)
+        assert _first_x(resumed) == pytest.approx(original_x + 0.25, abs=2e-5)
+        assert read_editor_recovery(project) is None
+    finally:
+        _close(resumed)
+
+
+def test_a_draft_that_changed_after_losing_its_edits_still_refuses_them(game, tmp_path, monkeypatch):
+    """The rescue is only for a state nobody made: once the draft itself holds a change,
+    unfinished edits from before it are refused as before."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    _wait_for_recovery(project)
+    editor.close()
+    _close(first)
+    _orphan_the_recovery_point(game, tmp_path, monkeypatch, project)
+    changed = _continue_editing(game)
+    _replace_first_x(changed, original_x + 0.5)
+    _close(changed)
+
+    resumed = _continue_editing(game)
+    try:
+        again = _editor(resumed, tmp_path / "rust-again")
+        try:
+            assert again.recovered_edits_at == 0.0
+            assert "made from an earlier state of this draft" in again.recovery_problem
+            assert _shadow_x(again) == pytest.approx(original_x + 0.5, abs=2e-5)
+        finally:
+            again.close()
+        assert read_editor_recovery(project) is not None
+    finally:
+        _close(resumed)
+
+def test_discarding_restored_edits_drops_them_for_good(game, tmp_path):
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    saved = _wait_for_recovery(project)
+    editor.close()
+    _close(first)
+
+    resumed = _continue_editing(game)
+    try:
+        again = _editor(resumed, tmp_path / "rust-again")
+        assert again.recovered_edits_at > 0.0
+        again.cancel()  # Discard
+        assert read_editor_recovery(project) is None
+        assert not (project / saved["generation"]).exists()
+        fresh = _editor(resumed, tmp_path / "rust-fresh")
+        try:
+            assert fresh.recovered_edits_at == 0.0 and fresh.recovery_problem == ""
+            assert _shadow_x(fresh) == pytest.approx(original_x, abs=2e-5)
+        finally:
+            fresh.cancel()
+    finally:
+        _close(resumed)
+
+
+@pytest.mark.parametrize("finished_first", [False, True])
+def test_unfinished_edits_made_from_an_earlier_draft_state_are_refused(game, tmp_path, finished_first):
+    """The draft moved on after the recovery point was written: restoring it would put
+    edits made from another state over the newer one. With and without a state the
+    draft had already finished when the editor opened."""
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    first = _load(game.entry, game.context, game.drafts, draft_request=MeshDraftRequest())
+    original_x = _first_x(first)
+    project = first.draft_manifest_path.parent / "mesh_layers"
+    if finished_first:
+        _finish_move(first, tmp_path / "rust-finished", original_x + 0.1)
+        _wait_for_autosave(first)
+    editor = _editor(first, tmp_path / "rust-first")
+    _move_in_editor(editor, original_x + 0.25)
+    recovery = _wait_for_recovery(project)
+    assert bool(recovery["base_generation"]) == finished_first
+    editor.close()
+    _replace_first_x(first, original_x + 0.5)  # the draft itself changes and saves
+    _close(first)
+    descriptor = json.loads((project / "mesh_layer_project.json").read_text(encoding="utf-8"))
+    assert descriptor["current_generation"] != recovery["base_generation"]
+
+    resumed = _continue_editing(game)
+    try:
+        assert _first_x(resumed) == pytest.approx(original_x + 0.5, abs=2e-5)
+        again = _editor(resumed, tmp_path / "rust-again")
+        try:
+            assert again.recovered_edits_at == 0.0
+            assert "made from an earlier state of this draft" in again.recovery_problem
+            assert _shadow_x(again) == pytest.approx(original_x + 0.5, abs=2e-5)
+        finally:
+            again.close()
+        assert read_editor_recovery(project) is not None  # refused, never deleted unasked
+    finally:
+        _close(resumed)

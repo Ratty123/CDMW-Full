@@ -959,3 +959,54 @@ def test_edit_hair_setup_hides_redundant_retry_row_until_failure_and_picker_fill
     picker.preparation_failed.emit("Style check stalled.")
     assert not dialog.retry.isHidden() and not dialog._buttons_row.isHidden()
     dialog.reject()
+
+
+def test_create_hair_setup_options_expand_picker_and_respect_scalp_cap_reuse(owner, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+    from cdmw.ui.mesh_editor import hair_setup_dialog
+    from tests.test_hair_registration import game_table, shown
+
+    monkeypatch.setattr(hair_setup_dialog, "QDialog", QDialog)
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0)), mode="generated")
+    dialog._reuse_target = ("Damiane", "hair")
+    dialog._reuse_scalp_cap = True
+    assert not dialog.choose_donor_material.isChecked()
+    assert dialog.keep_scalp_cap.isChecked()
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    assert dialog._picker is not None and dialog._picker.isHidden()
+    assert dialog.size().width() < 800 and dialog.size().height() == 220
+
+    # Toggling Keep donor scalp cap away from the active session bypasses fast-reuse.
+    prepared_calls = []
+    monkeypatch.setattr(
+        "cdmw.workers.mesh_archive_refit_worker.prepare_hair_editor_session",
+        lambda entry, deps, arguments, draft_root, stop: prepared_calls.append(arguments) or SimpleNamespace(
+            service=SimpleNamespace(close_edit_session=lambda *_a, **_k: None),
+            view=SimpleNamespace(session_id="s1"),
+        ),
+    )
+    dialog.keep_scalp_cap.setChecked(False)
+    dialog._picker.selected_entry = SimpleNamespace(identity="hair")
+    dialog._picker.selected_dependencies = ()
+    dialog._selected(dialog._picker, QDialog.Accepted)
+    assert len(tasks) == 1
+    prep = tasks.pop()
+    prep["task"](lambda _: None)
+    assert prepared_calls and prepared_calls[0]["keep_scalp_cap"] is False
+
+    # Reopening in Create mode with Choose donor material expands the embedded gallery.
+    dialog2, tasks2 = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0)), mode="generated")
+    loading2 = tasks2.pop()
+    loading2["on_complete"](loading2["task"](lambda _: None))
+    dialog2.choose_donor_material.setChecked(True)
+    loading_custom = tasks2.pop()
+    loading_custom["on_complete"](loading_custom["task"](lambda _: None))
+    assert dialog2._picker is not None and not dialog2._picker.isHidden()
+    assert dialog2.size().width() == 1060 and dialog2.size().height() == 800
+    assert "donor hairstyle material" in dialog2.status.text()
+
+    dialog2.mode.setCurrentIndex(dialog2.mode.findData("existing"))
+    assert dialog2.choose_donor_material.isHidden() and dialog2.keep_scalp_cap.isHidden()
+    dialog.reject()
+    dialog2.reject()

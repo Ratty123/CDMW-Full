@@ -1,5 +1,68 @@
 //! Sample the completed opaque depth pass for soft particle intersections.
 use super::*;
+use std::cell::RefCell;
+
+pub(super) struct EffectDepthCache {
+    uniform_buffer: wgpu::Buffer,
+    cached_binding: RefCell<Option<(u64, wgpu::BindGroup)>>,
+}
+
+impl EffectDepthCache {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("effect depth reconstruction"),
+            size: (20 * std::mem::size_of::<f32>()) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        Self {
+            uniform_buffer,
+            cached_binding: RefCell::new(None),
+        }
+    }
+
+    fn resolve_binding<'a>(
+        &'a self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+        depth: &wgpu::TextureView,
+        depth_id: u64,
+        camera: &CameraUniform,
+        viewport: [f32; 4],
+    ) -> std::cell::Ref<'a, wgpu::BindGroup> {
+        let inv_vp = Mat4::from_cols_array_2d(&camera.view_projection)
+            .inverse()
+            .to_cols_array();
+        let mut parameters = [0.0f32; 20];
+        parameters[..16].copy_from_slice(&inv_vp);
+        parameters[16..20].copy_from_slice(&viewport);
+        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&parameters));
+        {
+            let mut cache = self.cached_binding.borrow_mut();
+            if cache.as_ref().is_none_or(|(cached_id, _)| *cached_id != depth_id) {
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("effect depth reconstruction"),
+                    layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(depth),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: self.uniform_buffer.as_entire_binding(),
+                        },
+                    ],
+                });
+                *cache = Some((depth_id, group));
+            }
+        }
+        std::cell::Ref::map(self.cached_binding.borrow(), |slot| {
+            &slot.as_ref().expect("effect depth bind group cached").1
+        })
+    }
+}
 
 pub(super) fn layout(device: &wgpu::Device, samples: u32) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -68,7 +131,7 @@ pub(super) fn render(
     renderer: &WindowRenderer,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
-    depth: &wgpu::TextureView,
+    depth: &DepthTarget,
     multisample: Option<&MultisampleTarget>,
     width: u32,
     height: u32,
@@ -84,10 +147,12 @@ pub(super) fn render(
     let y = y.clamp(0., height.saturating_sub(1) as f32);
     let w = w.max(1.).min(width as f32 - x);
     let h = h.max(1.).min(height as f32 - y);
-    let binding = binding(
+    let binding = renderer.effect_depth_cache.resolve_binding(
         &renderer.device,
+        &renderer.queue,
         &renderer.effect_depth_layout,
-        depth,
+        &depth.view,
+        depth.id,
         &renderer.camera_uniform,
         [x, y, w, h],
     );
@@ -105,7 +170,7 @@ pub(super) fn render(
         })],
         // No depth writes while the shader samples this same attachment.
         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-            view: depth,
+            view: &depth.view,
             depth_ops: None,
             stencil_ops: None,
         }),

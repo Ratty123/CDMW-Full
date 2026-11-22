@@ -94,6 +94,19 @@ class _WriteSignals(QObject):
     written = Signal(str, int, str, str)
 
 
+class _UnlinkJob(QRunnable):
+    def __init__(self, paths: list[Path]) -> None:
+        super().__init__()
+        self._paths = paths
+
+    def run(self) -> None:
+        for path in self._paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 class _WriteJob(QRunnable):
     def __init__(self, image: QImage, target: Path, source_sha256: str, revision: int,
                  signals: _WriteSignals) -> None:
@@ -190,7 +203,7 @@ class LiveTextureUpdates(QObject):
         state.in_flight = 0
         if not bool(payload.get("ok", False)):
             self.failed.emit(key, str(payload.get("error", "") or "The editor could not show the edit."))
-        self._forget_older(state, keep=revision)
+        self._forget_older(state, keep=revision, pool=self._pool)
         if state.pending is not None:
             self._start(key, state)
 
@@ -269,10 +282,16 @@ class LiveTextureUpdates(QObject):
         return bool(self._send({"source_sha256": key, "file": relative, "revision": revision}))
 
     @staticmethod
-    def _forget_older(state: _Texture, *, keep: int) -> None:
+    def _forget_older(state: _Texture, *, keep: int, pool: QThreadPool | None = None) -> None:
         assert state.written is not None
-        for revision in [revision for revision in state.written if revision < keep]:
+        obsolete = [state.written.pop(revision) for revision in tuple(state.written) if revision < keep]
+        if not obsolete:
+            return
+        if pool is not None:
+            pool.start(_UnlinkJob(obsolete))
+            return
+        for path in obsolete:
             try:
-                state.written.pop(revision).unlink(missing_ok=True)
+                path.unlink(missing_ok=True)
             except OSError:
                 pass

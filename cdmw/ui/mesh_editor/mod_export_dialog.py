@@ -40,20 +40,51 @@ class MeshModExportDialog(QDialog):
         body_files: tuple[str, ...] = (),
         texture_plan: tuple[str, ...] = (),
         texture_plan_with_body: tuple[str, ...] | None = None,
+        hair_mode: bool = False,
+        hair_stem: str = "",
+        hair_character: str = "",
+        dmm_install: Path | str | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Build Mod")
-        self.resize(620, 360)
+        self._hair_mode = bool(hair_mode)
+        self._initial_hair_stem = str(hair_stem or "").strip()
+        self._hair_character = str(hair_character or "").strip()
+        self._stem_manually_edited = False
+        self._dmm_mods_dir: Path | None = None
+        self._dmm_mods_error = ""
+        if self._hair_mode and dmm_install is not None:
+            from cdmw.services.dmm_send import dmm_mods_folder
+            try:
+                self._dmm_mods_dir = dmm_mods_folder(dmm_install)
+            except ValueError as exc:
+                self._dmm_mods_error = str(exc)
+
+        self.setWindowTitle("Build Hairstyle Mod" if self._hair_mode else "Build Mod")
+        self.resize(640 if self._hair_mode else 620, 440 if self._hair_mode else 360)
         layout = QVBoxLayout(self)
-        hint = QLabel("Choose the mesh-only mod package and manager.", self)
+        hint = QLabel(
+            "Not tested in game. Hairstyles may not work correctly. Choose how to package this hairstyle for DMM."
+            if self._hair_mode
+            else "Choose the mesh-only mod package and manager.",
+            self,
+        )
         hint.setWordWrap(True)
         layout.addWidget(hint)
         form = QFormLayout()
         self.manager = QComboBox(self)
-        for label, choice, kind, profile, suffix in (
-            ("DMM Loose Mesh", "dmm_loose", "loose_mod", "dmm", "dmm"),
-            ("DMM Archive Group", "dmm_archive", "overlay_package", "dmm", "dmm-archive"),
-        ):
+        choices = (
+            (
+                ("Add New Barber Hairstyle (DMM Additive)", "hair_add", "overlay_package", "dmm", "hair-mod"),
+                ("Replace Existing Hairstyle (DMM Loose Mod)", "hair_replace_loose", "loose_mod", "dmm", "hair-replace-dmm"),
+                ("Add New Barber Hairstyle (Full Tables Archive)", "hair_add_full", "overlay_package", "dmm", "hair-mod-full"),
+            )
+            if self._hair_mode
+            else (
+                ("DMM Loose Mesh", "dmm_loose", "loose_mod", "dmm", "dmm"),
+                ("DMM Archive Group", "dmm_archive", "overlay_package", "dmm", "dmm-archive"),
+            )
+        )
+        for label, choice, kind, profile, suffix in choices:
             self.manager.addItem(label, userData=(choice, kind, profile, suffix))
         selected = next(
             (index for index in range(self.manager.count()) if self.manager.itemData(index)[0] == output_choice),
@@ -64,15 +95,50 @@ class MeshModExportDialog(QDialog):
         self.output_parent = QLineEdit(output_parent, self)
         folder_row = QHBoxLayout()
         folder_row.addWidget(self.output_parent)
-        browse = QPushButton("Browse...", self)
-        browse.clicked.connect(self._browse)
-        folder_row.addWidget(browse)
+        self.output_browse = QPushButton("Browse...", self)
+        self.output_browse.clicked.connect(self._browse)
+        folder_row.addWidget(self.output_browse)
         self.version = QLineEdit("1.0", self)
         self.author = QLineEdit(self)
         self.description = QLineEdit(description, self)
-        form.addRow("Mod manager", self.manager)
+        form.addRow("Mod manager" if not self._hair_mode else "Package mode", self.manager)
         form.addRow("Mod name", self.mod_name)
         form.addRow("Output folder", folder_row)
+
+        self.hair_stem = QLineEdit(self._initial_hair_stem, self)
+        self.hair_stem.setObjectName("hair_mod_stem")
+        self.hair_stem.setToolTip(
+            "Lowercase ASCII prefab stem used in barber tables and private archive files (max 127 characters)."
+        )
+        self.hair_stem.textEdited.connect(self._mark_stem_edited)
+        self.custom_icon_path = QLineEdit("", self)
+        self.custom_icon_path.setObjectName("hair_custom_icon_path")
+        self.custom_icon_path.setPlaceholderText("Use donor barber icon")
+        self.custom_icon_path.setToolTip(
+            "Optional PNG, JPG, WEBP, BMP, or DDS image resized and encoded to match the character's barber icon format."
+        )
+        icon_row = QWidget(self)
+        icon_layout = QHBoxLayout(icon_row)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        icon_layout.addWidget(self.custom_icon_path)
+        self.icon_browse = QPushButton("Browse...", icon_row)
+        self.icon_browse.clicked.connect(self._browse_icon)
+        icon_layout.addWidget(self.icon_browse)
+        self.icon_clear = QPushButton("Clear", icon_row)
+        self.icon_clear.clicked.connect(self.custom_icon_path.clear)
+        icon_layout.addWidget(self.icon_clear)
+        self._hair_stem_label = QLabel("Hairstyle ID", self)
+        self._custom_icon_label = QLabel("Custom barber icon (optional)", self)
+        self._custom_icon_row = icon_row
+        if self._hair_mode:
+            form.addRow(self._hair_stem_label, self.hair_stem)
+            form.addRow(self._custom_icon_label, self._custom_icon_row)
+        else:
+            self.hair_stem.hide()
+            self._hair_stem_label.hide()
+            self._custom_icon_label.hide()
+            self._custom_icon_row.hide()
+
         form.addRow("Version", self.version)
         form.addRow("Author", self.author)
         form.addRow("Description", self.description)
@@ -97,8 +163,8 @@ class MeshModExportDialog(QDialog):
         self.include_body_hint.setWordWrap(True)
         layout.addWidget(self.include_body)
         layout.addWidget(self.include_body_hint)
-        self.include_body.setVisible(bool(body_files))
-        self.include_body_hint.setVisible(bool(body_files))
+        self.include_body.setVisible(bool(body_files) and not self._hair_mode)
+        self.include_body_hint.setVisible(bool(body_files) and not self._hair_mode)
         self._show_texture_plan(False)
         self.include_body.toggled.connect(self._show_texture_plan)
         # Off by default: changing shrink rules also ships the shared descriptor.
@@ -131,6 +197,23 @@ class MeshModExportDialog(QDialog):
         self.layers.itemChanged.connect(self._refresh_destination)
         self.layers.setEnabled(False)
         self.layers_hint.setVisible(False)
+        if self._hair_mode:
+            self.keep_layers.hide()
+            self.layers.hide()
+            self.layers_hint.hide()
+
+        self.send_to_dmm = QCheckBox("Send directly to DMM mods folder", self)
+        self.send_to_dmm.setObjectName("hair_send_to_dmm")
+        if self._hair_mode and dmm_install is not None:
+            if self._dmm_mods_dir is not None:
+                self.send_to_dmm.setToolTip(f"Publish or replace CDMW's mod folder directly inside {self._dmm_mods_dir}.")
+            else:
+                self.send_to_dmm.setEnabled(False)
+                self.send_to_dmm.setToolTip(self._dmm_mods_error or "Open DMM once so its mods folder exists.")
+        else:
+            self.send_to_dmm.hide()
+        layout.addWidget(self.send_to_dmm)
+
         self.create_zip = QCheckBox("Create ZIP beside the mod folder", self)
         self.open_folder = QCheckBox("Open folder after creation", self)
         layout.addWidget(self.create_zip)
@@ -144,9 +227,15 @@ class MeshModExportDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self.manager.currentIndexChanged.connect(self._refresh_hair_fields)
         self.manager.currentIndexChanged.connect(self._refresh_destination)
+        self.mod_name.textEdited.connect(self._sync_stem_from_name)
         self.mod_name.textChanged.connect(self._refresh_destination)
         self.output_parent.textChanged.connect(self._refresh_destination)
+        self.hair_stem.textChanged.connect(self._refresh_destination)
+        self.custom_icon_path.textChanged.connect(self._refresh_destination)
+        self.send_to_dmm.toggled.connect(self._refresh_destination)
+        self._refresh_hair_fields()
         self._refresh_destination()
 
     def package_info(self) -> ModPackageInfo:
@@ -157,9 +246,29 @@ class MeshModExportDialog(QDialog):
             description=self.description.text().strip(),
         )
 
+    def hair_export_choice(self) -> str:
+        return str(self.manager.currentData()[0])
+
+    def target_stem(self) -> str:
+        return self.hair_stem.text().strip() if self._hair_mode else ""
+
+    def custom_icon(self) -> Path | None:
+        if not self._hair_mode:
+            return None
+        text = self.custom_icon_path.text().strip()
+        return Path(text) if text else None
+
+    def send_to_dmm_enabled(self) -> bool:
+        return bool(self._hair_mode and self.send_to_dmm.isChecked() and self._dmm_mods_dir is not None)
+
+    def dmm_mods_dir(self) -> Path | None:
+        return self._dmm_mods_dir
+
     def output_path(self) -> Path:
-        suffix = self.manager.currentData()[3]
         folder = sanitize_mod_package_folder_name(self.mod_name.text().strip())
+        if self.send_to_dmm_enabled() and self._dmm_mods_dir is not None:
+            return self._dmm_mods_dir / folder
+        suffix = self.manager.currentData()[3]
         return Path(self.output_parent.text().strip()) / f"{folder}-{suffix}"
 
     def kept_layers(self) -> tuple[str, ...]:
@@ -167,6 +276,32 @@ class MeshModExportDialog(QDialog):
             return ()
         return tuple(self.layers.item(row).data(Qt.ItemDataRole.UserRole) for row in range(self.layers.count())
                      if self.layers.item(row).checkState() == Qt.CheckState.Checked)
+
+    def _mark_stem_edited(self) -> None:
+        self._stem_manually_edited = True
+
+    def _sync_stem_from_name(self) -> None:
+        if not self._hair_mode or self._stem_manually_edited or self.hair_export_choice() == "hair_replace_loose":
+            return
+        if not self._hair_character:
+            return
+        from cdmw.domain.hair_registration import HairRegistrationError, hair_stem_from_style_name
+        try:
+            self.hair_stem.setText(
+                hair_stem_from_style_name(self.mod_name.text(), self._hair_character, self._initial_hair_stem)
+            )
+        except (HairRegistrationError, ValueError):
+            pass
+
+    def _refresh_hair_fields(self) -> None:
+        if not self._hair_mode:
+            return
+        adding = self.hair_export_choice() != "hair_replace_loose"
+        self._hair_stem_label.setVisible(adding)
+        self.hair_stem.setVisible(adding)
+        self._custom_icon_label.setVisible(adding)
+        self._custom_icon_row.setVisible(adding)
+        self.custom_icon_path.setVisible(adding)
 
     def _show_texture_plan(self, include_body: bool) -> None:
         lines = self._texture_plans[1 if include_body else 0]
@@ -185,10 +320,38 @@ class MeshModExportDialog(QDialog):
         if folder:
             self.output_parent.setText(folder)
 
+    def _browse_icon(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose Custom Barber Icon", self.custom_icon_path.text(),
+            "Images & DDS (*.png *.jpg *.jpeg *.webp *.bmp *.dds)",
+        )
+        if path:
+            self.custom_icon_path.setText(path)
+
     def _refresh_destination(self) -> None:
+        send_direct = self.send_to_dmm_enabled()
+        self.output_parent.setEnabled(not send_direct)
+        self.output_browse.setEnabled(not send_direct)
+        self.create_zip.setEnabled(not send_direct)
         folder = self.output_parent.text().strip()
         layers = getattr(self, "keep_layers", None)
-        valid = bool(self.mod_name.text().strip() and folder and Path(folder).is_absolute()
-                     and (layers is None or not layers.isChecked() or self.kept_layers()))
+        valid = bool(
+            self.mod_name.text().strip()
+            and (send_direct or (folder and Path(folder).is_absolute()))
+            and (layers is None or not layers.isChecked() or self.kept_layers())
+        )
+        error_text = ""
+        if valid and self._hair_mode and self.hair_export_choice() != "hair_replace_loose":
+            from cdmw.domain.hair_registration import HairRegistrationError, validate_hair_stem
+            try:
+                validate_hair_stem(self.hair_stem.text().strip())
+            except HairRegistrationError as exc:
+                valid = False
+                error_text = str(exc)
+            if valid:
+                icon_text = self.custom_icon_path.text().strip()
+                if icon_text and not Path(icon_text).is_file():
+                    valid = False
+                    error_text = "Choose an existing image or DDS file for the custom barber icon."
         self.build_button.setEnabled(valid)
-        self.destination.setText(str(self.output_path()) if valid else "")
+        self.destination.setText(error_text if error_text else (str(self.output_path()) if valid else ""))

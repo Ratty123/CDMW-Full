@@ -58,12 +58,14 @@ class LiveTextureKeeper(QObject):
         self._saving = False
         self._again = False
         self._wait_tries = 0
+        self._generation = 0
         #: Role and game path of edits restored from the draft, until their texture is opened.
         self.restored_info: dict[str, tuple[str, str]] = {}
 
     def forget(self) -> None:
         """A new session starts (live_texture_reset): nothing pending is kept for the last one."""
 
+        self._generation += 1
         self._timer.stop()
         self._again = False
         self._wait_tries = 0
@@ -106,12 +108,13 @@ class LiveTextureKeeper(QObject):
         if self._saving:
             self._again = True
             return
+        from PySide6.QtGui import QImage
         from cdmw.services.mesh_live_texture_drafts import LiveDraftEdit
         from cdmw.ui.mesh_editor.live_texture_updates import image_rgba8
 
         import numpy as np
 
-        edits, forget, counts = [], [], {}
+        pending_snapshots, forget, counts = [], [], {}
         for key, (count, image) in due.items():
             source = self._live.sources.get(key)
             role, game_path = (getattr(source, "role", ""), getattr(source, "game_path", "")) if source is not None \
@@ -122,15 +125,13 @@ class LiveTextureKeeper(QObject):
             if image is None:
                 forget.append((key, role))
                 continue
-            width, height, data = image_rgba8(image)
             original = getattr(source, "original", None)
-            edits.append(LiveDraftEdit(
-                live_key=key, role=role, game_path=game_path,
-                rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
-                original_format=str(getattr(original, "dds_format", "") or "")))
+            # Share QImage storage implicitly here and convert/copy pixels off the UI thread.
+            pending_snapshots.append((key, role, game_path, QImage(image), str(getattr(original, "dds_format", "") or "")))
         if not counts:
             return
         self._saving = True
+        generation = self._generation
         signals = self._signals
 
         def work() -> None:
@@ -138,10 +139,21 @@ class LiveTextureKeeper(QObject):
 
             error = ""
             try:
+                edits = []
+                for live_key, role, game_path, qimage, original_format in pending_snapshots:
+                    width, height, data = image_rgba8(qimage)
+                    edits.append(LiveDraftEdit(
+                        live_key=live_key, role=role, game_path=game_path,
+                        rgba=np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).copy(),
+                        original_format=original_format))
+                if generation != self._generation:
+                    return
                 save_live_edits(root, edits)
                 forget_live_edits(root, forget)
             except OSError as exc:
                 error = str(exc)
+            if generation != self._generation:
+                return
             try:
                 signals.saved.emit(root, counts, error)
             except RuntimeError:

@@ -1081,7 +1081,23 @@ class EditPanelMixin:
         drag to end (`_settle_after_drag`), or for the pointer to rest, then refresh once.
         """
 
-        self._rebuild_session_from_edits()
+        session = self._session
+        updated = False
+        if session is not None and self._edits is not None and self._selected_socket:
+            path = self._socket_file_of(self._selected_socket)
+            if path:
+                sock = self._edits.socket(path, self._selected_socket)
+                if sock is not None:
+                    updated = session.update_socket_transform(
+                        path,
+                        self._selected_socket,
+                        translation=sock.translation,
+                        rotation=sock.rotation,
+                    )
+                    if updated:
+                        self._bindings = session.bindings()
+        if not updated:
+            self._rebuild_session_from_edits()
         self._refresh_scene()
         self._refresh_edit_panel()
         self._update_gizmo_anchor()

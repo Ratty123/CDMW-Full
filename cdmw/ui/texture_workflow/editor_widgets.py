@@ -6,7 +6,7 @@ import math
 from typing import Optional, Sequence, Tuple
 
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 from cdmw.ui.localization import translate_active_ui_text
@@ -62,8 +62,12 @@ class TextureEditorNavigator(QWidget):
         self._image: Optional[QImage] = None
         self._image_width = 0
         self._image_height = 0
+        self._image_revision = 0
         self._viewport_rect: Optional[Tuple[float, float, float, float]] = None
         self._dragging = False
+        self._last_state_key: Optional[tuple] = None
+        self._scaled_pixmap: Optional[QPixmap] = None
+        self._scaled_pixmap_key: Optional[tuple] = None
         self.setMinimumSize(170, 120)
         self.setMaximumHeight(180)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -75,12 +79,48 @@ class TextureEditorNavigator(QWidget):
         image_width: int,
         image_height: int,
         viewport_rect: Optional[Tuple[float, float, float, float]],
+        image_revision: int = 0,
     ) -> None:
+        next_width = max(0, int(image_width))
+        next_height = max(0, int(image_height))
+        next_revision = int(image_revision)
+        cache_key = image.cacheKey() if image is not None else 0
+        state_key = (id(image) if image is not None else 0, cache_key, next_revision, next_width, next_height, viewport_rect)
+        if self._last_state_key == state_key:
+            return
+        self._last_state_key = state_key
+        if image is None or cache_key != (self._scaled_pixmap_key[1] if self._scaled_pixmap_key else 0) or next_revision != self._image_revision:
+            self._scaled_pixmap = None
+            self._scaled_pixmap_key = None
         self._image = image
-        self._image_width = max(0, int(image_width))
-        self._image_height = max(0, int(image_height))
+        self._image_width = next_width
+        self._image_height = next_height
+        self._image_revision = next_revision
         self._viewport_rect = viewport_rect
         self.update()
+
+    def _scaled_thumbnail_for(self, target: QRectF) -> Optional[QPixmap]:
+        image = self._image
+        if image is None or target.isEmpty():
+            return None
+        dpr = max(1.0, float(self.devicePixelRatioF()))
+        tw = max(1, int(round(target.width())))
+        th = max(1, int(round(target.height())))
+        key = (id(image), image.cacheKey(), self._image_revision, tw, th, dpr)
+        if self._scaled_pixmap is not None and self._scaled_pixmap_key == key:
+            return self._scaled_pixmap
+        pix = QPixmap(max(1, int(round(tw * dpr))), max(1, int(round(th * dpr))))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        pix_painter = QPainter(pix)
+        try:
+            pix_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            pix_painter.drawImage(QRectF(0.0, 0.0, float(tw), float(th)), image)
+        finally:
+            pix_painter.end()
+        self._scaled_pixmap = pix
+        self._scaled_pixmap_key = key
+        return pix
 
     def _target_rect(self) -> QRectF:
         if self._image_width <= 0 or self._image_height <= 0:
@@ -107,7 +147,11 @@ class TextureEditorNavigator(QWidget):
             painter.setBrush(QColor(255, 255, 255, 6))
             painter.drawRoundedRect(target, 6, 6)
             if self._image is not None:
-                painter.drawImage(target, self._image)
+                thumb = self._scaled_thumbnail_for(target)
+                if thumb is not None:
+                    painter.drawPixmap(target, thumb, QRectF(0.0, 0.0, float(thumb.width()), float(thumb.height())))
+                else:
+                    painter.drawImage(target, self._image)
             else:
                 painter.setPen(QColor("#8B97AA"))
                 painter.drawText(target.toRect(), Qt.AlignCenter, translate_active_ui_text("No preview"))

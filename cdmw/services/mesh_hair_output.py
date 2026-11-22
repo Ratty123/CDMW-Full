@@ -20,11 +20,15 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.dds_native import inspect_dds_native
 from cdmw.core.pappt_format import parse_pappt
 from cdmw.core.papgt_format import read_papgt_directories
-from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_texture
+from cdmw.core.pathc_format import (
+    dds_shape, encode_pathc, parse_pathc, register_dds, register_texture, with_stored_mip_sizes,
+)
 from cdmw.core.pbd_cloth import parse_pbd_config_materials
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.hair_registration import icon_donor_for, read_hair_choices
+from cdmw.domain.hair_registration import (
+    build_hair_choice_xml_patch, icon_donor_for, read_hair_choices, validate_hair_stem,
+)
 from cdmw.domain.mesh.hair import hair_state_from_payload
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
@@ -47,6 +51,8 @@ def apply_hair_physics_paint(data, snapshot):
     if hair is None:
         return data
     state = hair.payload
+    if state.get("converted"):
+        return data
     painted = {i: guide for i, guide in enumerate(state["guides"]) if guide.get("pinned")}
     if not painted:
         return data
@@ -132,15 +138,24 @@ def _preserved_hair_vertices(snapshot, state, required):
             continue
         original, part = donor.submeshes[targets[index]], snapshot.mesh.submeshes[index]
         sources = part.source_vertex_map
+        gen_lock_verts = {
+            v for lock in state.get("locks", ())
+            if lock["part"] == index and lock["kind"] == "generated"
+            for v in lock["vertices"]
+        }
+        is_hybrid = bool(gen_lock_verts) and any(i == -1 for i in sources)
         # Saved drafts retain record offsets/maps but may omit the PAC layout.
         # The parsed immutable donor owns the layout check, never draft geometry.
         if (original.source_vertex_stride != 40 or part.source_vertex_stride not in (0, 40)
-                or part.source_vertex_map_authority == SOURCE_VERTEX_MAP_TOPOLOGY
+                or (part.source_vertex_map_authority == SOURCE_VERTEX_MAP_TOPOLOGY and not is_hybrid)
                 or len(sources) != len(part.vertices)
-                or any(type(i) is not int or not 0 <= i < len(original.vertices) for i in sources)
-                or len(set(sources)) != len(sources)
+                or any(type(i) is not int or (not (is_hybrid and i == -1) and not 0 <= i < len(original.vertices)) for i in sources)
+                or (is_hybrid and not {v for v, i in enumerate(sources) if i == -1}.issubset(gen_lock_verts))
+                or len([i for i in sources if i >= 0]) != len({i for i in sources if i >= 0})
                 or (part.source_descriptor_offset >= 0 and part.source_descriptor_offset != original.source_descriptor_offset)
                 or (str(index) in state["vertex_sources"] and state["vertex_sources"][str(index)] != sources)):
+            continue
+        if is_hybrid and state["vertex_sources"].get(str(index)) != sources:
             continue
         # A cut may remove original triangles; it cannot invent connections.
         original_faces = set(original.faces)
@@ -149,13 +164,18 @@ def _preserved_hair_vertices(snapshot, state, required):
             if any(type(v) is not int or not 0 <= v < len(sources) for v in face):
                 invalid.update(vertices)
                 break
-            if tuple(sources[v] for v in face) not in original_faces:
+            mapped = tuple(sources[v] for v in face)
+            if is_hybrid and all(m == -1 for m in mapped):
+                continue
+            if any(m < 0 for m in mapped) or mapped not in original_faces:
                 invalid.update(face)
         retained = set()
         for vertex in vertices - invalid:
             if not 0 <= vertex < len(sources):
                 continue
             source = sources[vertex]
+            if source < 0:
+                continue
             unchanged = True
             for channel in ("vertices", "normals", "uvs", "bone_indices", "bone_weights", "source_vertex_offsets"):
                 before, after = getattr(original, channel), getattr(part, channel)
@@ -178,7 +198,7 @@ def _preserved_hair_vertices(snapshot, state, required):
 
 def validate_hair_output(snapshot):
     state = hair_state_from_payload(snapshot.hair_state.payload, allow_unbound=False).payload
-    if not state["groups"] or (not state["guides"] and not any(g["mode"] == "existing" for g in state["groups"])):
+    if not state["groups"] or (not state["converted"] and not state["guides"] and not any(g["mode"] == "existing" for g in state["groups"])):
         raise ValueError("Create and bind hair guides before building a hairstyle.")
     if snapshot.replacement_state is None:
         raise ValueError("Hair output has lost its donor and material mapping.")
@@ -191,7 +211,7 @@ def validate_hair_output(snapshot):
     active.update(lock["part"] for lock in state.get("locks", []) if lock["vertices"])
     active.update(group["part"] for group in state["groups"]
                   if group["mode"] == "existing" and group["part"] not in state["prepared_parts"])
-    if not included.intersection(active):
+    if not (included if state["converted"] else included.intersection(active)):
         raise ValueError("No authored hair section is included in the hairstyle.")
     if not state["converted"]:
         bound = {}
@@ -230,11 +250,76 @@ def validate_hair_output(snapshot):
     return state
 
 
-def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes, reference_tables=()):
+def encode_hair_icon_dds(source_path: Path | str, donor_icon_dds: bytes, stop_event=None) -> bytes:
+    """Convert a custom image or DDS into a barber icon matching the donor DDS shape and mip count."""
+    from PIL import Image
+    from cdmw.core.texture_native import decode_dds_preview_with_directxtex, encode_dds_with_directxtex
+
+    source = Path(source_path)
+    if not source.is_file() or not 1 <= source.stat().st_size <= 64 * 1024 * 1024:
+        raise ValueError("Choose an existing image or DDS file smaller than 64 MiB for the barber icon.")
+    donor_info = inspect_dds_native(donor_icon_dds)
+    if donor_info.reason or not donor_info.mip_levels or not donor_info.format_name:
+        raise ValueError("The donor barber icon DDS format could not be inspected.")
+    width, height = int(donor_info.width), int(donor_info.height)
+    mip_count = max(1, len(donor_info.mip_levels))
+    suffix = source.suffix.lower()
+    if suffix == ".dds":
+        raw = source.read_bytes()
+        src_info = inspect_dds_native(raw)
+        if src_info.reason or not src_info.mip_levels:
+            raise ValueError(f"Invalid custom icon DDS: {src_info.reason or source.name}")
+        if dds_shape(raw) == dds_shape(donor_icon_dds):
+            return with_stored_mip_sizes(raw)
+    elif suffix not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+        raise ValueError("Choose a PNG, JPG, WEBP, BMP, or DDS file for the custom barber icon.")
+
+    with tempfile.TemporaryDirectory(prefix="cdmw-hair-icon-") as directory:
+        root = Path(directory)
+        png_path = root / "icon_rgba.png"
+        if suffix == ".dds":
+            raw_png = root / "decoded.png"
+            raise_if_cancelled(stop_event, "Hair icon encoding cancelled.")
+            if not decode_dds_preview_with_directxtex(source, raw_png, max_dimension=0,
+                                                      requested_mip=0, stop_event=stop_event):
+                raise ValueError("The native DDS decoder could not read the custom barber icon DDS.")
+            source_image_path = raw_png
+        else:
+            source_image_path = source
+        with Image.open(source_image_path) as image:
+            rgba = image.convert("RGBA")
+            if rgba.size != (width, height):
+                rgba = rgba.resize((width, height), Image.Resampling.LANCZOS)
+            rgba.save(png_path, format="PNG")
+        raise_if_cancelled(stop_event, "Hair icon encoding cancelled.")
+        out_dds = root / "icon.dds"
+        if not encode_dds_with_directxtex(
+            png_path, out_dds, dds_format=donor_info.format_name,
+            width=width, height=height, mip_count=mip_count, stop_event=stop_event,
+        ):
+            raise ValueError("The native DDS encoder could not encode the custom barber icon.")
+        encoded = out_dds.read_bytes()
+    encoded_info = inspect_dds_native(encoded)
+    if (
+        not encoded_info.reason
+        and encoded_info.format_name == donor_info.format_name
+        and [m.byte_count for m in encoded_info.mip_levels] == [m.byte_count for m in donor_info.mip_levels]
+    ):
+        encoded = bytes(donor_icon_dds[:donor_info.data_offset]) + bytes(encoded[encoded_info.data_offset:])
+    inspect_dds_native(encoded)
+    if dds_shape(encoded) != dds_shape(donor_icon_dds):
+        raise ValueError("Encoded custom barber icon does not match the donor icon layout.")
+    return with_stored_mip_sizes(encoded)
+
+
+def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes, reference_tables=(), *,
+                          target_stem_override: str = "", custom_icon_dds: bytes | None = None):
     """Immutable geometry/material/registration plan; suitable for fixture tests."""
     from cdmw.modding.mesh_parser import parse_mesh
     state = validate_hair_output(snapshot)
-    template = state["template"]
+    template = dict(state["template"])
+    new_stem = str(target_stem_override or "").strip() or template["target_stem"]
+    validate_hair_stem(new_stem)
     from cdmw.domain.hair_characters import hair_character
     profile = hair_character(template["character"])
     donor_stem = PurePosixPath(template["path"].replace("\\", "/")).stem.lower()
@@ -244,7 +329,7 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
     choice = next((choice for choice in choices if choice.usable and choice.prefab_stem == donor_stem), None)
     if choice is None:
         raise ValueError("The donor must be a current barber choice for this character.")
-    plan = prepare_hair_registration(files, new_stem=template["target_stem"],
+    plan = prepare_hair_registration(files, new_stem=new_stem,
                                      template_index=choice.index, existing_paths=existing_paths,
                                      character=profile.name)
     donor_path = template["path"].replace("\\", "/").casefold()
@@ -280,13 +365,21 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
         if data is None:
             raise ValueError(f"Missing required hair texture: {path}")
         inspect_dds_native(data)
-        new_path = str(PurePosixPath(key).with_name(f'{template["target_stem"]}_texture_{index:02d}.dds'))
+        new_path = str(PurePosixPath(key).with_name(f"{new_stem}_texture_{index:02d}.dds"))
         if new_path in existing_paths:
             raise ValueError(f"Hair texture identity already exists: {new_path}")
-        registry = register_texture(registry, new_path, like=key, dds_header=data, reference_tables=reference_tables)
+        donor_bytes = files.get(key)
+        registered_in_game = (registry.find(key) is not None) or any(
+            other.find(key) is not None for other in reference_tables
+        )
+        if registered_in_game and donor_bytes is not None and dds_shape(data) == dds_shape(donor_bytes):
+            registry = register_texture(registry, new_path, like=key, dds_header=data, reference_tables=reference_tables)
+            texture_donors[new_path] = key
+        else:
+            registry = register_dds(registry, new_path, data)
+            texture_donors[new_path] = None
         material = material.replace(path.encode("utf-8"), new_path.encode("utf-8"))
         material_additions.append(HairRegistrationFile(new_path, data))
-        texture_donors[new_path] = key
     if overrides.keys() - allowed_overrides:
         raise ValueError("Hair export contains an unregistered companion dependency.")
     if snapshot.texture_resources:
@@ -295,10 +388,18 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
     _, rewritten = material_texture_paths(material)
     if set(rewritten) != set(texture_donors):
         raise ValueError("Hair material texture references were not rewritten completely.")
-    additions = tuple(replace(item, data=rebuilt.data if item.path.endswith(".pac") else material)
-                      if item.path.endswith((".pac", ".pac_xml")) else item for item in plan.additions)
-    icon = next(item for item in additions if item.path.endswith(".dds"))
     icon_donor = plan.icon_donor
+    if custom_icon_dds is not None:
+        inspect_dds_native(custom_icon_dds)
+        if dds_shape(custom_icon_dds) != dds_shape(files[icon_donor]):
+            raise ValueError("Custom barber icon DDS format does not match this character's barber icons.")
+    additions = tuple(
+        replace(item, data=rebuilt.data if item.path.endswith(".pac")
+                else material if item.path.endswith(".pac_xml")
+                else (custom_icon_dds if (custom_icon_dds is not None and item.path.endswith(".dds")) else item.data))
+        for item in plan.additions
+    )
+    icon = next(item for item in additions if item.path.endswith(".dds"))
     registry = register_texture(registry, icon.path, like=icon_donor, dds_header=icon.data,
                                 reference_tables=reference_tables)
     encoded = encode_pathc(registry)
@@ -309,9 +410,95 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes,
     return plan, encoded, texture_donors
 
 
-def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None):
+_PLAIN_DDS_FLAGS = 0x201
+
+
+def _normalize_hair_dds_for_dmm(data: bytes, template_entry, *, overridden: bool = False) -> tuple[bytes, int]:
+    """Ensure private/edited hair DDS copies store real mip sizes and plain archive flags.
+
+    Partially compressed game textures (flags ``0x1701``, ``compression_type == 1``)
+    carry compressed mip sizes in ``dwReserved1``; once expanded for a private copy,
+    leaving stale sizes or partial flags causes DMM/game noise. Uncompressed
+    ``compression_type == 0`` textures (such as tiny ``0x1700`` maps) stay untouched
+    unless replaced.
+    """
+    flags = int(template_entry.flags)
+    payload = bytes(data)
+    if payload[:4] == b"DDS " and (int(template_entry.compression_type) == 1 or overridden):
+        from cdmw.core.pathc_format import PathcError, with_stored_mip_sizes
+
+        if bool(getattr(template_entry, "compressed", False)) or overridden:
+            try:
+                payload = with_stored_mip_sizes(payload)
+            except PathcError:
+                pass
+            flags = _PLAIN_DDS_FLAGS
+        else:
+            # Already stored whole; update dwReserved1 only if already non-zero and stale.
+            if payload[32:48] != bytes(16):
+                try:
+                    fixed = with_stored_mip_sizes(payload)
+                    if fixed != payload:
+                        payload = fixed
+                        flags = _PLAIN_DDS_FLAGS
+                except PathcError:
+                    pass
+    return payload, flags
+
+
+def _apply_dmm_mounted_hair_sources(root: Path, entry, files: dict[str, bytes], tracker, *,
+                                    donor_path: str, donor_stem: str, profile,
+                                    original_data: bytes) -> None:
+    """Resolve DMM-mounted hair assets when the session opened a DMM-served donor."""
+    from cdmw.services.dmm_runtime_mount import (
+        DmmManifestError, KEEP_GAME_EXTENSIONS, is_dmm_note, read_runtime_mount,
+    )
+
+    note = getattr(entry, "prepared_note", "")
+    vanilla_donor = files.get(donor_path)
+    if not is_dmm_note(note) and vanilla_donor == original_data:
+        return
+    try:
+        mount = read_runtime_mount(root)
+    except (OSError, DmmManifestError):
+        mount = None
+    if mount is None or not mount.serving:
+        return
+
+    def read_mounted(path: str) -> bytes | None:
+        key = str(path or "").replace("\\", "/").casefold()
+        if PurePosixPath(key).suffix in KEEP_GAME_EXTENSIONS:
+            return None
+        served = mount.files.get(key)
+        if served is None or not served.source.is_file():
+            return None
+        tracker.pin_file(served.source)
+        return served.source.read_bytes()
+
+    mounted_donor = read_mounted(donor_path)
+    if mounted_donor is not None and (is_dmm_note(note) or mounted_donor == original_data):
+        files[donor_path] = mounted_donor
+    material_path = donor_path.replace("character/model/", "character/modelproperty/", 1) + "_xml"
+    mounted_material = read_mounted(material_path)
+    if mounted_material is not None:
+        files[material_path] = mounted_material
+        _, textures = material_texture_paths(mounted_material)
+        for tex in textures:
+            tex_key = tex.replace("\\", "/").casefold()
+            mounted_tex = read_mounted(tex_key)
+            if mounted_tex is not None:
+                files[tex_key] = mounted_tex
+
+
+def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None,
+                        package_info=None, create_zip: bool = False,
+                        use_dmm_additive_tables: bool = True,
+                        target_stem_override: str = "",
+                        custom_icon_path: Path | str | None = None):
     """Build and reparse a complete DMM package outside the installed game."""
     from cdmw.domain.archives.filters import archive_entry_game_root
+    from cdmw.services.mesh_mod_publish import publish_mesh_mod_output
+
     root = archive_entry_game_root(entry)
     output = Path(output).resolve()
     if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
@@ -320,7 +507,14 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     from cdmw.domain.hair_characters import hair_character
     profile = hair_character(state["template"]["character"])
     donor_path = state["template"]["path"].replace("\\", "/").casefold()
-    new_stem = state["template"]["target_stem"]
+    new_stem = str(target_stem_override or "").strip() or state["template"]["target_stem"]
+    validate_hair_stem(new_stem)
+    if custom_icon_path is not None and str(custom_icon_path).strip():
+        icon_source = Path(custom_icon_path)
+        if not icon_source.is_file():
+            raise ValueError(f"Custom barber icon not found: {icon_source}")
+    else:
+        icon_source = None
     tracker = SourceTracker(lambda item: read_archive_entry_data(item, stop_event)[0])
     for name in ("0.papgt", "0.pathc", "0.paver"):
         tracker.pin_file(root / "meta" / name)
@@ -377,15 +571,22 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     read(donor_path)
     physics_path = donor_path.replace("character/model/", "character/bin__/meshphysics/", 1)[:-4] + ".hkx"
     read(physics_path)
-    read(icon_donor_for(choices, choice.index))
+    icon_donor_path = icon_donor_for(choices, choice.index)
+    donor_icon_bytes = read(icon_donor_path)
     material_path = donor_path.replace("character/model/", "character/modelproperty/", 1) + "_xml"
     _, textures = material_texture_paths(read(material_path))
     for path in textures:
         read(path)
+    _apply_dmm_mounted_hair_sources(
+        root, entry, files, tracker,
+        donor_path=donor_path, donor_stem=donor_stem, profile=profile,
+        original_data=snapshot.original_data,
+    )
     config = parse_pbd_config_materials(read(PBD_CONFIG).decode("utf-8-sig"))
     if "hair" not in config:
         raise ValueError("The donor game Hair physics profile is missing.")
     read("character/descriptors/pbd/" + config["hair"].filename.replace("\\", "/"))
+    custom_icon_dds = encode_hair_icon_dds(icon_source, donor_icon_bytes, stop_event=stop_event) if icon_source else None
     pathc_bytes = (root / "meta/0.pathc").read_bytes()
     # A DLC registers its own copies of base textures; donors it replaces take that registration.
     dlc_registries = []
@@ -393,52 +594,131 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         if (layer / "meta/0.pathc").is_file():
             tracker.pin_file(layer / "meta/0.pathc")
             dlc_registries.append(parse_pathc((layer / "meta/0.pathc").read_bytes()))
-    plan, pathc, texture_donors = prepare_authored_hair(snapshot, rebuilt, files, entries, pathc_bytes,
-                                                        reference_tables=tuple(dlc_registries))
+    plan, pathc, texture_donors = prepare_authored_hair(
+        snapshot, rebuilt, files, entries, pathc_bytes, reference_tables=tuple(dlc_registries),
+        target_stem_override=new_stem, custom_icon_dds=custom_icon_dds,
+    )
     revision = tracker.capture()
     revision.validate(stop_event)
     plan.check_sources(files)
-    patches = tuple(ArchivePatchRequest(entries[item.path], item.data) for item in plan.replacements)
-    additions = tuple(ArchiveAddRequest.from_template(entries[texture_donors.get(item.path,
-                     item.path.replace(new_stem, donor_stem))], item.path, item.data) for item in plan.additions)
+    overrides = {file.path.casefold(): file.data for file in rebuilt.companion_files}
+
+    default_title = f"{profile.name} - {state['style_name']}"
+    default_description = "An additional authored hairstyle. In-game selection, save/load and motion checks are pending."
+    title = (str(getattr(package_info, "title", "") or "").strip() or default_title)
+    version = (str(getattr(package_info, "version", "") or "").strip() or "1.0")
+    author = str(getattr(package_info, "author", "") or "").strip()
+    description = (str(getattr(package_info, "description", "") or "").strip() or default_description)
+
+    xml_patch_bytes = None
+    pappt_targets = ()
+    if use_dmm_additive_tables:
+        from cdmw.services.dmm_part_table import part_operations
+        replacement_map = {item.path: item.data for item in plan.replacements}
+        pappt_payload = replacement_map[PART_PREFAB_TABLE]
+        mesh_param_payload = replacement_map[profile.mesh_param_path]
+        xml_patch_bytes = build_hair_choice_xml_patch(files[profile.mesh_param_path], mesh_param_payload)
+        part_input = {PART_PREFAB_TABLE: pappt_payload, **{item.path: item.data for item in plan.additions}}
+        _remaining, pappt_targets = part_operations(part_input, lambda p: files.get(str(p or "").replace("\\", "/").casefold()))
+        if not pappt_targets:
+            raise ValueError("Additive DMM registration produced no partprefabtable operations.")
+        archive_replacements = tuple(
+            item for item in plan.replacements if item.path not in {PART_PREFAB_TABLE, profile.mesh_param_path}
+        )
+    else:
+        archive_replacements = plan.replacements
+
+    patches = tuple(ArchivePatchRequest(entries[item.path], item.data) for item in archive_replacements)
+    normalized_additions = []
+    wanted = {item.path: item.data for item in archive_replacements}
+    for item in plan.additions:
+        if item.path in texture_donors:
+            template_key = texture_donors[item.path]
+        else:
+            template_key = item.path.replace(new_stem, donor_stem)
+        if template_key is None:
+            payload_data = item.data
+            flags = _PLAIN_DDS_FLAGS
+            if item.path.casefold().endswith(".dds"):
+                payload_data = with_stored_mip_sizes(payload_data)
+            req = ArchiveAddRequest(Path(), item.path, payload_data, flags)
+        else:
+            template_entry = entries.get(template_key)
+            if template_entry is None:
+                raise ValueError(f"Missing template archive metadata for {item.path}")
+            payload_data = item.data
+            flags = int(template_entry.flags)
+            if item.path.casefold().endswith(".dds"):
+                was_overridden = (template_key in overrides) or (
+                    custom_icon_dds is not None and template_key == plan.icon_donor.casefold()
+                )
+                payload_data, flags = _normalize_hair_dds_for_dmm(payload_data, template_entry, overridden=was_overridden)
+            req = ArchiveAddRequest.from_template(template_entry, item.path, payload_data)
+            req.flags = flags
+        normalized_additions.append(req)
+        wanted[item.path] = payload_data
+    additions = tuple(normalized_additions)
     output.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}-hair-", dir=output.parent))
     try:
         shared = export_archive_overlay_package(patches, additions, package_root=stage, game_root=root,
             metadata_files=(("meta/0.pathc", pathc),), for_dmm=True, stop_event=stop_event, on_log=on_log)
-        wanted = {item.path: item.data for item in (*plan.replacements, *plan.additions)}
         packaged = parse_archive_pamt(stage / shared.group / "0.pamt")
         if len(packaged) != len(wanted):
             raise ValueError("The hair archive contains an incomplete or duplicate bundle.")
         for item in packaged:
             if read_archive_entry_data(item, stop_event)[0] != wanted[item.path]:
                 raise ValueError(f"Hair package payload failed reparsing: {item.path}")
-        title = f"{profile.name} - {state['style_name']}"
-        description = "An additional authored hairstyle. In-game selection, save/load and motion checks are pending."
-        manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod", "name": title,
-            "title": title, "game": "Crimson Desert", "target_game": shared.target_game, "version": "1.0",
-            "description": description, "files_dir": ".", "manager_targets": ["dmm"],
+        patch_rel = profile.mesh_param_path + ".patch"
+        if use_dmm_additive_tables:
+            from cdmw.services.dmm_send import write_operations
+            write_operations(stage, title, pappt_targets)
+            patch_target = stage / patch_rel
+            patch_target.parent.mkdir(parents=True, exist_ok=True)
+            patch_target.write_bytes(xml_patch_bytes)
+        manifest = {
+            "format": "v1", "schema_version": 1, "kind": "archive_override_mod",
+            "name": title, "title": title, "game": "Crimson Desert",
+            "target_game": shared.target_game, "version": version,
+            "author": author, "description": description,
+            "generator": "Crimson Desert Mod Workbench",
+            "table_mode": "dmm_additive" if use_dmm_additive_tables else "full_tables",
+            "files_dir": ".", "manager_targets": ["dmm"],
             "structure": "archive_group", "archive_group": shared.group,
-            "file_count": shared.file_count, "overrides": list(shared.paths)}
+            "file_count": shared.file_count, "overrides": list(shared.paths),
+        }
+        if use_dmm_additive_tables:
+            manifest["xml_patch"] = patch_rel
         (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        (stage / "modinfo.json").write_text(json.dumps({"name": title, "version": "1.0", "description": description}), encoding="utf-8")
         evidence = {"format": "cdmw_hair_output_v1", "runtime_verified": False,
+            "table_mode": manifest["table_mode"],
+            "target_stem": new_stem,
             "choice_index": plan.choice_index, "hair_revision": state["revision"], "donor": state["template"],
             "source_revision": revision.manifest(), "roundtrip_files": len(wanted),
             "files": {path: hashlib.sha256(data).hexdigest() for path, data in wanted.items()}}
         (stage / "hair-authoring.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-        (stage / "README.txt").write_text(
-            f"{title}\n\nAdds barber choice {plan.choice_index + 1}; existing choices are retained.\n"
-            "Import this complete folder with DMM. Game acceptance is pending: test selection, save/load, "
-            "head movement, running, headgear and LODs on a test save.\n"
-            "DMM registers the included textures. This package includes shared selection tables; rebuild against the current mounted "
-            "catalogue when combining hairstyle mods. Source archives were only read.\n", encoding="utf-8")
         revision.validate(stop_event)
         if (root / "meta/0.pathc").read_bytes() != pathc_bytes or (root / "meta/0.papgt").read_bytes() != mount_bytes:
             raise ValueError("The game registries changed while building hair.")
         raise_if_cancelled(stop_event, "Hair package cancelled before publication.")
-        os.rename(stage, output)
+        publish_mesh_mod_output(stage, output, manager_profile="dmm", create_zip=bool(create_zip), stop_event=stop_event)
         return output
     finally:
         if stage.exists():
             shutil.rmtree(stage)
+
+
+def export_hair_to_dmm(mods_dir: Path | str, title: str, build_staged, *, stop_event=None) -> tuple[Path, bool]:
+    """Build a hair mod outside DMM's mods folder and atomically publish/replace it inside."""
+    from cdmw.services import dmm_send
+
+    mods = Path(mods_dir)
+    folder, replaced = dmm_send.destination(mods, title)
+    staging_parent = mods.parent if mods.parent != mods else Path(tempfile.gettempdir())
+    with tempfile.TemporaryDirectory(prefix=".cdmw-hair-send-", dir=staging_parent) as staging:
+        staged = Path(staging) / folder.name
+        build_staged(staged)
+        raise_if_cancelled(stop_event, "Send to DMM cancelled.")
+        dmm_send.destination(mods, title)
+        dmm_send._publish(staged, folder, Path(staging))
+    return folder, replaced

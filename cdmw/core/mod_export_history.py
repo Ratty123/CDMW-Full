@@ -31,7 +31,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 
 HISTORY_FILES = ("new-item.json", "cdmw-compatibility.json", "cdmw-baseline.zip")
-_AUTHORING_FILES = (*HISTORY_FILES, "mesh-editor-session.json")
+_AUTHORING_FILES = (*HISTORY_FILES, "mesh-editor-session.json", "hair-authoring.json")
 _PACKAGE_METADATA = {*_AUTHORING_FILES, "README.txt", "meta/0.papgt"}
 #: Beside the records in a history folder: the payloads they were filed for.
 _PAYLOAD_LIST = "payloads.json"

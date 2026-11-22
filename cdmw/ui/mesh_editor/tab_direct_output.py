@@ -144,31 +144,87 @@ class MeshEditorDirectOutputMixin:
         revision = self.standalone_export_validation_revision
         hair = controller.mesh_service._session(controller.active_session_id).hair_state
         if hair is not None:
-            # A hairstyle goes to DMM as an archive-group package folder; nothing is
-            # mounted into the game, so it does not depend on archive overlays.
-            session_id = controller.active_session_id
-            revision = self.standalone_export_validation_revision
-            parent = _tab.QFileDialog.getExistingDirectory(self, "Build Additional Hairstyle — DMM Package",
-                str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""))
-            if parent:
-                current_target = self._current_target_entry()
-                if (
-                    self.standalone_controller is not controller
-                    or controller.active_session_id != session_id
-                    or current_target is None
-                    or current_target.identity != entry.identity
-                    or self.standalone_export_validation_revision != revision
-                    or not self._standalone_export_validation_ok()
-                ):
-                    self.status_message_requested.emit(
-                        "The hairstyle changed while choosing output. Validate it again before building.", True,
-                    )
-                    return
-                self.settings.setValue("mesh_editor/last_mod_output_dir", parent)
-                from cdmw.services.archive_extraction_service import find_available_output_path
+            hair_payload = hair.payload
+            template = hair_payload["template"]
+            character = str(template.get("character") or "Damiane")
+            style_name = str(hair_payload.get("style_name") or "Custom Hair")
+            stem = str(template.get("target_stem") or "")
+            from cdmw.services.dmm_send import DMM_FOLDER_SETTING, find_dmm
+            from cdmw.services.archive_extraction_service import find_available_output_path
 
-                output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
-                self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
+            dmm_install = find_dmm(str(self.settings.value(DMM_FOLDER_SETTING, "") or ""))
+            MeshModExportDialog = _mod_export_dialog_class()
+            dialog = MeshModExportDialog(
+                self,
+                title=f"{character} - {style_name}",
+                description=f"Hair Tools mod for {character}. Not tested in game.",
+                output_parent=str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""),
+                output_choice=str(self.settings.value("mesh_editor/last_hair_output_choice", "hair_add") or "hair_add"),
+                manager_profile="dmm",
+                hair_mode=True,
+                hair_stem=stem,
+                hair_character=character,
+                dmm_install=dmm_install,
+            )
+            try:
+                if dialog.exec() != dialog.DialogCode.Accepted:
+                    return
+                output_choice, kind, manager_profile, _suffix = dialog.manager.currentData()
+                package_info = dialog.package_info()
+                output_path = dialog.output_path()
+                create_zip = dialog.create_zip.isChecked()
+                open_folder = dialog.open_folder.isChecked()
+                hair_target_stem = dialog.target_stem()
+                hair_custom_icon = dialog.custom_icon()
+                send_to_dmm = dialog.send_to_dmm_enabled()
+                dmm_mods = dialog.dmm_mods_dir()
+            finally:
+                dialog.deleteLater()
+            current_target = self._current_target_entry()
+            if (
+                self.standalone_controller is not controller
+                or controller.active_session_id != session_id
+                or current_target is None
+                or current_target.identity != entry.identity
+                or self.standalone_export_validation_revision != revision
+                or not self._standalone_export_validation_ok()
+            ):
+                self.status_message_requested.emit(
+                    "The hairstyle changed while choosing output. Validate it again before building.", True,
+                )
+                return
+            self.settings.setValue("mesh_editor/last_hair_output_choice", output_choice)
+            if send_to_dmm and dmm_mods is not None:
+                output_root = output_path
+                send_to_dmm_mods = dmm_mods
+                create_zip = False
+            else:
+                self.settings.setValue("mesh_editor/last_mod_output_dir", str(output_path.parent))
+                output_root = find_available_output_path(output_path)
+                reserved = set()
+                while create_zip and output_root.with_name(output_root.name + ".zip").exists():
+                    reserved.add(str(output_root).lower())
+                    output_root = find_available_output_path(output_path, reserved)
+                send_to_dmm_mods = None
+            hair_export_mode = {
+                "hair_add": "add_additive",
+                "hair_add_full": "add_full",
+                "hair_replace_loose": "replace_loose",
+            }.get(output_choice, "add_additive")
+            self._start_mesh_direct_output_worker(
+                kind,
+                entry,
+                output_path=output_root,
+                manager_profile=manager_profile,
+                package_info=package_info,
+                create_zip=create_zip,
+                open_folder=open_folder,
+                saved_work_root=self.mesh_editor_draft_root,
+                hair_export_mode=hair_export_mode,
+                hair_target_stem=hair_target_stem,
+                hair_custom_icon_path=hair_custom_icon,
+                send_to_dmm_mods=send_to_dmm_mods,
+            )
             return
         bodies, named = self._mesh_mod_body_entries(controller, entry)
         texture_plan_with_body = self._live_texture_plan() if hasattr(self, "_live_texture_plan") else None
@@ -307,6 +363,10 @@ class MeshEditorDirectOutputMixin:
         keep_layers: tuple[str, ...] = (),
         texture_outputs: tuple = (),
         textures_only: bool = False,
+        hair_export_mode: str = "add_additive",
+        hair_target_stem: str = "",
+        hair_custom_icon_path: Path | None = None,
+        send_to_dmm_mods: Path | None = None,
     ) -> bool:
         controller = self.standalone_controller
         if controller is None or not controller.active_session_id:
@@ -318,6 +378,14 @@ class MeshEditorDirectOutputMixin:
         request_id = self.standalone_output_request_id
         extra = {"archive_dependency_sources": archive_dependency_sources,
                  "archive_material_sources": archive_material_sources} if kind == "archive_result" else {}
+        if hair_export_mode and hair_export_mode != "add_additive":
+            extra["hair_export_mode"] = str(hair_export_mode)
+        if hair_target_stem:
+            extra["hair_target_stem"] = str(hair_target_stem)
+        if hair_custom_icon_path is not None:
+            extra["hair_custom_icon_path"] = hair_custom_icon_path
+        if send_to_dmm_mods is not None:
+            extra["send_to_dmm_mods"] = send_to_dmm_mods
         if texture_outputs:
             from cdmw.app.app_folder import workspace_temp_folder
 

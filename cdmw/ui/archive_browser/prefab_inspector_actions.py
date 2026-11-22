@@ -93,24 +93,29 @@ class ArchivePrefabInspectorActionsMixin:
         the Inspector's own window and the one inside Speed & Prefabs share it.
         """
 
-        if not (getattr(self, "archive_entries_by_extension", None) or {}).get(".prefab"):
+        candidates = tuple((getattr(self, "archive_entries_by_extension", None) or {}).get(".prefab", ()))
+        if not candidates:
             return None
+        source_path = entry.path
 
-        def _find_users(path: str) -> tuple[str, ...]:
+        def _find_users(path: str, *, stop_event=None) -> tuple[str, ...]:
             """Which other prefabs reference ``path``.
 
             A plain substring test rejects almost every entry before anything is
             decoded, which is what makes this affordable.
             """
             found: list[str] = []
-            candidates = self.archive_entries_by_extension.get(".prefab", ())
             for candidate in candidates:
-                if candidate.path == entry.path:
+                if stop_event is not None and stop_event.is_set():
+                    break
+                if candidate.path == source_path:
                     continue
                 try:
                     payload, _decompressed, _note = read_archive_entry_data(candidate)
                 except Exception:  # noqa: BLE001 - one unreadable entry is not fatal
                     continue
+                if stop_event is not None and stop_event.is_set():
+                    break
                 if prefab_references(payload, path):
                     found.append(candidate.path)
             return tuple(found)

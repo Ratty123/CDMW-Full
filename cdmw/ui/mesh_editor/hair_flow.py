@@ -104,17 +104,20 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
     # Each read of .payload decodes the whole hairstyle, bindings included: read it once here.
     hair = active_hair.payload if active_hair else None
     hair_character_name = hair["template"]["character"] if hair else None
-    generated_only = bool(hair) and not hair["converted"] and all(g["mode"] == "generated" for g in hair["groups"])
+    create_session = bool(hair) and not hair["converted"] and any(g["mode"] == "generated" for g in hair["groups"])
+    session_keep_scalp_cap = create_session and any(g["mode"] == "existing" for g in hair["groups"])
     del hair
     if character is None:
         profile = unique_hair_character(current_target.path) if current_target is not None else None
         character = hair_character_name or (profile.name if profile else None)
     reuse_target = (hair_character_name, current_target.identity) if (
-        generated_only and current_target is not None) else None
+        create_session and current_target is not None) else None
+    reuse_scalp_cap = session_keep_scalp_cap if reuse_target is not None else None
     if not target_path and active_hair and current_target is not None:
         target_path = current_target.path
     dialog = HairSetupDialog(owner, character=character, mode=mode, preset=preset, target_path=target_path,
-                             reuse_target=reuse_target, draft_root=getattr(tab, "mesh_editor_draft_root", None))
+                             reuse_target=reuse_target, reuse_scalp_cap=reuse_scalp_cap,
+                             draft_root=getattr(tab, "mesh_editor_draft_root", None))
     tab._hair_setup_dialog = dialog
     def selected(result):
         if getattr(tab, "_hair_setup_dialog", None) is not dialog:
@@ -125,6 +128,10 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
             return
         target = dialog.selected_entry
         chosen_mode, chosen_preset = dialog.mode.currentData(), "empty"
+        choose_donor = getattr(dialog, "choose_donor_material", None)
+        keep_scalp = getattr(dialog, "keep_scalp_cap", None)
+        custom_donor = bool(choose_donor.isChecked()) if choose_donor is not None else False
+        keep_scalp_checked = bool(keep_scalp.isChecked()) if keep_scalp is not None else session_keep_scalp_cap
         live_target = getattr(tab, "_current_target_entry", lambda: None)()
         if dialog.prepared_result is None and getattr(tab, "standalone_rust_authoring_session", None) is not authoring:
             tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
@@ -132,7 +139,8 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
             return
         same = live_target is not None and live_target.identity == target.identity
         same_character = hair_character_name == dialog.context.character
-        if same and same_character and generated_only and chosen_mode == "generated":
+        if (same and same_character and create_session and chosen_mode == "generated"
+                and not custom_donor and keep_scalp_checked == session_keep_scalp_cap):
             if not tab._send_rust_message(tab._rust_host_message("hair_preset", request_id=0, extra={"preset": chosen_preset})):
                 tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
                 arm_hair_entry_status_auto_clear(tab)
@@ -157,6 +165,7 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
         document._pending_hair_preset = chosen_preset
         document._pending_hair_character = dialog.context.character
         document._pending_hair_context = dialog.context
+        document._pending_hair_keep_scalp_cap = keep_scalp_checked if chosen_mode == "generated" else False
         document.open_archive_session(target, archive_dependencies=dialog.selected_dependencies,
                                       prepared_result=dialog.prepared_result)
         dialog.prepared_result = None
@@ -228,6 +237,8 @@ def begin_hair_context(tab, session, event):
                 "_target_entry": target, "_target_dependencies": dependencies}
         args["start_preset"] = "empty"
         tab._pending_hair_preset = "empty"
+        if "keep_scalp_cap" not in args:
+            args["keep_scalp_cap"] = bool(getattr(tab, "_pending_hair_keep_scalp_cap", False))
         if context is not None:
             args.update(context.arguments())
         tab.standalone_rust_protocol_queue.insert(0, {**event, "arguments": args, "_hair_preparation_error": error})

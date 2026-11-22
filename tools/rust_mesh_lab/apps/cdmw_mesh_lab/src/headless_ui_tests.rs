@@ -3310,10 +3310,15 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
     })?;
     assert!(ui.application.selection_visible_only);
 
+    // Without textures the session drew Faces in place of Solid (Textured); once
+    // they are there it goes back to the mode that was asked for.
+    assert_eq!(ui.application.view_mode, ViewMode::Solid);
     ui.application.cdmw_textured_mode_available = true;
     ui.application.cdmw_textured_mode_reason.clear();
     ui.frame(Vec::new());
+    assert_eq!(ui.application.view_mode, ViewMode::TexturedSolid);
     for (current, next, expected) in [
+        ("Solid (Textured)", "Faces (No Textures)", ViewMode::Solid),
         ("Faces (No Textures)", "Faces + Wire", ViewMode::SolidWire),
         ("Faces + Wire", "Wire", ViewMode::Wireframe),
         ("Wire", "Vertices", ViewMode::Vertices),

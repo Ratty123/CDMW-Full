@@ -49,70 +49,76 @@ class PrefabRowsMixin:
         document = self._document
         if document is None:
             return
-        editable = self._can_edit()
-        self._add_recovered_rows(document)
-        # A root with only numbers (a gimmick's point list, say) still has rows.
-        if document.root_texts or document.root_resources or document.root_numbers:
-            root_item = QTreeWidgetItem(["This prefab", "Placement and sockets", ""])
-            self.tree.addTopLevelItem(root_item)
-            for name, item in document.root_values:
-                self._add_value_row(root_item, name, item.text, editable, item.offset)
-            self._add_number_rows(root_item, document.root_numbers)
-            self._add_fields_row(
-                root_item,
-                document.root_members,
-                document.root_values,
-                document.root_numbers,
-                self._collection_members(document.root_type),
-            )
-            root_item.setExpanded(True)
-        for obj in document.objects:
-            # A nested prefab instance has no name of its own; the prefab it
-            # instantiates is its identity, so lead with that rather than
-            # labelling every copy "(unnamed)".
-            nested = obj.component_type.startswith("/")
-            if nested:
-                label = obj.name or obj.component_type.rsplit("/", 1)[-1]
-                detail = "a copy of another prefab"
-            else:
-                label = obj.name or "(unnamed)"
-                detail = describe_component(obj.component_type) or obj.component_type
-            if obj.type_is_inferred:
-                # The file never said what this is. It decoded cleanly, which
-                # is not the same as being right, and the warning has to travel
-                # with the row -- a banner at the top does not tell you which
-                # of eight objects is the guess.
-                detail = f"{detail} - best guess, the file does not say what this is"
-            node = QTreeWidgetItem([label, detail, ""])
-            # Where this object's group starts, so "duplicate this one" can find
-            # the collection element behind the row. -1 on a walk that recovered
-            # the object without a span, and the menu checks for that.
-            node.setData(0, OBJECT_ROLE, getattr(obj, "offset", -1))
-            if obj.type_is_inferred:
-                node.setToolTip(
-                    1,
-                    "This object's kind was worked out from its position in the file, "
-                    "not read from it. The fields below may belong to something else.",
+        self.tree.setUpdatesEnabled(False)
+        try:
+            editable = self._can_edit()
+            self._add_recovered_rows(document)
+            # A root with only numbers (a gimmick's point list, say) still has rows.
+            if document.root_texts or document.root_resources or document.root_numbers:
+                root_item = QTreeWidgetItem(["This prefab", "Placement and sockets", ""])
+                self.tree.addTopLevelItem(root_item)
+                for name, item in document.root_values:
+                    self._add_value_row(root_item, name, item.text, editable, item.offset)
+                self._add_number_rows(root_item, document.root_numbers)
+                self._add_fields_row(
+                    root_item,
+                    document.root_members,
+                    document.root_values,
+                    document.root_numbers,
+                    self._collection_members(document.root_type),
                 )
-            if nested:
-                # Keep the full path reachable without letting it crowd out the
-                # values column, which is the part worth reading.
-                node.setToolTip(0, obj.component_type)
-                node.setToolTip(1, obj.component_type)
-            self.tree.addTopLevelItem(node)
-            for name, item in obj.values:
-                self._add_value_row(node, name, item.text, editable, item.offset)
-            self._add_number_rows(
-                node, obj.numbers, stated_type=getattr(obj, "type_source", "stated") == "stated"
-            )
-            self._add_fields_row(
-                node,
-                obj.member_names,
-                obj.values,
-                obj.numbers,
-                self._collection_members(obj.component_type),
-            )
-            node.setExpanded(True)
+                root_item.setExpanded(True)
+            for obj in document.objects:
+                # A nested prefab instance has no name of its own; the prefab it
+                # instantiates is its identity, so lead with that rather than
+                # labelling every copy "(unnamed)".
+                nested = obj.component_type.startswith("/")
+                if nested:
+                    label = obj.name or obj.component_type.rsplit("/", 1)[-1]
+                    detail = "a copy of another prefab"
+                else:
+                    label = obj.name or "(unnamed)"
+                    detail = describe_component(obj.component_type) or obj.component_type
+                if obj.type_is_inferred:
+                    # The file never said what this is. It decoded cleanly, which
+                    # is not the same as being right, and the warning has to travel
+                    # with the row -- a banner at the top does not tell you which
+                    # of eight objects is the guess.
+                    detail = f"{detail} - best guess, the file does not say what this is"
+                node = QTreeWidgetItem([label, detail, ""])
+                # Where this object's group starts, so "duplicate this one" can find
+                # the collection element behind the row. -1 on a walk that recovered
+                # the object without a span, and the menu checks for that.
+                node.setData(0, OBJECT_ROLE, getattr(obj, "offset", -1))
+                if obj.type_is_inferred:
+                    node.setToolTip(
+                        1,
+                        "This object's kind was worked out from its position in the file, "
+                        "not read from it. The fields below may belong to something else.",
+                    )
+                if nested:
+                    # Keep the full path reachable without letting it crowd out the
+                    # values column, which is the part worth reading.
+                    node.setToolTip(0, obj.component_type)
+                    node.setToolTip(1, obj.component_type)
+                self.tree.addTopLevelItem(node)
+                for name, item in obj.values:
+                    self._add_value_row(node, name, item.text, editable, item.offset)
+                self._add_number_rows(
+                    node, obj.numbers, stated_type=getattr(obj, "type_source", "stated") == "stated"
+                )
+                self._add_fields_row(
+                    node,
+                    obj.member_names,
+                    obj.values,
+                    obj.numbers,
+                    self._collection_members(obj.component_type),
+                )
+                node.setExpanded(True)
+        finally:
+            self.tree.setUpdatesEnabled(True)
+        for column in (0, 1):
+            self.tree.resizeColumnToContents(column)
 
     def _add_recovered_rows(self, document: object) -> None:
         """List the files a partly-read prefab references.

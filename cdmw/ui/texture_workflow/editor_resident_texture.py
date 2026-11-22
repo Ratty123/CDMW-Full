@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 import threading
+import time
 import weakref
 from dataclasses import dataclass
 from typing import Optional
@@ -148,6 +150,7 @@ class TextureEditorResidentTextureMixin:
         self._resident_texture_patch_dirty_bounds: Optional[tuple[int, int, int, int]] = None
         self._resident_texture_patch_full_dirty = False
         self._resident_texture_patch_document_key: Optional[tuple[str, ...]] = None
+        self._last_resident_patch_emit_monotonic = 0.0
         self._resident_texture_patch_timer = QTimer(self)
         self._resident_texture_patch_timer.setSingleShot(True)
         self._resident_texture_patch_timer.timeout.connect(self._emit_resident_texture_patch)
@@ -180,7 +183,9 @@ class TextureEditorResidentTextureMixin:
                 self._resident_texture_patch_dirty_bounds,
                 dirty_bounds,
             )
-        self._resident_texture_patch_timer.start(0)
+        elapsed_ms = (time.monotonic() - float(getattr(self, "_last_resident_patch_emit_monotonic", 0.0))) * 1000.0
+        delay_ms = 0 if elapsed_ms >= 33.0 else max(1, int(math.ceil(33.0 - elapsed_ms)))
+        self._resident_texture_patch_timer.start(delay_ms)
 
     def _emit_resident_texture_patch(self) -> None:
         document = self.document
@@ -204,6 +209,7 @@ class TextureEditorResidentTextureMixin:
             )
         except (TypeError, ValueError):
             return
+        self._last_resident_patch_emit_monotonic = time.monotonic()
         self.resident_texture_patch_ready.emit(patch)
 
     def _clear_resident_texture_patch_state(self, *, stop_timer: bool = True) -> None:

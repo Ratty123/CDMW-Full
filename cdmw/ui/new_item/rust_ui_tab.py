@@ -100,6 +100,7 @@ class RustNewItemStudioTab(QWidget):
         self._sent_generation = 0
         self._received_generation = 0
         self._state_fingerprint = b""
+        self._host_asset_ids: set[str] = set()
         self._state_delivery = QElapsedTimer()
         _follow_keymap(self)
         self._bridge = None
@@ -258,6 +259,7 @@ class RustNewItemStudioTab(QWidget):
         self._reader = JsonLineReader()
         self._stderr = ""
         self._state_fingerprint = b""
+        self._host_asset_ids.clear()
         self._sent_generation = self._received_generation = 0
         # A page of Browse's helper process when it can open one (P4 V5).
         process = self._process_factory(self)
@@ -392,11 +394,31 @@ class RustNewItemStudioTab(QWidget):
             state["theme"]["pixels_per_point"] = self.devicePixelRatioF()
             # The palette's keys from CDMW's keymap, as the Mesh Editor gets them (P12 E5).
             state["theme"]["app_commands"] = {"command_palette": _palette_chords()}
-            stable = {key: value for key, value in state.items() if key != "generation"}
+            assets = state.get("assets") or {}
+            stable = {key: value for key, value in state.items() if key not in {"generation", "assets"}}
+            # Asset keys are SHA-256 digests of the PNG bytes; avoid hashing multi-MB hex strings at 10 Hz.
+            stable["assets"] = {
+                asset_id: {"width": info.get("width", 0), "height": info.get("height", 0)}
+                for asset_id, info in assets.items()
+            }
             fingerprint = hashlib.blake2s(json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")).digest()
             if fingerprint == self._state_fingerprint:
                 return
-            self._send(state)
+            if self._host_asset_ids and assets:
+                wire_assets = {
+                    asset_id: (
+                        {"width": info.get("width", 0), "height": info.get("height", 0)}
+                        if asset_id in self._host_asset_ids
+                        else info
+                    )
+                    for asset_id, info in assets.items()
+                }
+                wire_state = {**state, "assets": wire_assets}
+            else:
+                wire_state = state
+            self._send(wire_state)
+            # Match Rust view.textures.retain(): only assets present in this state stay cached there.
+            self._host_asset_ids = set(assets.keys())
             self._state_fingerprint = fingerprint
             self._sent_generation = state["generation"]
             self._state_delivery.start()
@@ -423,6 +445,7 @@ class RustNewItemStudioTab(QWidget):
         self._stop_deadline.stop()
         self._timer.stop()
         self._ready = False
+        self._host_asset_ids.clear()
         self._portals.restore()
         self._host.detach_child_window()
         process, self._process = self._process, None
@@ -474,6 +497,7 @@ class RustNewItemStudioTab(QWidget):
         self._startup_deadline.stop()
         self._stopping = True
         self._ready = False
+        self._host_asset_ids.clear()
         if self._prepare_worker is not None and isValid(self._prepare_worker):
             self._prepare_worker.stop()
         if self._process is not None and self._process.state() != QProcess.NotRunning:

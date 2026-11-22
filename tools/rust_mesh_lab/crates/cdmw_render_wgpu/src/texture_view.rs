@@ -217,8 +217,13 @@ impl TextureViewer {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if let (Some(surface), Some(config)) = (&self.surface, &mut self.config) {
-            config.width = width.max(1);
-            config.height = height.max(1);
+            let width = width.max(1);
+            let height = height.max(1);
+            if config.width == width && config.height == height {
+                return;
+            }
+            config.width = width;
+            config.height = height;
             surface.configure(&self.device, config);
         }
     }

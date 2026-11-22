@@ -154,10 +154,9 @@ def _reference_geometry_identity(source, positions, triangles, references):
     return "hair-reference:" + digest.hexdigest()
 
 
-def template_card_uv_rect(part):
-    """Reuse an actual connected donor card's atlas region, not the whole atlas."""
+def _uv_islands_for_part(part):
     if len(part.uvs) != len(part.vertices) or not part.faces:
-        return [0., 0., 1., 1.]
+        return [], []
     parents = list(range(len(part.vertices)))
     def find(index):
         while parents[index] != index:
@@ -170,12 +169,58 @@ def template_card_uv_rect(part):
     islands = {}
     for index, uv in enumerate(part.uvs):
         islands.setdefault(find(index), []).append(uv)
+    valid, fallback = [], []
     for island in sorted(islands.values(), key=len, reverse=True):
         u0, v0 = (min(uv[i] for uv in island) for i in range(2))
         u1, v1 = (max(uv[i] for uv in island) for i in range(2))
-        if u1-u0 > .0001 and v1-v0 > .0001:
-            return [u0, v0, u1, v1]
+        if u1 - u0 <= .0001 or v1 - v0 <= .0001:
+            continue
+        rect = [float(u0), float(v0), float(u1), float(v1)]
+        if -0.01 <= u0 <= 1.01 and -0.01 <= v0 <= 1.01 and -0.01 <= u1 <= 1.01 and -0.01 <= v1 <= 1.01:
+            clamped = [max(0., min(1., value)) for value in rect]
+            if clamped[2] - clamped[0] > .0001 and clamped[3] - clamped[1] > .0001:
+                valid.append((len(island), clamped))
+        else:
+            fallback.append((len(island), rect))
+    return valid, fallback
+
+
+def template_card_uv_rect(part):
+    """Reuse an actual connected donor card's atlas region, not the whole atlas."""
+    valid, fallback = _uv_islands_for_part(part)
+    if valid:
+        return list(valid[0][1])
+    if fallback:
+        return list(fallback[0][1])
     return [0., 0., 1., 1.]
+
+
+def extract_donor_card_uv_presets(part, *, max_presets=12):
+    """Cluster distinct valid connected strand UV strips from a donor submesh."""
+    valid, fallback = _uv_islands_for_part(part)
+    candidates = valid or fallback
+    if not candidates:
+        return []
+    clustered = []
+    for count, rect in candidates:
+        if any(all(abs(a - b) <= 0.02 for a, b in zip(rect, existing)) for _, existing in clustered):
+            continue
+        clustered.append((count, rect))
+    clustered.sort(key=lambda item: (round(item[1][1], 2), round(item[1][0], 2), -item[0]))
+    clustered = clustered[:max_presets]
+    total = len(clustered)
+    rows = []
+    for index, (_count, rect) in enumerate(clustered, 1):
+        v_mid = (rect[1] + rect[3]) * 0.5
+        pos = "Top" if v_mid < 0.33 else ("Middle" if v_mid < 0.67 else "Lower")
+        label = f"Strip {index} ({pos})" if total > 1 else "Donor strip"
+        rows.append({"label": label, "uv_rect": [round(value, 6) for value in rect]})
+    return rows
+
+
+def _is_scalp_cap_submesh(part):
+    text = f"{getattr(part, 'name', '')} {getattr(part, 'material', '')}".casefold()
+    return "hair_base" in text or "scalp" in text
 
 
 def hair_ui_state(authoring):
@@ -194,6 +239,18 @@ def hair_ui_state(authoring):
         result["textures"] = list(material_texture_paths(files[material_path])[1]) if material_path in files else []
         result["texture_slots"] = hair_texture_slots(files[material_path], files) if material_path in files else []
         result["materials_ready"] = bool(result["textures"]) and all(path.casefold() in files for path in result["textures"])
+        source_mesh = (
+            getattr(session, "source_coordinate_base_mesh", None)
+            or getattr(session, "base_mesh", None)
+            or getattr(session, "working_mesh", None)
+        )
+        uv_presets = {}
+        if source_mesh is not None:
+            for part_index, part in enumerate(getattr(source_mesh, "submeshes", ()) or ()):
+                presets = extract_donor_card_uv_presets(part)
+                if presets:
+                    uv_presets[str(part_index)] = presets
+        result["uv_presets"] = uv_presets
         result["revision"] = state.revision
         cached = authoring.hair_file_cache
         if cached is None or cached[0] != state.canonical:
@@ -571,23 +628,69 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         target_stem = str(args.get("target_stem") or f"cd_{prefix}_00_hair_00_{1000 + randbelow(8000):04d}_01_player")
         validate_hair_stem(target_stem)
         span = max(bounds_max[i] - bounds_min[i] for i in range(3))
-        part_index = max(range(len(session.working_mesh.submeshes)), key=lambda i: len(session.working_mesh.submeshes[i].vertices))
-        payload = {
-            "version": 2, "revision": 0, "converted": False,
-            "locks": [], "next_lock_id": 1, "style_name": "My hairstyle",
-            "startup_preset": "empty",
-            "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
-            "bound_reference": identity, "reference_parts": [],
-            "template": {"path": str(session.working_mesh.path), "sha256": digest,
-                         "target_stem": target_stem, "character": profile.name, "physics_profile": "Hair"},
-            "groups": [{"id": 0, "name": session.working_mesh.submeshes[part_index].name, "part": part_index, "mode": mode, "width": max(span * .08, .001),
-                        "cards_per_guide": 6, "uv_rect": template_card_uv_rect(session.working_mesh.submeshes[part_index])}],
-            "guides": [], "bindings": [], "collisions": [],
-        }
-        if mode == "existing":
-            payload["groups"] = [dict(id=i, name=part.name, part=i, mode=mode,
-                width=max(span * .08, .001), cards_per_guide=6, uv_rect=template_card_uv_rect(part))
-                for i, part in enumerate(session.working_mesh.submeshes)]
+        default_width = max(span * .08, .001)
+        keep_scalp_cap = bool(args.get("keep_scalp_cap", False)) if mode == "generated" else False
+        submeshes = session.working_mesh.submeshes
+        scalp_indices = (
+            [i for i, part in enumerate(submeshes) if _is_scalp_cap_submesh(part)]
+            if keep_scalp_cap and len(submeshes) > 1 else []
+        )
+        card_indices = [i for i in range(len(submeshes)) if i not in scalp_indices]
+        if mode == "generated" and scalp_indices and card_indices:
+            groups = []
+            locks = []
+            prepared_parts = []
+            vertex_sources = {}
+            next_lock_id = 1
+            for i, part in enumerate(submeshes):
+                if i in scalp_indices:
+                    groups.append({
+                        "id": len(groups), "name": part.name or f"Part {i}", "part": i, "mode": "existing",
+                        "width": default_width, "cards_per_guide": 6, "uv_rect": template_card_uv_rect(part),
+                    })
+                    locks.append({
+                        "id": next_lock_id, "part": i, "guide": None,
+                        "vertices": list(range(len(part.vertices))), "kind": "rigid",
+                        "mirrored": None, "width_scale": 1.0, "cards": 0,
+                    })
+                    next_lock_id += 1
+                    prepared_parts.append(i)
+                    vertex_sources[str(i)] = list(range(len(part.vertices)))
+                else:
+                    groups.append({
+                        "id": len(groups), "name": part.name or f"Part {i}", "part": i, "mode": "generated",
+                        "width": default_width, "cards_per_guide": 6, "uv_rect": template_card_uv_rect(part),
+                    })
+            payload = {
+                "version": 2, "revision": 0, "converted": False,
+                "locks": locks, "next_lock_id": next_lock_id, "style_name": "My hairstyle",
+                "startup_preset": "empty",
+                "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
+                "bound_reference": identity, "reference_parts": [],
+                "template": {"path": str(session.working_mesh.path), "sha256": digest,
+                             "target_stem": target_stem, "character": profile.name, "physics_profile": "Hair"},
+                "groups": groups,
+                "guides": [], "bindings": [], "collisions": [],
+                "prepared_parts": prepared_parts, "vertex_sources": vertex_sources,
+            }
+        else:
+            part_index = max(range(len(submeshes)), key=lambda i: len(submeshes[i].vertices))
+            payload = {
+                "version": 2, "revision": 0, "converted": False,
+                "locks": [], "next_lock_id": 1, "style_name": "My hairstyle",
+                "startup_preset": "empty",
+                "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
+                "bound_reference": identity, "reference_parts": [],
+                "template": {"path": str(session.working_mesh.path), "sha256": digest,
+                             "target_stem": target_stem, "character": profile.name, "physics_profile": "Hair"},
+                "groups": [{"id": 0, "name": submeshes[part_index].name, "part": part_index, "mode": mode, "width": default_width,
+                            "cards_per_guide": 6, "uv_rect": template_card_uv_rect(submeshes[part_index])}],
+                "guides": [], "bindings": [], "collisions": [],
+            }
+            if mode == "existing":
+                payload["groups"] = [dict(id=i, name=part.name, part=i, mode=mode,
+                    width=default_width, cards_per_guide=6, uv_rect=template_card_uv_rect(part))
+                    for i, part in enumerate(submeshes)]
     payload["references"] = references
     payload["collisions"] = collisions
     hair = hair_state_from_payload(payload)
@@ -733,6 +836,7 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     candidate = mesh_with_part_ids(snapshot, snapshot.replacement_state)
     generated_source = ParsedMesh(format="obj", submeshes=[])
     changed_topology = []
+    hybrid_sources = {}
     retained_topology_changed = False
     empty_parts = set()
     donor_mesh = None
@@ -780,11 +884,40 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
                 donor_mesh = parse_mesh(snapshot.original_data, snapshot.mesh.path)
             donor = donor_mesh.submeshes[index]
             source = raw.get("source_vertices")
+            if new["vertex_sources"].get(str(index)) != source:
+                raise ValueError("Hair geometry and original vertex provenance were not published together.")
+            gen_lock_verts = {
+                v for lock in new["locks"]
+                if lock["part"] == index and lock["kind"] == "generated"
+                for v in lock["vertices"]
+            }
+            has_generated_vertices = (
+                isinstance(source, list) and len(source) == len(vertices) and any(i == -1 for i in source)
+            )
+            if has_generated_vertices:
+                donor_refs = [i for i in source if i != -1]
+                if (any(type(i) is not int or (i != -1 and not 0 <= i < len(donor.vertices)) for i in source)
+                        or len(set(donor_refs)) != len(donor_refs)
+                        or not {v for v, i in enumerate(source) if i == -1}.issubset(gen_lock_verts)):
+                    raise ValueError("Hybrid existing hair requires valid original vertex provenance for non-generated vertices.")
+                original_faces = set(tuple(face) for face in donor.faces)
+                for face in faces:
+                    mapped = tuple(source[i] for i in face)
+                    if all(m == -1 for m in mapped):
+                        continue
+                    if any(m < 0 for m in mapped) or mapped not in original_faces:
+                        raise ValueError("Existing hair cuts may only retain original card triangles.")
+                surviving_uvs = [uvs[v] for v, s in enumerate(source) if s >= 0]
+                expected_uvs = [donor.uvs[s] for s in source if s >= 0]
+                if wire(surviving_uvs) != wire(expected_uvs):
+                    raise ValueError("Cut hair changed its original UV layout.")
+                generated_source.submeshes.append(SubMesh(vertices=vertices, normals=normals, uvs=uvs, faces=faces))
+                changed_topology.append(index)
+                hybrid_sources[index] = (donor, list(source))
+                continue
             if (not isinstance(source, list) or len(source) != len(vertices) or len(set(source)) != len(source)
                     or any(type(i) is not int or not 0 <= i < len(donor.vertices) for i in source)):
                 raise ValueError("Cut and deleted existing hair require exact original vertex provenance.")
-            if new["vertex_sources"].get(str(index)) != source:
-                raise ValueError("Hair geometry and original vertex provenance were not published together.")
             original_faces = set(tuple(face) for face in donor.faces)
             if any(tuple(source[i] for i in face) not in original_faces for face in faces):
                 raise ValueError("Existing hair cuts may only retain original card triangles.")
@@ -821,6 +954,29 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
             target.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
             skin_donor = _original_hair_skin_donor(authoring, snapshot, getattr(donor, PART_ID_ATTRIBUTE))
             ensure_final_target_skin_weights(target, skin_donor, target_index=i, summary=None)
+            if i in hybrid_sources:
+                hybrid_donor, src_map = hybrid_sources[i]
+                if len(hybrid_donor.bone_indices) == len(hybrid_donor.vertices) and len(target.bone_indices) == len(target.vertices):
+                    target.bone_indices = [
+                        hybrid_donor.bone_indices[src] if src >= 0 else target.bone_indices[v]
+                        for v, src in enumerate(src_map)
+                    ]
+                    target.bone_weights = [
+                        hybrid_donor.bone_weights[src] if src >= 0 else target.bone_weights[v]
+                        for v, src in enumerate(src_map)
+                    ]
+                if len(hybrid_donor.source_vertex_offsets) == len(hybrid_donor.vertices):
+                    target.source_vertex_offsets = [
+                        hybrid_donor.source_vertex_offsets[src] if src >= 0 else -1
+                        for src in src_map
+                    ]
+                if len(hybrid_donor.uvs) == len(hybrid_donor.vertices) and len(target.uvs) == len(target.vertices):
+                    target.uvs = [
+                        hybrid_donor.uvs[src] if src >= 0 else target.uvs[v]
+                        for v, src in enumerate(src_map)
+                    ]
+                target.source_vertex_map = list(src_map)
+                retained_topology_changed = True
             setattr(target, PART_ID_ATTRIBUTE, getattr(donor, PART_ID_ATTRIBUTE))
             candidate.submeshes[i] = target
     for binding in new["bindings"]:
@@ -832,20 +988,30 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     from cdmw.services.mesh_service_kernel import _invalidate_tangents_after_edit
     _invalidate_tangents_after_edit(candidate, "transform", owned, {}, topology_changed=bool(changed_topology) or retained_topology_changed)
     refresh_mesh_totals(candidate)
-    generated_only = all(group["mode"] == "generated" for group in new["groups"])
+    generated_parts = {group["part"] for group in new["groups"] if group["mode"] == "generated"}
+    existing_parts = {group["part"] for group in new["groups"] if group["mode"] == "existing"}
+    has_generated_groups = bool(generated_parts)
     active_parts = {group["part"] for group in new["groups"]
                     if any(guide["group"] == group["id"] for guide in new["guides"])}
     previous_active_parts = {group["part"] for group in old["groups"]
                              if any(guide["group"] == group["id"] for guide in old["guides"])}
-    # Newly populated sections start included; editing existing hair must keep
-    # the user's output choice even when a draw rebuilds its geometry.
+    def _part_included(part):
+        idx = part.target_index
+        if idx in empty_parts:
+            return False
+        if idx in generated_parts:
+            return idx in active_parts and (part.included or idx not in previous_active_parts)
+        if idx in existing_parts:
+            return part.included
+        return False if has_generated_groups else part.included
+
+    # Newly populated generated sections start included; editing existing or kept
+    # scalp sections retains the user's output choice when not emptied.
     parts = tuple(replace(part, import_positions=tuple(candidate.submeshes[part.target_index].vertices),
                           import_normals=tuple(candidate.submeshes[part.target_index].normals),
-                          included=((part.target_index in active_parts
-                                     and (part.included or part.target_index not in previous_active_parts))
-                                    if generated_only else part.included) and part.target_index not in empty_parts,
+                          included=_part_included(part),
                           source_label="Hair guides")
-                  if part.target_index in owned else replace(part, included=False) if generated_only else part
+                  if part.target_index in owned else replace(part, included=False) if has_generated_groups else part
                   for part in snapshot.replacement_state.parts)
     replacement = replace(snapshot.replacement_state, parts=parts, revision=snapshot.replacement_state.revision + 1)
     prepared = service.prepare_working_mesh_replacement(
@@ -861,3 +1027,51 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
         prepared, history_action="hair_groom", history_label=label,
         output_policy=REPLACEMENT_POLICY, require_reversible_history=True,
     )
+
+
+def hair_import_custom_command(authoring, args, stop_event):
+    """Convert active hair authoring into a custom mesh replacement import flow."""
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.services.mesh_rust_replacement import run_replacement_command
+    raise_if_cancelled(stop_event, "Hair import cancelled")
+    service, session_id = authoring.shadow_service, authoring.shadow_session_id
+    snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
+    if snapshot.hair_state is None or snapshot.replacement_state is None:
+        raise ValueError("Start Hair Tools before importing a custom hair mesh.")
+    if args.get("cancelled"):
+        return {"status": "cancelled"}
+    source_path = str(args.get("source_path") or "").strip()
+    if not source_path:
+        raise ValueError("Choose a custom hair mesh file to import.")
+    converted_this_call = False
+    old = snapshot.hair_state.payload
+    if not old.get("converted"):
+        converted_payload = {
+            **old,
+            "revision": old["revision"] + 1,
+            "converted": True,
+            "guides": [],
+            "bindings": [],
+            "locks": [],
+            "prepared_parts": [],
+            "vertex_sources": {},
+        }
+        new_hair = hair_state_from_payload(converted_payload, allow_unbound=True)
+        candidate = mesh_with_part_ids(snapshot, snapshot.replacement_state)
+        prepared = service.prepare_working_mesh_replacement(
+            session_id, candidate, replacement_state=snapshot.replacement_state,
+            hair_state=new_hair, replace_hair_state=True,
+            validation_output_policy=REPLACEMENT_POLICY,
+        )
+        raise_if_cancelled(stop_event, "Hair import cancelled")
+        service.commit_prepared_working_mesh_replacement(
+            prepared, history_action="hair_convert_import", history_label="Import custom hair mesh",
+            output_policy=REPLACEMENT_POLICY, require_reversible_history=True,
+        )
+        converted_this_call = True
+    try:
+        return run_replacement_command(authoring, "replacement_choose", {**args, "scope": "all"}, stop_event)
+    except Exception:
+        if converted_this_call:
+            service.undo(session_id)
+        raise

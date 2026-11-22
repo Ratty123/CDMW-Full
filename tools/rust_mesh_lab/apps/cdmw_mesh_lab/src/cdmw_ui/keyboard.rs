@@ -7,7 +7,6 @@ use crate::shortcuts::{
     Binding, KeyChord, ModifierKey, NumpadKey, ReservedChord, SHORTCUT_GROUPS, SHORTCUTS,
     ShortcutAction, ShortcutGroup, ShortcutKey, ShortcutScope,
 };
-use cdmw_mesh::hair::GroupMode;
 
 pub(super) const CDMW_REVEAL_VIEWPORT: &str = "cdmw_reveal_viewport_section";
 
@@ -421,14 +420,10 @@ impl LabApplication {
             self.status = "Converted to ordinary mesh. Undo restores Hair editing.".to_owned();
             return;
         }
-        let generated = state
-            .groups
-            .iter()
-            .all(|group| group.mode == GroupMode::Generated);
         if !(self.hair_input_ready() || self.hair_draw_input_ready()) {
             self.status = "Wait for the current shadow operation".to_owned();
-        } else if tool == HairTool::Guide && !generated {
-            self.status = "Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.".to_owned();
+        } else if tool == HairTool::Guide && state.groups.is_empty() {
+            self.status = "No hair material section is available for drawing.".to_owned();
         } else {
             self.hair.tool = Some(tool);
             self.cdmw_orbit_mode = false;

@@ -35,29 +35,14 @@ from cdmw.ui.texture_workflow.editor_view_state import (
 
 
 class TextureEditorViewCoordinationMixin:
-    def _refresh_navigation_overlays(self) -> None:
-        has_doc = self.document is not None
+    def _refresh_rulers_only(self) -> tuple[int, int, float, int, int]:
         navigation = texture_editor_navigation_overlay_state(
-            has_document=has_doc,
+            has_document=self.document is not None,
             show_rulers=self._show_rulers,
             show_guides=self._show_guides,
             vertical_guides=self._vertical_guides,
             horizontal_guides=self._horizontal_guides,
         )
-        self.top_ruler.setVisible(navigation.rulers_visible)
-        self.left_ruler.setVisible(navigation.rulers_visible)
-        self.ruler_corner.setVisible(navigation.rulers_visible)
-        self.canvas.set_guide_state(
-            enabled=navigation.guides_enabled,
-            vertical_guides=navigation.vertical_guides,
-            horizontal_guides=navigation.horizontal_guides,
-        )
-        if not has_doc:
-            empty_ruler = texture_editor_empty_ruler_state()
-            self.top_ruler.set_state(**empty_ruler.as_kwargs())
-            self.left_ruler.set_state(**empty_ruler.as_kwargs())
-            self.navigator_widget.set_state(None, image_width=0, image_height=0, viewport_rect=None)
-            return
         image = self.canvas._image
         image_width = image.width() if image is not None else self.document.width
         image_height = image.height() if image is not None else self.document.height
@@ -81,6 +66,32 @@ class TextureEditorViewCoordinationMixin:
         )
         self.top_ruler.set_state(**top_ruler.as_kwargs())
         self.left_ruler.set_state(**left_ruler.as_kwargs())
+        return image_width, image_height, scale, scroll_x, scroll_y
+
+    def _refresh_navigation_overlays(self) -> None:
+        has_doc = self.document is not None
+        navigation = texture_editor_navigation_overlay_state(
+            has_document=has_doc,
+            show_rulers=self._show_rulers,
+            show_guides=self._show_guides,
+            vertical_guides=self._vertical_guides,
+            horizontal_guides=self._horizontal_guides,
+        )
+        self.top_ruler.setVisible(navigation.rulers_visible)
+        self.left_ruler.setVisible(navigation.rulers_visible)
+        self.ruler_corner.setVisible(navigation.rulers_visible)
+        self.canvas.set_guide_state(
+            enabled=navigation.guides_enabled,
+            vertical_guides=navigation.vertical_guides,
+            horizontal_guides=navigation.horizontal_guides,
+        )
+        if not has_doc:
+            empty_ruler = texture_editor_empty_ruler_state()
+            self.top_ruler.set_state(**empty_ruler.as_kwargs())
+            self.left_ruler.set_state(**empty_ruler.as_kwargs())
+            self.navigator_widget.set_state(None, image_width=0, image_height=0, viewport_rect=None)
+            return
+        image_width, image_height, scale, scroll_x, scroll_y = self._refresh_rulers_only()
         display_image = getattr(self.canvas, "_display_image", None) or getattr(self.canvas, "_image", None)
         viewport = self.canvas_scroll.viewport().size()
         viewport_rect = texture_editor_navigator_viewport_rect(
@@ -97,6 +108,7 @@ class TextureEditorViewCoordinationMixin:
             image_width=int(image_width),
             image_height=int(image_height),
             viewport_rect=viewport_rect,
+            image_revision=int(getattr(self.canvas, "_display_image_revision", 0)),
         )
 
     def _handle_navigation_overlay_changed(self, *_args) -> None:
@@ -134,7 +146,8 @@ class TextureEditorViewCoordinationMixin:
     def _handle_canvas_hover_changed(self, payload: object) -> None:
         self._hover_pixel_info = payload if isinstance(payload, dict) else None
         self._refresh_canvas_status_strip()
-        self._refresh_navigation_overlays()
+        if self.document is not None and self._show_rulers:
+            self._refresh_rulers_only()
 
     def _handle_navigator_center_requested(self, image_x: float, image_y: float) -> None:
         if self.document is None:

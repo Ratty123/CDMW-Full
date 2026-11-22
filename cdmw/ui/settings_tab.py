@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cdmw.domain.preview_view_modes import read_view_mode, write_view_mode
+from cdmw.domain.preview_view_modes import read_view_mode, repair_leaked_view_mode, write_view_mode
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Dict, Optional
@@ -1943,6 +1943,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
 
         migrate_textures_on_by_default(self.settings)
         migrate_lighting_to_studio(self.settings)
+        repair_leaked_view_mode(self.settings)
         defaults = clamp_model_preview_render_settings()
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(

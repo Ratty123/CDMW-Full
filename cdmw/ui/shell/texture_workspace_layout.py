@@ -22,6 +22,9 @@ class TextureWorkspaceLayoutMixin:
         self.texture_rules_state = []
         self.workflow_matched_processing_plan = []
         self._workflow_editor_syncing = False
+        self._workflow_match_request_id = 0
+        self._workflow_match_thread = None
+        self._workflow_match_worker = None
         self._workflow_match_refresh_timer = QTimer(self)
         self._workflow_match_refresh_timer.setSingleShot(True)
         self._workflow_match_refresh_timer.setInterval(300)

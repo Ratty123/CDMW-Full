@@ -1326,6 +1326,7 @@ fn hair_local_erase_retains_connected_shell_and_hidden_faces_and_can_cancel() {
             mirrored: None,
             width_scale: 1.0,
             cards: 0,
+            uv_rect: None,
         });
         state.next_lock_id = 2;
         state.prepared_parts = vec![0];
@@ -5111,4 +5112,159 @@ fn hair_draw_beside_the_head_says_where_to_start() {
     assert_eq!(app.hair.feedback, "Start the stroke on the scalp");
     assert!(app.hair.drawing.is_empty());
     assert!(app.cancel_hair_stroke());
+}
+
+#[test]
+fn hair_lock_uv_rect_overrides_group_atlas() {
+    let (mut app, _) = ready_hair_app();
+    let target_lock_id = app.hair.state.as_ref().unwrap().locks[0].id;
+    let custom_rect = [0.25_f32, 0.5, 0.5, 0.75];
+    app.hair.selected = HashSet::from([target_lock_id as usize]);
+    app.run_hair_action(HairAction::LockUv(Some(custom_rect)));
+    await_hair(&mut app);
+
+    let state = app.hair.state.as_ref().unwrap();
+    let updated = state.locks.iter().find(|l| l.id == target_lock_id).unwrap();
+    assert_eq!(updated.uv_rect, Some(custom_rect));
+    let submesh = &app.hair.preview.as_ref().unwrap().lods[0].submeshes[updated.part as usize];
+    assert!(!updated.vertices.is_empty());
+    for &vertex in &updated.vertices {
+        let [u, v] = submesh.uvs[vertex as usize];
+        assert!(
+            (0.249..=0.501).contains(&u) && (0.499..=0.751).contains(&v),
+            "expected custom UV rect for lock {target_lock_id}, got [{u}, {v}]"
+        );
+    }
+}
+
+#[test]
+fn hair_hybrid_draw_on_existing_preserves_donor_and_simulates() {
+    let (mut state, mut document) = fixture();
+    let part = &mut document.lods[0].submeshes[0];
+    part.positions = vec![
+        [-0.02, 0.19, 0.0],
+        [0.02, 0.19, 0.0],
+        [0.02, 0.15, 0.02],
+        [-0.02, 0.15, 0.02],
+    ];
+    part.normals = vec![[0.0, 0.0, 1.0]; 4];
+    part.uvs = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+    part.indices = vec![0, 1, 2, 0, 2, 3];
+    part.source_vertex_indices = vec![0, 1, 2, 3];
+    state.groups[0].mode = GroupMode::Existing;
+    state.locks.push(locks::HairLock {
+        id: 1,
+        part: 0,
+        guide: None,
+        vertices: vec![0, 1, 2, 3],
+        kind: LockKind::Rigid,
+        mirrored: None,
+        width_scale: 1.0,
+        cards: 0,
+        uv_rect: None,
+    });
+    state.next_lock_id = 2;
+    state.prepared_parts = vec![0];
+    state.vertex_sources.insert(0, vec![0, 1, 2, 3]);
+
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(Arc::new(document));
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(state));
+    app.hair.pending_preset = false;
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
+    app.viewport_rect = Some(rect);
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from),
+        rect,
+    );
+    app.render_hair();
+
+    app.hair.tool = Some(HairTool::Guide);
+    let center = {
+        let scalp = &app.hair.state.as_ref().unwrap().scalp;
+        let face = scalp.triangles[scalp.triangles.len() / 2];
+        (Vec3::from(scalp.positions[face[0] as usize])
+            + Vec3::from(scalp.positions[face[1] as usize])
+            + Vec3::from(scalp.positions[face[2] as usize]))
+            / 3.0
+    };
+    let point = app.camera.project(center, rect).unwrap().screen;
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(point), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(point + Vec2::new(40.0, 80.0)), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(point + Vec2::new(40.0, 80.0)), rect, false, false, false);
+    await_hair(&mut app);
+
+    let after = app.hair.state.as_ref().unwrap();
+    assert!(
+        after.locks.iter().any(|l| l.kind == LockKind::Rigid && l.vertices == vec![0, 1, 2, 3]),
+        "feedback: {}",
+        app.hair.feedback
+    );
+    let drawn = after
+        .locks
+        .iter()
+        .find(|l| l.kind == LockKind::Generated)
+        .unwrap_or_else(|| panic!("missing drawn hybrid lock (feedback: {}, drawing_len: {}, guides: {})", app.hair.feedback, app.hair.drawing.len(), after.guides.len()));
+    assert!(!drawn.vertices.is_empty() && drawn.vertices.iter().all(|&v| v >= 4));
+    let submesh = &app.hair.preview.as_ref().unwrap().lods[0].submeshes[0];
+    assert_eq!(&submesh.source_vertex_indices[..4], &[0, 1, 2, 3]);
+    assert!(submesh.source_vertex_indices[4..].iter().all(|&src| src == -1));
+    assert_eq!(after.vertex_sources.get(&0), Some(&submesh.source_vertex_indices));
+    assert!(Simulation::new(after).is_ok());
+    assert!(app.hair_motion_reason().is_ok());
+}
+
+#[test]
+fn hair_setup_starter_shape_fill_populates_generated_group_and_keeps_scalp_cap() {
+    let (mut state, mut document) = fixture();
+    let mut scalp_cap = document.lods[0].submeshes[0].clone();
+    scalp_cap.name = "phm_00_Hair_Base_01".into();
+    scalp_cap.positions = vec![[0.0, 0.2, 0.0], [0.02, 0.2, 0.0], [0.0, 0.2, 0.02]];
+    scalp_cap.normals = vec![[0.0, 1.0, 0.0]; 3];
+    scalp_cap.uvs = vec![[0.1, 0.1]; 3];
+    scalp_cap.indices = vec![0, 1, 2];
+    scalp_cap.source_vertex_indices = vec![0, 1, 2];
+    document.lods[0].submeshes.push(scalp_cap);
+    state.groups.push(HairGroup {
+        id: 1,
+        name: "phm_00_Hair_Base_01".into(),
+        part: 1,
+        mode: GroupMode::Existing,
+        width: 0.02,
+        cards_per_guide: 6,
+        uv_rect: [0.0, 0.0, 1.0, 1.0],
+    });
+    state.locks.push(locks::HairLock {
+        id: 1,
+        part: 1,
+        guide: None,
+        vertices: vec![0, 1, 2],
+        kind: LockKind::Rigid,
+        mirrored: None,
+        width_scale: 1.0,
+        cards: 0,
+        uv_rect: None,
+    });
+    state.next_lock_id = 2;
+    state.prepared_parts = vec![1];
+    state.vertex_sources.insert(1, vec![0, 1, 2]);
+
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(Arc::new(document));
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(state));
+    app.hair.pending_preset = false;
+    app.hair.preset_length = 0.24;
+    app.run_hair_action(HairAction::Fill(Preset::Bob));
+    await_hair(&mut app);
+
+    let after = app.hair.state.as_ref().unwrap();
+    assert!(!after.guides.is_empty());
+    assert!(after.locks.iter().any(|l| l.part == 0 && l.kind == LockKind::Generated && !l.vertices.is_empty()));
+    assert!(after.locks.iter().any(|l| l.part == 1 && l.kind == LockKind::Rigid && l.vertices == vec![0, 1, 2]));
+    let doc = app.document.as_ref().unwrap();
+    assert!(!doc.lods[0].submeshes[0].positions.is_empty());
+    assert_eq!(doc.lods[0].submeshes[1].positions.len(), 3);
 }

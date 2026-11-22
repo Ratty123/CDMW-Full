@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.native_window_clipping import ensure_native_host_clipping
+from cdmw.ui.preview.child_window_mover import child_window_mover
 from cdmw.ui.shell.help_widgets import make_help_button
 
 
@@ -406,9 +407,6 @@ class RustMeshEditorHostFrame(QFrame):
             user32 = _windows_api()
             parent = wintypes.HWND(self.host_hwnd())
             child = wintypes.HWND(self._child_hwnd)
-            if not user32.IsWindow(child):
-                self._child_hwnd = 0
-                return
             rect = wintypes.RECT()
             if not user32.GetClientRect(parent, ctypes.byref(rect)):
                 return
@@ -419,10 +417,27 @@ class RustMeshEditorHostFrame(QFrame):
             geom_key = (self._child_hwnd, width, height)
             if not force_frame_refresh and self._last_synced_geometry == geom_key:
                 return
+            owner_pid = int(self._child_process_id or 0)
+            if owner_pid <= 0:
+                if not user32.IsWindow(child):
+                    self._child_hwnd = 0
+                    return
+                owner = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(child, ctypes.byref(owner))
+                owner_pid = int(owner.value)
+                if owner_pid <= 0:
+                    return
             flags = _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOOWNERZORDER | _SWP_ASYNCWINDOWPOS
             if force_frame_refresh:
                 flags |= _SWP_FRAMECHANGED
-            user32.SetWindowPos(child, None, 0, 0, width, height, flags)
+            child_window_mover(lambda: _windows_api()).move(
+                self._child_hwnd,
+                owner_pid,
+                width,
+                height,
+                flags,
+                user32_loader=lambda: _windows_api(),
+            )
             self._last_synced_geometry = geom_key
         except (AttributeError, OSError, TypeError, ValueError):
             return

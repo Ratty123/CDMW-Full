@@ -736,6 +736,69 @@ def _recovery_point_size(session: _MeshEditSession, project_root: Path, generati
     return size
 
 
+def _draft_holds_only_unfinished_edits(project_path: Path) -> bool:
+    """The draft has no published state, only a Mesh Editor's recovery point (P14)."""
+
+    from cdmw.services.mesh_history_journal import read_editor_recovery
+
+    project = Path(project_path)
+    return not project.is_file() and read_editor_recovery(project.parent) is not None
+
+
+def _published_by_an_untouched_close(project_root: Path, generation: str, recovery: Mapping[str, object]) -> bool:
+    """``generation`` is the draft's state only because a session that changed
+    nothing published it, after a recovery point made from "no state yet".
+
+    In 0.12.0-alpha.6, closing a draft that had only restored its unfinished edits
+    wrote the game's file, untouched, as the draft's first state, and the recovery
+    point was then refused as made from an earlier state. Such a state holds
+    nothing the user made, so the recovery point may still be restored over it.
+    Anything else the draft holds, however small, keeps the refusal.
+    """
+
+    import json
+
+    from cdmw.services import mesh_history_journal as journal
+    from cdmw.services.mesh_layer_project_service import MESH_LAYER_GENERATION_FORMAT
+
+    if not generation or str(recovery.get("base_generation") or ""):
+        return False
+    root = Path(project_root)
+    try:
+        descriptor = json.loads((root / "mesh_layer_project.json").read_text(encoding="utf-8"))
+        if not isinstance(descriptor, Mapping) or str(descriptor.get("current_generation") or "") != generation:
+            return False
+        if str(descriptor.get("previous_generation") or ""):
+            return False  # the draft was saved more than once
+        digest = str(descriptor.get("current_generation_manifest_sha256") or "").strip().lower()
+        if not digest or journal.generation_digest(root, generation) != digest:
+            return False
+        payload = json.loads((root / generation / "generation.json").read_text(encoding="utf-8"))
+        current = journal.read_journal(root)
+    except (OSError, TypeError, ValueError):
+        return False
+    if not isinstance(payload, Mapping) or payload.get("format") != MESH_LAYER_GENERATION_FORMAT:
+        return False  # replacement, hair, cloth, jiggle or Morph & Refit state
+    transform = payload.get("object_transform") or {}
+    untouched = (
+        payload.get("mesh_revision") == 0 and payload.get("layer_revision") == 0
+        and not payload.get("edit_operations") and not payload.get("requires_edit_operations")
+        and payload.get("archive_refit") is None
+        and isinstance(transform, Mapping)
+        and tuple(transform.get("location") or (0.0, 0.0, 0.0)) == (0.0, 0.0, 0.0)
+        and tuple(transform.get("rotation_degrees") or (0.0, 0.0, 0.0)) == (0.0, 0.0, 0.0)
+        and tuple(transform.get("scale") or (1.0, 1.0, 1.0)) == (1.0, 1.0, 1.0)
+    )
+    if not untouched:
+        return False
+    # Written after the recovery point, and the only step the draft's history has.
+    if float(payload.get("created_at") or 0.0) < float(recovery.get("saved_at") or 0.0):
+        return False
+    if current.unreadable_lines or any(record.generation != generation for record in current.records):
+        return False
+    return True
+
+
 def _open_history_journal(session: _MeshEditSession, project_path: Path) -> None:
     """Place a reopened draft at its step in the history journal (P14)."""
 
@@ -845,7 +908,16 @@ def _install_journal_state(session: _MeshEditSession, snapshot: _MeshHistorySnap
     """Install a loaded journal state; unlike an undo, nothing is captured to return to."""
 
     before_signature = _mesh_structure_signature(session.working_mesh)
+    previous_mesh = session.working_mesh
     session.working_mesh = snapshot.mesh
+    # A saved state holds its parts' material bindings as paths into caches that are
+    # rebuilt and pruned. Unedited materials take this session's bindings instead.
+    from cdmw.services.mesh_preview_material_source import adopt_current_material_bindings
+
+    try:
+        adopt_current_material_bindings(session.working_mesh, previous_mesh)
+    except (AttributeError, KeyError, OSError, TypeError, ValueError):
+        pass  # the state is installed as saved; its materials are prepared again on demand
     session.mode = snapshot.mode
     session.selection = snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
@@ -1098,6 +1170,13 @@ class _MeshServiceSessionLayerCore(
             session.mesh_draft_plan = draft_plan
             # An untouched session has nothing to save; its first accepted
             # edit creates the draft folder.
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+        elif project_path is not None and _draft_holds_only_unfinished_edits(project_path):
+            # The draft never finished a state: all it holds is a Mesh Editor's
+            # recovery point, made from "no state yet". This session is the game's
+            # file as it opened, so it has nothing to save either. Publishing it on
+            # close gave the draft a state the recovery point was not made from, and
+            # the unfinished edits were refused the next time the draft opened.
             session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
         if loaded_layer_project is not None:
             session.viewport_hidden_parts = _loaded_viewport_hidden_parts(
@@ -1814,7 +1893,8 @@ class _MeshServiceSessionLayerCore(
                 session.history_recovery_problem = (
                     "Unfinished Mesh Editor edits are not restored while Morph & Refit has a profile open.")
                 return 0.0
-            if recovery["base_generation"] != str(base_generation or ""):
+            if recovery["base_generation"] != str(base_generation or "") and not _published_by_an_untouched_close(
+                    project_root, str(base_generation or ""), recovery):
                 session.history_recovery_problem = (
                     "Unfinished Mesh Editor edits were made from an earlier state of this draft and were not "
                     "restored; the draft has changed since.")

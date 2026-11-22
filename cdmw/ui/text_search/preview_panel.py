@@ -196,6 +196,22 @@ class TextSearchPreviewMixin:
         self.preview_text_edit.set_wrap_enabled(enabled)
         self.schedule_settings_save()
 
+    def _on_preview_find_edited(self, _text: str = "") -> None:
+        self._preview_find_interactive = True
+        self._preview_find_timer.start()
+
+    def _on_preview_find_text_changed(self, _text: str = "") -> None:
+        if self._preview_find_interactive:
+            self._preview_find_interactive = False
+            return
+        self._preview_find_timer.stop()
+        self._handle_preview_find_changed()
+
+    def _flush_preview_find_timer(self) -> None:
+        if self._preview_find_timer.isActive():
+            self._preview_find_timer.stop()
+            self._handle_preview_find_changed()
+
     def _handle_preview_find_changed(self, _text: str = "", *, reset_focus: bool = True) -> None:
         query = self.preview_find_edit.text()
         self.preview_find_spans = self._find_preview_spans(query, self.preview_find_case_checkbox.isChecked())
@@ -277,6 +293,7 @@ class TextSearchPreviewMixin:
         self.preview_find_status_label.setText(self._preview_match_status_text())
 
     def _jump_to_preview_find_match(self, direction: int) -> None:
+        self._flush_preview_find_timer()
         if not self.preview_find_spans:
             return
         self.preview_find_active_index = (self.preview_find_active_index + direction) % len(self.preview_find_spans)

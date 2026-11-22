@@ -222,6 +222,10 @@ class PlacementStudioWindow(
         # Armour pieces chosen per slot, as archive paths.
         self._armour_choice: dict = {}
         self._clipping_report = None
+        self._clipping_checking = False
+        self._clipping_context: tuple = ()
+        self._clipping_token = 0
+        self._blade_axis_cache: dict = {}
         self._body_problems: List[str] = []
         self._body_coverage = 0.0
         self._selected_part = ""
@@ -1065,7 +1069,12 @@ class PlacementStudioWindow(
         exactly as a missing native helper does elsewhere in the app.
         """
 
-        from .meshes import MeshError, load_mesh, measure_clipping, points_inside, weapon_mesh_path
+        from .meshes import (
+            MeshError,
+            load_mesh,
+            measure_clipping_with_indices,
+            weapon_mesh_path,
+        )
 
         session = self._session
         if session is None:
@@ -1080,7 +1089,12 @@ class PlacementStudioWindow(
         body = self._posed_body() or self._bind_body() or self._body_mesh()
         weapon_mesh = None
         clipping: List[int] = []
+        self._clipping_token += 1
+        token = self._clipping_token
         self._clipping_report = None
+        self._clipping_checking = False
+        self._clipping_context = ()
+        clipping_task = getattr(self, "_clipping_task", None)
 
         # Follow the part the user selected. Guessing "the first sword row" silently picked
         # the left-hand row against a right-hand weapon mesh, which reported placement numbers
@@ -1093,6 +1107,9 @@ class PlacementStudioWindow(
         # reading it afterwards raised UnboundLocalError inside a Qt slot — which Qt swallows,
         # so the tab simply stopped updating instead of reporting anything.
         local = None
+        matrix = None
+        path = ""
+        role = self._mesh_role_box.currentData() or "stowed"
         binding = next((b for b in bindings if b.part_name == self._selected_part), None)
         if binding is None:
             binding = next(
@@ -1117,7 +1134,6 @@ class PlacementStudioWindow(
                         local = None
                     self._weapon_mesh_cache[path] = local
                 if local is not None:
-                    role = self._mesh_role_box.currentData() or "stowed"
                     socket = binding.part.in_socket if role == "stowed" else binding.part.out_socket
                     child = (
                         binding.part.in_child_socket
@@ -1127,17 +1143,39 @@ class PlacementStudioWindow(
                     matrix = session.attachment_matrix(socket, child)
                     if matrix is not None:
                         weapon_mesh = local.transformed(matrix, name=local.name)
-                        # Clipping is measured on request, not per frame. Against a posed
-                        # body it cannot be cached — the geometry changes every frame — and
-                        # it cost 325 ms a frame, which is what made pausing feel like a
-                        # hang. At bind, with no clip loaded, it is cheap enough to keep live.
-                        if body is not None and self._should_measure_clipping():
-                            self._clipping_report = measure_clipping(weapon_mesh, body)
-                            clipping = points_inside(weapon_mesh.vertices, body)
 
+        local_axis = self._blade_axis(local) if local is not None else None
+        placed_axis = (
+            self._rotate_axis(local_axis, matrix)
+            if (local_axis is not None and matrix is not None)
+            else self._blade_axis(weapon_mesh)
+        )
         self._viewport.set_meshes(body, weapon_mesh, clipping)
-        self._viewport.set_blade_axis(self._blade_axis(weapon_mesh))
-        self._local_blade_axis = self._blade_axis(local) if local is not None else None
+        self._viewport.set_blade_axis(placed_axis)
+        self._local_blade_axis = local_axis
+
+        if weapon_mesh is not None and body is not None and self._should_measure_clipping():
+            context = (id(session), self._selected_part, path, role, token)
+            if getattr(self, "_background_loading", False) and clipping_task is not None:
+                self._clipping_checking = True
+                self._clipping_context = context
+                w_snap, b_snap = weapon_mesh, body
+
+                def _measure(cancelled, _progress, ctx=context, w=w_snap, b=b_snap):
+                    if cancelled():
+                        return None
+                    report, inside = measure_clipping_with_indices(w, b)
+                    if cancelled():
+                        return None
+                    return ctx, report, inside
+
+                clipping_task.submit(_measure)
+            else:
+                self._clipping_report, clipping = measure_clipping_with_indices(weapon_mesh, body)
+                self._viewport.set_meshes(body, weapon_mesh, clipping)
+        elif clipping_task is not None:
+            clipping_task.cancel()
+
         self._update_clipping_label()
         self._update_gizmo_anchor()
 
@@ -1163,6 +1201,18 @@ class PlacementStudioWindow(
     def _request_clipping(self) -> None:
         self._clipping_requested = True
         self._refresh_meshes()
+
+    def _clipping_ready(self, value, error: str) -> None:
+        self._clipping_checking = False
+        if error or value is None:
+            self._update_clipping_label()
+            return
+        context, report, inside = value
+        if context != getattr(self, "_clipping_context", ()):
+            return
+        self._clipping_report = report
+        self._viewport.set_meshes(self._viewport._body, self._viewport._weapon, inside)
+        self._update_clipping_label()
 
     def _on_reverse_orbit_toggled(self, checked: bool) -> None:
         self._viewport.set_orbit_follows_pointer(not checked)
@@ -1190,16 +1240,38 @@ class PlacementStudioWindow(
 
         if placed_weapon is None or placed_weapon.empty:
             return None
+        cache = getattr(self, "_blade_axis_cache", None)
+        vertices = placed_weapon.vertices
+        if cache is not None:
+            held = cache.get(id(vertices))
+            if held is not None and held[0] is vertices:
+                return held[1]
         low, high = placed_weapon.bounds()
         spans = (high.x - low.x, high.y - low.y, high.z - low.z)
-        if max(spans) <= 1e-6:
-            return None
-        # Endpoints along the longest world axis give the direction without needing local space.
-        index = spans.index(max(spans))
-        pick = (lambda v: v.x, lambda v: v.y, lambda v: v.z)[index]
-        lo = min(placed_weapon.vertices, key=pick)
-        hi = max(placed_weapon.vertices, key=pick)
-        dx, dy, dz = hi.x - lo.x, hi.y - lo.y, hi.z - lo.z
+        axis: Optional[Vec3] = None
+        if max(spans) > 1e-6:
+            # Endpoints along the longest world axis give the direction without needing local space.
+            index = spans.index(max(spans))
+            pick = (lambda v: v.x, lambda v: v.y, lambda v: v.z)[index]
+            lo = min(vertices, key=pick)
+            hi = max(vertices, key=pick)
+            dx, dy, dz = hi.x - lo.x, hi.y - lo.y, hi.z - lo.z
+            length = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if length > 1e-9:
+                axis = Vec3(dx / length, dy / length, dz / length)
+        if cache is not None:
+            if len(cache) > 16:
+                cache.clear()
+            cache[id(vertices)] = (vertices, axis)
+        return axis
+
+    @staticmethod
+    def _rotate_axis(axis: Vec3, matrix) -> Optional[Vec3]:
+        import math
+
+        dx = axis.x * matrix[0] + axis.y * matrix[4] + axis.z * matrix[8]
+        dy = axis.x * matrix[1] + axis.y * matrix[5] + axis.z * matrix[9]
+        dz = axis.x * matrix[2] + axis.y * matrix[6] + axis.z * matrix[10]
         length = math.sqrt(dx * dx + dy * dy + dz * dz)
         if length <= 1e-9:
             return None
@@ -1231,7 +1303,10 @@ class PlacementStudioWindow(
             health_state = "stale"
         else:
             report = self._clipping_report
-            if report is None:
+            if getattr(self, "_clipping_checking", False):
+                text = "Checking clipping..."
+                health_state = ""
+            elif report is None:
                 text = "Sinks into the body: press Check for clipping"
                 health_state = ""
             else:

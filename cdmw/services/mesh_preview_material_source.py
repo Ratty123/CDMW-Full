@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 def _canonicalize_signature_numbers(value):
@@ -20,7 +20,7 @@ def _canonicalize_signature_numbers(value):
     return value
 
 
-def _binding_signature_values(part):
+def _binding_signature_values(part, *, stat_files: bool = True):
     from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
 
     # Geometry edits and scene placement do not edit a material. All material
@@ -36,6 +36,8 @@ def _binding_signature_values(part):
         # graph must still be checked against every texture/parameter edit.
         ignored.update(("shader_controls", "translucency", "translucency_surface"))
     values["overrides"] = {key: value for key, value in overrides.items() if key not in ignored}
+    if not stat_files:
+        return values
     # An editor may replace a file in place without changing its binding path.
     # Package resources are immutable; a changed source file must be baked again.
     paths = {str(value) for name, value in values.items() if "path" in name and value}
@@ -139,6 +141,103 @@ def unedited_preview_core_material_source(part):
     if stored_signature in {_binding_signature(part), _legacy_binding_signature(part)}:
         return source
     return None
+
+
+def _without_cache_locations(value):
+    """``value`` with every absolute path reduced to its file name.
+
+    Prepared textures are named by their content, so a rebuilt archive index or
+    preview cache keeps the names and changes only the folders they lie in.
+    """
+
+    if isinstance(value, str):
+        if PureWindowsPath(value).is_absolute() or value.startswith("/"):
+            return PureWindowsPath(value).name
+        return value
+    if isinstance(value, Mapping):
+        return {str(key): _without_cache_locations(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_without_cache_locations(item) for item in value]
+    return value
+
+
+def _relocatable_binding_values(part):
+    """A part's material inputs, wherever its cache files lie now."""
+    from cdmw.services.mesh_rust_authoring import _json_safe
+
+    values = _binding_signature_values(part, stat_files=False)
+    return _canonicalize_signature_numbers(_without_cache_locations(_json_safe(values)))
+
+
+def adopt_current_material_bindings(restored_mesh, current_mesh) -> int:
+    """Give restored parts this session's material bindings where only cache folders differ.
+
+    A saved editor state (unfinished edits picked up again, an Undo step from an earlier
+    session) holds each part's material bindings as they were when it was saved: paths
+    into the archive index and the preview cache. Those are rebuilt and pruned. The
+    stored native layer source then no longer counts as unedited, and the part drew its
+    raw textures without dyes and detail layers (Fredric, 2026-11-22).
+
+    ``current_mesh`` is the session's mesh just before the state is installed: its parts
+    were bound when this session opened. A restored part takes the bindings of the one
+    part with its name and material, when that part's source is valid and both describe
+    the same material once file locations are set aside. A part whose material was
+    edited differs in more than locations and keeps what it stored. Returns how many
+    parts were given bindings.
+    """
+    import copy
+
+    from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
+
+    def identity(part):
+        return str(getattr(part, "name", "") or ""), str(getattr(part, "material", "") or "")
+
+    def levels(mesh):
+        return [list(getattr(mesh, "submeshes", ()) or ()),
+                *(list(level or ()) for level in (getattr(mesh, "lod_levels", ()) or ()))]
+
+    adopted = 0
+    current_levels = levels(current_mesh)
+    done: set[int] = set()
+    for level_index, level in enumerate(levels(restored_mesh)):
+        if level_index >= len(current_levels):
+            break
+        donors: dict[tuple[str, str], list] = {}
+        for part in current_levels[level_index]:
+            donors.setdefault(identity(part), []).append(part)
+        for part in level:
+            if id(part) in done:
+                continue  # LOD 0 is listed twice when the levels hold it too
+            done.add(id(part))
+            if unedited_preview_core_material_source(part) is not None:
+                continue
+            candidates = donors.get(identity(part), ())
+            if len(candidates) != 1 or candidates[0] is part:
+                continue
+            donor = candidates[0]
+            source = unedited_preview_core_material_source(donor)
+            if source is None or _relocatable_binding_values(part) != _relocatable_binding_values(donor):
+                continue
+            # Exactly what the binding signature covers: a part's placement role and
+            # its own vertex statistics are not its material.
+            for name in (*_DOTNET_PREVIEW_MATERIAL_ATTRS, "texture"):
+                if (name in {"preview_role", "preview_source_asset_path", "preview_native_material_overrides"}
+                        or name.startswith("preview_vertex_") or not hasattr(donor, name)):
+                    continue
+                value = getattr(donor, name)
+                try:
+                    value = copy.deepcopy(value)
+                except (TypeError, RuntimeError):
+                    pass
+                setattr(part, name, value)
+            # The source itself is read-only and shared, as on every copy of a part.
+            overrides = {key: copy.deepcopy(value) for key, value in
+                         (getattr(donor, "preview_native_material_overrides", {}) or {}).items()
+                         if key != "preview_core_material_source"}
+            overrides["preview_core_material_source"] = source
+            part.preview_native_material_overrides = overrides
+            adopted += 1
+    return adopted
 
 
 def bind_authoring_preview_core_materials(mesh, package_path, *, manifest=None):

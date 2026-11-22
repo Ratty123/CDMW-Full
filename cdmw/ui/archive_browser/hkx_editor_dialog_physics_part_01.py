@@ -393,14 +393,22 @@ def _dialog_step_0102(_state):
         _populate_decoder_evidence_tree_part_006(_state, _frame)
         if _frame.root is None:
             return
-        _populate_decoder_evidence_tree_part_007(_state, _frame)
-        if _frame.evidence is None and _frame.fixup_v2 is None and (_frame.semantic_model is None) and (_frame.semantic_gate is None) and (_frame.edit_map is None) and (_frame.class_decoder_v2 is None) and (_frame.real_metadata_v2 is None):
-            _state.decoder_tree.addTopLevelItem(_state.QTreeWidgetItem(('No decoder evidence exported.', '', '', '', '', '')))
-            _state.decoder_status_label.setText('No normalized decoder evidence is present in this HKX export.')
-            _state._set_hkx_editor_section_title(10, 'Decoder Evidence')
-            return
-        _populate_decoder_evidence_tree_part_008(_state, _frame)
-        _populate_decoder_evidence_tree_part_009(_state, _frame)
+        tree = _state.decoder_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_decoder_evidence_tree_part_007(_state, _frame)
+            if _frame.evidence is None and _frame.fixup_v2 is None and (_frame.semantic_model is None) and (_frame.semantic_gate is None) and (_frame.edit_map is None) and (_frame.class_decoder_v2 is None) and (_frame.real_metadata_v2 is None):
+                tree.addTopLevelItem(_state.QTreeWidgetItem(('No decoder evidence exported.', '', '', '', '', '')))
+                _state.decoder_status_label.setText('No normalized decoder evidence is present in this HKX export.')
+                _state._set_hkx_editor_section_title(10, 'Decoder Evidence')
+                return
+            _populate_decoder_evidence_tree_part_008(_state, _frame)
+            _populate_decoder_evidence_tree_part_009(_state, _frame)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
     _state._populate_decoder_evidence_tree = _populate_decoder_evidence_tree
 
 def _populate_connected_physics_tree_part_010(_state, _frame):
@@ -591,8 +599,16 @@ def _dialog_step_0103(_state):
         _populate_connected_physics_tree_part_010(_state, _frame)
         if _frame.root is None:
             return
-        _populate_connected_physics_tree_part_011(_state, _frame)
-        _populate_connected_physics_tree_part_012(_state, _frame)
+        tree = _state.connected_tree
+        was_sorting = tree.isSortingEnabled()
+        tree.setSortingEnabled(False)
+        tree.setUpdatesEnabled(False)
+        try:
+            _populate_connected_physics_tree_part_011(_state, _frame)
+            _populate_connected_physics_tree_part_012(_state, _frame)
+        finally:
+            tree.setSortingEnabled(was_sorting)
+            tree.setUpdatesEnabled(True)
     _state._populate_connected_physics_tree = _populate_connected_physics_tree
 
 def _dialog_step_0104(_state):

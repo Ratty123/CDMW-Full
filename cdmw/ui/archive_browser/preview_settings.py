@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cdmw.domain.preview_view_modes import read_view_mode
+from cdmw.domain.preview_view_modes import read_view_mode, repair_leaked_view_mode
 
 from dataclasses import replace
 from pathlib import Path
@@ -104,6 +104,7 @@ class ArchivePreviewSettingsMixin:
     def _read_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
         migrate_textures_on_by_default(self.shell.settings)
         migrate_lighting_to_studio(self.shell.settings)
+        repair_leaked_view_mode(self.shell.settings)
         defaults = clamp_model_preview_render_settings()
         legacy_lighting_version = 0
         try:
