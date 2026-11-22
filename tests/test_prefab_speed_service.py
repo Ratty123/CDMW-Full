@@ -13,6 +13,7 @@ from cdmw.domain.archives.prefab_speed import CATEGORIES, SPEED_MEMBERS
 from cdmw.services.prefab_speed_service import (
     NO_VALUE,
     PARTLY_READ,
+    UNCHANGED,
     ZERO_VALUES,
     PrefabSpeedEdit,
     PrefabSpeedError,
@@ -205,3 +206,11 @@ def test_many_prefabs_are_scaled_or_left_out_with_a_reason():
     stop.set()
     with pytest.raises(Exception, match="cancelled"):
         scale_speed_prefabs(entries, lambda entry: entry.data, 2.0, stop_event=stop)
+
+
+def test_scale_factor_one_on_nonzero_prefab_reports_unchanged_not_zero_values():
+    entries = [SimpleNamespace(path="object/prefab/two.prefab", data=build_speed_prefab(TWO))]
+    outcomes = scale_speed_prefabs(entries, lambda entry: entry.data, 1.0)
+    assert len(outcomes) == 1
+    assert outcomes[0].patched is None
+    assert outcomes[0].reason == UNCHANGED

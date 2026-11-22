@@ -206,3 +206,20 @@ def test_layer_commands_refresh_the_canvas_composite(tmp_path):
         editor.request_shutdown()
         editor.deleteLater()
         pump()
+
+
+def test_zero_opacity_raster_layer_does_not_bleed_hidden_rgb():
+    from dataclasses import replace
+    from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers_region
+
+    document = TextureEditorDocument(title="zero", width=4, height=4)
+    pixels = np.zeros((4, 4, 4), dtype=np.uint8)
+    pixels[..., :3] = [180, 90, 45]
+    pixels[0, 0, 3] = 255  # mix of opaque and alpha-0 pixels with non-zero RGB
+    document, layers, layer_id = add_texture_editor_layer(document, {}, name="Zero", initial_pixels=pixels)
+    zero_layer = next(layer for layer in document.layers if layer.layer_id == layer_id)
+    document = replace(document, layers=(replace(zero_layer, opacity=0),))
+    full = flatten_texture_editor_layers(document, layers)
+    region = flatten_texture_editor_layers_region(document, layers, (0, 0, 4, 4))
+    assert np.all(full == 0)
+    assert np.all(region == 0)

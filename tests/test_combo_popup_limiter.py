@@ -162,3 +162,17 @@ def test_a_tree_view_popup_is_measured_too(app):
     finally:
         combo.hidePopup()
         host.close()
+
+
+def test_deleting_popup_before_queued_clamp_does_not_raise(app):
+    combo = QComboBox()
+    combo.addItems(["Alpha", "Beta", "Gamma"])
+    host = _host(app, combo)
+    combo.showPopup()
+    popup = combo.view().parentWidget()
+    assert popup is not None
+    combo.deleteLater()
+    host.deleteLater()
+    _spin(app)
+    # Direct clamp on deleted/hidden widget must also return safely.
+    ComboPopupLimiter._clamp(popup)

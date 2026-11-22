@@ -741,14 +741,14 @@ def prefab_batch_summary(outcomes: Sequence, factor: float, missing: Sequence[st
     """The question asked before the listed prefabs become one package, the list behind Show
     Details, and how many prefabs would be written."""
 
-    from cdmw.services.prefab_speed_service import NO_VALUE, NOT_READ, PARTLY_READ, UNDECIDED, ZERO_VALUES
+    from cdmw.services.prefab_speed_service import NO_VALUE, NOT_READ, PARTLY_READ, UNCHANGED, UNDECIDED, ZERO_VALUES
 
     changed = [item for item in outcomes if item.patched is not None]
     left: dict[str, int] = {}
     for item in outcomes:
         if item.patched is None:
             # One line per kind of reason; a reason of its own (a value too large) is in the details.
-            reason = next((known for known in (NOT_READ, PARTLY_READ, UNDECIDED, NO_VALUE, ZERO_VALUES)
+            reason = next((known for known in (NOT_READ, PARTLY_READ, UNDECIDED, NO_VALUE, ZERO_VALUES, UNCHANGED)
                            if item.reason.startswith(known)), "could not be scaled")
             left[reason] = left.get(reason, 0) + 1
     if missing:

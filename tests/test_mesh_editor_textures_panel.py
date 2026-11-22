@@ -479,3 +479,73 @@ def test_collapsed_parts_do_not_decode_thumbnails_until_expanded(tmp_path: Path)
         panel.deleteLater()
         loader.deleteLater()
         app.processEvents()
+
+
+def test_sync_ui_font_and_dpr_round_trip_update_thumbnails(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtGui import QFont
+
+    app = _app()
+    tex_path = tmp_path / "tex-00.dds"
+    tex_path.write_bytes(b"stand-in")
+    manifest = {
+        "textures": [
+            {"label": "cd_armor_00_d.dds", "role": "base_color",
+             "file": {"path": "tex-00.dds", "sha256": "0" * 64},
+             "material_indices_by_lod": [[0]]}
+        ],
+        "state": {"skeleton": {"parts": [{"index": 0, "name": "Part_00"}]}},
+    }
+    sizes: list[int] = []
+
+    def decoder(_path: Path, size: int, _role: str) -> QImage | None:
+        sizes.append(size)
+        im = QImage(size, size, QImage.Format.Format_RGBA8888)
+        im.fill(QColor(120, 80, 200))
+        return im
+
+    dpr = [1.0]
+    pool = QThreadPool()
+    loader = TextureThumbnailLoader(pool=pool, decoder=decoder)
+    panel = MeshEditorTexturesPanel(thumbnail_loader=loader)
+    monkeypatch.setattr(panel, "_device_pixel_ratio", lambda: dpr[0])
+    try:
+        panel.set_manifest(manifest, session_root=tmp_path)
+        panel.part_item(0).setExpanded(True)
+        assert _wait_for(app, lambda: not panel.part_item(0).child(0).icon(COLUMN_THUMBNAIL).isNull())
+        pool.waitForDone(5000)
+        app.processEvents()
+        first_sizes = list(sizes)
+        assert len(first_sizes) == 1
+
+        # Changing the UI font updates thumbnail_side() and re-decodes expanded thumbnails.
+        bigger = QFont(panel.tree.font())
+        bigger.setPointSize(16)
+        panel.sync_ui_font(bigger)
+        assert _wait_for(app, lambda: len(sizes) >= 2)
+        pool.waitForDone(5000)
+        app.processEvents()
+        assert sizes[-1] > first_sizes[0]
+
+        # Moving 1.0 -> 1.5 -> 1.0 reapplies the cached 1.0 icon instead of keeping the 1.5 icon.
+        dpr[0] = 1.5
+        panel._requested_paths.clear()
+        panel._request_thumbnails()
+        assert _wait_for(app, lambda: len(sizes) >= 3)
+        pool.waitForDone(5000)
+        app.processEvents()
+        applied_hi = panel._applied_icon_key_by_path[str(tex_path)]
+        assert applied_hi[1] == 1500
+
+        count_before = len(sizes)
+        dpr[0] = 1.0
+        panel._requested_paths.clear()
+        panel._request_thumbnails()
+        assert len(sizes) == count_before  # reused from cache
+        applied_lo = panel._applied_icon_key_by_path[str(tex_path)]
+        assert applied_lo[1] == 1000
+    finally:
+        panel.shutdown()
+        pool.waitForDone(5000)
+        panel.deleteLater()
+        loader.deleteLater()
+        app.processEvents()

@@ -111,6 +111,8 @@ def _blend_layer_region(
     texture has to flatten back to the same bytes. Edits inside one layer (gradient,
     paint) keep the layer's existing colour there instead.
     """
+    if float(opacity) <= 0.0:
+        return dst_region.copy()
     if (
         int(opacity) >= 100
         and (mode or "normal").strip().lower() == "normal"
@@ -367,7 +369,7 @@ def _flatten_texture_editor_raster_layers(
     base = np.zeros((document.height, document.width, 4), dtype=np.uint8)
     for layer in document.layers:
         pixels = layer_pixels.get(layer.layer_id)
-        if pixels is None or not layer.visible:
+        if pixels is None or not layer.visible or float(layer.opacity) <= 0.0:
             continue
         intersection = _layer_canvas_intersection(layer, pixels, document)
         if intersection is None:
@@ -456,7 +458,7 @@ def _flatten_texture_editor_raster_layers_region(
     base = np.zeros((crop_height, crop_width, 4), dtype=np.uint8)
     for layer in document.layers:
         pixels = layer_pixels.get(layer.layer_id)
-        if pixels is None or not layer.visible:
+        if pixels is None or not layer.visible or float(layer.opacity) <= 0.0:
             continue
         intersection = _layer_canvas_intersection(layer, pixels, document)
         if intersection is None:

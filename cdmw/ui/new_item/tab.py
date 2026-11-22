@@ -1055,7 +1055,7 @@ class NewItemStudioTab(QWidget):
         launch = self._pending_package
         if launch is None or key is None:
             return
-        if int(key) == int(launch.draft.template_key):
+        if launch.draft.template_key is not None and int(key) == int(launch.draft.template_key):
             QTimer.singleShot(0, self, self._restore_pending_package)
         elif self._pending_package_requested:
             # Another template replaced the package's own request: the user moved on.

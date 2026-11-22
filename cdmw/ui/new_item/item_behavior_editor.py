@@ -3,8 +3,9 @@ from copy import deepcopy
 
 from PySide6.QtCore import Qt
 
-from cdmw.core.iteminfo_behavior import read_behavior_fields
-from cdmw.domain.new_item.item_behavior import (ItemBehaviorSettings, BEHAVIOR_FIELDS, SUBITEM_TYPES,
+from cdmw.core.item_layout import read_item_layout
+from cdmw.core.iteminfo_behavior import has_page_rotation, read_behavior_fields
+from cdmw.domain.new_item.item_behavior import (ItemBehaviorSettings, BEHAVIOR_FIELDS, PAGE, PAGE_ROTATION, SUBITEM_TYPES,
     encode_behavior_settings)
 from cdmw.services.active_ui_translation import translate_active_ui_text as tr
 from cdmw.ui.new_item.choice_model import set_choice_rows
@@ -198,8 +199,20 @@ class ItemBehaviorEditor(ItemDefinitionEditor):
             if kind=='subitem-type': self._at(changed,path[:-1])['value']=0 if value in (0,3,9) else None
         self._field_commit(changed)
 
+    def _has_page_rotation(self) -> bool:
+        if self._row is None:
+            return False
+        try:
+            return has_page_rotation(read_item_layout(self._row.raw))
+        except (ValueError, AttributeError, TypeError):
+            return False
+
     def _entry(self,path,values):
-        return _default(self._shape(path)[1])
+        shape=self._shape(path)[1]
+        entry=_default(shape)
+        if shape == PAGE and self._has_page_rotation():
+            entry[PAGE_ROTATION]=0
+        return entry
 
     def _add(self):
         shape=BEHAVIOR_FIELDS[self.field.currentData()][1]

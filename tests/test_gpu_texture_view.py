@@ -363,3 +363,43 @@ def test_browse_dispatch_constructs_the_real_worker_with_gpu_opt_in(app, tmp_pat
     assert owner.archive_preview_worker.prefer_gpu_texture is True
     owner.archive_preview_worker.deleteLater()
     owner.close()
+
+
+def test_repeated_prepare_and_process_starts_do_not_accumulate_destroyed_connections(app, tmp_path, monkeypatch):
+    from PySide6.QtCore import QCoreApplication, QEvent, SIGNAL
+
+    host = module.GpuTexturePreview()
+    destroyed_sig = SIGNAL("destroyed()")
+    initial_receivers = host.receivers(destroyed_sig)
+    stopped = []
+    monkeypatch.setattr(module, "stop_qprocess_async", stopped.append)
+
+    class _FakeProcess:
+        def __init__(self, *_args):
+            self.readyReadStandardOutput = SimpleNamespace(connect=lambda *_: None)
+            self.readyReadStandardError = SimpleNamespace(connect=lambda *_: None)
+            self.finished = SimpleNamespace(connect=lambda *_: None)
+            self.errorOccurred = SimpleNamespace(connect=lambda *_: None)
+
+        def setProgram(self, *_args): pass
+        def setArguments(self, *_args): pass
+        def start(self): pass
+
+    monkeypatch.setattr(module, "QProcess", _FakeProcess)
+    monkeypatch.setattr(module, "register_owned_qprocess_for_exit", lambda *_: None)
+    monkeypatch.setattr(QThreadPool, "globalInstance", lambda: SimpleNamespace(start=lambda *_: None))
+
+    for i in range(5):
+        host._path = str(tmp_path / f"t{i}.dds")
+        host._prepare()
+        host._start_process("fake.exe")
+
+    assert host.receivers(destroyed_sig) == initial_receivers
+    active_task = host._task
+    active_process = host._process
+    assert active_task is not None and active_process is not None
+    host.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    assert active_task.stop.is_set()
+    assert active_process in stopped

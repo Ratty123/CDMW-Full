@@ -201,7 +201,7 @@ class RustMeshEditorHostFrame(QFrame):
                 ("Save and reuse", "ExportPac", "Export PAC As…", self.export_pac_requested,
                  "Save only the finished PAC with a new name or path. Remembers the full destination and replaces existing exports. Edits needing companion files require Build Mod."),
                 ("Save and reuse", "AddtoArchiveBrowser", "Add to Archive Browser", self.add_to_archive_browser_requested,
-                 "Add the finished mesh to Archive Browser > Controls > Edited results. Open it there for a fresh editing pass, or choose another mesh from a combined Refit result. Results stay available until you close CDMW. This does not install a mod or change your game archives."),
+                 "Add the finished mesh to Browse Archives > Actions > Edited Results... so you can open it there for a fresh editing pass, or choose another mesh from a combined Refit result. Results stay available until you close CDMW. This does not install a mod or change your game archives."),
                 ("Check or install", "RunValidation", "Check mesh", self.run_validation_requested,
                  "Check whether this mesh can be rebuilt in its output format. Finish Edit Mesh already checks the accepted edit; use this to run that check again. A passed check does not verify appearance in the game."),
                 ("", "CloseSession", "Close this mesh", self.close_session_requested,
