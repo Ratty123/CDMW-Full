@@ -2520,6 +2520,7 @@ ERROR_REFERENCE = [
       "Name the file: path, or several with paths.",
       "Name the template: match (text in its row) or row (its number).",
       "None of these prefabs holds a speed value that can be scaled; speed_prefabs_preview gives the reason for each.",
+      "Only a mesh opens in the Mesh Editor.",
       "Paint points must be within the {width} by {height} mask.",
       "Part {part} has triangles 0 to {count - 1}.",
       "Part {part} has vertices 0 to {count - 1}.",
@@ -2530,6 +2531,7 @@ ERROR_REFERENCE = [
       "Save the report as a .csv or .json file.",
       "Supply exactly one PNG path or base64 data.",
       "Supply the list of paths to ignore.",
+      "Supply true or false.",
       "That cell holds a number.",
       "That cell holds a whole number.",
       "That name is empty once cleaned up.",
@@ -2622,6 +2624,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/character_finder_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/decal_tools.py",
+      "cdmw/mcp/dmm_mount_tools.py",
       "cdmw/mcp/game_table_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/local_file_tools.py",
@@ -3124,6 +3127,7 @@ ERROR_REFERENCE = [
       "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
       "Row {key} is not listed in the dialog.",
       "Row {row.key} has values 0 to {len(row.values) - 1}.",
+      "Some paths are not in the Files DMM adds list. Use app_dmm_added_files find first.",
       "That page is gone: it was already read or is more than 15 minutes old. Run the search again.",
       "That value is not listed in the dialog.",
       "The Format Explorer has no row for {extension}.",
@@ -3190,6 +3194,7 @@ ERROR_REFERENCE = [
       "{given} is not DMM's folder (the one that contains DMM.exe).",
       "{key} has no variant {variant}.",
       "{missing[0]} is not among the matched files; refresh_matches first.",
+      "{path} is not in the Files DMM adds list. Use action 'find' first.",
       "{path} is not in the game archives.",
       "{table} has no row {key if key is not None else name}.",
       "{what}: the mesh has parts 0 to {len(parts) - 1}.",
@@ -3201,6 +3206,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/browse_archive_tools.py",
       "cdmw/mcp/control_tools.py",
       "cdmw/mcp/decal_tools.py",
+      "cdmw/mcp/dmm_mount_tools.py",
       "cdmw/mcp/game_table_tools.py",
       "cdmw/mcp/hkx_tools.py",
       "cdmw/mcp/item_icon_tools.py",
@@ -8202,7 +8208,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 828
+      "cdmw/services/archive_catalogue_service.py": 901
     }
   },
   {
@@ -8210,7 +8216,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid {kind} payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1174
+      "cdmw/services/archive_catalogue_service.py": 1248
     }
   },
   {
@@ -8338,7 +8344,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 670
+      "cdmw/services/archive_catalogue_service.py": 739
     }
   },
   {
@@ -8722,7 +8728,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive lookup query does not belong to the requested session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 396
+      "cdmw/services/archive_catalogue_service.py": 399
     }
   },
   {
@@ -8851,7 +8857,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive operation stopped making progress for five minutes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 211
+      "cdmw/services/archive_catalogue_service.py": 214
     }
   },
   {
@@ -8867,7 +8873,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive page does not match the requested query, range or session.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 808
+      "cdmw/services/archive_catalogue_service.py": 881
     }
   },
   {
@@ -8972,7 +8978,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview lookup failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 560
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 595
     }
   },
   {
@@ -8996,7 +9002,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query could not be retried after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1050
+      "cdmw/services/archive_catalogue_service.py": 1124
     }
   },
   {
@@ -9020,7 +9026,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query operation cannot be safely reconstructed.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1043
+      "cdmw/services/archive_catalogue_service.py": 1117
     }
   },
   {
@@ -9028,7 +9034,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query token is not available or has expired.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1193
+      "cdmw/services/archive_catalogue_service.py": 1267
     }
   },
   {
@@ -9100,7 +9106,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session could not be reopened after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 919
+      "cdmw/services/archive_catalogue_service.py": 993
     }
   },
   {
@@ -9108,7 +9114,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session fingerprint changed before the request was issued.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1186
+      "cdmw/services/archive_catalogue_service.py": 1260
     }
   },
   {
@@ -9116,7 +9122,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session is not available in the catalogue service.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1184
+      "cdmw/services/archive_catalogue_service.py": 1258
     }
   },
   {
@@ -9132,7 +9138,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session reopen could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 954
+      "cdmw/services/archive_catalogue_service.py": 1028
     }
   },
   {
@@ -9164,7 +9170,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive sources changed while the worker was restarting; stale queries were not retried.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 970
+      "cdmw/services/archive_catalogue_service.py": 1044
     }
   },
   {
@@ -9372,7 +9378,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 507
+      "cdmw/services/archive_catalogue_service.py": 510
     }
   },
   {
@@ -9766,7 +9772,7 @@ MESSAGE_REFERENCE = [
     "message": "Character preview preparation was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 568
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 603
     }
   },
   {
@@ -10427,6 +10433,22 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1963
+    }
+  },
+  {
+    "area": "archive",
+    "message": "DMM has nothing mounted at run time.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/dmm_added_files.py": 106
+    }
+  },
+  {
+    "area": "archive",
+    "message": "DMM no longer serves {row.game_path}. Press Find again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/archive_browser/dmm_added_files.py": 170
     }
   },
   {
@@ -11323,7 +11345,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name indexing did not produce an available catalogue.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 813,
+      "cdmw/services/archive_catalogue_service.py": 886,
       "cdmw/ui/archive_browser/remote_finder_warmup.py": 507
     }
   },
@@ -11951,7 +11973,7 @@ MESSAGE_REFERENCE = [
     "message": "NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 540
+      "cdmw/services/archive_catalogue_service.py": 543
     }
   },
   {
@@ -13776,7 +13798,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered page request has no query definition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1060
+      "cdmw/services/archive_catalogue_service.py": 1134
     }
   },
   {
@@ -13784,7 +13806,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1117
+      "cdmw/services/archive_catalogue_service.py": 1191
     }
   },
   {
@@ -13792,7 +13814,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query target has an unsupported payload.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1106
+      "cdmw/services/archive_catalogue_service.py": 1180
     }
   },
   {
@@ -13816,7 +13838,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery open did not return an archive session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 785
+      "cdmw/services/archive_catalogue_service.py": 858
     }
   },
   {
@@ -13824,7 +13846,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery query did not return a query handle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 790
+      "cdmw/services/archive_catalogue_service.py": 863
     }
   },
   {
@@ -14648,7 +14670,7 @@ MESSAGE_REFERENCE = [
     "message": "Structure children require an empty query token and package-root hierarchy mode.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 371
+      "cdmw/services/archive_catalogue_service.py": 374
     }
   },
   {
@@ -14909,6 +14931,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "The Mesh Editor is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/ui/archive_browser/dmm_added_files.py": 182
+    }
+  },
+  {
+    "area": "archive",
     "message": "The PAT payload exceeded the analysis bound; tail materials/references may be incomplete.",
     "recovery": "limits",
     "sources": {
@@ -15152,7 +15182,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker did not prepare every bounded preview dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 434
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 452
     }
   },
   {
@@ -15160,7 +15190,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker exited before this operation could start.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 692
+      "cdmw/services/archive_catalogue_service.py": 761
     }
   },
   {
@@ -15200,7 +15230,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned invalid prepared preview dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 399
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 417
     }
   },
   {
@@ -15208,7 +15238,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned preview candidates for the wrong entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 396
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 414
     }
   },
   {
@@ -16163,7 +16193,7 @@ MESSAGE_REFERENCE = [
     "message": "This archive operation was superseded.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 258
+      "cdmw/services/archive_catalogue_service.py": 261
     }
   },
   {
@@ -16172,7 +16202,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/item_set_preview.py": 137,
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 260,
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 278,
       "cdmw/ui/archive_browser/workers.py": 598
     }
   },
@@ -17206,7 +17236,7 @@ MESSAGE_REFERENCE = [
     "message": "compatibility_entry requires one bounded ArchiveEntryDto.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 646
+      "cdmw/services/archive_catalogue_service.py": 649
     }
   },
   {
@@ -19466,6 +19496,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/replace_from_archive_service.py": 675
+    }
+  },
+  {
+    "area": "archive",
+    "message": "{row.game_path} is not a path inside the folder.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/archive_browser/dmm_added_files.py": 210
     }
   },
   {
@@ -45830,7 +45868,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2938
+      "cdmw/modding/mesh_parser.py": 2955
     }
   },
   {
@@ -51458,7 +51496,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1490
+      "cdmw/modding/mesh_parser.py": 1507
     }
   },
   {
@@ -51909,7 +51947,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAMLOD data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 642
+      "cdmw/modding/mesh_pamlod_builder.py": 655
     }
   },
   {
@@ -52173,7 +52211,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2600
+      "cdmw/modding/mesh_parser.py": 2617
     }
   },
   {
@@ -52613,7 +52651,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3057
+      "cdmw/modding/mesh_parser.py": 3074
     }
   },
   {
@@ -52990,7 +53028,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2983
+      "cdmw/modding/mesh_parser.py": 3000
     }
   },
   {
@@ -53030,7 +53068,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM to PAMLOD transfer requires non-empty source geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 59
+      "cdmw/modding/mesh_pamlod_builder.py": 60
     }
   },
   {
@@ -53054,7 +53092,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 entry rebuild supports at most 65535 vertices per entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 470
+      "cdmw/modding/mesh_pamlod_builder.py": 471
     }
   },
   {
@@ -53062,7 +53100,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 original entry mapping is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 350
+      "cdmw/modding/mesh_pamlod_builder.py": 351
     }
   },
   {
@@ -53070,7 +53108,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 rebuild requires either one flattened submesh or one submesh per LOD0 entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 361
+      "cdmw/modding/mesh_pamlod_builder.py": 362
     }
   },
   {
@@ -53086,7 +53124,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD face references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 453
+      "cdmw/modding/mesh_pamlod_builder.py": 454
     }
   },
   {
@@ -53190,7 +53228,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD lower LOD vertex lies outside its stated level block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 613
+      "cdmw/modding/mesh_pamlod_builder.py": 624
     }
   },
   {
@@ -53222,7 +53260,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3018
+      "cdmw/modding/mesh_parser.py": 3035
     }
   },
   {
@@ -53230,7 +53268,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD topology-changing rebuild is currently supported for LOD0 only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 669
+      "cdmw/modding/mesh_pamlod_builder.py": 682
     }
   },
   {
@@ -53238,7 +53276,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1251
+      "cdmw/modding/mesh_parser.py": 1253
     }
   },
   {
@@ -53246,7 +53284,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
     "recovery": "locked",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1241
+      "cdmw/modding/mesh_parser.py": 1243
     }
   },
   {
@@ -55222,7 +55260,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt PAMLOD level block table does not validate; the output was not written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 632
+      "cdmw/modding/mesh_pamlod_builder.py": 645
     }
   },
   {
@@ -55230,7 +55268,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt PAMLOD lower LODs do not read back as the source levels; the output was not written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 636
+      "cdmw/modding/mesh_pamlod_builder.py": 649
     }
   },
   {
@@ -60042,7 +60080,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD layout currently supports position-only patching. Topology/UV edits are not supported for it yet ({layout.get('reason', 'unknown layout')}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 497
+      "cdmw/modding/mesh_pamlod_builder.py": 498
     }
   },
   {
@@ -60050,7 +60088,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD's LOD0 geometry does not match its level block table, so its lower LODs cannot be kept safely after a LOD0 vertex count change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 509
+      "cdmw/modding/mesh_pamlod_builder.py": 514
     }
   },
   {
@@ -62827,7 +62865,7 @@ MESSAGE_REFERENCE = [
     "message": "could not locate PAMLOD LOD0 geometry layout",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 279
+      "cdmw/modding/mesh_pamlod_builder.py": 280
     }
   },
   {
@@ -65037,7 +65075,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid PAMLOD geometry header",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 218
+      "cdmw/modding/mesh_pamlod_builder.py": 219
     }
   },
   {
@@ -66499,7 +66537,7 @@ MESSAGE_REFERENCE = [
     "message": "missing PAMLOD header",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 214
+      "cdmw/modding/mesh_pamlod_builder.py": 215
     }
   },
   {
@@ -74153,6 +74191,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Browse Archives' Files DMM adds list is unavailable.",
+    "recovery": "missing",
+    "sources": {
+      "cdmw/mcp/dmm_mount_tools.py": 41
+    }
+  },
+  {
+    "area": "other",
     "message": "Browser check cancelled. Your draft is kept.",
     "recovery": "cancelled",
     "sources": {
@@ -76413,6 +76459,38 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/services/dmm_send.py": 64
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's runtime manifest cannot be read: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 258
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's runtime manifest has no build line.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 191
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's runtime manifest has no dmm-runtime line.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 189
+    }
+  },
+  {
+    "area": "other",
+    "message": "DMM's runtime manifest is version {version}; CDMW reads version {SUPPORTED_MANIFEST_VERSION}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 161
     }
   },
   {
@@ -79234,6 +79312,62 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Manifest line {number} has no exe size.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 171
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} has no version number.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 159
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} is not a build line.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 166
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} is not a file line.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 177
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} is not the dmm-runtime version line.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 155
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} lists a file before the build line.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 175
+    }
+  },
+  {
+    "area": "other",
+    "message": "Manifest line {number} names an invalid game path.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 181
+    }
+  },
+  {
+    "area": "other",
     "message": "Mapped cloth colliders need the selected animation matrix and bone scale.",
     "recovery": "input",
     "sources": {
@@ -80328,6 +80462,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/recolor_variants.py": 426
+    }
+  },
+  {
+    "area": "other",
+    "message": "Only a mesh opens in the Mesh Editor.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/dmm_mount_tools.py": 63
     }
   },
   {
@@ -81529,7 +81671,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 186
+      "cdmw/core/pac_xml_surface_layer.py": 195
     }
   },
   {
@@ -81537,7 +81679,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 189
+      "cdmw/core/pac_xml_surface_layer.py": 198
     }
   },
   {
@@ -82196,6 +82338,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/replace_assistant/build.py": 89
+    }
+  },
+  {
+    "area": "other",
+    "message": "Some paths are not in the Files DMM adds list. Use app_dmm_added_files find first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/dmm_mount_tools.py": 77
     }
   },
   {
@@ -90337,6 +90487,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "{manifest} is a link; DMM writes it as a file.",
+    "recovery": "write",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 139
+    }
+  },
+  {
+    "area": "other",
+    "message": "{manifest} is unexpectedly large.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/dmm_runtime_mount.py": 141
+    }
+  },
+  {
+    "area": "other",
     "message": "{message} Everything CDMW keeps for itself lives in the CDMW folder.",
     "recovery": "internal",
     "sources": {
@@ -90709,6 +90875,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/animation_speed_service.py": 510
+    }
+  },
+  {
+    "area": "other",
+    "message": "{path} is not in the Files DMM adds list. Use action 'find' first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/dmm_mount_tools.py": 61
     }
   },
   {
@@ -99457,7 +99631,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported numeric preset or value.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 190
+      "cdmw/mcp/settings_tools.py": 195
     }
   },
   {
@@ -99465,7 +99639,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported worker count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 185
+      "cdmw/mcp/settings_tools.py": 190
     }
   },
   {
@@ -99537,7 +99711,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a nonnegative whole number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 180
+      "cdmw/mcp/settings_tools.py": 185
     }
   },
   {
@@ -99545,7 +99719,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an absolute path or clear the setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 140
+      "cdmw/mcp/settings_tools.py": 141
     }
   },
   {
@@ -99729,7 +99903,7 @@ MESSAGE_REFERENCE = [
     "message": "No shortcut command matches {command}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 243
+      "cdmw/mcp/settings_tools.py": 248
     }
   },
   {
@@ -100001,7 +100175,7 @@ MESSAGE_REFERENCE = [
     "message": "Settings > Shortcuts is unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 235
+      "cdmw/mcp/settings_tools.py": 240
     }
   },
   {
@@ -100025,7 +100199,15 @@ MESSAGE_REFERENCE = [
     "message": "Supply the list of paths to ignore.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 169
+      "cdmw/mcp/settings_tools.py": 174
+    }
+  },
+  {
+    "area": "settings",
+    "message": "Supply true or false.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/settings_tools.py": 170
     }
   },
   {
@@ -100049,7 +100231,7 @@ MESSAGE_REFERENCE = [
     "message": "The requested command has no editable shortcut row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 248
+      "cdmw/mcp/settings_tools.py": 253
     }
   },
   {
@@ -100073,7 +100255,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no supported Settings control for {raw}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 201
+      "cdmw/mcp/settings_tools.py": 206
     }
   },
   {
@@ -100209,7 +100391,7 @@ MESSAGE_REFERENCE = [
     "message": "Unrecognized shortcut {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 223
+      "cdmw/mcp/settings_tools.py": 228
     }
   },
   {
@@ -105619,6 +105801,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/archive_browser/character_dependency_live.py",
     "cdmw/ui/archive_browser/context_commands.py",
     "cdmw/ui/archive_browser/directory_scan_controller.py",
+    "cdmw/ui/archive_browser/dmm_added_files.py",
     "cdmw/ui/archive_browser/failure_report.py",
     "cdmw/ui/archive_browser/filter_workers.py",
     "cdmw/ui/archive_browser/game_table_actions.py",
@@ -106147,6 +106330,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/character_finder_tools.py",
     "cdmw/mcp/control_tools.py",
     "cdmw/mcp/decal_tools.py",
+    "cdmw/mcp/dmm_mount_tools.py",
     "cdmw/mcp/game_table_tools.py",
     "cdmw/mcp/item_icon_tools.py",
     "cdmw/mcp/jobs.py",
@@ -106176,6 +106360,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/services/asset_authoring_service.py",
     "cdmw/services/character_context_service.py",
     "cdmw/services/dmm_dlc_tables.py",
+    "cdmw/services/dmm_runtime_mount.py",
     "cdmw/services/dmm_send_process.py",
     "cdmw/services/effect_catalogue_process.py",
     "cdmw/services/effect_character_reference.py",
@@ -107871,6 +108056,11 @@ SOURCE_COVERAGE = {
     "report": 3
   },
   "cdmw/mcp/diagnostics_tools.py": {},
+  "cdmw/mcp/dmm_mount_tools.py": {
+    "code": 5,
+    "raise": 6,
+    "report": 1
+  },
   "cdmw/mcp/errors.py": {
     "diagnostic_text": 2,
     "raise": 1
@@ -108036,8 +108226,8 @@ SOURCE_COVERAGE = {
     "report": 10
   },
   "cdmw/mcp/settings_tools.py": {
-    "code": 16,
-    "raise": 18,
+    "code": 17,
+    "raise": 19,
     "report": 3
   },
   "cdmw/mcp/setup_lines.py": {},
@@ -108691,6 +108881,11 @@ SOURCE_COVERAGE = {
   },
   "cdmw/services/dmm_part_table.py": {
     "raise": 4
+  },
+  "cdmw/services/dmm_runtime_mount.py": {
+    "diagnostic_field": 1,
+    "diagnostic_text": 1,
+    "raise": 14
   },
   "cdmw/services/dmm_send.py": {
     "raise": 5
@@ -109639,6 +109834,10 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "signal": 1
   },
+  "cdmw/ui/archive_browser/dmm_added_files.py": {
+    "raise": 3,
+    "report": 3
+  },
   "cdmw/ui/archive_browser/edit_in_place.py": {
     "display": 1,
     "report": 1,
@@ -110482,6 +110681,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/commands/shortcuts_page.py": {},
   "cdmw/ui/display_scaling.py": {},
+  "cdmw/ui/dmm_mounted_mods_group.py": {},
   "cdmw/ui/empty_states.py": {
     "log": 1
   },
