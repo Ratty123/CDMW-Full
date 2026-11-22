@@ -531,6 +531,8 @@ def _workspace_edit(call):
         call.context.window.shell._activate_tool_key("speed_prefabs")
         if workspace.loading:
             raise ToolError(UNAVAILABLE, _not_ready(workspace))
+        if "show_unused" in arguments:
+            workspace.show_unused_kinds_checkbox.setChecked(bool(arguments["show_unused"]))
         if action == "prefab_factor":
             workspace.show_page("prefabs")
             factor = arguments.get("prefab_factor")
@@ -629,14 +631,16 @@ def speed_tools() -> list[Tool]:
              "CDMW wrote (mod_folder) so its sets open with its factors, close_mod closes it; search presses the "
              "Prefabs page's Search for a category (the first search takes minutes; read the results with "
              "speed_workspace); prefab_factor fills the factor beside Scale Listed Prefabs (prefab_factor), which "
-             "the user presses, or speed_prefabs_export writes the package. Nothing is written: the user reviews "
-             "and presses Export, or speed_export and speed_sets_export write the mod.",
+             "the user presses, or speed_prefabs_export writes the package; show_unused ticks or unticks Show "
+             "unused, which also lists the move categories the open set does not use (kinds_shown). Nothing is "
+             "written: the user reviews and presses Export, or speed_export and speed_sets_export write the mod.",
              "ui:SpeedPrefabsWorkspace.factors", _workspace_edit,
              {"action": {"type": "string", "enum": ["factors", "reset", "preset", "open_mod", "close_mod", "search",
                                                     "prefab_factor"]},
               "prefab_factor": {"type": "number", "minimum": 0.01, "maximum": 100},
               "set": _TEXT, "factors": _FACTORS,
               "linked": {"type": "boolean", "description": "Tick or untick Also change linked charts."},
+              "show_unused": {"type": "boolean", "description": "Tick or untick Show unused move categories."},
               "scope": {"type": "string", "enum": ["set", "listed"]},
               "set_filter": {**_TEXT, "description": "Text for Search sets; an empty text shows every set."},
               "preset": {"type": "string",

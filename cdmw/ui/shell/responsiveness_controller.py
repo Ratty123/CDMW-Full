@@ -63,7 +63,12 @@ class ResponsivenessControllerMixin:
     def _preference_bool(self, key: str, default: bool) -> bool:
         return self._read_bool(f"preferences/{key}", default)
 
-    def _load_saved_splitter_sizes(self, key: str) -> Optional[List[int]]:
+    def _load_saved_splitter_sizes(
+        self,
+        key: str,
+        *,
+        allow_leading_zero: bool = False,
+    ) -> Optional[List[int]]:
         raw_value = self.settings.value(key)
         if raw_value in (None, ""):
             return None
@@ -74,12 +79,12 @@ class ResponsivenessControllerMixin:
         else:
             return None
         sizes: List[int] = []
-        for part in parts:
+        for index, part in enumerate(parts):
             try:
                 value = int(part)
             except (TypeError, ValueError):
                 return None
-            if value <= 0:
+            if value < 0 or (value == 0 and not (allow_leading_zero and index == 0)):
                 return None
             sizes.append(value)
         return sizes or None
@@ -107,6 +112,10 @@ class ResponsivenessControllerMixin:
             max(controls_max, readable_max),
         )
 
+    def _archive_controls_pane_hidden(self) -> bool:
+        controls_scroll = getattr(self.archive, "archive_controls_scroll", None)
+        return controls_scroll is not None and bool(controls_scroll.isHidden())
+
     def _apply_responsive_width_policies(self) -> None:
         screen_width, _screen_height = available_layout_size_for(self)
         controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
@@ -114,10 +123,11 @@ class ResponsivenessControllerMixin:
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
         workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
-        for widget in (getattr(self.archive, "archive_controls_group", None), getattr(self.archive, "archive_controls_scroll", None)):
-            if widget is not None:
-                widget.setMinimumWidth(controls_min)
-                widget.setMaximumWidth(controls_max)
+        if not self._archive_controls_pane_hidden():
+            for widget in (getattr(self.archive, "archive_controls_group", None), getattr(self.archive, "archive_controls_scroll", None)):
+                if widget is not None:
+                    widget.setMinimumWidth(controls_min)
+                    widget.setMaximumWidth(controls_max)
         if hasattr(self.archive, "archive_files_group"):
             self.archive.archive_files_group.setMinimumWidth(files_min)
             self.archive.archive_files_group.setMaximumWidth(16777215)
@@ -255,9 +265,33 @@ class ResponsivenessControllerMixin:
             settings_tab.sync_appearance_controls(self.current_theme_key)
 
     def _normalize_archive_splitter_sizes(self, sizes: Sequence[int], total_width: int) -> List[int]:
-        controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
         files_min, _files_pref, _files_max = responsive_sidebar_bounds(self, role="narrow")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
+        if self._archive_controls_pane_hidden():
+            two_pane: Sequence[int] = ()
+            if len(sizes) >= 3:
+                try:
+                    c0, c1, c2 = int(sizes[0]), int(sizes[1]), int(sizes[2])
+                except (TypeError, ValueError):
+                    c0, c1, c2 = 1, 0, 0
+                degenerate = c0 > 0 or (int(total_width) >= 700 and c1 < max(files_min, 240))
+                if not degenerate and c1 > 0 and c2 > 0:
+                    two_pane = (c1, c2)
+            elif len(sizes) == 2:
+                try:
+                    c1, c2 = int(sizes[0]), int(sizes[1])
+                except (TypeError, ValueError):
+                    c1, c2 = 0, 0
+                if c1 > 0 and c2 > 0 and not (int(total_width) >= 700 and c1 < max(files_min, 240)):
+                    two_pane = (c1, c2)
+            normalized_pair = clamp_splitter_sizes(
+                total_width,
+                two_pane,
+                [files_min, preview_min],
+                fallback_weights=[60, 40],
+            )
+            return [0, normalized_pair[0], normalized_pair[1]]
+        controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
         normalized = clamp_splitter_sizes(
             total_width,
             sizes,
@@ -295,6 +329,8 @@ class ResponsivenessControllerMixin:
 
     def _fit_archive_files_pane_to_columns(self) -> None:
         if not hasattr(self.archive, "archive_splitter"):
+            return
+        if hasattr(self.archive, "archive_tree") and self.archive.archive_tree.topLevelItemCount() <= 0:
             return
         from cdmw.ui.layout_persistence import restore_splitter_layout
 
@@ -344,8 +380,18 @@ class ResponsivenessControllerMixin:
         workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
         workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
         self.textures.job_splitter.setSizes([300, max(520, total_width - 300)])
-        self.archive.archive_splitter.setSizes(
-            self._normalize_archive_splitter_sizes(
+        if self._archive_controls_pane_hidden():
+            two_pane = build_responsive_splitter_sizes(
+                total_width,
+                [60, 40],
+                [
+                    responsive_sidebar_bounds(self, role="narrow")[0],
+                    responsive_sidebar_bounds(self, role="wide")[0],
+                ],
+            )
+            archive_default_sizes = [0, two_pane[0], two_pane[1]]
+        else:
+            archive_default_sizes = self._normalize_archive_splitter_sizes(
                 build_responsive_splitter_sizes(
                     total_width,
                     [18, 31, 51],
@@ -357,7 +403,7 @@ class ResponsivenessControllerMixin:
                 ),
                 total_width,
             )
-        )
+        self.archive.archive_splitter.setSizes(archive_default_sizes)
         for tab in (
             created_tool_widget(getattr(self, "replace_assistant_tab", None)),
             created_tool_widget(getattr(self, "research_tab", None)),
@@ -376,7 +422,8 @@ class ResponsivenessControllerMixin:
             (self.textures.job_splitter, "ui/workflow_splitter_sizes"),
             (self.archive.archive_splitter, "ui/archive_splitter_sizes"),
         ):
-            sizes = self._load_saved_splitter_sizes(setting_key)
+            allow_zero = splitter is self.archive.archive_splitter and self._archive_controls_pane_hidden()
+            sizes = self._load_saved_splitter_sizes(setting_key, allow_leading_zero=allow_zero)
             if sizes:
                 if splitter is self.archive.archive_splitter:
                     sizes = self._normalize_archive_splitter_sizes(sizes, total_width)
@@ -711,6 +758,8 @@ def responsive_control_scale_for_width(screen_width: int) -> float:
 def expand_tree_columns_to_available_width(tree: QTreeWidget) -> None:
     if not qt_wrapper_is_valid(tree) or not isinstance(tree, QTreeWidget):
         return
+    if getattr(tree, "_cdmw_coherence_fitted", False):
+        return
     try:
         if bool(tree.property("cdmw_disable_auto_column_fill")):
             return
@@ -751,7 +800,28 @@ def expand_tree_columns_to_available_width(tree: QTreeWidget) -> None:
 
 
 class AutoTreeColumnWidthEventFilter(QObject):
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        import weakref
+
+        self._pending: weakref.WeakSet[QTreeWidget] = weakref.WeakSet()
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(0)
+        self._timer.timeout.connect(self._flush)
+
+    def _flush(self) -> None:
+        trees = tuple(self._pending)
+        self._pending.clear()
+        for tree in trees:
+            if qt_wrapper_is_valid(tree):
+                expand_tree_columns_to_available_width(tree)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # type: ignore[override]
+        if not isinstance(watched, QTreeWidget):
+            return False
+        if getattr(watched, "_cdmw_coherence_fitted", False):
+            return False
         try:
             event_type = event.type()
         except RuntimeError:
@@ -759,9 +829,10 @@ class AutoTreeColumnWidthEventFilter(QObject):
         if (
             event_type in (QEvent.Type.Show, QEvent.Type.Resize, QEvent.Type.LayoutRequest)
             and qt_wrapper_is_valid(watched)
-            and isinstance(watched, QTreeWidget)
         ):
-            QTimer.singleShot(0, lambda tree=watched: expand_tree_columns_to_available_width(tree))
+            self._pending.add(watched)
+            if not self._timer.isActive():
+                self._timer.start()
         return False
 
 

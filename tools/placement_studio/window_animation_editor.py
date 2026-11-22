@@ -156,8 +156,8 @@ class AnimationEditorMixin:
 
         self._clip_edit_title = QLabel("Nothing to edit yet: play an animation, then start from "
                                        "it here.")
+        self._clip_edit_title.setObjectName("SectionTitle")
         self._clip_edit_title.setWordWrap(True)
-        self._clip_edit_title.setStyleSheet("font-weight: bold;")
         self._edit_playing_button = QPushButton("Playing animation")
         self._edit_playing_button.setToolTip("Edit the animation playing on the character.")
         self._edit_playing_button.clicked.connect(self._start_clip_edit)

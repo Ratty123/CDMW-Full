@@ -68,10 +68,10 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     strip = QFrame(widget)
     strip.setObjectName("CompactArchiveCommandStrip")
     strip.setFrameShape(QFrame.Shape.NoFrame)
-    strip.setProperty("compactStructural", True)
+    strip.setProperty("commandBar", True)
     layout = QHBoxLayout(strip)
-    layout.setContentsMargins(4, 2, 4, 2)
-    layout.setSpacing(4)
+    layout.setContentsMargins(8, 6, 8, 6)
+    layout.setSpacing(6)
     scan, refresh, finder, search_edit, search_button, extension, extension_picker = controls
     extension_picker.setObjectName("CompactArchiveSelectButton")
     character_finder = getattr(archive, "archive_character_finder_button", None)
@@ -85,13 +85,15 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     for button in buttons:
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(button)
-    search_edit.setMinimumWidth(120)
+    search_edit.setMinimumWidth(100)
     search_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     layout.addWidget(search_edit, stretch=1)
     layout.addWidget(search_button)
-    extension.setMinimumWidth(90)
-    extension.setMaximumWidth(180)
+    extension.setMinimumWidth(78)
+    extension.setMaximumWidth(160)
     layout.addWidget(extension)
+    extension_picker.setMinimumWidth(0)
+    extension_picker.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     layout.addWidget(extension_picker)
 
     filters_group = archive.archive_filters_group
@@ -144,6 +146,7 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     for command_button in (extension_picker, actions_button, more_filters):
         command_button.setAutoRaise(False)
         command_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        command_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     if isinstance(search_group, QGroupBox):
         search_group.setVisible(False)
     if isinstance(actions_group, QGroupBox):

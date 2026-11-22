@@ -115,6 +115,7 @@ class ModPackageRetrofitUi:
         self.scan_button = QPushButton("Scan")
         self.scan_button.setObjectName("retrofit_scan_button")
         self.scan_button.setProperty('newItemPrimary', True)
+        self.scan_button.setProperty('primaryAction', True)
         self.scan_button.setToolTip('Scan loose or zipped mod packages. Choose a target manager for each package.')
         paths = QWidget()
         path_layout = QGridLayout(paths)
@@ -145,7 +146,6 @@ class ModPackageRetrofitUi:
         self.content_splitter = QSplitter(Qt.Horizontal)
         self.content_splitter.setObjectName('retrofit_content_splitter')
         self.content_splitter.setChildrenCollapsible(False)
-        self.content_splitter.setHandleWidth(8)
         self.layout.addWidget(self.content_splitter, 1)
 
         left_panel = QWidget()

@@ -201,7 +201,12 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         assert first.text(COLUMN_STATE) == "Shared"
         assert chest.child(1).text(COLUMN_STATE) == ""
 
-        # One decode for the shared file, and its icon on both parts' rows.
+        # Collapsed parts do not trigger an upfront decode flood; expanding a part decodes
+        # its textures once and shares the decoded icon across all matching rows.
+        pool.waitForDone(5000)
+        app.processEvents()
+        assert decoded == []
+        chest.setExpanded(True)
         arms_base = panel.part_item(1).child(0)
         assert _wait_for(app, lambda: not first.icon(COLUMN_THUMBNAIL).isNull()
                          and not arms_base.icon(COLUMN_THUMBNAIL).isNull())
@@ -209,6 +214,9 @@ def test_panel_fills_the_tree_and_clear_shows_the_placeholder(tmp_path: Path) ->
         app.processEvents()
         assert decoded.count("texture-0000-aaaaaaaaaaaa.dds") == 1
         # Files that do not exist never reach the decoder and show no icon.
+        panel.part_item(1).setExpanded(True)
+        pool.waitForDone(5000)
+        app.processEvents()
         assert "texture-0001-bbbbbbbbbbbb.dds" not in decoded
         assert panel.part_item(1).child(1).icon(COLUMN_THUMBNAIL).isNull()
 
@@ -275,11 +283,28 @@ def test_the_list_is_compact(tmp_path: Path) -> None:
         # Three columns: the thumbnail sits in front of the role.
         assert panel.tree.columnCount() == 3 and COLUMN_THUMBNAIL == COLUMN_ROLE
         text_row = panel.tree.fontMetrics().height()
+        icon_side = panel.tree.iconSize().height()
         part_row = panel.tree.visualItemRect(panel.part_item(0)).height()
         texture_row = panel.tree.visualItemRect(panel.part_item(0).child(0)).height()
-        # A row is about a line of text high, not a 48 pixel thumbnail.
-        assert part_row <= text_row * 2 and texture_row <= text_row * 2
-        assert panel.tree.iconSize().height() <= text_row * 2
+        # Part rows stay compact; texture rows cleanly frame a recognizable 32-36px preview.
+        assert part_row <= text_row * 2
+        assert 32 <= icon_side <= 36
+        assert icon_side <= texture_row <= icon_side + 14
+        # Column proportions: Texture and State stay tight while Game file takes remaining width.
+        role_w = panel.tree.columnWidth(COLUMN_ROLE)
+        file_w = panel.tree.columnWidth(COLUMN_FILE)
+        state_w = panel.tree.columnWidth(COLUMN_STATE)
+        base_role_w = panel.tree.fontMetrics().horizontalAdvance("Base colour")
+        shared_w = panel.tree.fontMetrics().horizontalAdvance("Shared")
+        assert role_w <= base_role_w + icon_side + panel.tree.indentation() * 3 + 48
+        assert state_w <= max(68, shared_w + 32)
+        assert file_w >= 110
+        # Widening the dock grows Game file instead of ballooning Texture.
+        panel.resize(620, 400)
+        app.processEvents()
+        assert panel.tree.columnWidth(COLUMN_ROLE) == role_w
+        assert panel.tree.columnWidth(COLUMN_STATE) == state_w
+        assert panel.tree.columnWidth(COLUMN_FILE) > file_w + 150
         # The file name keeps both ends when it is cut short.
         from PySide6.QtCore import Qt
 
@@ -361,3 +386,96 @@ def test_a_saved_layout_never_leaves_the_panel_off_screen(tmp_path: Path) -> Non
     assert not _on_a_screen(again.textures_dock)
     page.deleteLater()
     again.deleteLater()
+
+
+def test_stale_thumbnail_generation_cancels_before_decoding_and_reuses_framed_icons(tmp_path: Path) -> None:
+    import threading
+
+    app = _app()
+    (tmp_path / "texture-0000-aaaaaaaaaaaa.dds").write_bytes(b"stand-in")
+    (tmp_path / "texture-0001-bbbbbbbbbbbb.dds").write_bytes(b"stand-in")
+    gate = threading.Event()
+    decoded: list[str] = []
+
+    def decoder(path: Path, size: int, _role: str) -> QImage | None:
+        gate.wait(timeout=2.0)
+        decoded.append(path.name)
+        im = QImage(size, size, QImage.Format.Format_RGBA8888)
+        im.fill(QColor(80, 140, 200))
+        return im
+
+    pool = QThreadPool()
+    pool.setMaxThreadCount(1)  # serialize so the 2nd job stays queued while gen advances
+    loader = TextureThumbnailLoader(pool=pool, decoder=decoder)
+    panel = MeshEditorTexturesPanel(thumbnail_loader=loader)
+    try:
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        panel.part_item(0).setExpanded(True)
+        panel.part_item(1).setExpanded(True)
+        # Advance generation before the 2nd queued job even starts decoding.
+        loader.set_generation(panel._generation + 1)
+        gate.set()
+        pool.waitForDone(5000)
+        app.processEvents()
+        # At most the single already-running job ran; the queued obsolete job aborted before decoding.
+        assert len(decoded) <= 1
+
+        # Fresh generation decodes expanded parts, caches framed icons, and reuses them on rebuild.
+        decoded.clear()
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        assert _wait_for(app, lambda: not panel.part_item(0).child(0).icon(COLUMN_THUMBNAIL).isNull())
+        pool.waitForDone(5000)
+        app.processEvents()
+        # Rebuild same session: cached icon is already present immediately without waiting on workers.
+        panel.set_manifest(_manifest(), session_root=tmp_path)
+        assert not panel.part_item(0).child(0).icon(COLUMN_THUMBNAIL).isNull()
+    finally:
+        gate.set()
+        panel.shutdown()
+        pool.waitForDone(5000)
+        panel.deleteLater()
+        loader.deleteLater()
+        app.processEvents()
+
+
+def test_collapsed_parts_do_not_decode_thumbnails_until_expanded(tmp_path: Path) -> None:
+    app = _app()
+    parts = 20
+    for i in range(parts):
+        (tmp_path / f"tex-{i:02d}.dds").write_bytes(b"stand-in")
+    manifest = {
+        "textures": [
+            {"label": f"cd_armor_{i:02d}_d.dds", "role": "base_color",
+             "file": {"path": f"tex-{i:02d}.dds", "sha256": f"{i:064x}"},
+             "material_indices_by_lod": [[i]]}
+            for i in range(parts)
+        ],
+        "state": {"skeleton": {"parts": [{"index": i, "name": f"Part_{i:02d}"} for i in range(parts)]}},
+    }
+    decoded: list[str] = []
+
+    def decoder(path: Path, size: int, _role: str) -> QImage | None:
+        decoded.append(path.name)
+        im = QImage(size, size, QImage.Format.Format_RGBA8888)
+        im.fill(QColor(90, 140, 180))
+        return im
+
+    pool = QThreadPool()
+    loader = TextureThumbnailLoader(pool=pool, decoder=decoder)
+    panel = MeshEditorTexturesPanel(thumbnail_loader=loader)
+    try:
+        panel.set_manifest(manifest, session_root=tmp_path)
+        pool.waitForDone(5000)
+        app.processEvents()
+        assert decoded == []
+        panel.part_item(3).setExpanded(True)
+        assert _wait_for(app, lambda: not panel.part_item(3).child(0).icon(COLUMN_THUMBNAIL).isNull())
+        pool.waitForDone(5000)
+        app.processEvents()
+        assert decoded == ["tex-03.dds"]
+    finally:
+        panel.shutdown()
+        pool.waitForDone(5000)
+        panel.deleteLater()
+        loader.deleteLater()
+        app.processEvents()

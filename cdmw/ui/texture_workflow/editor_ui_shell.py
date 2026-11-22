@@ -123,69 +123,15 @@ class TextureEditorUiShellMixin:
         self._set_texture_editor_splitter_sizes(self._texture_editor_default_splitter_sizes(has_doc=has_doc))
 
     def _apply_document_tab_bar_style(self, font: QFont) -> None:
-        metrics = QFontMetrics(font)
-        pad_y = max(3, metrics.height() // 5)
-        pad_x = max(8, metrics.averageCharWidth())
-        min_width = max(88, metrics.horizontalAdvance("Document") + 22)
-        max_width = max(min_width + 40, metrics.horizontalAdvance("VeryLongDocumentName.png") + 20)
-        self.document_tab_bar.setStyleSheet(
-            f"""
-            QTabBar::tab {{
-                background-color: palette(button);
-                border: 1px solid palette(mid);
-                border-bottom: none;
-                padding: {pad_y}px {pad_x}px;
-                min-width: {min_width}px;
-                max-width: {max_width}px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                color: palette(button-text);
-            }}
-            QTabBar::tab:hover:!selected {{
-                background-color: palette(highlight);
-                border-color: palette(highlight);
-                color: palette(highlighted-text);
-            }}
-            QTabBar::tab:selected {{
-                background-color: palette(base);
-                border-color: palette(highlight);
-                color: palette(text);
-            }}
-            """
-        )
+        _ = font
+        self.document_tab_bar.setStyleSheet("")
 
     def _apply_font_sensitive_metrics(self, font: QFont) -> None:
         metrics = QFontMetrics(font)
-        standard_button_height = max(24, metrics.height() + 8)
-        compact_button_height = max(22, metrics.height() + 6)
         tool_button_height = max(22, metrics.height() + 6)
         tool_icon_size = max(14, min(18, metrics.height() + 2))
 
         self._apply_document_tab_bar_style(font)
-        self.actions_menu_button.setMinimumHeight(standard_button_height)
-        for button in (
-            self.open_file_button,
-            self.open_archive_button,
-            self.open_compare_button,
-            self.open_project_button,
-            self.save_project_button,
-            self.save_png_button,
-            self.export_dds_button,
-            self.preview_compressed_button,
-            self.send_replace_button,
-            self.send_workflow_button,
-            self.send_item_icons_button,
-            self.shortcuts_button,
-        ):
-            button.setMinimumHeight(standard_button_height)
-        for button in (
-            self.undo_button,
-            self.redo_button,
-            self.history_restore_button,
-            self.history_clear_button,
-        ):
-            button.setMinimumHeight(compact_button_height)
         self._refresh_tool_button_icons()
         for button in self.tool_buttons.values():
             button.setMinimumHeight(tool_button_height)

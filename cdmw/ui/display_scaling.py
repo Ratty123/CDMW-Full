@@ -25,13 +25,42 @@ from cdmw.ui.window_interaction import ensure_window_interaction_tracker
 from cdmw.ui.app_event_hub import install_app_event_filter
 
 
+def _button_fast_key(widget: QAbstractButton, text: str) -> tuple:
+    return (text, widget.minimumWidth(), widget.minimumHeight(), widget.maximumWidth(), widget.maximumHeight())
+
+
+def _button_signature(widget: QAbstractButton, text: str) -> tuple:
+    return (
+        text,
+        widget.font().key(),
+        widget.icon().cacheKey(),
+        widget.menu() is not None if isinstance(widget, (QPushButton, QToolButton)) else False,
+        widget.minimumWidth(),
+        widget.minimumHeight(),
+        widget.maximumWidth(),
+        widget.maximumHeight(),
+    )
+
+
 def protect_control_text(widget: QWidget) -> None:
     """Remove pixel caps that are smaller than the current styled text hint."""
-    text_button = isinstance(widget, QAbstractButton) and bool(widget.text())
-    if isinstance(widget, QToolButton) and widget.toolButtonStyle() == Qt.ToolButtonIconOnly:
+    is_button = isinstance(widget, QAbstractButton)
+    button_text = widget.text() if is_button else ""
+    text_button = is_button and bool(button_text)
+    if text_button and isinstance(widget, QToolButton) and widget.toolButtonStyle() == Qt.ToolButtonIconOnly:
         text_button = False
     if text_button or isinstance(widget, (QComboBox, QLineEdit, QAbstractSpinBox)):
         current = (widget.minimumWidth(), widget.minimumHeight(), widget.maximumWidth(), widget.maximumHeight())
+        if text_button:
+            sig = _button_signature(widget, button_text)
+            if getattr(widget, "_display_text_sig", None) == sig:
+                widget._display_text_fast = _button_fast_key(widget, button_text)
+                return
+        else:
+            sig = (widget.font().key(), current)
+            if getattr(widget, "_display_text_sig", None) == sig:
+                widget._display_text_fast = current
+                return
         previous = getattr(widget, "_display_text_limits", None)
         base = list(current if previous is None else previous[0])
         if previous is not None:
@@ -42,7 +71,7 @@ def protect_control_text(widget: QWidget) -> None:
         height = max(base[1], hint.height(), widget.fontMetrics().height() + 12)
         width = base[0]
         if text_button:
-            text_width = widget.fontMetrics().size(Qt.TextShowMnemonic, widget.text()).width()
+            text_width = widget.fontMetrics().size(Qt.TextShowMnemonic, button_text).width()
             if not widget.icon().isNull():
                 text_width += widget.iconSize().width() + 6
             padding = 12
@@ -64,11 +93,25 @@ def protect_control_text(widget: QWidget) -> None:
             widget.setMaximumSize(desired[2], desired[3])
             widget.setMinimumSize(desired[0], desired[1])
         widget._display_text_limits = (tuple(base), desired)
+        if text_button:
+            widget._display_text_sig = _button_signature(widget, button_text)
+            widget._display_text_fast = _button_fast_key(widget, button_text)
+        else:
+            widget._display_text_sig = (widget.font().key(), desired)
+            widget._display_text_fast = desired
     elif isinstance(widget, QLabel) and widget.text() and not widget.wordWrap():
+        fast = (widget.minimumHeight(), widget.maximumHeight())
+        sig = (widget.font().key(), widget.margin(), fast[0], fast[1])
+        if getattr(widget, "_display_text_sig", None) == sig:
+            widget._display_text_fast = fast
+            return
         height = widget.fontMetrics().height() + 2 * widget.margin()
         if widget.maximumHeight() < height:
             widget.setMaximumHeight(height)
             widget.setMinimumHeight(height)
+        fast = (widget.minimumHeight(), widget.maximumHeight())
+        widget._display_text_sig = (widget.font().key(), widget.margin(), fast[0], fast[1])
+        widget._display_text_fast = fast
 
 
 class CurrentToolStack(QStackedWidget):
@@ -127,6 +170,8 @@ def _window_is_reachable(window: QWidget, work_areas: tuple[QRect, ...]) -> bool
         return False
     if any(frame.width() <= area.width() and frame.height() <= area.height() for area in work_areas):
         return True
+    if len(work_areas) <= 1:
+        return False
     desktop = QRegion()
     for area in work_areas:
         desktop |= QRegion(area)
@@ -300,29 +345,73 @@ class DisplayScalingPolicy(QObject):
             self._timer.start(0)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        # Some existing UI visitors pass layout items, which are not QObjects.
-        if self._busy or not isinstance(watched, QWidget) or not isValid(watched):
+        if self._busy:
             return False
         kind = event.type()
-        if kind in (QEvent.Polish, QEvent.Show, QEvent.FontChange, QEvent.StyleChange) or (
-            kind == QEvent.Paint and isinstance(watched, QAbstractButton)
-        ):
+        if kind == QEvent.Paint:
+            if not isinstance(watched, QAbstractButton) or not isValid(watched):
+                return False
+            text = watched.text()
+            if not text:
+                return False
+            if isinstance(watched, QToolButton) and watched.toolButtonStyle() == Qt.ToolButtonIconOnly:
+                return False
+            if getattr(watched, "_display_text_fast", None) == _button_fast_key(watched, text):
+                return False
             self._controls.add(watched)
             self._schedule()
+            return False
+        if kind in (QEvent.Move, QEvent.Resize, QEvent.WindowStateChange, QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange):
+            if isinstance(watched, QWidget) and watched.isWindow() and isValid(watched) and _normal_window(watched):
+                self.schedule_window_fit(watched)
+            return False
+        if kind == QEvent.Hide:
+            if isinstance(watched, QWidget) and watched.isWindow() and isValid(watched) and _normal_window(watched):
+                self._windows.pop(watched, None)
+                self._last_fit.pop(watched, None)
+                self._arm_window_timer()
+            return False
+        # Some existing UI visitors pass layout items, which are not QObjects.
+        if not isinstance(watched, QWidget) or not isValid(watched):
+            return False
+        if kind in (QEvent.Polish, QEvent.FontChange, QEvent.StyleChange):
+            if isinstance(watched, (QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QLabel)):
+                watched._display_text_sig = None
+                watched._display_text_fast = None
+                self._controls.add(watched)
+                self._schedule()
+        elif kind == QEvent.Show:
+            if isinstance(watched, (QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QLabel)):
+                self._controls.add(watched)
+                self._schedule()
+            if watched.isWindow() and _normal_window(watched):
+                self.schedule_window_fit(watched)
         elif kind == QEvent.LayoutRequest:
+            added = False
             for child in watched.children():
-                if isinstance(child, (QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QLabel)):
+                if isinstance(child, QAbstractButton):
+                    text = child.text()
+                    if not text or getattr(child, "_display_text_fast", None) == _button_fast_key(child, text):
+                        continue
                     self._controls.add(child)
-            self._schedule()
-        if kind in (
-            QEvent.Show, QEvent.Move, QEvent.Resize, QEvent.LayoutRequest, QEvent.WindowStateChange,
-            QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange,
-        ) and _normal_window(watched):
-            self.schedule_window_fit(watched)
-        elif kind == QEvent.Hide and _normal_window(watched):
-            self._windows.pop(watched, None)
-            self._last_fit.pop(watched, None)
-            self._arm_window_timer()
+                    added = True
+                elif isinstance(child, (QComboBox, QLineEdit, QAbstractSpinBox)):
+                    fast = (child.minimumWidth(), child.minimumHeight(), child.maximumWidth(), child.maximumHeight())
+                    if getattr(child, "_display_text_fast", None) == fast:
+                        continue
+                    self._controls.add(child)
+                    added = True
+                elif isinstance(child, QLabel):
+                    if child.wordWrap() or not child.text():
+                        continue
+                    if getattr(child, "_display_text_fast", None) == (child.minimumHeight(), child.maximumHeight()):
+                        continue
+                    self._controls.add(child)
+                    added = True
+            if added:
+                self._schedule()
+            if watched.isWindow() and _normal_window(watched):
+                self.schedule_window_fit(watched)
         return False
 
     def _apply_pending(self) -> None:

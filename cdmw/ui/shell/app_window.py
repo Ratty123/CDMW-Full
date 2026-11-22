@@ -121,7 +121,7 @@ def _install_exception_hooks(
 
 def run_gui() -> int:
     try:
-        from PySide6.QtCore import QThread, QTimer
+        from PySide6.QtCore import QThread, QTimer, Qt
         from PySide6.QtWidgets import QApplication, QMainWindow
     except ImportError:
         print("PySide6 is required to run the GUI. Install it with: pip install PySide6", file=sys.stderr)
@@ -532,6 +532,9 @@ def run_gui() -> int:
         from cdmw.ui.shell.session_recorder import install_session_recorder
 
         apply_windows_app_user_model_id()
+        QApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
         app = QApplication(sys.argv)
         # Before any window, the splash included: an automated run keeps every
         # window off screen and off the user's main monitor. None otherwise.

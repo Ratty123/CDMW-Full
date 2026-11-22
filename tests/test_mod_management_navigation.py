@@ -34,16 +34,8 @@ def test_mod_management_navigation_opens_and_repackage_stays_retired(tmp_path, v
             window.set_busy(busy)
             assert not window.mod_package_tool_action.isEnabled()
             assert not window.mod_package_tool_action.isVisible()
-        if variant == "compact_rail":
-            assert window.compact_workspace.rail.tool_buttons["mod_management"].isEnabled()
-        else:
-            navigation = window.classic_navigation
-            utilities = next(i for i in range(navigation.groups.count())
-                             if navigation.groups.tabData(i) == "Utilities")
-            navigation.groups.setCurrentIndex(utilities)
-            control = navigation.tools
-            index = next(i for i in range(control.count()) if control.tabData(i) == "mod_management")
-            assert control.isTabEnabled(index)
+        # A saved Classic Workspace choice ("legacy") opens Compact Workspace: Classic is retired.
+        assert window.compact_workspace.rail.tool_buttons["mod_management"].isEnabled()
         # A saved or menu route to the retired repackage page lands on Mod Management.
         window._activate_tool_key("mod_package_retrofit")
         app.processEvents()

@@ -583,11 +583,13 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         outer_layout.addWidget(self.research_switch, 1)
 
         top_row = QHBoxLayout()
-        top_row.setSpacing(6)
+        top_row.setSpacing(8)
         self.refresh_button = QPushButton("Refresh Research")
-        self.refresh_status_label = QLabel(
-            "Ready. Research lists follow the current Archive Browser view, while DDS semantics can still use loaded .pac.xml / .pami sidecars when available."
+        self.refresh_button.setProperty("primaryAction", True)
+        self.refresh_button.setToolTip(
+            "Refresh Research from the current Archive Browser view. DDS semantics also use loaded .pac.xml / .pami sidecars when available."
         )
+        self.refresh_status_label = QLabel("Ready.")
         self.refresh_status_label.setWordWrap(True)
         self.refresh_status_label.setObjectName("HintLabel")
         self.refresh_progress = QProgressBar()
@@ -767,9 +769,17 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
         if hasattr(self, "archive_picker_splitter"):
             picker = self.archive_picker_splitter
             orientation = Qt.Vertical if picker.width() < 640 else Qt.Horizontal
-            if picker.orientation() != orientation:
+            changed = picker.orientation() != orientation
+            if changed:
                 picker.setOrientation(orientation)
-                picker.setSizes([1, 1])
+            if orientation == Qt.Vertical:
+                total_h = max(480, picker.height())
+                top_h = max(180, int(total_h * 0.44))
+                picker.setSizes([top_h, max(200, total_h - top_h)])
+            elif changed:
+                total_w = max(640, picker.width())
+                left_w = int(total_w * 0.52)
+                picker.setSizes([left_w, max(260, total_w - left_w)])
         QTimer.singleShot(0, self.auto_fit_columns)
 
     def auto_fit_columns(self) -> None:

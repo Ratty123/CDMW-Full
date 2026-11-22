@@ -8266,7 +8266,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive cache maintenance failed: {exception}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": 79
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": 81
     }
   },
   {
@@ -8611,14 +8611,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/extraction.py": 491
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive generation is outside the v2 cache family.",
-    "recovery": "stale",
-    "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 69
     }
   },
   {
@@ -9276,7 +9268,7 @@ MESSAGE_REFERENCE = [
     "message": "ArchiveBrowserTreeView owns its archive models.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/model.py": 560
+      "cdmw/ui/archive_browser/model.py": 578
     }
   },
   {
@@ -9284,7 +9276,7 @@ MESSAGE_REFERENCE = [
     "message": "Atomic JSON destination has no parent directory.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 858
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 790
     }
   },
   {
@@ -11356,7 +11348,7 @@ MESSAGE_REFERENCE = [
     "message": "JSON file is empty: {path}",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 740
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 659
     }
   },
   {
@@ -13976,7 +13968,7 @@ MESSAGE_REFERENCE = [
     "message": "Remote archive model does not provide the browser model contract.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/model.py": 578
+      "cdmw/ui/archive_browser/model.py": 596
     }
   },
   {
@@ -14952,7 +14944,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive cache pointer does not name a generation of this cache.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 681
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 600
     }
   },
   {
@@ -15024,7 +15016,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation entry count is inconsistent.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 478
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 397
     }
   },
   {
@@ -15032,7 +15024,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation is incomplete.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 459
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 380
     }
   },
   {
@@ -15040,15 +15032,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation manifest does not match its source or pointer.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 471
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The archive generation manifest is empty.",
-    "recovery": "stale",
-    "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 463
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 390
     }
   },
   {
@@ -15056,7 +15040,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive index names a source outside its package root: {text}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 530
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 449
     }
   },
   {
@@ -15064,7 +15048,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive index names a source through a link: {text}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 536
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 455
     }
   },
   {
@@ -15817,7 +15801,7 @@ MESSAGE_REFERENCE = [
     "message": "The native index entry count does not match its generation manifest.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 226
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 203
     }
   },
   {
@@ -17190,7 +17174,7 @@ MESSAGE_REFERENCE = [
     "message": "children",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_model.py": 331
+      "cdmw/ui/archive_browser/remote_model.py": 351
     }
   },
   {
@@ -18260,7 +18244,7 @@ MESSAGE_REFERENCE = [
     "message": "page",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_model.py": 296
+      "cdmw/ui/archive_browser/remote_model.py": 316
     }
   },
   {
@@ -20058,7 +20042,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read the capability manifest: {error}",
     "recovery": "format",
     "sources": {
-      "tools/format_explorer/tab.py": 217
+      "tools/format_explorer/tab.py": 328
     }
   },
   {
@@ -20082,7 +20066,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 946
+      "cdmw/ui/speed_prefabs/workspace.py": 1124
     }
   },
   {
@@ -20291,6 +20275,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_binary_preview_paseq_0.py": 569
+    }
+  },
+  {
+    "area": "formats",
+    "message": "Factors cannot be applied",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/speed_prefabs/workspace.py": 1426
     }
   },
   {
@@ -21949,7 +21941,7 @@ MESSAGE_REFERENCE = [
     "message": "The action charts could not be read.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 364
+      "cdmw/ui/speed_prefabs/workspace.py": 366
     }
   },
   {
@@ -22358,7 +22350,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1244
+      "cdmw/ui/speed_prefabs/workspace.py": 1425
     }
   },
   {
@@ -27293,7 +27285,7 @@ MESSAGE_REFERENCE = [
     "message": "0 or 1",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 106
+      "cdmw/ui/new_item/game_tables_editor.py": 122
     }
   },
   {
@@ -31597,7 +31589,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod was created, but its folder could not be opened: {root}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 686
+      "cdmw/ui/new_item/panels_output.py": 685
     }
   },
   {
@@ -31685,7 +31677,7 @@ MESSAGE_REFERENCE = [
     "message": "The plan could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/panels_output.py": 617
+      "cdmw/ui/new_item/panels_output.py": 616
     }
   },
   {
@@ -32592,7 +32584,7 @@ MESSAGE_REFERENCE = [
     "message": "This row exists only in the DLC copy; a DMM mod cannot change it.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 462
+      "cdmw/ui/new_item/game_tables_editor.py": 489
     }
   },
   {
@@ -32961,7 +32953,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/ui/new_item/panels_template.py": 326
+      "cdmw/ui/new_item/panels_template.py": 327
     }
   },
   {
@@ -34080,7 +34072,7 @@ MESSAGE_REFERENCE = [
     "message": "{int(rule.minimum)} to {int(rule.maximum)}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 108
+      "cdmw/ui/new_item/game_tables_editor.py": 124
     }
   },
   {
@@ -34593,7 +34585,7 @@ MESSAGE_REFERENCE = [
     "message": "{rule.minimum} to {rule.maximum}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/game_tables_editor.py": 98
+      "cdmw/ui/new_item/game_tables_editor.py": 114
     }
   },
   {
@@ -48011,7 +48003,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_native_preview.py": 16,
-      "cdmw/ui/mesh_editor/tab_shell.py": 953
+      "cdmw/ui/mesh_editor/tab_shell.py": 962
     }
   },
   {
@@ -50177,7 +50169,7 @@ MESSAGE_REFERENCE = [
     "message": "Model resolution failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 333
+      "cdmw/ui/model_library/tab.py": 331
     }
   },
   {
@@ -54585,7 +54577,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child window could not be attached to CDMW",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 343
+      "cdmw/ui/mesh_editor/rust_host.py": 345
     }
   },
   {
@@ -54593,7 +54585,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child-window validation failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 346
+      "cdmw/ui/mesh_editor/rust_host.py": 348
     }
   },
   {
@@ -54674,7 +54666,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/model_library/preview.py": 146,
-      "cdmw/ui/text_search/preview_panel.py": 139
+      "cdmw/ui/text_search/preview_panel.py": 141
     }
   },
   {
@@ -56943,7 +56935,7 @@ MESSAGE_REFERENCE = [
     "message": "Saved work could not be read: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 559
+      "cdmw/ui/mesh_editor/saved_work_page.py": 567
     }
   },
   {
@@ -58525,7 +58517,7 @@ MESSAGE_REFERENCE = [
     "message": "That did not work: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/saved_work_page.py": 548
+      "cdmw/ui/mesh_editor/saved_work_page.py": 556
     }
   },
   {
@@ -61859,7 +61851,7 @@ MESSAGE_REFERENCE = [
     "message": "ZIP model selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/model_library/tab.py": 355
+      "cdmw/ui/model_library/tab.py": 353
     }
   },
   {
@@ -73631,7 +73623,7 @@ MESSAGE_REFERENCE = [
     "message": "Analysis returned an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 769
+      "cdmw/ui/recolor_variants_tab.py": 768
     }
   },
   {
@@ -74228,7 +74220,7 @@ MESSAGE_REFERENCE = [
     "message": "Build failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1224
+      "cdmw/ui/recolor_variants_tab.py": 1226
     }
   },
   {
@@ -74772,7 +74764,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/item_icon_tools.py": 95,
-      "cdmw/ui/item_icons/tab.py": 217
+      "cdmw/ui/item_icons/tab.py": 216
     }
   },
   {
@@ -74804,7 +74796,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an existing folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 190
+      "cdmw/ui/item_icons/tab.py": 189
     }
   },
   {
@@ -76655,7 +76647,7 @@ MESSAGE_REFERENCE = [
       "cdmw/ui/replace_assistant/build.py": 211,
       "cdmw/ui/replace_assistant/queue.py": 226,
       "cdmw/ui/shell/utility_controller.py": 195,
-      "cdmw/ui/text_search/controller.py": 612,
+      "cdmw/ui/text_search/controller.py": 614,
       "cdmw/ui/text_search/export_actions.py": 141
     }
   },
@@ -76745,7 +76737,7 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "cdmw/core/item_icon.py": 663,
-      "cdmw/ui/item_icons/tab.py": 336
+      "cdmw/ui/item_icons/tab.py": 335
     }
   },
   {
@@ -76970,7 +76962,7 @@ MESSAGE_REFERENCE = [
     "message": "Error: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1210
+      "cdmw/ui/recolor_variants_tab.py": 1212
     }
   },
   {
@@ -77282,7 +77274,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated Mesh Editor icon was not found: {source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 376
+      "cdmw/ui/item_icons/tab.py": 375
     }
   },
   {
@@ -77458,7 +77450,7 @@ MESSAGE_REFERENCE = [
     "message": "Give mod_folder: the folder of a speed mod CDMW wrote.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 555
+      "cdmw/mcp/speed_tools.py": 557
     }
   },
   {
@@ -77490,7 +77482,7 @@ MESSAGE_REFERENCE = [
     "message": "Give prefab_factor.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 538
+      "cdmw/mcp/speed_tools.py": 540
     }
   },
   {
@@ -78635,7 +78627,7 @@ MESSAGE_REFERENCE = [
     "message": "Item icon export failed: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/item_icons/tab.py": 227
+      "cdmw/ui/item_icons/tab.py": 226
     }
   },
   {
@@ -80063,7 +80055,7 @@ MESSAGE_REFERENCE = [
     "message": "No matching file was found for the current query.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/text_search/controller.py": 527
+      "cdmw/ui/text_search/controller.py": 528
     }
   },
   {
@@ -80143,7 +80135,7 @@ MESSAGE_REFERENCE = [
     "message": "No set is open in the tab; give set (speed_sets lists them).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 568
+      "cdmw/mcp/speed_tools.py": 570
     }
   },
   {
@@ -80159,7 +80151,7 @@ MESSAGE_REFERENCE = [
     "message": "No speed mod is open in the tab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 550
+      "cdmw/mcp/speed_tools.py": 552
     }
   },
   {
@@ -80399,7 +80391,7 @@ MESSAGE_REFERENCE = [
     "message": "Open DDS preview unavailable",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 903
+      "cdmw/ui/recolor_variants_tab.py": 905
     }
   },
   {
@@ -81240,7 +81232,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview returned an unexpected result.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1025
+      "cdmw/ui/recolor_variants_tab.py": 1027
     }
   },
   {
@@ -81360,7 +81352,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor analysis cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 757
+      "cdmw/ui/recolor_variants_tab.py": 756
     }
   },
   {
@@ -81376,7 +81368,7 @@ MESSAGE_REFERENCE = [
     "message": "Recolor preview images could not be decoded.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1014
+      "cdmw/ui/recolor_variants_tab.py": 1016
     }
   },
   {
@@ -81723,7 +81715,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one recolor target in the asset list.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 1161
+      "cdmw/ui/recolor_variants_tab.py": 1163
     }
   },
   {
@@ -82219,7 +82211,7 @@ MESSAGE_REFERENCE = [
     "message": "Source Mod not found: {source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/recolor_variants_tab.py": 755
+      "cdmw/ui/recolor_variants_tab.py": 754
     }
   },
   {
@@ -83989,7 +83981,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab search cannot start now.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 544
+      "cdmw/mcp/speed_tools.py": 546
     }
   },
   {
@@ -84341,7 +84333,7 @@ MESSAGE_REFERENCE = [
     "message": "The tab lists no set {arguments['set']}; speed_sets lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 566
+      "cdmw/mcp/speed_tools.py": 568
     }
   },
   {
@@ -84486,7 +84478,7 @@ MESSAGE_REFERENCE = [
     "message": "The whole-set factor works on one set at a time; leave set at 1 for all listed sets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 585
+      "cdmw/mcp/speed_tools.py": 587
     }
   },
   {
@@ -85006,7 +84998,7 @@ MESSAGE_REFERENCE = [
     "message": "This set has no move {detail}; speed_set lists its clips.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 590
+      "cdmw/mcp/speed_tools.py": 592
     }
   },
   {
@@ -85078,7 +85070,7 @@ MESSAGE_REFERENCE = [
     "message": "This tab cannot apply factors to all listed sets.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 570
+      "cdmw/mcp/speed_tools.py": 572
     }
   },
   {
@@ -85086,7 +85078,7 @@ MESSAGE_REFERENCE = [
     "message": "This tab cannot open a mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 561
+      "cdmw/mcp/speed_tools.py": 563
     }
   },
   {
@@ -85679,7 +85671,7 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/item_icon.py": 665,
-      "cdmw/ui/item_icons/tab.py": 338,
+      "cdmw/ui/item_icons/tab.py": 337,
       "cdmw/workers/item_icon_workers.py": 314
     }
   },
@@ -88267,7 +88259,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/about_controller.py": 45,
-      "cdmw/ui/shell/app_window.py": 621
+      "cdmw/ui/shell/app_window.py": 624
     }
   },
   {
@@ -96721,7 +96713,7 @@ MESSAGE_REFERENCE = [
     "message": "Shared by {len(shared)} slots ({names}{more}). Changing it moves all of them, so a mod cannot be saved from that change. To move just this item, use Move it, which gives it a point of its own.",
     "recovery": "input",
     "sources": {
-      "tools/placement_studio/window_tasks.py": 420
+      "tools/placement_studio/window_tasks.py": 425
     }
   },
   {
@@ -99329,7 +99321,7 @@ MESSAGE_REFERENCE = [
     "message": "{type(self).__name__} object has no attribute {name}",
     "recovery": "internal",
     "sources": {
-      "tools/placement_studio/window.py": 560
+      "tools/placement_studio/window.py": 559
     }
   },
   {
@@ -99465,7 +99457,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported numeric preset or value.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 192
+      "cdmw/mcp/settings_tools.py": 190
     }
   },
   {
@@ -99473,7 +99465,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a supported worker count.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 187
+      "cdmw/mcp/settings_tools.py": 185
     }
   },
   {
@@ -99481,7 +99473,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a value from {control.minimum()} to {control.maximum()}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 121
+      "cdmw/mcp/settings_tools.py": 119
     }
   },
   {
@@ -99545,7 +99537,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter a nonnegative whole number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 182
+      "cdmw/mcp/settings_tools.py": 180
     }
   },
   {
@@ -99553,7 +99545,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter an absolute path or clear the setting.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 142
+      "cdmw/mcp/settings_tools.py": 140
     }
   },
   {
@@ -99561,7 +99553,7 @@ MESSAGE_REFERENCE = [
     "message": "Enter the numeric setting value.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 119
+      "cdmw/mcp/settings_tools.py": 117
     }
   },
   {
@@ -99737,7 +99729,7 @@ MESSAGE_REFERENCE = [
     "message": "No shortcut command matches {command}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 245
+      "cdmw/mcp/settings_tools.py": 243
     }
   },
   {
@@ -99985,7 +99977,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#ArchiveCacheStatusChip { color: {theme['text']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 6px; } QLabel#HintLabel[healthState=\"healthy\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 700; } QLabel#HintLabel[healthState=\"building\"] { color: {theme['accent']}; border-color: {theme['accent']}; font-weight: 600; } QLabel#HintLabel[healthState=\"missing\"], QLabel#HintLabel[healthState=\"stale\"] { color: {theme['warning_text']}; border-color: {theme['warning_border']}; font-weight: 600; } QLabel#HintLabel[healthState=\"unhealthy\"] { color: {theme['error']}; border-color: {theme['error']}; font-weight: 700; } QCheckBox, QRadioButton { spacing: 8px; } QCheckBox::indicator, QGroupBox::indicator, QRadioButton::indicator { width: 16px; height: 16px; border-radius: 4px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QRadioButton::indicator { border-radius: 10px; } QCheckBox::indicator:checked, QGroupBox::indicator:checked, QRadioButton::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; } QCheckBox::indicator:checked, QGroupBox::indicator:checked { {_image_rule('check', theme['accent_text'])} } QRadioButton::indicator:checked { {_image_rule('dot', theme['accent_text'])} } QCheckBox::indicator:indeterminate { background: {theme['accent']}; border: 2px solid {theme['accent']}; {_image_rule('dash', theme['accent_text'])} } QCheckBox::indicator:hover, QGroupBox::indicator:hover, QRadioButton::indicator:hover, QCheckBox::indicator:focus, QGroupBox::indicator:focus, QRadioButton::indicator:focus { border-color: {theme['text_strong']}; } QCheckBox::indicator:disabled, QGroupBox::indicator:disabled, QRadioButton::indicator:disabled { background: {theme['button_disabled']}; border-color: {theme['button_disabled_text']}; } QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled, QRadioButton::indicator:checked:disabled { background: {theme['button_disabled_text']}; } QCheckBox::indicator:checked:disabled, QGroupBox::indicator:checked:disabled { {_image_rule('check', theme['button_disabled'])} } QRadioButton::indicator:checked:disabled { {_image_rule('dot', theme['button_disabled'])} } QTreeWidget#ScenePanelTree::indicator { width: 12px; height: 12px; margin: 2px 4px 2px 0px; border-radius: 3px; border: 2px solid {theme['border_strong']}; background: {theme['field']}; } QTreeWidget#ScenePanelTree::indicator:checked { background: {theme['accent']}; border: 2px solid {theme['accent']}; {_image_rule('check', theme['accent_text'])} } QTreeWidget#ScenePanelTree::indicator:indeterminate { background: {theme['accent_soft']}; border: 2px solid {theme['accent']}; } QTreeWidget#ScenePanelTree::indicator:hover { border-color: {theme['text_strong']}; } QProgressBar { border: 1px solid {theme['border_strong']}; border-radius: 4px; background: {theme['field']}; font-weight: 600; text-align: center; min-height: {metrics['progress_min_h']}px; } QProgressBar::chunk { border-radius: 3px; background: {theme['accent']}; } QLabel#HintLabel { color: {theme['text_muted']}; background: transparent; } {detail} QLabel#ArchivePreviewHealthLabel { color: {theme['text_muted']}; background: transparent; } QLabel#ArchivePreviewHealthLabel[working=\"true\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#ArchivePreviewHealthLabel[attention=\"true\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 2px 6px; font-weight: 600; } QLabel#WarningBadge { color: {theme['warning_text']}; background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#ActiveBadge { color: {theme['accent_text']}; background: {theme['accent']}; border: 1px solid {theme['accent']}; border-radius: 4px; padding: 4px 8px; font-weight: 600; } QLabel#WarningText { color: {theme['warning_text']}; background: transparent; } QLabel#WarningLabel { color: {theme['warning_text']}; background: transparent; } QLabel#CompactPathValue { color: {theme['text_strong']}; background: transparent; }",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/themes.py": 747
+      "cdmw/ui/themes.py": 748
     }
   },
   {
@@ -99993,7 +99985,7 @@ MESSAGE_REFERENCE = [
     "message": "QLabel#MetricChip { color: {theme['text_strong']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; border-radius: 4px; padding: 3px 8px; font-weight: 600; } QLabel#MetricChip[chipRole=\"format\"], QLabel#MetricChip[chipRole=\"info\"] { color: {theme['text_strong']}; background: {theme['accent_soft']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"ready\"] { color: {theme['accent_text']}; background: {theme['accent']}; border-color: {theme['accent']}; } QLabel#MetricChip[chipRole=\"warn\"] { color: {theme['warning_text']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#MetricChip[chipRole=\"block\"] { color: {theme['error']}; background: {theme['warning_bg']}; border-color: {theme['warning_border']}; } QLabel#ItemFinderIconPreview, QLabel#DDSDetailThumbnail { color: {theme['text_muted']}; background: {theme['preview_bg']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QPlainTextEdit#HkxLineNumbers { color: {theme['text_muted']}; background: {theme['field_alt']}; border: 1px solid {theme['border']}; } QFrame#AssignmentSummary { background: {theme['surface_alt']}; border: 1px solid {theme['border']}; border-radius: 6px; } QLabel#AssignmentTitle { color: {theme['accent']}; background: transparent; font-weight: 600; } QLabel#AssignmentWarning { color: {theme['warning_text']}; background: transparent; font-weight: 600; } QFrame#ArchiveSwapBanner { background: {theme['warning_bg']}; border: 1px solid {theme['warning_border']}; border-radius: 4px; } QLabel#ArchiveSwapBannerLabel { color: {theme['warning_text']}; background: transparent; } QLabel#StatusLabel { color: {theme['text_muted']}; background: transparent; } QLabel#StatusLabel[error=\"true\"] { color: {theme['error']}; } QLabel#PreviewLabel { border: 1px solid {theme['border_strong']}; border-radius: 5px; background: {theme['preview_bg']}; color: {theme['text_muted']}; padding: 8px; } QFrame#MeshEditorDraftChoiceCard { background: {theme['surface']}; border: 1px solid {theme['border_strong']}; border-radius: 6px; } QFrame#MeshEditorDraftChoiceCard QLabel { background: transparent; border: none; }",
     "recovery": "gpu",
     "sources": {
-      "cdmw/ui/themes.py": 911
+      "cdmw/ui/themes.py": 912
     }
   },
   {
@@ -100009,7 +100001,7 @@ MESSAGE_REFERENCE = [
     "message": "Settings > Shortcuts is unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 237
+      "cdmw/mcp/settings_tools.py": 235
     }
   },
   {
@@ -100033,7 +100025,7 @@ MESSAGE_REFERENCE = [
     "message": "Supply the list of paths to ignore.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 171
+      "cdmw/mcp/settings_tools.py": 169
     }
   },
   {
@@ -100041,7 +100033,7 @@ MESSAGE_REFERENCE = [
     "message": "The Settings control is disabled.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 111
+      "cdmw/mcp/settings_tools.py": 109
     }
   },
   {
@@ -100057,7 +100049,7 @@ MESSAGE_REFERENCE = [
     "message": "The requested command has no editable shortcut row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 250
+      "cdmw/mcp/settings_tools.py": 248
     }
   },
   {
@@ -100073,7 +100065,7 @@ MESSAGE_REFERENCE = [
     "message": "The value does not match the Settings control.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 124
+      "cdmw/mcp/settings_tools.py": 122
     }
   },
   {
@@ -100081,7 +100073,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no supported Settings control for {raw}.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 203
+      "cdmw/mcp/settings_tools.py": 201
     }
   },
   {
@@ -100217,7 +100209,7 @@ MESSAGE_REFERENCE = [
     "message": "Unrecognized shortcut {key}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/settings_tools.py": 225
+      "cdmw/mcp/settings_tools.py": 223
     }
   },
   {
@@ -105302,7 +105294,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not list languages: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 558
+      "tools/translation_studio/tab.py": 595
     }
   },
   {
@@ -105318,7 +105310,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save settings: {error}",
     "recovery": "configuration",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 253
+      "tools/translation_studio/ai_panel.py": 257
     }
   },
   {
@@ -105334,7 +105326,7 @@ MESSAGE_REFERENCE = [
     "message": "Export failed: {error}",
     "recovery": "write",
     "sources": {
-      "tools/translation_studio/tab.py": 978
+      "tools/translation_studio/tab.py": 1015
     }
   },
   {
@@ -105342,7 +105334,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid game language code. Use a code such as eng, rus, or zho-cn.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 618
+      "tools/translation_studio/tab.py": 655
     }
   },
   {
@@ -105350,7 +105342,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid table path. Choose a .paloc path under gamedata/stringtable/binary__.",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/tab.py": 611
+      "tools/translation_studio/tab.py": 648
     }
   },
   {
@@ -105374,7 +105366,7 @@ MESSAGE_REFERENCE = [
     "message": "Load failed: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/tab.py": 657
+      "tools/translation_studio/tab.py": 694
     }
   },
   {
@@ -105382,7 +105374,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to export: no lines have been changed.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 968
+      "tools/translation_studio/tab.py": 1005
     }
   },
   {
@@ -105390,7 +105382,7 @@ MESSAGE_REFERENCE = [
     "message": "Nothing to translate: no lines are in view.",
     "recovery": "empty",
     "sources": {
-      "tools/translation_studio/tab.py": 936
+      "tools/translation_studio/tab.py": 973
     }
   },
   {
@@ -105398,7 +105390,7 @@ MESSAGE_REFERENCE = [
     "message": "Request {result.number} failed: {result.error}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 527
+      "tools/translation_studio/ai_panel.py": 536
     }
   },
   {
@@ -105406,7 +105398,7 @@ MESSAGE_REFERENCE = [
     "message": "Request {result.number}: {len(result.accepted)} applied",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 534
+      "tools/translation_studio/ai_panel.py": 543
     }
   },
   {
@@ -105414,7 +105406,7 @@ MESSAGE_REFERENCE = [
     "message": "Request {result.number}: {len(result.accepted)} applied, {len(result.rejected)} left alone",
     "recovery": "input",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 534
+      "tools/translation_studio/ai_panel.py": 543
     }
   },
   {
@@ -105430,7 +105422,7 @@ MESSAGE_REFERENCE = [
     "message": "Windows account encryption was unavailable, so the API key was not written to disk. Everything else was saved, and the key still works for this session; you will need to enter it again next time.",
     "recovery": "authentication",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 256
+      "tools/translation_studio/ai_panel.py": 260
     }
   },
   {
@@ -105454,7 +105446,7 @@ MESSAGE_REFERENCE = [
     "message": "line {index}: {reason}",
     "recovery": "internal",
     "sources": {
-      "tools/translation_studio/ai_panel.py": 533
+      "tools/translation_studio/ai_panel.py": 542
     }
   },
   {
@@ -111402,9 +111394,10 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/speed_prefabs/__init__.py": {},
   "cdmw/ui/speed_prefabs/workspace.py": {
-    "display": 3
+    "display": 4
   },
   "cdmw/ui/startup_splash_host.py": {},
+  "cdmw/ui/table_coherence.py": {},
   "cdmw/ui/text_preview_widgets.py": {},
   "cdmw/ui/text_search/__init__.py": {},
   "cdmw/ui/text_search/controller.py": {
@@ -112247,12 +112240,12 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
+    "native_handoff": 17,
+    "native_message": 11
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
     "native_message": 1
-  },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
-    "native_handoff": 18,
-    "native_message": 12
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCatalogInventory.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
@@ -112348,11 +112341,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,

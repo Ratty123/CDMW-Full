@@ -269,6 +269,11 @@ def test_workspace_edit_works_the_tabs_own_controls():
     with pytest.raises(ToolError):
         run("speed.workspace_edit", action="factors", factors={"set": 9.0})
     assert run("speed.workspace_edit", action="reset")["factors"] == {"set": 1.0, "kinds": {}, "moves": {}}
+    hidden = run("speed.workspace_edit", action="factors", show_unused=False)
+    shown = run("speed.workspace_edit", action="factors", show_unused=True)
+    assert not hidden["show_unused_kinds"] and shown["show_unused_kinds"]
+    assert workspace.show_unused_kinds_checkbox.isChecked()
+    assert set(hidden["kinds_shown"]) < set(shown["kinds_shown"]) == set(workspace.kind_rows)
 
     state = run("speed.workspace_edit", action="search", category="cameras")
     assert seen.searches == ["cameras"] and state["page"] == "prefabs" and state["prefab_searching"]

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFormLayout,
-    QGroupBox,
+    QFrame,
     QHeaderView,
     QHBoxLayout,
     QLabel,
@@ -21,31 +21,32 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.research.help_widgets import (
-    add_flat_section_help as _add_flat_section_help,
-    add_titled_help_header as _add_titled_help_header,
-    intro_label,
+    make_research_help_button as _make_help_button,
 )
 from cdmw.ui.research.layout_state import (
-    research_archive_picker_splitter_default_sizes,
     research_notes_splitter_default_sizes,
 )
 from cdmw.ui.research.models import archive_picker_item_kind as _archive_picker_item_kind
 from cdmw.ui.research.tab_builders import build_preview_zoom_controls
 from cdmw.ui.research.tree_helpers import make_research_tree_columns_persistent
 from cdmw.ui.wrapping_layout import WrappingLayout
-from cdmw.ui.widgets import ArchiveDetailsEditor, EmptyStateTreeWidget, FlatSectionPanel, PreviewLabel, PreviewScrollArea
+from cdmw.ui.widgets import ArchiveDetailsEditor, EmptyStateTreeWidget, PreviewLabel, PreviewScrollArea
+
+
+def _surface_card(margins: tuple[int, int, int, int] = (8, 8, 8, 8), spacing: int = 6) -> tuple[QFrame, QVBoxLayout]:
+    card = QFrame()
+    card.setProperty("surfaceCard", True)
+    layout = QVBoxLayout(card)
+    layout.setContentsMargins(*margins)
+    layout.setSpacing(spacing)
+    return card, layout
+
 
 def build_archive_picker_group(self) -> QWidget:
-    group = FlatSectionPanel("Archive Files")
-    _add_flat_section_help(
-        group,
-        "Uses the current Archive Browser scan/filter state so you can pick files for Research without leaving this tab. DDS semantics can still use loaded archive sidecars when they are available.",
-    )
-    layout = group.body_layout
-    layout.setSpacing(8)
+    group, layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
 
     actions = WrappingLayout()
-    actions.setSpacing(8)
+    actions.setSpacing(6)
     self.archive_picker_refresh_button = QPushButton("Reload List")
     self.archive_picker_refresh_button.setToolTip(
         "Reload this list from the current Archive Browser view and filter."
@@ -68,8 +69,14 @@ def build_archive_picker_group(self) -> QWidget:
     view_control = QWidget()
     view_layout = QHBoxLayout(view_control)
     view_layout.setContentsMargins(0, 0, 0, 0)
+    view_layout.setSpacing(6)
     view_layout.addWidget(QLabel("View"))
     view_layout.addWidget(self.archive_picker_view_combo)
+    view_layout.addWidget(
+        _make_help_button(
+            "Uses the current Archive Browser scan/filter state so you can pick files for Research without leaving this tab. DDS semantics can still use loaded archive sidecars when they are available."
+        )
+    )
     actions.addWidget(view_control)
     layout.addLayout(actions)
 
@@ -78,11 +85,11 @@ def build_archive_picker_group(self) -> QWidget:
     self.archive_picker_status_label.setObjectName("HintLabel")
     layout.addWidget(self.archive_picker_status_label)
 
-    self.archive_picker_splitter = QSplitter(Qt.Horizontal)
+    self.archive_picker_splitter = QSplitter(Qt.Vertical)
     self.archive_picker_splitter.setChildrenCollapsible(False)
-    self.archive_picker_splitter.setHandleWidth(8)
 
     tree_container = QWidget()
+    tree_container.setMinimumHeight(170)
     tree_layout = QVBoxLayout(tree_container)
     tree_layout.setContentsMargins(0, 0, 0, 0)
     tree_layout.setSpacing(0)
@@ -96,6 +103,9 @@ def build_archive_picker_group(self) -> QWidget:
     self.archive_picker_tree.setAlternatingRowColors(False)
     self.archive_picker_tree.setRootIsDecorated(True)
     self.archive_picker_tree.setUniformRowHeights(True)
+    self.archive_picker_tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+    self.archive_picker_tree.setProperty("_cdmwKeepElide", True)
+    self.archive_picker_tree.setProperty("_cdmwKeepFixedColumns", True)
     self.archive_picker_tree.header().setStretchLastSection(False)
     self.archive_picker_tree.header().setSectionResizeMode(0, QHeaderView.Interactive)
     self.archive_picker_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -104,13 +114,16 @@ def build_archive_picker_group(self) -> QWidget:
     tree_layout.addWidget(self.archive_picker_tree)
     self.archive_picker_splitter.addWidget(tree_container)
 
-    preview_group = FlatSectionPanel("Selected Preview")
-    preview_layout = preview_group.body_layout
-    preview_layout.setSpacing(8)
+    preview_group = QWidget()
+    preview_group.setMinimumHeight(180)
+    preview_layout = QVBoxLayout(preview_group)
+    preview_layout.setContentsMargins(0, 4, 0, 0)
+    preview_layout.setSpacing(6)
 
     preview_title_row = WrappingLayout()
-    preview_title_row.setSpacing(8)
+    preview_title_row.setSpacing(6)
     self.archive_picker_preview_title_label = QLabel("Select an archive file")
+    self.archive_picker_preview_title_label.setObjectName("FlatSectionTitle")
     self.archive_picker_preview_title_label.setWordWrap(True)
     (
         self.archive_picker_preview_zoom_out_button,
@@ -161,21 +174,24 @@ def build_archive_picker_group(self) -> QWidget:
     )
     self.archive_picker_preview_details_edit.document().setMaximumBlockCount(2000)
     self.archive_picker_preview_tabs = QTabWidget()
+    self.archive_picker_preview_tabs.setDocumentMode(True)
     preview_tab = QWidget()
     preview_tab_layout = QVBoxLayout(preview_tab)
-    preview_tab_layout.setContentsMargins(0, 0, 0, 0)
+    preview_tab_layout.setContentsMargins(0, 4, 0, 0)
     preview_tab_layout.setSpacing(0)
     preview_tab_layout.addWidget(self.archive_picker_preview_stack)
     details_tab = QWidget()
     details_tab_layout = QVBoxLayout(details_tab)
-    details_tab_layout.setContentsMargins(0, 0, 0, 0)
+    details_tab_layout.setContentsMargins(0, 4, 0, 0)
     details_tab_layout.setSpacing(0)
     details_tab_layout.addWidget(self.archive_picker_preview_details_edit)
     self.archive_picker_preview_tabs.addTab(preview_tab, "Preview")
     self.archive_picker_preview_tabs.addTab(details_tab, "Details")
     preview_layout.addWidget(self.archive_picker_preview_tabs, stretch=1)
     self.archive_picker_splitter.addWidget(preview_group)
-    self.archive_picker_splitter.setSizes(research_archive_picker_splitter_default_sizes())
+    self.archive_picker_splitter.setStretchFactor(0, 44)
+    self.archive_picker_splitter.setStretchFactor(1, 56)
+    self.archive_picker_splitter.setSizes([280, 340])
     layout.addWidget(self.archive_picker_splitter, stretch=1)
 
     self.archive_picker_refresh_button.clicked.connect(self.refresh_archive_picker)
@@ -195,13 +211,14 @@ def build_archive_picker_group(self) -> QWidget:
     self.archive_picker_preview_zoom_in_button.clicked.connect(lambda: self._adjust_archive_picker_preview_zoom(1))
     return group
 
-def build_analysis_detail_group(self) -> QGroupBox:
-    detail_group = QGroupBox("Selected Result Details")
-    detail_layout = QVBoxLayout(detail_group)
-    detail_layout.setContentsMargins(10, 12, 10, 10)
-    detail_layout.setSpacing(8)
+
+def build_analysis_detail_group(self) -> QWidget:
+    detail_group, detail_layout = _surface_card(margins=(10, 8, 10, 10), spacing=6)
+    title = QLabel("Selected Result Details")
+    title.setObjectName("FlatSectionTitle")
+    detail_layout.addWidget(title)
     self.analysis_detail_label = QLabel(
-        "Select a row in Mip Analysis or Bulk Normal Validator to see where the result came from and what it means."
+        "Select a row in Mip Analysis or Bulk Normal Validator to inspect details."
     )
     self.analysis_detail_label.setWordWrap(True)
     self.analysis_detail_label.setObjectName("HintLabel")
@@ -214,27 +231,21 @@ def build_analysis_detail_group(self) -> QGroupBox:
     detail_layout.addWidget(self.analysis_detail_edit, stretch=1)
     return detail_group
 
+
 def build_notes_tab(self) -> QWidget:
     tab = QWidget()
     layout = QVBoxLayout(tab)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(10)
+    layout.setContentsMargins(0, 8, 10, 0)
+    layout.setSpacing(8)
 
     self.notes_splitter = QSplitter(Qt.Horizontal)
     splitter = self.notes_splitter
     splitter.setChildrenCollapsible(False)
     layout.addWidget(splitter, stretch=1)
 
-    notes_group = QGroupBox("")
-    notes_layout = QVBoxLayout(notes_group)
-    notes_layout.setContentsMargins(10, 8, 10, 10)
-    notes_layout.setSpacing(6)
-    intro_label(
-        "Annotate archive files, text-search results, or compare targets while you research. Notes are stored locally beside the EXE.",
-        notes_layout,
-    )
-    use_row = QHBoxLayout()
-    use_row.addWidget(QLabel("Note target"))
+    notes_group, notes_layout = _surface_card(margins=(10, 8, 10, 10), spacing=8)
+    use_row = WrappingLayout()
+    use_row.setSpacing(6)
     self.notes_use_archive_button = QPushButton("Use Selected File")
     self.notes_use_archive_button.setToolTip("Use the file selected in Archive Files on the right.")
     self.notes_use_search_button = QPushButton("Use Selected Search Result")
@@ -244,15 +255,15 @@ def build_notes_tab(self) -> QWidget:
     use_row.addWidget(self.notes_use_archive_button)
     use_row.addWidget(self.notes_use_search_button)
     use_row.addWidget(self.notes_use_compare_button)
-    use_row.addStretch(1)
     notes_layout.addLayout(use_row)
 
     form = QFormLayout()
     form.setHorizontalSpacing(10)
-    form.setVerticalSpacing(8)
+    form.setVerticalSpacing(6)
     self.notes_target_edit = QLineEdit()
     self.notes_target_edit.setPlaceholderText("Archive path, search result, or any name")
     self.notes_source_label = QLabel("manual")
+    self.notes_source_label.setObjectName("HintLabel")
     self.notes_tags_edit = QLineEdit()
     self.notes_tags_edit.setPlaceholderText("comma,separated,tags")
     form.addRow("Target", self.notes_target_edit)
@@ -265,7 +276,9 @@ def build_notes_tab(self) -> QWidget:
     )
     notes_layout.addWidget(self.notes_edit, stretch=1)
     buttons = QHBoxLayout()
+    buttons.setSpacing(8)
     self.notes_save_button = QPushButton("Save Note")
+    self.notes_save_button.setProperty("primaryAction", True)
     self.notes_delete_button = QPushButton("Delete Note")
     buttons.addWidget(self.notes_save_button)
     buttons.addWidget(self.notes_delete_button)
@@ -273,16 +286,16 @@ def build_notes_tab(self) -> QWidget:
     notes_layout.addLayout(buttons)
     splitter.addWidget(notes_group)
 
-    list_group = QGroupBox("Saved Notes")
-    list_layout = QVBoxLayout(list_group)
-    list_layout.setContentsMargins(10, 12, 10, 10)
-    list_layout.setSpacing(8)
+    list_group, list_layout = _surface_card(margins=(10, 8, 10, 10), spacing=6)
+    list_title = QLabel("Saved Notes")
+    list_title.setObjectName("FlatSectionTitle")
+    list_layout.addWidget(list_title)
     self.notes_tree = EmptyStateTreeWidget(
         "No notes saved",
         "Saved research notes for archive, search, and compare targets will appear here.",
     )
     self.notes_tree.setRootIsDecorated(False)
-    self.notes_tree.setAlternatingRowColors(True)
+    self.notes_tree.setAlternatingRowColors(False)
     self.notes_tree.setHeaderLabels(["Target", "Tags", "Updated", "Source"])
     self.notes_tree.header().resizeSection(0, 360)
     self.notes_tree.header().resizeSection(1, 200)

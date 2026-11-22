@@ -103,7 +103,7 @@ class EditPanelMixin:
         )
 
         self._edit_target = QLabel("Nothing selected")
-        self._edit_target.setStyleSheet("font-weight: bold;")
+        self._edit_target.setObjectName("SectionTitle")
         self._edit_target.setWordWrap(True)
 
         # Socket translation is in *parent-bone* space, so these axes follow the bone's
@@ -116,7 +116,7 @@ class EditPanelMixin:
                     "Move one step. The directions follow the bone this point is attached to, "
                     "not the screen, so watch the view to see which way it goes."
                 )
-                button.setFixedWidth(46)
+                button.setFixedWidth(38)
                 button.clicked.connect(
                     lambda _checked=False, i=index, s=sign: self._nudge_axis(i, s)
                 )

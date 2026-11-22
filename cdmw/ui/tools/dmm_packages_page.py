@@ -10,12 +10,12 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
-from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMenu, QMessageBox, QProgressBar,
+from PySide6.QtWidgets import (QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel, QMenu, QMessageBox, QProgressBar,
                                QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw import constants
 from cdmw.services.settings_service import resolve_settings_file_path
-from cdmw.ui.widgets import request_settings_sync
+from cdmw.ui.widgets import EmptyStateTreeWidget, request_settings_sync
 
 PACKAGES_SETTING = "mod_management/dmm_packages"
 DMM_MOD_TITLE = "CDMW items"
@@ -37,7 +37,9 @@ class DmmPackagesPage(QWidget):
         self._applying = False  # The tab's cancel logic reads this; a send never applies anything.
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
         toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
         self.add_items = QPushButton(self.tr("Add item packages…"))
         self.add_items.setObjectName("mod_management_add_items")
         self.add_items.setToolTip(self.tr("Add .cdmw item packages made with Create New Item."))
@@ -46,29 +48,42 @@ class DmmPackagesPage(QWidget):
         self.send_dmm_button = QPushButton(self.tr("Send to DMM…"))
         self.send_dmm_button.setObjectName("mod_management_send_dmm")
         self.send_dmm_button.setProperty("newItemPrimary", True)
+        self.send_dmm_button.setProperty("primaryAction", True)
         self.send_dmm_button.setToolTip(self.tr("Write the selected item packages, or all of them when none is selected, "
                                                 "as one DMM mod named CDMW items. Sending again replaces it."))
         self.send_dmm_button.clicked.connect(self._send_to_dmm)
         toolbar.addWidget(self.send_dmm_button)
         toolbar.addStretch(1)
         layout.addLayout(toolbar)
-        self.selection = QTreeWidget()
+        list_card = QFrame()
+        list_card.setProperty("surfaceCard", True)
+        list_card_layout = QVBoxLayout(list_card)
+        list_card_layout.setContentsMargins(0, 0, 0, 0)
+        list_card_layout.setSpacing(0)
+        self.selection = EmptyStateTreeWidget(
+            self.tr("No item packages yet"),
+            self.tr("Add .cdmw item packages made with Create New Item, then send them to DMM."),
+        )
         self.selection.setObjectName("mod_management_dmm_list")
         self.selection.setHeaderLabels([self.tr("Package"), self.tr("Folder")])
         self.selection.setRootIsDecorated(False)
+        self.selection.setAlternatingRowColors(False)
         self.selection.setUniformRowHeights(True)
         self.selection.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.selection.setSortingEnabled(True)
         self.selection.sortItems(0, Qt.AscendingOrder)
         self.selection.header().setSectionResizeMode(0, QHeaderView.Interactive)
-        self.selection.header().setStretchLastSection(True)
-        self.selection.setColumnWidth(0, 340)
+        self.selection.header().setStretchLastSection(False)
+        self.selection.setProperty("_cdmwPrimaryColumn", 1)
+        self.selection.setColumnWidth(0, 260)
         self.selection.setAccessibleDescription(self.tr("Add .cdmw item packages to begin."))
         self.selection.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.selection.customContextMenuRequested.connect(self._context_menu)
         self.selection.itemSelectionChanged.connect(self._buttons)
-        layout.addWidget(self.selection, 1)
+        list_card_layout.addWidget(self.selection)
+        layout.addWidget(list_card, 1)
         row = QHBoxLayout()
+        row.setSpacing(8)
         self.details_button = QPushButton(self.tr("Details…"))
         self.details_button.setObjectName("mod_management_mod_details")
         self.details_button.clicked.connect(self._details)
@@ -79,15 +94,18 @@ class DmmPackagesPage(QWidget):
         self.remove_selected.clicked.connect(self._remove)
         row.addWidget(self.remove_selected)
         self.count = QLabel()
+        self.count.setObjectName("HintLabel")
         row.addWidget(self.count, 1)
         layout.addLayout(row)
         self.status = QLabel(self.tr("DMM loads these items. Send them to DMM, then enable CDMW items in DMM and click Mount."))
         self.status.setObjectName("mod_management_dmm_status")
+        self.status.setProperty("hintText", True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
+        self.progress.setMaximumHeight(16)
         self.progress.hide()
         layout.addWidget(self.progress)
         self._load()

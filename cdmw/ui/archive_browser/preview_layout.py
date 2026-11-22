@@ -56,7 +56,12 @@ class ArchivePreviewLayoutMixin:
         self.archive_isolated_renderer_button.setVisible(False)
 
     def _build_archive_preview_panel(self) -> None:
-        archive_preview_group = FlatSectionPanel("Preview")
+        archive_preview_group = FlatSectionPanel("Preview", body_margins=(6, 0, 0, 0), body_spacing=4)
+        archive_preview_group.header_widget.setVisible(False)
+        outer_layout = archive_preview_group.layout()
+        if outer_layout is not None:
+            outer_layout.setContentsMargins(0, 0, 0, 0)
+            outer_layout.setSpacing(0)
         archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
         self.archive_preview_min_width = archive_preview_min
         archive_preview_group.setMinimumWidth(archive_preview_min)
@@ -684,7 +689,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_character_context_panel.setVisible(False)
         self.archive_preview_content_splitter = QSplitter(Qt.Horizontal)
         self.archive_preview_content_splitter.setChildrenCollapsible(True)
-        self.archive_preview_content_splitter.setHandleWidth(8)
         self.archive_preview_content_splitter.addWidget(archive_preview_main_widget)
         self.archive_preview_content_splitter.addWidget(self.archive_texture_refs_group)
         self.archive_preview_content_splitter.addWidget(self.archive_character_context_panel)

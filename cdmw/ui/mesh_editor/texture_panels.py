@@ -31,10 +31,13 @@ SHOWN_KEY = "mesh_editor/textures_panel_shown"
 #: before the panels had minimum sizes can hold a crushed strip; a newer version sizes
 #: the panels once more.
 SIZES_KEY = "mesh_editor/texture_panels_sizes"
-SIZES_VERSION = 2
+SIZES_VERSION = 3
 
-#: The Textures panel's share of the editor's width when it first shows.
-LIST_WIDTH_SHARE = 0.26
+#: The Textures panel's default share and bounds (at 11pt reference; ~380-430px at 9-10pt).
+LIST_WIDTH_SHARE = 0.25
+LIST_MIN_DEFAULT_WIDTH = 440
+LIST_MAX_DEFAULT_WIDTH = 490
+LIST_MAX_WIDTH_SHARE = 0.34
 #: The two panels' share of the editor's width once a texture is open beside the model.
 EDITOR_WIDTH_SHARE = 0.45
 #: The list's share of the panels' height while the Texture Editor is under it.
@@ -82,10 +85,18 @@ class TexturePanels(QObject):
         self._pending_width = ""
         #: The side's width beside the list, given back when the list shows again.
         self._narrow_width = 0
+        #: The Textures list width before opening the Texture Editor, restored on close.
+        self._list_only_width = 0
+        #: The Texture Editor + list width before closing the Texture Editor, restored on reopen.
+        self._both_width = 0
         #: The wide width last set, to tell the user's drag from it.
         self._applied_wide = 0
         #: The share of the width the user dragged the wide side to (0: not dragged).
         self._wide_share = 0.0
+        self._fit_sizes_timer = QTimer(self)
+        self._fit_sizes_timer.setSingleShot(True)
+        self._fit_sizes_timer.setInterval(0)
+        self._fit_sizes_timer.timeout.connect(self._fit_sizes)
         session_shown = getattr(textures, "session_shown", None)
         if session_shown is not None:
             session_shown.connect(lambda _shown: self.apply())
@@ -125,6 +136,10 @@ class TexturePanels(QObject):
 
     def set_wanted(self, wanted: bool) -> None:
         wanted = bool(wanted)
+        if wanted and self.tools is not None and getattr(self.tools, "_editor_factory", None) is None:
+            from cdmw.ui.mesh_editor.texture_tools_dock import prewarm_texture_editor_imports
+
+            prewarm_texture_editor_imports()
         if wanted != self._wanted:
             self._wanted = wanted
             if self.settings is not None:
@@ -158,7 +173,8 @@ class TexturePanels(QObject):
             self.textures.setVisible(show_list)
         if show_list or show_editor:
             # After the layout has placed the panels: sizes need the host's real size.
-            QTimer.singleShot(0, self._fit_sizes)
+            if not self._fit_sizes_timer.isActive():
+                self._fit_sizes_timer.start()
 
     def _on_texture_opened(self) -> None:
         # Shows the Texture Editor only: the list stays as the user left it, so a texture
@@ -199,6 +215,12 @@ class TexturePanels(QObject):
             return 0
         return tools.width()
 
+    def _list_docked_width(self) -> int:
+        textures = self.textures
+        if textures.isHidden() or textures.isFloating():
+            return 0
+        return textures.width()
+
     def _enter_mode(self, mode: str) -> None:
         """Note what the side's width must do when the panels shown change; the width
         itself is set once the layout has placed them (``_fit_width``)."""
@@ -215,7 +237,14 @@ class TexturePanels(QObject):
         if previous == "both" and mode == "editor":
             # The width beside the list, before the side widens.
             self._narrow_width = self._docked_width()
-        if mode in ("editor", "both"):
+        elif previous == "list" and mode == "both":
+            self._list_only_width = self._list_docked_width()
+        elif previous == "both" and mode == "list":
+            self._both_width = self._docked_width()
+        elif mode == "":
+            self._list_only_width = 0
+            self._both_width = 0
+        if mode in ("editor", "both", "list"):
             self._pending_width = mode
 
     def _remember_drag(self) -> None:
@@ -247,11 +276,19 @@ class TexturePanels(QObject):
 
     def _fit_width(self) -> None:
         """With the list hidden the side widens so the texture is drawn larger; with the
-        list back it has the width it had beside it."""
+        list back it has the width it had beside it; closing the editor returns the list
+        to its compact width."""
 
         pending, self._pending_width = self._pending_width, ""
         tools, host = self.tools, self.host
-        if not pending or pending != self._mode or not self._docked_width() or host.width() <= 0:
+        if not pending or pending != self._mode or host.width() <= 0:
+            return
+        if pending == "list":
+            width, self._list_only_width = self._list_only_width, 0
+            if width > 0 and not self.textures.isHidden() and not self.textures.isFloating():
+                host.resizeDocks([self.textures], [width], Qt.Orientation.Horizontal)
+            return
+        if not self._docked_width():
             return
         if pending == "editor":
             if not self._narrow_width:
@@ -265,10 +302,14 @@ class TexturePanels(QObject):
             width, self._narrow_width = self._narrow_width, 0
             if not self.textures.isFloating():
                 host.resizeDocks([tools], [width], Qt.Orientation.Horizontal)
+        elif self._both_width:
+            width, self._both_width = self._both_width, 0
+            if not self.textures.isFloating():
+                host.resizeDocks([tools], [width], Qt.Orientation.Horizontal)
 
     def _fit_list(self) -> None:
-        """The first time the list shows (or after a layout saved before the panels had
-        minimum sizes), it takes a sensible share of the editor's width."""
+        """The first time the list shows (or after a layout saved under an older sizes
+        version), it opens at a compact, proportional width."""
 
         textures, host = self.textures, self.host
         if textures.isHidden() or textures.isFloating() or host.width() <= 0:
@@ -276,8 +317,14 @@ class TexturePanels(QObject):
         if self._sizes_are_current() or self._texture_open:
             return
         least = textures.minimumSizeHint().width()
-        width = min(max(least, int(host.width() * LIST_WIDTH_SHARE)), max(least, scaled_px(520, textures)))
-        host.resizeDocks([textures], [width], Qt.Orientation.Horizontal)
+        share_cap = max(least, int(host.width() * LIST_MAX_WIDTH_SHARE))
+        preferred = max(
+            scaled_px(LIST_MIN_DEFAULT_WIDTH, textures),
+            int(host.width() * LIST_WIDTH_SHARE),
+        )
+        width = max(least, min(preferred, scaled_px(LIST_MAX_DEFAULT_WIDTH, textures), share_cap))
+        if abs(textures.width() - width) > 2:
+            host.resizeDocks([textures], [width], Qt.Orientation.Horizontal)
         self._list_sized = True
         if self.settings is not None:
             try:

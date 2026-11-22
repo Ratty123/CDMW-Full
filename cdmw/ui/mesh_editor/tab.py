@@ -342,7 +342,6 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.character_context_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.character_context_splitter.setChildrenCollapsible(True)
-        self.character_context_splitter.setHandleWidth(8)
         self.character_context_splitter.addWidget(self.workspace_stack)
         if character_context_service is not None:
             from cdmw.ui.character_context_panel import CharacterContextPanel

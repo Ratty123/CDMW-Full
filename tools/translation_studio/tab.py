@@ -45,8 +45,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
@@ -299,22 +298,31 @@ class TranslationStudioTab(QWidget):
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(8)
+
+        toolbar_card = QFrame()
+        toolbar_card.setProperty("surfaceCard", True)
+        toolbar_layout = QVBoxLayout(toolbar_card)
+        toolbar_layout.setContentsMargins(10, 8, 10, 8)
+        toolbar_layout.setSpacing(6)
 
         source = QHBoxLayout()
+        source.setSpacing(8)
         self.open_file_button = QPushButton("Open .paloc...")
         self.open_file_button.clicked.connect(self._on_open_file)
         source.addWidget(self.open_file_button)
         self.archive_label = QLabel()
+        self.archive_label.setObjectName("HintLabel")
         self.archive_label.setWordWrap(True)
         source.addWidget(self.archive_label, 1)
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self._populate_languages)
         source.addWidget(self.refresh_button)
-        outer.addLayout(source)
+        toolbar_layout.addLayout(source)
 
         picker = QHBoxLayout()
+        picker.setSpacing(8)
         picker.addWidget(QLabel("Language"))
         self.language_box = QComboBox()
         self.language_box.setMinimumContentsLength(10)
@@ -324,17 +332,21 @@ class TranslationStudioTab(QWidget):
         self.reference_box.setMinimumContentsLength(10)
         picker.addWidget(self.reference_box)
         self.load_button = QPushButton("Load")
+        self.load_button.setProperty("primaryAction", True)
         self.load_button.clicked.connect(self._on_load)
         picker.addWidget(self.load_button)
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedWidth(150)
+        self.progress_bar.setMaximumHeight(16)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setVisible(False)
         picker.addWidget(self.progress_bar)
         self.status_label = QLabel("Pick a language and load it.")
+        self.status_label.setObjectName("HintLabel")
         self.status_label.setWordWrap(True)
         picker.addWidget(self.status_label, 1)
-        outer.addLayout(picker)
+        toolbar_layout.addLayout(picker)
+        outer.addWidget(toolbar_card)
 
         # P11 step 6: everything below works on a loaded table. Until one is loaded the
         # area gives its place to an empty state that says what to do next.
@@ -343,12 +355,14 @@ class TranslationStudioTab(QWidget):
         self.editor_area = QWidget()
         area = QVBoxLayout(self.editor_area)
         area.setContentsMargins(0, 0, 0, 0)
+        area.setSpacing(8)
         self.empty_state = ActionEmptyState(TRANSLATIONS_LOAD_TEXT, "Load", run=self._on_load,
                                             reason=self._load_reason)
         self.editor_switch = EmptyStateSwitch(self.editor_area, self.empty_state)
         outer.addWidget(self.editor_switch, 1)
 
         search = QHBoxLayout()
+        search.setSpacing(8)
         search.addWidget(QLabel("Find"))
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Text or key, e.g. Greymane or questdialog_main")
@@ -367,8 +381,15 @@ class TranslationStudioTab(QWidget):
         self.edited_only.setEnabled(False)
         search.addWidget(self.edited_only)
         self.hits_label = QLabel("")
+        self.hits_label.setObjectName("HintLabel")
         search.addWidget(self.hits_label)
         area.addLayout(search)
+
+        table_card = QFrame()
+        table_card.setProperty("surfaceCard", True)
+        table_card_layout = QVBoxLayout(table_card)
+        table_card_layout.setContentsMargins(0, 0, 0, 0)
+        table_card_layout.setSpacing(0)
 
         self.model = TranslationTableModel()
         self.model.dataChanged.connect(self._on_table_changed)
@@ -380,7 +401,8 @@ class TranslationStudioTab(QWidget):
             QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
         )
         self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -388,9 +410,11 @@ class TranslationStudioTab(QWidget):
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         self.table.setColumnWidth(0, 260)
         self.table.selectionModel().selectionChanged.connect(self._on_selection)
-        area.addWidget(self.table, 1)
+        table_card_layout.addWidget(self.table)
+        area.addWidget(table_card, 1)
 
         actions = QHBoxLayout()
+        actions.setSpacing(8)
         self.revert_button = QPushButton("Revert line")
         self.revert_button.setToolTip("Restore the selected line from the loaded table.")
         self.revert_button.clicked.connect(self._on_revert)
@@ -413,37 +437,50 @@ class TranslationStudioTab(QWidget):
         actions.addWidget(self.ai_settings_button)
         actions.addStretch(1)
         self.hint_label = QLabel(
-            "Double-click a line in Text to retranslate it. Nothing in this format is "
-            "offset-addressed, so a longer or shorter line is safe."
+            "Double-click a line in Text to retranslate it."
         )
+        self.hint_label.setObjectName("HintLabel")
         self.hint_label.setWordWrap(True)
-        actions.addWidget(self.hint_label, 2)
+        actions.addWidget(self.hint_label, 1)
         area.addLayout(actions)
 
         area.addWidget(self._build_export())
         self._sync_empty_state()
 
     def _build_export(self) -> QWidget:
-        box = QGroupBox("Export as a mod")
+        box = QFrame()
+        box.setProperty("surfaceCard", True)
         layout = QVBoxLayout(box)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+        title = QLabel("Export as a mod")
+        title.setObjectName("FlatSectionTitle")
+        top_row.addWidget(title)
         self.pending_label = QLabel("No changes.")
+        self.pending_label.setObjectName("HintLabel")
         self.pending_label.setWordWrap(True)
-        layout.addWidget(self.pending_label)
-        form = QFormLayout()
-        self.mod_name = QLineEdit("Translation tweak")
-        form.addRow("Mod name", self.mod_name)
-        self.mod_author = QLineEdit()
-        form.addRow("Author", self.mod_author)
-        layout.addLayout(form)
+        top_row.addWidget(self.pending_label, 1)
+        layout.addLayout(top_row)
         row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(QLabel("Mod name"))
+        self.mod_name = QLineEdit("Translation tweak")
+        row.addWidget(self.mod_name, 2)
+        row.addWidget(QLabel("Author"))
+        self.mod_author = QLineEdit()
+        row.addWidget(self.mod_author, 1)
         self.export_button = QPushButton("Build mod packages")
+        self.export_button.setProperty("primaryAction", True)
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export_clicked)
         row.addWidget(self.export_button)
-        self.export_note = QLabel("")
-        self.export_note.setWordWrap(True)
-        row.addWidget(self.export_note, 1)
         layout.addLayout(row)
+        self.export_note = QLabel("")
+        self.export_note.setObjectName("HintLabel")
+        self.export_note.setWordWrap(True)
+        layout.addWidget(self.export_note)
         return box
 
     # ------------------------------------------------------------------ loading

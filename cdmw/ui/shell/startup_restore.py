@@ -105,6 +105,9 @@ class ShellStartupRestoreMixin:
         geometry = self.settings.value("window/geometry")
         if geometry:
             self.restoreGeometry(geometry)
+            from cdmw.ui.display_scaling import fit_window_to_screen
+
+            fit_window_to_screen(self)
         from cdmw.ui.layout_persistence import install_layout_persistence
 
         self._layout_persistence = install_layout_persistence(self, self.settings)

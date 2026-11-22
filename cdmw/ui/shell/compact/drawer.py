@@ -41,7 +41,7 @@ class CompactActivityDrawer(QFrame):
         self._refresh_timer.timeout.connect(self._refresh_activity_text)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 8)
+        layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(6)
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)

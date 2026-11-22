@@ -154,10 +154,12 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
     settings = create_settings(settings_file_path=tmp_path / "compact-settings.cfg")
     assert read_shell_variant(settings) == COMPACT_SHELL_VARIANT
 
-    settings.setValue(SHELL_VARIANT_SETTING, LEGACY_SHELL_VARIANT)
-    assert read_shell_variant(settings) == LEGACY_SHELL_VARIANT
+    for retired in (LEGACY_SHELL_VARIANT, "classic", "Classic Workspace", "future-shell"):
+        settings.setValue(SHELL_VARIANT_SETTING, retired)
+        assert normalize_shell_variant(retired) == COMPACT_SHELL_VARIANT
+        assert read_shell_variant(settings) == COMPACT_SHELL_VARIANT
+        assert settings.value(SHELL_VARIANT_SETTING) == COMPACT_SHELL_VARIANT
 
-    settings.setValue(SHELL_VARIANT_SETTING, "future-shell")
     settings.setValue("appearance/theme", "graphite")
 
     assert normalize_shell_variant(None) == COMPACT_SHELL_VARIANT
@@ -745,7 +747,7 @@ def test_settings_combines_layout_and_shared_theme_under_appearance(tmp_path: Pa
     app = _app()
     settings = create_settings(settings_file_path=tmp_path / "settings-tab.cfg")
     settings.setValue("appearance/theme", "graphite")
-    settings.setValue(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
+    settings.setValue(SHELL_VARIANT_SETTING, "classic")
     tab = SettingsTab(
         settings=settings,
         theme_key="graphite",
@@ -759,24 +761,21 @@ def test_settings_combines_layout_and_shared_theme_under_appearance(tmp_path: Pa
     assert "appearance" in nav_keys
     assert "layout" not in nav_keys
     appearance_form = tab.appearance_group.layout()
-    assert appearance_form.labelForField(tab.application_layout_combo).text() == "Layout"
+    assert appearance_form.labelForField(tab.application_layout_combo) is None
     assert appearance_form.labelForField(tab.theme_combo).text() == "Theme"
-    assert tab.application_layout_combo.parentWidget() is tab.theme_combo.parentWidget()
+    assert tab.application_layout_combo.isHidden()
+    assert tab.application_layout_restart_label.isHidden()
+    assert tab.application_layout_combo.findData(LEGACY_SHELL_VARIANT) == -1
     assert not hasattr(tab, "compact_shell_theme_combo")
-    tab.application_layout_combo.setCurrentIndex(
-        tab.application_layout_combo.findData(LEGACY_SHELL_VARIANT)
-    )
     alternate_theme = next(key for key in UI_THEME_SCHEMES if key != "graphite")
     index = tab.theme_combo.findData(alternate_theme)
     tab.theme_combo.setCurrentIndex(index)
     tab.flush_settings_save()
     app.processEvents()
 
-    assert not tab.application_layout_combo.isHidden()
-    assert "Restart required" in tab.application_layout_restart_label.text()
     assert [payload["theme_key"] for payload in emitted] == [alternate_theme]
     assert emitted[0]["changed"] == ("theme",)
-    assert settings.value(SHELL_VARIANT_SETTING) == LEGACY_SHELL_VARIANT
+    assert settings.value(SHELL_VARIANT_SETTING) == COMPACT_SHELL_VARIANT
     assert settings.value("appearance/theme") == alternate_theme
     assert settings.value(COMPACT_SHELL_THEME_SETTING) is None
     tab.deleteLater()

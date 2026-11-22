@@ -60,7 +60,6 @@ class TextureWorkflowSetupOverviewPanelMixin:
             self.download_ncnn_button,
             self.import_ncnn_models_button,
         ):
-            button.setMinimumHeight(28)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         setup_note_group = QGroupBox("Notes")

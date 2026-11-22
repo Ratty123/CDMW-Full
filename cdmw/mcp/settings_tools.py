@@ -10,8 +10,6 @@ from cdmw.mcp.rail_actions import PATH, choices, choose, page, press, required, 
 
 _SETTINGS_CONTROLS = {
     "appearance/theme": "theme_combo",
-    # Classic or Compact Workspace; used from the next start, as the page's notice says.
-    "ui/shell_variant": "application_layout_combo",
     "appearance/language": "language_combo",
     "appearance/ui_font_family": "ui_font_family_combo",
     "appearance/ui_density": "density_combo",

@@ -663,7 +663,6 @@ class ModPackageRetrofitTests(unittest.TestCase):
         self.assertIn("Package status", source)
         self.assertIn("QTableWidget(0, 12)", source)
         self.assertIn("QSplitter(Qt.Horizontal)", source)
-        self.assertIn("content_splitter.setHandleWidth(8)", source)
         self.assertIn("left_panel.setMinimumWidth(0)", source)
         self.assertIn("right_panel.setMinimumWidth(0)", source)
         self.assertIn("QTimer.singleShot(120, self.parent, self._apply_content_splitter_sizes)", source)

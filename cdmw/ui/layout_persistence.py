@@ -22,6 +22,7 @@ from cdmw.ui.window_interaction import ensure_window_interaction_tracker
 
 PREFIX = "ui/layout/v1"
 _WINDOW_GEOMETRY_SAVE_DELAY_MS = 650
+_SPLITTER_SAVE_DELAY_MS = 250
 
 
 def _identity(widget: QWidget) -> str:
@@ -125,13 +126,21 @@ class UiLayoutPersistence(QObject):
         super().__init__(parent)
         self.settings = settings
         self._splitters = weakref.WeakKeyDictionary()
+        self._splitter_ids: set[int] = set()
         self._windows = weakref.WeakKeyDictionary()
+        self._window_ids: set[int] = set()
         self._headers = weakref.WeakKeyDictionary()
         self._pending = weakref.WeakSet()
         self._restoring = False
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._restore_pending)
+        self._splitter_save_pending: weakref.WeakSet[QSplitter] = weakref.WeakSet()
+        self._header_save_pending: weakref.WeakSet[QHeaderView] = weakref.WeakSet()
+        self._splitter_save_timer = QTimer(self)
+        self._splitter_save_timer.setSingleShot(True)
+        self._splitter_save_timer.setInterval(_SPLITTER_SAVE_DELAY_MS)
+        self._splitter_save_timer.timeout.connect(self._flush_pending_splitters_and_headers)
         self._geometry_pending = weakref.WeakKeyDictionary()
         self._geometry_timer = QTimer(self)
         self._geometry_timer.setSingleShot(True)
@@ -147,15 +156,43 @@ class UiLayoutPersistence(QObject):
         value = self.settings.value("preferences/remember_splitter_sizes", True)
         return str(value).strip().lower() not in {"false", "0", "no", "off"}
 
+    def _schedule_splitter_save(self, splitter: QSplitter) -> None:
+        if self._restoring or not self.splitters_enabled():
+            return
+        self._splitter_save_pending.add(splitter)
+        self._splitter_save_timer.start(_SPLITTER_SAVE_DELAY_MS)
+
+    def _schedule_header_save(self, header: QHeaderView) -> None:
+        if self._restoring:
+            return
+        self._header_save_pending.add(header)
+        self._splitter_save_timer.start(_SPLITTER_SAVE_DELAY_MS)
+
+    def _flush_pending_splitters_and_headers(self) -> None:
+        self._splitter_save_timer.stop()
+        splitters = tuple(self._splitter_save_pending)
+        self._splitter_save_pending.clear()
+        for splitter in splitters:
+            if isValid(splitter):
+                self.save_splitter(splitter)
+        headers = tuple(self._header_save_pending)
+        self._header_save_pending.clear()
+        for header in headers:
+            if isValid(header):
+                self.save_header(header)
+
     def _splitter_key(self, splitter: QSplitter, orientation=None) -> str:
         if splitter not in self._splitters:
             self._splitters[splitter] = (_widget_identity(splitter), splitter.orientation())
+            sid = id(splitter)
+            self._splitter_ids.add(sid)
+            splitter.destroyed.connect(lambda _obj=None, ident=sid: self._splitter_ids.discard(ident))
             reference = weakref.ref(splitter)
 
             def moved(*_args):
                 widget = reference()
                 if widget is not None and isValid(widget) and isValid(self):
-                    self.save_splitter(widget)
+                    self._schedule_splitter_save(widget)
 
             splitter.splitterMoved.connect(moved)
         identity, _orientation = self._splitters[splitter]
@@ -173,7 +210,7 @@ class UiLayoutPersistence(QObject):
             def resized(*_args):
                 current = reference()
                 if current is not None and isValid(current) and isValid(self) and QApplication.mouseButtons() & Qt.LeftButton:
-                    self.save_header(current)
+                    self._schedule_header_save(current)
 
             header.sectionResized.connect(resized)
         key, count = self._headers[header]
@@ -270,9 +307,12 @@ class UiLayoutPersistence(QObject):
         if window in self._windows:
             return
         self._windows[window] = (key, not restore)
+        wid = id(window)
+        self._window_ids.add(wid)
         reference = weakref.ref(window)
 
-        def destroyed(*_args):
+        def destroyed(*_args, ident=wid):
+            self._window_ids.discard(ident)
             current = reference()
             if current is not None and isValid(self):
                 # The QWidget's native state may already be gone. The last
@@ -385,35 +425,44 @@ class UiLayoutPersistence(QObject):
         self._schedule_geometry_timer()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if self._restoring or not isinstance(watched, QWidget) or not isValid(watched):
+        if self._restoring:
             return False
         kind = event.type()
+        wid = id(watched)
+        if kind in (QEvent.Move, QEvent.WindowStateChange):
+            if wid in self._window_ids and isValid(watched):
+                self._queue_window_geometry(watched)
+            return False
+        if kind in (QEvent.Resize, QEvent.LayoutRequest):
+            if wid in self._splitter_ids and isValid(watched):
+                if self._splitters[watched][1] != watched.orientation():
+                    self._schedule(watched)
+            elif kind == QEvent.Resize and wid in self._window_ids and isValid(watched):
+                self._queue_window_geometry(watched)
+            return False
+        if kind in (QEvent.Hide, QEvent.Close, QEvent.DeferredDelete):
+            if wid in self._window_ids and isValid(watched):
+                self._queue_window_geometry(watched)
+                self._save_window_geometry(watched)
+                self._schedule_geometry_timer()
+            return False
         if kind == QEvent.Show:
+            if not isinstance(watched, QWidget) or not isValid(watched):
+                return False
             if isinstance(watched, QSplitter):
                 self._splitter_key(watched)
                 self._schedule(watched)
             elif isinstance(watched, QHeaderView):
                 self._schedule(watched)
-            elif watched not in self._windows:
+            elif wid not in self._window_ids:
                 key = self._window_key(watched)
                 if key:
                     self.watch_window(watched, key)
-        elif kind in (QEvent.Resize, QEvent.LayoutRequest):
-            splitter = watched if watched in self._splitters else watched.parentWidget()
-            if splitter in self._splitters and self._splitters[splitter][1] != splitter.orientation():
-                self._schedule(splitter)
-        if kind in (QEvent.Resize, QEvent.Move, QEvent.WindowStateChange):
-            self._queue_window_geometry(watched)
-        elif kind in (
-            QEvent.Hide, QEvent.Close, QEvent.DeferredDelete,
-        ) and watched in self._windows:
-            self._queue_window_geometry(watched)
-            self._save_window_geometry(watched)
-            self._schedule_geometry_timer()
         return False
 
     def flush(self) -> None:
-        """Persist pending geometry before orderly shutdown destroys windows."""
+        """Persist pending geometry and splitter/header sizes before orderly shutdown."""
+        self._flush_pending_splitters_and_headers()
         self._geometry_timer.stop()
         for window in tuple(self._geometry_pending):
             self._save_window_geometry(window)

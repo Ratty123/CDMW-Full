@@ -232,6 +232,7 @@ def _prefab_rows(*names):
 
 def test_prefab_list_columns_share_the_width_and_never_scroll_sideways(qt_app):
     from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHeaderView
 
     dialog, _calls = _dialog()
     dialog.resize(1100, 700)
@@ -241,12 +242,16 @@ def test_prefab_list_columns_share_the_width_and_never_scroll_sideways(qt_app):
     qt_app.processEvents()
     table = dialog.prefab_table
     header = table.horizontalHeader()
-    assert table.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    assert sum(header.sectionSize(column) for column in range(3)) <= table.viewport().width()
+    assert table.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    assert table.textElideMode() == Qt.TextElideMode.ElideNone
+    assert all(header.sectionResizeMode(column) == QHeaderView.ResizeMode.Interactive for column in range(3))
     assert header.sectionSize(0) >= header.sectionSize(2)  # the name gets the room before the speed values
+    assert sum(header.sectionSize(column) for column in range(3)) >= table.viewport().width()
     dialog.resize(760, 700)
     qt_app.processEvents()
-    assert sum(header.sectionSize(column) for column in range(3)) <= table.viewport().width()
+    assert header.sectionSize(0) >= header.sectionSize(2)
+    header.resizeSection(0, 260)
+    assert header.sectionSize(0) == 260
     dialog.close()
 
 
@@ -875,3 +880,61 @@ def test_scaling_the_listed_prefabs_reads_them_asks_and_writes_one_package(qt_ap
     browser._scale_speed_prefabs(workspace, index, ("object/prefab/fan.prefab",), 0.5, "")
     shell.tasks[-1]["on_error"]("Scaling the prefabs was cancelled.")
     assert boxes[-1] == "warning: Scaling the prefabs was cancelled." and not workspace.state()["prefab_scaling"]
+
+
+def test_category_rows_never_overlap_moves_named_row_for_one_to_eight_categories(qt_app):
+    from PySide6.QtCore import QPoint
+
+    from cdmw.services.animation_speed_service import KIND_LABELS
+
+    all_kinds = tuple(KIND_LABELS)
+    sets = tuple(SpeedSet(f"actionchart/set_{count}.paac", f"Set {count}") for count in (1, 2, 4, 6, 7, 8))
+    charts = {
+        item.path: SpeedChart(
+            item.path,
+            item.label,
+            1.0,
+            tuple(
+                SpeedMove(f"1_pc/1_phm/clip_{kind}.paa", f"clip_{kind}", kind, 1, 1, 1.0)
+                for kind in all_kinds[: int(item.label.split()[-1])]
+            ),
+            SpeedFactors(),
+            "",
+            "",
+        )
+        for item in sets
+    }
+    dialog = SpeedPrefabsWorkspace(
+        (SpeedCharacter("Kliff", sets),),
+        load_set=lambda path: charts[path],
+        plan=lambda *_args: (),
+    )
+    try:
+        dialog.resize(1220, 740)
+        dialog.show()
+        qt_app.processEvents()
+        card = dialog._factors_card
+        for item in sets:
+            assert dialog.select_set(item.path)
+            for show_unused in (False, True, False):
+                dialog.show_unused_kinds_checkbox.setChecked(show_unused)
+                qt_app.processEvents()
+                visible_rows = [row for row in dialog.kind_rows.values() if row.isVisible()]
+                assert visible_rows
+                named_top = dialog.named_edit.mapTo(card, QPoint(0, 0)).y()
+                for row in visible_rows:
+                    row_rect = row.rect()
+                    top_left = row.mapTo(card, row_rect.topLeft())
+                    row_bottom = top_left.y() + row_rect.height() - 1
+                    assert row_bottom < named_top, (
+                        f"{item.label} (show_unused={show_unused}): category row bottom {row_bottom} "
+                        f"overlaps Moves named top {named_top}"
+                    )
+                for index, first in enumerate(visible_rows):
+                    first_rect = first.geometry()
+                    for second in visible_rows[index + 1 :]:
+                        assert not first_rect.intersects(second.geometry())
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        qt_app.processEvents()

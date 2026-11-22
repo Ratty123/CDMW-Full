@@ -35,8 +35,9 @@ def test_app_settings_shortcuts_and_diagnostics_reach_the_real_window(real):
     assert not tab.remember_splitters_checkbox.isChecked()
     store = QSettings(tab.settings.fileName(), QSettings.Format.IniFormat)
     assert not store.value("preferences/remember_splitter_sizes", True, type=bool)
-    real.ok("app_settings_set", {"key": "ui/shell_variant", "value": "Classic Workspace"})
-    assert tab.current_application_layout() == "legacy" and store.value("ui/shell_variant") == "legacy"
+    # Classic Workspace is retired, so the layout is no longer a Settings control.
+    assert real.error("app_settings_set", {"key": "ui/shell_variant", "value": "Classic Workspace"})["code"] == (
+        "not_found")
     tool = Path(tab.settings.fileName()).parent / "tools" / "realesrgan-ncnn-vulkan.exe"
     real.ok("app_settings_set", {"key": "ncnn/exe_path", "value": str(tool)})
     field = getattr(real.window.textures, "ncnn_exe_path_edit", None)

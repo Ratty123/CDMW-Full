@@ -67,7 +67,7 @@ class CompactBottomStatusStrip(QFrame):
         self._tool_status_hosts: dict[str, QWidget] = {}
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setContentsMargins(12, 0, 12, 0)
         layout.setSpacing(8)
         self.ready_label = ready_label
         self.progress_bar = progress_bar
@@ -80,7 +80,7 @@ class CompactBottomStatusStrip(QFrame):
         # brings this to the intended 10 px outer height.
         progress_bar.setStyleSheet(
             "min-height: 8px; max-height: 8px; "
-            "border: 1px solid palette(mid); border-radius: 0;"
+            "border: 1px solid palette(mid); border-radius: 3px;"
         )
         progress_bar.setTextVisible(False)
         cache_label.setObjectName("CompactCacheStatusLabel")
@@ -102,8 +102,7 @@ class CompactBottomStatusStrip(QFrame):
         self.activity_button.setObjectName("CompactActivityToggle")
         self.activity_button.setCheckable(True)
         self.activity_button.setFlat(True)
-        self.activity_button.setMinimumHeight(28)
-        self.activity_button.setStyleSheet("border-radius: 0; padding: 2px 7px;")
+        self.activity_button.setMinimumHeight(24)
         self.activity_button.setIcon(compact_line_icon("activity", self.palette()))
         self.activity_button.setToolTip("Show or hide session Activity and the current tool's log.")
         self.activity_button.toggled.connect(self.drawer_requested.emit)

@@ -102,20 +102,14 @@ def test_both_navigation_styles_restore_and_reattach_the_same_content(tmp_path, 
         original_count = window.tool_stack.count()
         assert window.tool_stack.currentWidget() is archive
         assert window.tab_registry.widgets["archive_browser"] is archive
-        if variant == "legacy":
-            navigation = window.classic_navigation
-            assert navigation.tools.tabData(navigation.tools.currentIndex()) == "archive_browser"
-            label = navigation.tools.tabText(navigation.tools.currentIndex())
+        # A saved Classic Workspace choice ("legacy") opens Compact Workspace: Classic is retired.
         window._detach_tool_key("archive_browser")
         assert window._detached_tool_windows["archive_browser"].centralWidget() is archive
         assert window.tool_stack.count() == original_count
         window._attach_detached_tool("archive_browser")
         assert window.tool_stack.currentWidget() is archive
         assert window.tool_stack.count() == original_count
-        if variant == "legacy":
-            assert navigation.tools.tabText(navigation.tools.currentIndex()) == label
-        else:
-            assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
+        assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
     finally:
         window._close_force_accept = True
         window.close()

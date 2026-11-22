@@ -146,7 +146,8 @@ def test_real_archive_export_menu_dispatches_batch_in_both_layouts(app, tmp_path
     window = MainWindow(app_context=context)
     calls = []
     try:
-        assert window.is_compact_shell == (layout_name == "compact_rail")
+        # A saved Classic Workspace choice ("legacy") opens Compact Workspace: Classic is retired.
+        assert window.is_compact_shell
         archive = window.archive
         assert not archive.archive_model_batch_glb_button.isEnabled()
         assert not archive.archive_model_batch_obj_button.isEnabled()

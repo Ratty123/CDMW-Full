@@ -7,7 +7,7 @@ What an Older CDMW Installed... takes out what those installs left.
 
 from PySide6.QtCore import Qt, QTimer, QSignalBlocker, Signal
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
+    QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -36,13 +36,13 @@ class ModManagementTab(QWidget):
         self._refresh_needed = True
         self._last_progress_message = None
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
-        source_row = QHBoxLayout()
-        heading = QLabel("Mod Management")
-        heading.setObjectName('SectionTitle')
-        source_row.addWidget(heading)
-        source_row.addSpacing(16)
+        source_card = QFrame()
+        source_card.setProperty('surfaceCard', True)
+        source_row = QHBoxLayout(source_card)
+        source_row.setContentsMargins(10, 8, 10, 8)
+        source_row.setSpacing(8)
         source_label = QLabel('Game folder')
         source_label.setObjectName('mod_management_game_label')
         source_row.addWidget(source_label)
@@ -57,7 +57,7 @@ class ModManagementTab(QWidget):
         self.choose_game.setEnabled(callable(self._set_package_root))
         self.choose_game.clicked.connect(self._choose_game)
         source_row.addWidget(self.choose_game)
-        layout.addLayout(source_row)
+        layout.addWidget(source_card)
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
         from cdmw.ui.tools.dmm_packages_page import DmmPackagesPage

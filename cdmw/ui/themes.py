@@ -51,26 +51,28 @@ def build_app_palette(theme_key: str) -> QPalette:
 def _settings_navigation_stylesheet(theme: Dict[str, str]) -> str:
     return f"""
     QWidget#SettingsSectionNavPanel {{
-        background: {theme["field"]};
+        background: {theme["field_alt"]};
+        border: none;
+        border-right: 1px solid {theme["border"]};
     }}
     QListWidget#SettingsSectionNav {{
-        background: {theme["field"]};
-        border: 1px solid {theme["border_strong"]};
-        border-radius: 8px;
-        padding: 4px;
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+        padding: 6px 6px;
         outline: 0;
     }}
     QListWidget#SettingsSectionNav::item {{
         background: transparent;
         color: {theme["text"]};
         border: 1px solid transparent;
-        border-radius: 6px;
+        border-radius: 4px;
         margin: 1px 0px;
         padding: 5px 8px;
     }}
     QListWidget#SettingsSectionNav::item:hover {{
         background: {theme["button_hover"]};
-        border-color: {theme["button_border"]};
+        border-color: {theme["border"]};
         color: {theme["text_strong"]};
     }}
     QListWidget#SettingsSectionNav::item:selected {{
@@ -545,7 +547,6 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
     }}
     QListWidget::item {{
         padding: {metrics["list_pad_y"] + 1}px {metrics["list_pad_x"]}px;
-        border-radius: 3px;
     }}
     QListWidget::item:selected,
     QTreeWidget::item:selected,
@@ -614,7 +615,7 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
         color: {theme["accent_text"]};
         background: {theme["accent"]};
         border-color: {theme["accent"]};
-        font-weight: 600;
+        font-weight: 400;
     }}
     QPushButton#EditorPrimaryButton:hover:enabled, QPushButton[primaryAction="true"]:hover:enabled {{
         color: {theme["text_strong"]};
@@ -644,23 +645,23 @@ def _settings_performance_stylesheet(theme: Dict[str, str], metrics: Dict[str, i
     }}
     QGroupBox#SettingsPerformanceCard {{
         color: {theme["text"]};
-        background: {theme["surface_alt"]};
-        border: 1px solid {theme["border_strong"]};
-        border-radius: 7px;
-        margin-top: {max(20, metrics["group_margin_top"] + 7)}px;
-        padding-top: {max(8, metrics["group_pad_top"])}px;
+        background: {theme["surface"]};
+        border: 1px solid {theme["border"]};
+        border-radius: 6px;
+        margin-top: 0px;
+        padding: 22px 6px 6px 6px;
         font-weight: 400;
     }}
     QGroupBox#SettingsPerformanceCard::title {{
-        subcontrol-origin: margin;
+        subcontrol-origin: padding;
         subcontrol-position: top left;
-        left: 12px;
-        top: 0px;
+        left: 10px;
+        top: 5px;
         margin: 0px;
-        padding: 1px {metrics["group_title_pad_x"] + 3}px 2px {metrics["group_title_pad_x"] + 3}px;
-        color: {theme["text_strong"]};
-        background: {theme["surface"]};
-        font-weight: 700;
+        padding: 0px 2px;
+        color: {theme["text_muted"]};
+        background: transparent;
+        font-weight: 600;
     }}
     QFrame#SettingsPerformanceRow {{
         background: transparent;
@@ -1029,52 +1030,60 @@ def _app_navigation_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -
         background: {theme["button_hover"]};
     }}
     QSplitter::handle {{
-        background: {theme["surface_alt"]};
-        width: 4px;
+        background: transparent;
+        border: none;
+    }}
+    QAbstractScrollArea::corner,
+    QWidget#qt_scrollarea_hcontainer,
+    QWidget#qt_scrollarea_vcontainer {{
+        background: transparent;
+        border: none;
     }}
     QScrollBar:vertical {{
-        background: {theme["field"]};
-        width: 12px;
-        margin: 1px;
-        border-radius: 4px;
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+        width: 8px;
+        margin: 2px 1px;
     }}
     QScrollBar::handle:vertical {{
-        background: {theme["button_border"]};
-        border: 1px solid {theme["border_strong"]};
-        min-height: 24px;
-        border-radius: 4px;
+        background: {theme["border_strong"]};
+        border: none;
+        min-height: 28px;
+        border-radius: 3px;
     }}
     QScrollBar::handle:vertical:hover {{
-        background: {theme["accent_soft"]};
-        border: 1px solid {theme["accent"]};
+        background: {theme["border_strong"]};
+        border: none;
     }}
     QScrollBar::handle:vertical:pressed {{
         background: {theme["accent"]};
-        border: 1px solid {theme["accent"]};
+        border: none;
     }}
     QScrollBar:horizontal {{
-        background: {theme["field"]};
-        height: 12px;
-        margin: 1px;
-        border-radius: 4px;
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+        height: 8px;
+        margin: 1px 2px;
     }}
     QScrollBar::handle:horizontal {{
-        background: {theme["button_border"]};
-        border: 1px solid {theme["border_strong"]};
-        min-width: 24px;
-        border-radius: 4px;
+        background: {theme["border_strong"]};
+        border: none;
+        min-width: 28px;
+        border-radius: 3px;
     }}
     QScrollBar::handle:horizontal:hover {{
-        background: {theme["accent_soft"]};
-        border: 1px solid {theme["accent"]};
+        background: {theme["border_strong"]};
+        border: none;
     }}
     QScrollBar::handle:horizontal:pressed {{
         background: {theme["accent"]};
-        border: 1px solid {theme["accent"]};
+        border: none;
     }}
     QScrollBar::add-page, QScrollBar::sub-page {{
         background: transparent;
-        border-radius: 4px;
+        border: none;
     }}
     QScrollBar::add-line, QScrollBar::sub-line {{
         background: transparent;

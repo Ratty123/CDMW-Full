@@ -9,10 +9,10 @@ def build_hair_entry_bar(tab, *, close_button=None):
     from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy
     bar = QFrame(tab)
     bar.setObjectName("MeshEditorEntryBar")
-    bar.setFrameShape(QFrame.NoFrame)
+    bar.setProperty("commandBar", True)
     bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
     layout = QHBoxLayout(bar)
-    layout.setContentsMargins(6, 2, 6, 2)
+    layout.setContentsMargins(8, 5, 8, 5)
     layout.setSpacing(6)
     button = QPushButton("Hair Tools (Experimental)", bar)
     # Bold through the theme, so it follows the UI font size.

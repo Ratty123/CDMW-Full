@@ -387,6 +387,7 @@ class TextSearchControllerMixin:
         self.preview_title_label.setText("Searching...")
         self.preview_meta_label.setText("Working...")
         self.preview_detail_label.setText("")
+        self.preview_detail_label.setVisible(False)
         self.preview_text_edit.setPlainText("")
         self.preview_text_edit.set_match_selections([])
         self.preview_search_spans = []
@@ -526,6 +527,7 @@ class TextSearchControllerMixin:
                 self.preview_title_label.setText("No matches")
                 self.preview_meta_label.setText("No matching file was found for the current query.")
             self.preview_detail_label.setText("")
+            self.preview_detail_label.setVisible(False)
             self.preview_text_edit.setPlainText("")
             self.preview_text_edit.set_match_selections([])
             self.preview_text_cache = ""
