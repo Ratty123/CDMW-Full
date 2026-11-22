@@ -184,7 +184,10 @@ class NewItemStudioTab(QWidget):
         self._refreshing_checks = False
         self._effect_staged_dirty = False
         self._model_part_editor_source: object | None = None
+        #: the Mesh Editor document holding the import, not the tab strip above it
         self._model_part_editor_widget: object | None = None
+        #: the Mesh Editor's document tabs, to show that document again
+        self._model_part_editor_documents: object | None = None
         self._model_part_editor_controller: object | None = None
         self._model_part_editor_session_id = ""
         #: the binding whose import is open in Mesh Editor, so a return can select it again
@@ -1130,6 +1133,13 @@ class NewItemStudioTab(QWidget):
         if container is None or not callable(activate):
             self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
             return False
+        # Another document tab may be shown now: show the one holding the import first.
+        view = getattr(self, "_model_part_editor_documents", None)
+        document = getattr(self, "_model_part_editor_widget", None)
+        index_of = getattr(view, "index_of", None)
+        index = index_of(document) if callable(index_of) and document is not None else -1
+        if index >= 0:
+            view.set_active(index)
         activate(container)
         return True
 
@@ -1163,6 +1173,11 @@ class NewItemStudioTab(QWidget):
         if editor is None:
             self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
             return
+        # With document tabs, the container answers for whichever document is shown at
+        # the time. Hold the document itself, so the link stays on it when another is shown.
+        documents = editor if callable(getattr(editor, "open_new_document", None)) else None
+        if documents is not None:
+            editor = documents.active
         active_controller = getattr(editor, "standalone_controller", None)
         if active_controller is not None and bool(getattr(active_controller, "active_session_id", "")):
             self.model_panel.set_part_editor_state(
@@ -1174,6 +1189,10 @@ class NewItemStudioTab(QWidget):
         def failed(message):
             self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {message}")
         def ready(prepared):
+            if documents is not None and documents.index_of(editor) < 0:
+                # Its document tab was closed while the model was being prepared.
+                self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
+                return
             active = getattr(editor, "standalone_controller", None)
             if active is not None and getattr(active, "active_session_id", ""):
                 failed("Another mesh was opened while this model was being prepared.")
@@ -1189,6 +1208,7 @@ class NewItemStudioTab(QWidget):
             self._model_part_editor_source = source
             self._model_part_editor_variant = getattr(self.controller, "_active_variant", None)
             self._model_part_editor_widget = editor
+            self._model_part_editor_documents = documents
             self._model_part_editor_controller = editor.standalone_controller
             self._model_part_editor_session_id = view.session_id
             self.model_panel.set_part_editor_state(
@@ -1355,6 +1375,7 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_variant = None
         self._model_part_editor_parked = False
         self._model_part_editor_widget = None
+        self._model_part_editor_documents = None
         self._model_part_editor_controller = None
         self._model_part_editor_session_id = ""
 
