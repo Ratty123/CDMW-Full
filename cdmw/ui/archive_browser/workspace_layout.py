@@ -17,8 +17,8 @@ class ArchiveWorkspaceLayoutMixin:
     def _build_archive_browser_shell_tab(self, pump_startup_splash: Callable[[str], None]) -> None:
         self.shell.archive_browser_tab = self
         archive_tab_layout = QVBoxLayout(self)
-        archive_tab_layout.setContentsMargins(0, 0, 0, 0)
-        archive_tab_layout.setSpacing(10)
+        archive_tab_layout.setContentsMargins(10, 10, 10, 10)
+        archive_tab_layout.setSpacing(8)
         pump_startup_splash("Preparing archive browser...")
 
         self.archive_splitter = QSplitter(Qt.Horizontal)
@@ -30,21 +30,32 @@ class ArchiveWorkspaceLayoutMixin:
         self._build_archive_preview_panel()
 
         self.archive_splitter.setStretchFactor(0, 0)
-        self.archive_splitter.setStretchFactor(1, 1)
+        self.archive_splitter.setStretchFactor(1, 3)
         self.archive_splitter.setStretchFactor(2, 2)
-        self.archive_splitter.setSizes(
-            build_responsive_splitter_sizes(
-                1760,
-                [18, 31, 51],
-                [
-                    int(getattr(self, "archive_controls_min_width", 0) or 0),
-                    int(getattr(self, "archive_files_min_width", 0) or 0),
-                    int(getattr(self, "archive_preview_min_width", 0) or 0),
-                ],
-            )
-        )
         from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
         build_archive_command_strip(self, self)
+        controls_scroll = getattr(self, "archive_controls_scroll", None)
+        files_min = int(getattr(self, "archive_files_min_width", 0) or 0)
+        preview_min = int(getattr(self, "archive_preview_min_width", 0) or 0)
+        if controls_scroll is not None and controls_scroll.isHidden():
+            files_w, preview_w = build_responsive_splitter_sizes(
+                1240,
+                [60, 40],
+                [files_min, preview_min],
+            )
+            self.archive_splitter.setSizes([0, files_w, preview_w])
+        else:
+            self.archive_splitter.setSizes(
+                build_responsive_splitter_sizes(
+                    1760,
+                    [18, 31, 51],
+                    [
+                        int(getattr(self, "archive_controls_min_width", 0) or 0),
+                        files_min,
+                        preview_min,
+                    ],
+                )
+            )
         # Its action buttons are registry commands as well (P12).
         from cdmw.ui.archive_browser.browse_commands import install_browse_commands
 

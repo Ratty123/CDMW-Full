@@ -28,6 +28,26 @@ REMOTE_ENTRY_DTO_ROLE = int(Qt.UserRole) + 10
 REMOTE_ENTRY_ID_ROLE = int(Qt.UserRole) + 11
 REMOTE_IDENTITY_ROLE = int(Qt.UserRole) + 12
 
+_COLUMN_COUNT = len(ARCHIVE_BROWSER_COLUMNS)
+_HORIZONTAL = Qt.Orientation.Horizontal
+_DISPLAY_ROLE = int(Qt.ItemDataRole.DisplayRole)
+_TOOLTIP_ROLE = int(Qt.ItemDataRole.ToolTipRole)
+_USER_ROLE = int(Qt.ItemDataRole.UserRole)
+_USER_ROLE_1 = _USER_ROLE + 1
+_USER_ROLE_2 = _USER_ROLE + 2
+_REMOTE_HANDLED_ROLES = frozenset((
+    _DISPLAY_ROLE,
+    _TOOLTIP_ROLE,
+    _USER_ROLE,
+    _USER_ROLE_1,
+    _USER_ROLE_2,
+    REMOTE_ENTRY_DTO_ROLE,
+    REMOTE_ENTRY_ID_ROLE,
+    REMOTE_IDENTITY_ROLE,
+))
+_FLAG_ENABLED = Qt.ItemFlag.ItemIsEnabled
+_FLAG_ENABLED_SELECTABLE = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
 
 @dataclass(frozen=True, slots=True)
 class RemotePageFetch:
@@ -83,12 +103,12 @@ class RemoteArchiveBrowserNode:
     def row(self) -> int:
         return self.row_number
 
-    def data(self, _column: int, role: int = Qt.UserRole) -> object:
-        if role == Qt.UserRole:
+    def data(self, _column: int, role: int = _USER_ROLE) -> object:
+        if role == _USER_ROLE:
             return self.kind
-        if role == Qt.UserRole + 1:
+        if role == _USER_ROLE_1:
             return self.value
-        if role == Qt.UserRole + 2:
+        if role == _USER_ROLE_2:
             return self.fetched
         if role == REMOTE_ENTRY_DTO_ROLE:
             return self.entry
@@ -426,45 +446,44 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         del parent
-        return len(ARCHIVE_BROWSER_COLUMNS)
+        return _COLUMN_COUNT
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> object:
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(ARCHIVE_BROWSER_COLUMNS):
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = _DISPLAY_ROLE) -> object:
+        if role == _DISPLAY_ROLE and orientation == _HORIZONTAL and 0 <= section < _COLUMN_COUNT:
             return ARCHIVE_BROWSER_COLUMNS[section]
         return None
 
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> object:
-        if not index.isValid():
+    def data(self, index: QModelIndex, role: int = _DISPLAY_ROLE) -> object:
+        if role not in _REMOTE_HANDLED_ROLES or not index.isValid():
             return None
         entry = self.entry_for_index(index)
         if entry is None:
             if self._view_mode is ArchiveViewMode.FLAT:
                 self.request_visible_rows(index.row(), index.row())
-                if role == Qt.DisplayRole:
+                if role == _DISPLAY_ROLE:
                     return "Loading..." if index.column() == 0 else ""
-                if role == Qt.UserRole:
+                if role == _USER_ROLE:
                     return "loading"
-                if role == Qt.UserRole + 2:
+                if role == _USER_ROLE_2:
                     return False
                 return None
             node = self._node_for_index(index)
             if node is None:
                 return None
-            if role == Qt.DisplayRole:
+            if role == _DISPLAY_ROLE:
                 return node.text(index.column())
-            if role == Qt.ToolTipRole:
+            if role == _TOOLTIP_ROLE:
                 return node.toolTip(index.column())
             return node.data(index.column(), role)
-        payload = self._payload_for_entry(entry)
-        if role == Qt.DisplayRole:
-            return payload.columns[index.column()]
-        if role == Qt.ToolTipRole:
-            return payload.tooltip(index.column())
-        if role == Qt.UserRole:
+        if role == _DISPLAY_ROLE:
+            return self._payload_for_entry(entry).columns[index.column()]
+        if role == _TOOLTIP_ROLE:
+            return self._payload_for_entry(entry).tooltip(index.column())
+        if role == _USER_ROLE:
             return "file"
-        if role == Qt.UserRole + 1:
+        if role == _USER_ROLE_1:
             return entry.entry_id
-        if role == Qt.UserRole + 2:
+        if role == _USER_ROLE_2:
             return True
         if role == REMOTE_ENTRY_DTO_ROLE:
             return entry
@@ -475,10 +494,9 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         return None
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
-        base = Qt.ItemIsEnabled
         if self.entry_for_index(index) is not None or self._view_mode is not ArchiveViewMode.FLAT:
-            base |= Qt.ItemIsSelectable
-        return base
+            return _FLAG_ENABLED_SELECTABLE
+        return _FLAG_ENABLED
 
     def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
         if self._handle is None:

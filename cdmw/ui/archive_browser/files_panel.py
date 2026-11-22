@@ -76,7 +76,12 @@ class ArchiveFilesPanelMixin:
         archive_files_layout.addWidget(self.archive_swap_banner)
 
     def _build_archive_files_panel(self) -> None:
-        archive_files_group = FlatSectionPanel("Files")
+        archive_files_group = FlatSectionPanel("Files", body_margins=(0, 0, 6, 0), body_spacing=0)
+        archive_files_group.header_widget.setVisible(False)
+        outer_layout = archive_files_group.layout()
+        if outer_layout is not None:
+            outer_layout.setContentsMargins(0, 0, 0, 0)
+            outer_layout.setSpacing(0)
         archive_files_min, _archive_files_pref, _archive_files_max = responsive_sidebar_bounds(self, role="narrow")
         self.archive_files_min_width = archive_files_min
         archive_files_group.setMinimumWidth(archive_files_min)

@@ -22,6 +22,15 @@ ARCHIVE_BROWSER_COLUMNS = (
     "State",
     "Path",
 )
+_COLUMN_COUNT = len(ARCHIVE_BROWSER_COLUMNS)
+_HORIZONTAL = Qt.Orientation.Horizontal
+_DISPLAY_ROLE = int(Qt.ItemDataRole.DisplayRole)
+_TOOLTIP_ROLE = int(Qt.ItemDataRole.ToolTipRole)
+_USER_ROLE = int(Qt.ItemDataRole.UserRole)
+_USER_ROLE_1 = _USER_ROLE + 1
+_USER_ROLE_2 = _USER_ROLE + 2
+_HANDLED_ROLES = frozenset((_DISPLAY_ROLE, _TOOLTIP_ROLE, _USER_ROLE, _USER_ROLE_1, _USER_ROLE_2))
+_NODE_USER_ROLES = frozenset((_USER_ROLE, _USER_ROLE_1, _USER_ROLE_2))
 
 
 @dataclass(frozen=True)
@@ -59,12 +68,12 @@ class ArchiveBrowserNode:
     def row(self) -> int:
         return self.row_number
 
-    def data(self, column: int, role: int = Qt.UserRole) -> object:
-        if role == Qt.UserRole:
+    def data(self, column: int, role: int = _USER_ROLE) -> object:
+        if role == _USER_ROLE:
             return self.kind
-        if role == Qt.UserRole + 1:
+        if role == _USER_ROLE_1:
             return self.value
-        if role == Qt.UserRole + 2:
+        if role == _USER_ROLE_2:
             return self.fetched
         return None
 
@@ -106,6 +115,8 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._flat_loaded_count = 0
         self._row_cache: "OrderedDict[Tuple[int, bool], ArchiveBrowserRowPayload]" = OrderedDict()
         self._row_cache_limit = max(1, min(100_000, int(row_cache_limit or 12000)))
+        self._last_payload_key: Optional[Tuple[int, bool]] = None
+        self._last_payload: Optional[ArchiveBrowserRowPayload] = None
 
     def clear(self) -> None:
         self.beginResetModel()
@@ -113,6 +124,8 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._entries = ()
         self._flat_loaded_count = 0
         self._row_cache.clear()
+        self._last_payload_key = None
+        self._last_payload = None
         self.endResetModel()
 
     def set_archive_state(
@@ -136,6 +149,8 @@ class ArchiveBrowserModel(QAbstractItemModel):
         self._fetch_batch_size = max(100, min(5000, int(fetch_batch_size or 500)))
         self._flat_loaded_count = min(len(entries), self._fetch_batch_size) if self._mode == "flat" else 0
         self._row_cache.clear()
+        self._last_payload_key = None
+        self._last_payload = None
         self._root.children = self._build_top_level_nodes()
         self.endResetModel()
 
@@ -155,6 +170,8 @@ class ArchiveBrowserModel(QAbstractItemModel):
 
     def invalidate_rows(self, columns: Sequence[int] = ()) -> None:
         self._row_cache.clear()
+        self._last_payload_key = None
+        self._last_payload = None
         normalized_columns = tuple(
             column
             for column in sorted({int(column) for column in columns})
@@ -277,7 +294,9 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return ArchiveBrowserRowPayload(columns=columns, tooltips=(entry.path,))
 
     def _payload_for_file(self, entry_index: int, *, show_full_path: bool) -> ArchiveBrowserRowPayload:
-        key = (int(entry_index), bool(show_full_path))
+        key = (entry_index, show_full_path)
+        if key == self._last_payload_key and self._last_payload is not None:
+            return self._last_payload
         payload = self._row_cache.get(key)
         if payload is None:
             payload = self._row_provider(int(entry_index), bool(show_full_path))
@@ -286,19 +305,21 @@ class ArchiveBrowserModel(QAbstractItemModel):
                 self._row_cache.popitem(last=False)
         else:
             self._row_cache.move_to_end(key)
+        self._last_payload_key = key
+        self._last_payload = payload
         return payload
 
     def _node_for_index(self, index: QModelIndex) -> Optional[ArchiveBrowserNode]:
         if not index.isValid():
             return self._root
         if self._mode == "flat":
-            row = int(index.row())
+            row = index.row()
             return self._file_node(row, None, show_full_path=True) if 0 <= row < self._flat_loaded_count else None
         node = index.internalPointer()
         return node if isinstance(node, ArchiveBrowserNode) else None
 
     def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
-        if row < 0 or column < 0 or column >= self.columnCount(parent):
+        if row < 0 or column < 0 or column >= _COLUMN_COUNT:
             return QModelIndex()
         if self._mode == "flat":
             if parent.isValid() or row >= self._flat_loaded_count:
@@ -329,45 +350,42 @@ class ArchiveBrowserModel(QAbstractItemModel):
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         del parent
-        return len(ARCHIVE_BROWSER_COLUMNS)
+        return _COLUMN_COUNT
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> object:
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(ARCHIVE_BROWSER_COLUMNS):
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = _DISPLAY_ROLE) -> object:
+        if role == _DISPLAY_ROLE and orientation == _HORIZONTAL and 0 <= section < _COLUMN_COUNT:
             return ARCHIVE_BROWSER_COLUMNS[section]
         return None
 
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> object:
-        if not index.isValid():
+    def data(self, index: QModelIndex, role: int = _DISPLAY_ROLE) -> object:
+        if role not in _HANDLED_ROLES or not index.isValid():
             return None
         if self._mode == "flat":
-            entry_index = int(index.row())
+            entry_index = index.row()
             if not (0 <= entry_index < self._flat_loaded_count):
                 return None
-            if role == Qt.DisplayRole:
+            if role == _DISPLAY_ROLE:
                 return self._payload_for_file(entry_index, show_full_path=True).columns[index.column()]
-            if role == Qt.ToolTipRole:
+            if role == _TOOLTIP_ROLE:
                 return self._payload_for_file(entry_index, show_full_path=True).tooltip(index.column())
-            if role == Qt.UserRole:
+            if role == _USER_ROLE:
                 return "file"
-            if role == Qt.UserRole + 1:
+            if role == _USER_ROLE_1:
                 return entry_index
-            if role == Qt.UserRole + 2:
-                return True
-            return None
+            return True
         node = self._node_for_index(index)
         if node is None:
             return None
         column = index.column()
-        if role == Qt.DisplayRole:
+        if role == _DISPLAY_ROLE:
             if node.kind == "file" and isinstance(node.value, int):
-                return self._payload_for_file(node.value, show_full_path=self._mode == "flat").columns[column]
+                return self._payload_for_file(node.value, show_full_path=False).columns[column]
             return node.text(column)
-        if role == Qt.ToolTipRole:
+        if role == _TOOLTIP_ROLE:
             if node.kind == "file" and isinstance(node.value, int):
-                payload = self._payload_for_file(node.value, show_full_path=self._mode == "flat")
-                return payload.tooltip(column)
+                return self._payload_for_file(node.value, show_full_path=False).tooltip(column)
             return node.toolTip(column)
-        if role in (Qt.UserRole, Qt.UserRole + 1, Qt.UserRole + 2):
+        if role in _NODE_USER_ROLES:
             return node.data(column, role)
         return None
 
@@ -502,8 +520,8 @@ class _ArchiveBrowserFlatPlaceholderModel(QAbstractItemModel):
         del index, role
         return None
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> object:
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(ARCHIVE_BROWSER_COLUMNS):
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = _DISPLAY_ROLE) -> object:
+        if role == _DISPLAY_ROLE and orientation == _HORIZONTAL and 0 <= section < _COLUMN_COUNT:
             return ARCHIVE_BROWSER_COLUMNS[section]
         return None
 
