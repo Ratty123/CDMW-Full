@@ -977,3 +977,60 @@ def test_category_rows_never_overlap_moves_named_row_for_one_to_eight_categories
         dialog.close()
         dialog.deleteLater()
         qt_app.processEvents()
+
+
+def test_speed_net_labels_and_moves_named_alignment_match_category_columns(qt_app):
+    from PySide6.QtCore import QPoint, Qt
+
+    chart = SpeedChart(
+        "actionchart/kliff.paac",
+        "Rapier",
+        1.0,
+        (
+            SpeedMove("1_pc/1_phm/att_01.paa", "att_01", "attack", 1, 1, 1.0),
+            SpeedMove("1_pc/1_phm/jump_01.paa", "jump_01", "jump", 1, 1, 1.0),
+        ),
+        SpeedFactors(),
+        "",
+        "",
+    )
+    dialog = SpeedPrefabsWorkspace(
+        (SpeedCharacter("Kliff", (SpeedSet(chart.path, chart.label),)),),
+        load_set=lambda _path: chart,
+        plan=lambda *_args: (),
+    )
+    try:
+        dialog.resize(1280, 760)
+        dialog.show()
+        qt_app.processEvents()
+        assert dialog.select_set(chart.path)
+        qt_app.processEvents()
+        assert all(label.text() == "" for label in dialog.kind_net_labels.values())
+        assert dialog.named_net_label.text() == ""
+        for label in (*dialog.kind_net_labels.values(), dialog.named_net_label):
+            assert label.alignment() & Qt.AlignmentFlag.AlignLeft
+
+        dialog.set_factor_spin.setValue(2.0)
+        qt_app.processEvents()
+        assert dialog.kind_net_labels["attack"].text() == "Net 2x"
+        assert dialog.named_net_label.text() == ""
+
+        dialog.named_edit.setText("att_01")
+        dialog.named_spin.setValue(1.5)
+        qt_app.processEvents()
+        assert dialog.named_net_label.text() == "Net 3x"
+
+        card = dialog._factors_card
+        jump_label_x = dialog.kind_labels["jump"].mapTo(card, QPoint(0, 0)).x()
+        named_factor_x = dialog.named_factor_label.mapTo(card, QPoint(0, 0)).x()
+        jump_slider_x = dialog.kind_sliders["jump"].mapTo(card, QPoint(0, 0)).x()
+        named_slider_x = dialog.named_slider.mapTo(card, QPoint(0, 0)).x()
+        jump_spin_x = dialog.kind_spins["jump"].mapTo(card, QPoint(0, 0)).x()
+        named_spin_x = dialog.named_spin.mapTo(card, QPoint(0, 0)).x()
+        assert abs(named_factor_x - jump_label_x) <= 2
+        assert abs(named_slider_x - jump_slider_x) <= 2
+        assert abs(named_spin_x - jump_spin_x) <= 2
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        qt_app.processEvents()

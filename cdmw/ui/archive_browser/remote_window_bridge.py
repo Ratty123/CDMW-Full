@@ -467,12 +467,15 @@ class ArchiveRemoteWindowBridge(QObject):
         dto = self._preview_dto_for(entry)
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
             return False
+        enabled_getter = getattr(self._window.archive, "_archive_d3d11_enabled_prefab_component_paths", None)
+        enabled_prefab_component_paths = tuple(enabled_getter(entry)) if callable(enabled_getter) else ()
         return provider.request(
             dto,
             ui_request_id=int(ui_request_id),
             preferred_prefab_stems=self._item_scope_preferred_prefab_stems,
             scope_entry_ids=self._item_scope_entry_ids,
             component_entries=self.item_set_members[1:] if self.item_set_contains(entry) else (),
+            enabled_prefab_component_paths=enabled_prefab_component_paths,
             reuse_prepared=bool(
                 getattr(self._window.archive, "_archive_texture_request_loading", False)
                 and int(getattr(self._window.archive, "_archive_texture_request_id", 0) or 0)

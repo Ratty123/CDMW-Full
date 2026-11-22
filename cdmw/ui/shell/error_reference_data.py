@@ -8978,7 +8978,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview lookup failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 668
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 721
     }
   },
   {
@@ -9772,7 +9772,7 @@ MESSAGE_REFERENCE = [
     "message": "Character preview preparation was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 676
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 729
     }
   },
   {
@@ -15182,7 +15182,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker did not prepare every bounded preview dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 486
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 532
     }
   },
   {
@@ -15230,7 +15230,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned invalid prepared preview dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 451
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 490
     }
   },
   {
@@ -15238,7 +15238,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned preview candidates for the wrong entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 448
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 487
     }
   },
   {
@@ -16202,7 +16202,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/item_set_preview.py": 137,
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 310,
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 315,
       "cdmw/ui/archive_browser/workers.py": 598
     }
   },
@@ -16755,7 +16755,7 @@ MESSAGE_REFERENCE = [
     "message": "Warning: archive folder filters could not be loaded from the worker: {detail}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_window_bridge.py": 901
+      "cdmw/ui/archive_browser/remote_window_bridge.py": 904
     }
   },
   {
@@ -20105,7 +20105,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1128
+      "cdmw/ui/speed_prefabs/workspace.py": 1149
     }
   },
   {
@@ -20321,7 +20321,7 @@ MESSAGE_REFERENCE = [
     "message": "Factors cannot be applied",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1437
+      "cdmw/ui/speed_prefabs/workspace.py": 1458
     }
   },
   {
@@ -22389,7 +22389,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1436
+      "cdmw/ui/speed_prefabs/workspace.py": 1457
     }
   },
   {
@@ -110205,9 +110205,9 @@ SOURCE_COVERAGE = {
     "signal": 2
   },
   "cdmw/ui/archive_browser/remote_preview_dependencies.py": {
-    "failure": 13,
+    "failure": 15,
     "raise": 2,
-    "report": 7,
+    "report": 9,
     "signal": 4
   },
   "cdmw/ui/archive_browser/remote_query.py": {},

@@ -144,7 +144,11 @@ class _PendingPreviewDependencies:
     selected: ArchiveEntryDto
     preferred_prefab_stems: tuple[str, ...] = ()
     scope_entry_ids: tuple[int, ...] = ()
+    requested_component_entries: tuple[ArchiveEntryDto, ...] = ()
     component_entries: tuple[ArchiveEntryDto, ...] = ()
+    enabled_prefab_component_paths: tuple[str, ...] = ()
+    enabled_prefab_components_resolved: bool = False
+    pending_enabled_prefab_matches: dict[str, ArchiveEntryDto] = field(default_factory=dict)
     association_index: int = 0
     candidates: dict[int, ArchiveEntryDto] = field(default_factory=dict)
     prepared: dict[int, PrepareEntryResult] = field(default_factory=dict)
@@ -287,6 +291,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         preferred_prefab_stems: tuple[str, ...] = (),
         scope_entry_ids: tuple[int, ...] = (),
         component_entries: tuple[ArchiveEntryDto, ...] = (),
+        enabled_prefab_component_paths: tuple[str, ...] = (),
         reuse_prepared: bool = False,
     ) -> bool:
         normalized_prefab_stems = tuple(
@@ -309,6 +314,14 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             self.cancel(clear_snapshot=True)
             self.failed.emit(int(ui_request_id), "This choice has incomplete or ambiguous dependencies.")
             return False
+        selected_path = _normalized(selected.path)
+        normalized_enabled_component_paths = tuple(
+            dict.fromkeys(
+                path_key
+                for raw in tuple(enabled_prefab_component_paths or ())
+                if (path_key := _normalized(str(raw or ""))) and path_key != selected_path
+            )
+        )[:32]
         pending = self._pending
         if (
             reuse_prepared
@@ -316,7 +329,8 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             and pending.selected == selected
             and pending.preferred_prefab_stems == normalized_prefab_stems
             and pending.scope_entry_ids == bounded_scope_entry_ids
-            and pending.component_entries == components
+            and pending.requested_component_entries == components
+            and pending.enabled_prefab_component_paths == normalized_enabled_component_paths
         ):
             # Open Mesh can ask for textures while this same row's dependency
             # lookup is still running. Retarget delivery instead of decoding
@@ -326,7 +340,13 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self.cancel(clear_snapshot=False)
         if self._dmm_state_changed():
             self.cancel(clear_snapshot=True)
-        reuse_key = (selected, normalized_prefab_stems, bounded_scope_entry_ids, components)
+        reuse_key = (
+            selected,
+            normalized_prefab_stems,
+            bounded_scope_entry_ids,
+            components,
+            normalized_enabled_component_paths,
+        )
         snapshot = self._snapshot
         if (
             reuse_prepared
@@ -353,8 +373,14 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 self._queued_snapshot_request_id = -1
                 self._snapshot_ui_request_id = -1
                 self._snapshot_file_identities = None
-                self._start_lookup(selected, int(ui_request_id), normalized_prefab_stems,
-                                   bounded_scope_entry_ids, components)
+                self._start_lookup(
+                    selected,
+                    int(ui_request_id),
+                    normalized_prefab_stems,
+                    bounded_scope_entry_ids,
+                    components,
+                    normalized_enabled_component_paths,
+                )
 
             if recorded is None:
                 # Its stamps are being taken now: those are the current ones.
@@ -362,8 +388,14 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             else:
                 self._stamp_off_thread(snapshot, lambda current: unchanged_or_lookup(current, recorded))
             return True
-        return self._start_lookup(selected, int(ui_request_id), normalized_prefab_stems,
-                                  bounded_scope_entry_ids, components)
+        return self._start_lookup(
+            selected,
+            int(ui_request_id),
+            normalized_prefab_stems,
+            bounded_scope_entry_ids,
+            components,
+            normalized_enabled_component_paths,
+        )
 
     def _start_lookup(
         self,
@@ -372,6 +404,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         normalized_prefab_stems: tuple[str, ...],
         bounded_scope_entry_ids: tuple[int, ...],
         components: tuple[ArchiveEntryDto, ...],
+        enabled_prefab_component_paths: tuple[str, ...] = (),
     ) -> bool:
         operation = "find_association_candidates"
         try:
@@ -406,7 +439,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             selected=selected,
             preferred_prefab_stems=normalized_prefab_stems,
             scope_entry_ids=bounded_scope_entry_ids,
+            requested_component_entries=components,
             component_entries=components,
+            enabled_prefab_component_paths=enabled_prefab_component_paths,
             candidates={entry.entry_id: entry for entry in components},
         )
         self.progress.emit(int(ui_request_id), "finding_files", 0, 0)
@@ -443,6 +478,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             if not self._accept_preferred_prefabs(pending, payload):
                 self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
             return
+        if pending.operation == "resolve_enabled_prefab_components":
+            if not self._accept_enabled_prefab_component_payload(pending, payload):
+                self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
+            return
         if pending.operation == "find_association_candidates":
             if not self._accept_payload(pending, payload):
                 self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
@@ -460,6 +499,13 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 return
             self._start_association_lookup(pending)
             return
+        if pending.operation == "resolve_enabled_prefab_components":
+            if not self._accept_enabled_prefab_component_payload(pending, payload):
+                self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
+                return
+            self._commit_resolved_enabled_prefab_components(pending)
+            self._advance_after_enabled_prefab_components(pending)
+            return
         if pending.operation == "find_association_candidates":
             if not self._accept_payload(pending, payload):
                 self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
@@ -471,12 +517,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                     )
                     return
                 self._settle_for_found_dependencies(pending)
-            if pending.association_index < len(pending.component_entries):
-                pending.association_index += 1
-                self._start_association_lookup(pending)
+            if (
+                pending.association_index == 0
+                and self._resolve_or_advance_after_primary_association(pending)
+            ):
                 return
-            self._prioritize_model_property_prefabs(pending)
-            self._start_dependency_preparation(pending)
+            self._advance_after_enabled_prefab_components(pending)
             return
         if pending.operation != "prepare_entries" or not self._accept_prepared_batch(pending, payload):
             self._fail_pending("The archive worker returned invalid prepared preview dependencies.")
@@ -503,7 +549,11 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
         self._snapshot_reuse_key = (
-            pending.selected, pending.preferred_prefab_stems, pending.scope_entry_ids, pending.component_entries,
+            pending.selected,
+            pending.preferred_prefab_stems,
+            pending.scope_entry_ids,
+            pending.requested_component_entries,
+            pending.enabled_prefab_component_paths,
         )
         self._snapshot_file_identities = None
         self._recording_snapshot = snapshot
@@ -658,6 +708,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending = self._pending
         if pending is None or pending.request_id != str(request_id):
             return
+        if pending.operation == "resolve_enabled_prefab_components":
+            self._advance_after_enabled_prefab_components(pending)
+            return
         message = str(getattr(error, "message", "") or error or "Archive preview lookup failed.")
         if pending.operation == "find_association_candidates" and not self._needs_complete_dependencies(pending):
             # The lookup of related files failed; the file itself can still be shown.
@@ -687,21 +740,132 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         operation: str,
     ) -> _PendingPreviewDependencies | None:
         pending = self._pending
+        expected_operation = {
+            "resolve_preferred_prefabs": "resolve_entries",
+            "resolve_enabled_prefab_components": "resolve_entries",
+            "find_association_candidates": "find_association_candidates",
+            "prepare_entries": "prepare_entry",
+        }.get(pending.operation, "prepare_entry") if pending is not None else ""
         if (
             pending is None
             or pending.request_id != str(request_id)
-            or str(operation) != (
-                "resolve_entries"
-                if pending.operation == "resolve_preferred_prefabs"
-                else (
-                    "find_association_candidates"
-                    if pending.operation == "find_association_candidates"
-                    else "prepare_entry"
-                )
-            )
+            or str(operation) != expected_operation
         ):
             return None
         return pending
+
+    @staticmethod
+    def _store_preferred_enabled_component(
+        matches: dict[str, ArchiveEntryDto],
+        candidate: ArchiveEntryDto,
+        wanted_paths: set[str],
+    ) -> None:
+        if candidate.extension.casefold() not in ARCHIVE_MESH_EXTENSIONS:
+            return
+        key = _normalized(candidate.path)
+        if not key or key not in wanted_paths:
+            return
+        existing = matches.get(key)
+        if existing is None or (
+            bool(getattr(candidate, "is_active_override", False))
+            and not bool(getattr(existing, "is_active_override", False))
+        ):
+            matches[key] = candidate
+
+    def _resolve_or_advance_after_primary_association(
+        self,
+        pending: _PendingPreviewDependencies,
+    ) -> bool:
+        if pending.enabled_prefab_components_resolved or not pending.enabled_prefab_component_paths:
+            return False
+        pending.enabled_prefab_components_resolved = True
+        existing_ids = {pending.selected.entry_id, *(entry.entry_id for entry in pending.component_entries)}
+        existing_paths = {_normalized(entry.path) for entry in pending.component_entries}
+        wanted = {
+            path for path in pending.enabled_prefab_component_paths
+            if path not in existing_paths
+        }
+        if not wanted:
+            return False
+        matched: dict[str, ArchiveEntryDto] = {}
+        for candidate in pending.candidates.values():
+            if candidate.entry_id not in existing_ids:
+                self._store_preferred_enabled_component(matched, candidate, wanted)
+        components = list(pending.component_entries)
+        missing_paths: list[str] = []
+        for path_key in pending.enabled_prefab_component_paths:
+            if path_key in existing_paths:
+                continue
+            dto = matched.get(path_key)
+            if dto is not None and dto.entry_id not in existing_ids and len(components) < 32:
+                components.append(dto)
+                existing_ids.add(dto.entry_id)
+                existing_paths.add(path_key)
+            elif dto is None:
+                missing_paths.append(path_key)
+        pending.component_entries = tuple(components)
+        if (
+            not missing_paths
+            or len(components) >= 32
+            or not callable(getattr(self._service, "resolve_entries", None))
+        ):
+            return False
+        try:
+            request_id = self._service.resolve_entries(
+                ArchiveLookupRequest(
+                    pending.selected.session_id,
+                    ArchiveLookupKind.EXACT_PATHS,
+                    values=tuple(missing_paths),
+                    limit=min(256, max(1, len(missing_paths) * 8)),
+                ),
+                ui_generation=pending.ui_request_id,
+            )
+        except Exception:
+            return False
+        pending.request_id = str(request_id)
+        pending.operation = "resolve_enabled_prefab_components"
+        pending.pending_enabled_prefab_matches = {}
+        return True
+
+    def _accept_enabled_prefab_component_payload(
+        self,
+        pending: _PendingPreviewDependencies,
+        payload: object,
+    ) -> bool:
+        if not isinstance(payload, ArchiveLookupResult) or payload.session_id != pending.selected.session_id:
+            return False
+        wanted = set(pending.enabled_prefab_component_paths)
+        for candidate in payload.entries:
+            if candidate.session_id != pending.selected.session_id:
+                return False
+            self._store_preferred_enabled_component(pending.pending_enabled_prefab_matches, candidate, wanted)
+        return True
+
+    def _commit_resolved_enabled_prefab_components(self, pending: _PendingPreviewDependencies) -> None:
+        existing_ids = {pending.selected.entry_id, *(entry.entry_id for entry in pending.component_entries)}
+        existing_paths = {_normalized(entry.path) for entry in pending.component_entries}
+        components = list(pending.component_entries)
+        for path_key in pending.enabled_prefab_component_paths:
+            if len(components) >= 32:
+                break
+            if path_key in existing_paths:
+                continue
+            dto = pending.pending_enabled_prefab_matches.get(path_key)
+            if dto is None or dto.entry_id in existing_ids:
+                continue
+            pending.candidates.setdefault(dto.entry_id, dto)
+            components.append(dto)
+            existing_ids.add(dto.entry_id)
+            existing_paths.add(path_key)
+        pending.component_entries = tuple(components)
+
+    def _advance_after_enabled_prefab_components(self, pending: _PendingPreviewDependencies) -> None:
+        if pending.association_index < len(pending.component_entries):
+            pending.association_index += 1
+            self._start_association_lookup(pending)
+            return
+        self._prioritize_model_property_prefabs(pending)
+        self._start_dependency_preparation(pending)
 
     @staticmethod
     def _accept_payload(pending: _PendingPreviewDependencies, payload: object) -> bool:

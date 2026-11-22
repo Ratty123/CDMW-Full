@@ -3528,16 +3528,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 625,
           "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 647,
-          "sink": "_hint"
-        },
-        {
-          "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1095,
-          "sink": "setText"
         }
       ]
     },
@@ -3661,7 +3651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 834,
+          "line": 853,
           "sink": "setToolTip"
         }
       ]
@@ -5346,7 +5336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1183,
+          "line": 1204,
           "sink": "setToolTip"
         }
       ]
@@ -5931,7 +5921,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1349,
+          "line": 1370,
           "sink": "addItem"
         }
       ]
@@ -6241,7 +6231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 936,
+          "line": 955,
           "sink": "QPushButton"
         }
       ]
@@ -10186,7 +10176,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 811,
+          "line": 830,
           "sink": "addItem"
         }
       ]
@@ -10486,7 +10476,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1033,
+          "line": 1052,
           "sink": "setItemText"
         }
       ]
@@ -10646,7 +10636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1033,
+          "line": 1052,
           "sink": "setItemText"
         }
       ]
@@ -10961,7 +10951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 750,
+          "line": 769,
           "sink": "QCheckBox"
         }
       ]
@@ -10971,7 +10961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 752,
+          "line": 771,
           "sink": "setToolTip"
         }
       ]
@@ -13076,7 +13066,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1063,
+          "line": 1082,
           "sink": "setText"
         }
       ]
@@ -15206,12 +15196,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 929,
+          "line": 932,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 930,
+          "line": 933,
           "sink": "append_archive_log"
         }
       ]
@@ -15346,22 +15336,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 752,
+          "line": 755,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 754,
+          "line": 757,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 755,
+          "line": 758,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 756,
+          "line": 759,
           "sink": "append_archive_log"
         }
       ]
@@ -25671,7 +25661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 747,
+          "line": 750,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -25711,7 +25701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 747,
+          "line": 750,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -25756,7 +25746,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 918,
+          "line": 921,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -25826,7 +25816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 924,
+          "line": 927,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -26531,7 +26521,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 691,
+          "line": 694,
           "sink": "setText"
         },
         {
@@ -26816,7 +26806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 692,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -27106,7 +27096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1594,
+          "line": 1615,
           "sink": "setToolTip"
         }
       ]
@@ -27896,12 +27886,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 810,
+          "line": 829,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 872,
+          "line": 891,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -29341,7 +29331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 676,
+          "line": 729,
           "sink": "emit"
         },
         {
@@ -30381,12 +30371,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1446,
+          "line": 1467,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1447,
+          "line": 1468,
           "sink": "setText"
         }
       ]
@@ -30466,12 +30456,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1446,
+          "line": 1467,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1447,
+          "line": 1468,
           "sink": "setText"
         }
       ]
@@ -31916,7 +31906,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 846,
+          "line": 865,
           "sink": "_hint"
         }
       ]
@@ -36631,7 +36621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1351,
+          "line": 1372,
           "sink": "addItem"
         }
       ]
@@ -40576,12 +40566,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 593,
+          "line": 600,
           "sink": "_show_dmm_status"
         },
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 643,
+          "line": 650,
           "sink": "_show_dmm_status"
         }
       ]
@@ -40701,7 +40691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 608,
+          "line": 615,
           "sink": "getExistingDirectory"
         }
       ]
@@ -41236,7 +41226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 621,
+          "line": 628,
           "sink": "_show_dmm_status"
         }
       ]
@@ -42126,7 +42116,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1128,
+          "line": 1149,
           "sink": "setText"
         }
       ]
@@ -47541,7 +47531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 766,
+          "line": 785,
           "sink": "setText"
         }
       ]
@@ -48576,7 +48566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1714,
+          "line": 1735,
           "sink": "question"
         }
       ]
@@ -52801,7 +52791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 823,
+          "line": 842,
           "sink": "QCheckBox"
         }
       ]
@@ -57356,7 +57346,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 771,
+          "line": 790,
           "sink": "QPushButton"
         }
       ]
@@ -60986,7 +60976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 691,
+          "line": 705,
           "sink": "QLabel"
         }
       ]
@@ -60996,7 +60986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1437,
+          "line": 1458,
           "sink": "setText"
         }
       ]
@@ -62356,7 +62346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 717,
+          "line": 736,
           "sink": "setPlaceholderText"
         }
       ]
@@ -62651,7 +62641,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 646,
+          "line": 649,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -67786,7 +67776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 952,
+          "line": 971,
           "sink": "_hint"
         }
       ]
@@ -74996,7 +74986,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 692,
+          "line": 695,
           "sink": "setToolTip"
         }
       ]
@@ -97456,7 +97446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1392,
+          "line": 1413,
           "sink": "setText"
         }
       ]
@@ -102056,7 +102046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1093,
+          "line": 1111,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/speed_prefabs/workspace.py",
+          "line": 1114,
           "sink": "setText"
         }
       ]
@@ -104971,7 +104966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1491,
+          "line": 1512,
           "sink": "setToolTip"
         }
       ]
@@ -105971,7 +105966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 896,
+          "line": 915,
           "sink": "QLabel"
         }
       ]
@@ -106711,7 +106706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1468,
+          "line": 1489,
           "sink": "setToolTip"
         }
       ]
@@ -107046,17 +107041,17 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 759,
+          "line": 778,
           "sink": "_hint"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1417,
+          "line": 1438,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1433,
+          "line": 1454,
           "sink": "setText"
         }
       ]
@@ -122216,7 +122211,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 872,
+          "line": 891,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -123031,7 +123026,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 646,
+          "line": 649,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -123071,7 +123066,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 652,
+          "line": 655,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -129586,7 +129581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 936,
+          "line": 955,
           "sink": "QPushButton"
         }
       ]
@@ -131711,7 +131706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1644,
+          "line": 1665,
           "sink": "setText"
         }
       ]
@@ -132106,7 +132101,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 754,
+          "line": 757,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -135091,7 +135086,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 691,
+          "line": 694,
           "sink": "setText"
         },
         {
@@ -147821,7 +147816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 837,
+          "line": 856,
           "sink": "QPushButton"
         }
       ]
@@ -147986,7 +147981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 830,
+          "line": 849,
           "sink": "QLabel"
         }
       ]
@@ -148056,7 +148051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1491,
+          "line": 1512,
           "sink": "setToolTip"
         }
       ]
@@ -149086,7 +149081,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 816,
+          "line": 835,
           "sink": "QPushButton"
         },
         {
@@ -149756,12 +149751,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 900,
+          "line": 919,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1727,
+          "line": 1748,
           "sink": "setText"
         }
       ]
@@ -149891,7 +149886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1534,
+          "line": 1555,
           "sink": "setText"
         }
       ]
@@ -156396,17 +156391,17 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1468,
+          "line": 1489,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1475,
+          "line": 1496,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1491,
+          "line": 1512,
           "sink": "setToolTip"
         }
       ]
@@ -164176,7 +164171,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1714,
+          "line": 1735,
           "sink": "question"
         }
       ]
@@ -164341,7 +164336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 872,
+          "line": 891,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -164401,7 +164396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 865,
+          "line": 884,
           "sink": "setToolTip"
         }
       ]
@@ -165096,7 +165091,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1344,
+          "line": 1365,
           "sink": "addItem"
         }
       ]
@@ -172406,7 +172401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 486,
+          "line": 532,
           "sink": "_fail_pending"
         }
       ]
@@ -172491,22 +172486,32 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 444,
+          "line": 479,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 451,
+          "line": 483,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 459,
+          "line": 490,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 482,
+          "line": 498,
+          "sink": "_fail_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 504,
+          "sink": "_fail_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 528,
           "sink": "_fail_pending"
         }
       ]
@@ -172516,12 +172521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 448,
+          "line": 487,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 465,
+          "line": 511,
           "sink": "_fail_pending"
         }
       ]
@@ -174181,12 +174186,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 818,
+          "line": 837,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1483,
+          "line": 1504,
           "sink": "setToolTip"
         }
       ]
@@ -175021,7 +175026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1491,
+          "line": 1512,
           "sink": "setToolTip"
         }
       ]
@@ -175031,7 +175036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1468,
+          "line": 1489,
           "sink": "setToolTip"
         }
       ]
@@ -175611,7 +175616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1151,
+          "line": 1172,
           "sink": "setText"
         }
       ]
@@ -176146,7 +176151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1594,
+          "line": 1615,
           "sink": "setToolTip"
         }
       ]
@@ -177876,7 +177881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 652,
+          "line": 655,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -178726,7 +178731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1436,
+          "line": 1457,
           "sink": "setPlainText"
         }
       ]
@@ -179576,12 +179581,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 310,
+          "line": 315,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 469,
+          "line": 515,
           "sink": "_fail_pending"
         },
         {
@@ -184331,7 +184336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1216,
+          "line": 1237,
           "sink": "setToolTip"
         }
       ]
@@ -184431,27 +184436,27 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 679,
+          "line": 687,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 686,
+          "line": 694,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 693,
+          "line": 708,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 696,
+          "line": 711,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 699,
+          "line": 714,
           "sink": "setToolTip"
         }
       ]
@@ -192481,7 +192486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1483,
+          "line": 1504,
           "sink": "setToolTip"
         }
       ]
@@ -192591,7 +192596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 901,
+          "line": 904,
           "sink": "append_archive_log"
         }
       ]
@@ -192641,7 +192646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 790,
+          "line": 793,
           "sink": "append_archive_log"
         }
       ]
@@ -192661,7 +192666,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 728,
+          "line": 731,
           "sink": "append_archive_log"
         },
         {
@@ -195571,7 +195576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1063,
+          "line": 1082,
           "sink": "setText"
         }
       ]
@@ -206961,12 +206966,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 747,
+          "line": 750,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 918,
+          "line": 921,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -211871,7 +211876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1593,
+          "line": 1614,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -213221,7 +213226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 684,
+          "line": 692,
           "sink": "setPlaceholderText"
         }
       ]
@@ -220706,7 +220711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 924,
+          "line": 927,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -222791,7 +222796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1000,
+          "line": 1019,
           "sink": "setToolTip"
         }
       ]
@@ -223736,12 +223741,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1158,
+          "line": 1179,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1248,
+          "line": 1269,
           "sink": "setText"
         }
       ]
@@ -224406,7 +224411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 939,
+          "line": 958,
           "sink": "setToolTip"
         }
       ]
@@ -226806,7 +226811,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1546,
+          "line": 1567,
           "sink": "setText"
         }
       ]
@@ -226901,7 +226906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1179,
+          "line": 1200,
           "sink": "setText"
         }
       ]
@@ -226911,7 +226916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1182,
+          "line": 1203,
           "sink": "setText"
         }
       ]
@@ -227096,7 +227101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1603,
+          "line": 1624,
           "sink": "setText"
         }
       ]
@@ -227106,7 +227111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1605,
+          "line": 1626,
           "sink": "setText"
         }
       ]
@@ -227116,7 +227121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1607,
+          "line": 1628,
           "sink": "setText"
         }
       ]
@@ -227926,7 +227931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1431,
+          "line": 1452,
           "sink": "setText"
         }
       ]
@@ -228741,7 +228746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1150,
+          "line": 1171,
           "sink": "setText"
         }
       ]
@@ -228751,7 +228756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1148,
+          "line": 1169,
           "sink": "setText"
         }
       ]
@@ -229371,7 +229376,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1785,
+          "line": 1806,
           "sink": "python-return:_short_member"
         }
       ]
@@ -229531,12 +229536,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 677,
+          "line": 685,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1250,
+          "line": 1271,
           "sink": "setText"
         },
         {
@@ -230406,7 +230411,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1590,
+          "line": 1611,
           "sink": "QTableWidgetItem"
         },
         {

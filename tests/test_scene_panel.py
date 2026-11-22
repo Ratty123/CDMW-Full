@@ -385,3 +385,36 @@ def test_v2_scene_panel_names_a_file_it_cannot_find():
     host, _sword, launched, status = _v2_host()
     host._archive_scene_open_file("character/model/elsewhere.pac")
     assert not launched and len(status) == 1 and "elsewhere.pac" in status[0][0]
+
+
+def test_remote_bridge_forwards_enabled_prefab_component_paths_to_dependency_provider():
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
+    from tests.test_archive_remote_preview_dependencies import _dto
+
+    dto = _dto(1, SWORD)
+    entry = ArchiveCatalogueService.compatibility_entry(dto)
+    captured = []
+
+    class Provider:
+        def request(self, selected, **kwargs):
+            captured.append((selected, kwargs))
+            return True
+
+    bridge = ArchiveRemoteWindowBridge.__new__(ArchiveRemoteWindowBridge)
+    bridge._preview_dependencies = Provider()
+    bridge._item_scope_preferred_prefab_stems = ()
+    bridge._item_scope_entry_ids = ()
+    bridge.item_set_active = False
+    bridge.item_set_members = ()
+    bridge._window = SimpleNamespace(
+        archive=SimpleNamespace(
+            _archive_d3d11_enabled_prefab_component_paths=lambda _entry: (SCABBARD,),
+            _archive_texture_request_loading=False,
+            _archive_texture_request_id=0,
+        )
+    )
+    bridge._preview_dto_for = lambda _entry: dto
+    assert bridge.request_preview_dependencies(99, entry)
+    assert len(captured) == 1
+    assert captured[0][1]["enabled_prefab_component_paths"] == (SCABBARD,)

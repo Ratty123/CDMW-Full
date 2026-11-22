@@ -625,7 +625,7 @@ class SpeedPrefabsWorkspace(QWidget):
         self._kinds_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         kinds_grid = QGridLayout(self._kinds_container)
         kinds_grid.setContentsMargins(0, 0, 0, 0)
-        kinds_grid.setHorizontalSpacing(14)
+        kinds_grid.setHorizontalSpacing(18)
         kinds_grid.setVerticalSpacing(8)
         self._kinds_grid = kinds_grid
         self.kind_spins: dict[str, QDoubleSpinBox] = {}
@@ -644,11 +644,11 @@ class SpeedPrefabsWorkspace(QWidget):
             spin = _spin(f"speedKindFactor_{kind}")
             spin.valueChanged.connect(lambda _value: self._kind_changed())
             slider = _factor_slider(spin)
-            net_label = _hint("1x")
+            net_label = _hint("")
             net_label.setObjectName(f"speedKindNet_{kind}")
             net_label.setWordWrap(False)
-            net_label.setFixedWidth(74)
-            net_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            net_label.setFixedWidth(68)
+            net_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             row_layout.addWidget(text)
             row_layout.addWidget(slider, 1)
             row_layout.addWidget(spin)
@@ -663,45 +663,64 @@ class SpeedPrefabsWorkspace(QWidget):
         kinds_grid.setColumnStretch(1, 1)
         factors_layout.addWidget(self._kinds_container)
 
-        # Moves named row in its own fixed-height container so it never collides
-        # with the last row of move categories above it.
+        # Moves named row in its own fixed-height two-column grid matching
+        # _kinds_grid so it never collides with categories above and its slider
+        # aligns with Column 1.
         named_row_widget = QWidget(factors)
         named_row_widget.setObjectName("speedNamedRow")
         named_row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        named_row = QHBoxLayout(named_row_widget)
-        named_row.setContentsMargins(0, 4, 0, 0)
-        named_row.setSpacing(8)
+        named_grid = QGridLayout(named_row_widget)
+        named_grid.setContentsMargins(0, 4, 0, 0)
+        named_grid.setHorizontalSpacing(18)
+        named_grid.setVerticalSpacing(0)
+        named_grid.setColumnStretch(0, 1)
+        named_grid.setColumnStretch(1, 1)
         named_tip = ("Type parts of move names, separated by commas. Every move whose name contains one of them "
                      "gets this factor. A move's own factor wins, then this, then its kind. Moves without speed "
                      "windows do not change.")
-        self.named_label = QLabel(NAMED_LABEL + ":", named_row_widget)
+        named_left = QWidget(named_row_widget)
+        named_left_layout = QHBoxLayout(named_left)
+        named_left_layout.setContentsMargins(0, 0, 0, 0)
+        named_left_layout.setSpacing(8)
+        self.named_label = QLabel(NAMED_LABEL + ":", named_left)
         self.named_label.setObjectName("speedNamedLabel")
         self.named_label.setToolTip(named_tip)
         self.named_label.setMinimumWidth(148)
-        named_row.addWidget(self.named_label)
-        self.named_edit = QLineEdit(named_row_widget)
+        named_left_layout.addWidget(self.named_label)
+        self.named_edit = QLineEdit(named_left)
         self.named_edit.setObjectName("speedNamedEdit")
         self.named_edit.setPlaceholderText("part of a move name, such as finish, takedown")
         self.named_edit.setClearButtonEnabled(True)
         self.named_edit.setToolTip(named_tip)
         self.named_edit.textChanged.connect(lambda _text: self._kind_changed())
-        named_row.addWidget(self.named_edit, 2)
+        named_left_layout.addWidget(self.named_edit, 1)
+        named_grid.addWidget(named_left, 0, 0)
+
         # The factor gets a label of its own, so it does not read as a slider without a name;
         # it stays greyed until a name is typed, since only then does it change anything.
-        self.named_factor_label = QLabel("Factor for these moves:", named_row_widget)
+        named_right = QWidget(named_row_widget)
+        named_right_layout = QHBoxLayout(named_right)
+        named_right_layout.setContentsMargins(0, 0, 0, 0)
+        named_right_layout.setSpacing(8)
+        self.named_factor_label = QLabel("Factor for these moves:", named_right)
         self.named_factor_label.setObjectName("speedNamedFactorLabel")
+        self.named_factor_label.setMinimumWidth(148)
         self.named_factor_label.setToolTip(named_tip)
-        named_row.addWidget(self.named_factor_label)
+        named_right_layout.addWidget(self.named_factor_label)
         self.named_spin = _spin("speedNamedFactorSpin")
         self.named_spin.setToolTip(named_tip)
         self.named_spin.valueChanged.connect(lambda _value: self._kind_changed())
         self.named_slider = _factor_slider(self.named_spin)
         self.named_slider.setToolTip(named_tip)
-        named_row.addWidget(self.named_slider, 1)
-        named_row.addWidget(self.named_spin)
-        named_spacer = QWidget(named_row_widget)
-        named_spacer.setFixedWidth(74)
-        named_row.addWidget(named_spacer)
+        named_right_layout.addWidget(self.named_slider, 1)
+        named_right_layout.addWidget(self.named_spin)
+        self.named_net_label = _hint("")
+        self.named_net_label.setObjectName("speedNamedNet")
+        self.named_net_label.setWordWrap(False)
+        self.named_net_label.setFixedWidth(68)
+        self.named_net_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        named_right_layout.addWidget(self.named_net_label)
+        named_grid.addWidget(named_right, 0, 1)
         self._enable_named_factor(False)
         factors_layout.addWidget(named_row_widget)
         right_layout.addWidget(factors)
@@ -1089,10 +1108,12 @@ class SpeedPrefabsWorkspace(QWidget):
         whole = 1.0 if self.scope() == "listed" else float(self.set_factor_spin.value())
         for kind, label in self.kind_net_labels.items():
             net = whole * float(self.kind_spins[kind].value())
-            if abs(net - 1.0) > 1e-4:
-                label.setText(f"Net {net:g}x")
-            else:
-                label.setText("1x")
+            label.setText(f"Net {net:g}x" if abs(net - 1.0) > 1e-4 else "")
+        if self._named():
+            named_net = whole * float(self.named_spin.value())
+            self.named_net_label.setText(f"Net {named_net:g}x" if abs(named_net - 1.0) > 1e-4 else "")
+        else:
+            self.named_net_label.setText("")
 
     @property
     def pending_set(self) -> str:

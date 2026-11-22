@@ -1266,3 +1266,143 @@ def test_pending_secondary_index_retries_with_a_bounded_backoff() -> None:
     assert harness.scheduled_delays == [step * attempt for attempt in range(1, limit + 1)]
     assert len(harness.rendered) == limit
     assert all(entry is snapshot.selected_entry for entry in harness.rendered)
+
+
+def test_enabled_prefab_component_paths_in_primary_candidates_fetch_their_own_textures() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    primary = _dto(1, "character/model/samuel_ub_0001.pac")
+    sho = _dto(2, "character/model/samuel_sho_0001.pac")
+    ub_xml = _dto(11, "character/modelproperty/samuel_ub_0001.pac_xml")
+    ub_tex = _dto(12, "character/texture/ub_n.dds")
+    sho_xml = _dto(21, "character/modelproperty/samuel_sho_0001.pac_xml")
+    sho_tex = _dto(22, "character/texture/sho_n.dds")
+    ready: list[ArchivePreviewDependencySet] = []
+    provider.ready.connect(lambda _req_id, snapshot: ready.append(snapshot))
+
+    assert provider.request(
+        primary,
+        ui_request_id=71,
+        enabled_prefab_component_paths=(sho.path.upper(),),
+    )
+    assert service.requests[-1][0].entry_id == 1
+    service.result_ready.emit(
+        "association-1",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (sho, ub_xml, ub_tex), 3, False),
+    )
+    assert service.requests[-1][0].entry_id == 2
+    service.result_ready.emit(
+        "association-2",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 2, (sho_xml, sho_tex), 2, False),
+    )
+    prepare_req = service.requests[-1][0]
+    assert isinstance(prepare_req, PrepareEntriesRequest)
+    assert set(prepare_req.entry_ids) == {1, 2, 11, 12, 21, 22}
+    service.result_ready.emit(
+        "prepare-3",
+        "prepare_entry",
+        PrepareEntriesResult(
+            "session-a",
+            tuple(_prepared(row) for row in (primary, sho, ub_xml, ub_tex, sho_xml, sho_tex)),
+            6,
+            6,
+            240,
+        ),
+    )
+    assert len(ready) == 1
+    assert {entry.path for entry in ready[0].entries} == {
+        primary.path,
+        sho.path,
+        ub_xml.path,
+        ub_tex.path,
+        sho_xml.path,
+        sho_tex.path,
+    }
+
+
+def test_enabled_prefab_component_paths_missing_from_primary_resolve_before_association() -> None:
+    from cdmw.domain.archives.catalogue import ArchiveLookupKind
+
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    primary = _dto(1, "character/model/samuel_ub_0001.pac")
+    sho_stale = replace(_dto(2, "character/model/samuel_sho_0001.pac"), is_active_override=False)
+    sho_active = replace(_dto(3, "character/model/samuel_sho_0001.pac"), is_active_override=True)
+    sho_xml = _dto(21, "character/modelproperty/samuel_sho_0001.pac_xml")
+    sho_tex = _dto(22, "character/texture/sho_n.dds")
+    ready: list[ArchivePreviewDependencySet] = []
+    provider.ready.connect(lambda _req_id, snapshot: ready.append(snapshot))
+
+    assert provider.request(
+        primary,
+        ui_request_id=72,
+        enabled_prefab_component_paths=(sho_active.path,),
+    )
+    service.result_ready.emit(
+        "association-1",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (), 0, False),
+    )
+    lookup_req = service.requests[-1][0]
+    assert lookup_req.kind is ArchiveLookupKind.EXACT_PATHS
+    assert lookup_req.values == (sho_active.path.casefold(),)
+    service.result_ready.emit(
+        "resolve-2",
+        "resolve_entries",
+        ArchiveLookupResult("session-a", (sho_stale, sho_active), 2, False),
+    )
+    assert service.requests[-1][0].entry_id == sho_active.entry_id
+    service.result_ready.emit(
+        "association-3",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", sho_active.entry_id, (sho_xml, sho_tex), 2, False),
+    )
+    prepare_req = service.requests[-1][0]
+    assert set(prepare_req.entry_ids) == {primary.entry_id, sho_active.entry_id, sho_xml.entry_id, sho_tex.entry_id}
+    service.result_ready.emit(
+        "prepare-4",
+        "prepare_entry",
+        PrepareEntriesResult(
+            "session-a",
+            tuple(_prepared(row) for row in (primary, sho_active, sho_xml, sho_tex)),
+            4,
+            4,
+            160,
+        ),
+    )
+    assert len(ready) == 1
+    assert {entry.path for entry in ready[0].entries} == {
+        primary.path,
+        sho_active.path,
+        sho_xml.path,
+        sho_tex.path,
+    }
+
+
+def test_changing_enabled_prefab_component_paths_bypasses_reuse_when_reuse_prepared() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    primary = _dto(1, "character/model/samuel_ub_0001.pac")
+    sho = _dto(2, "character/model/samuel_sho_0001.pac")
+
+    assert provider.request(primary, ui_request_id=10, enabled_prefab_component_paths=())
+    service.result_ready.emit(
+        "association-1",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (), 0, False),
+    )
+    service.result_ready.emit(
+        "prepare-2",
+        "prepare_entry",
+        PrepareEntriesResult("session-a", (_prepared(primary),), 1, 1, 40),
+    )
+    assert provider.request(
+        primary,
+        ui_request_id=11,
+        enabled_prefab_component_paths=(sho.path,),
+        reuse_prepared=True,
+    )
+    assert len(service.requests) == 3
+    assert service.requests[-1][0].entry_id == primary.entry_id
