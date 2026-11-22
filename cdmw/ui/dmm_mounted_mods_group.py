@@ -40,12 +40,17 @@ class DmmMountedModsGroup(QGroupBox):
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.show_checkbox.toggled.connect(self._toggled)
-        self.refresh_button.clicked.connect(self.refresh)
+        self.refresh_button.clicked.connect(self.check_again)
         self.refresh()
 
     def _toggled(self, checked: bool) -> None:
         current_overlay().set_enabled(checked)
         self.settings.setValue(SHOW_MOUNTED_MODS_SETTING, bool(checked))
+        self.refresh()
+
+    def check_again(self) -> None:
+        """Read DMM's list and the game's build again; Browse drops what it kept from before."""
+        current_overlay().refresh(self.get_package_root())
         self.refresh()
 
     def refresh(self) -> None:

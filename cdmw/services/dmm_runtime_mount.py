@@ -31,6 +31,7 @@ import shutil
 import tempfile
 import threading
 from dataclasses import dataclass, field
+from stat import S_ISREG
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Iterable, Mapping
 
@@ -46,9 +47,12 @@ COPY_FOLDER_LIMIT_BYTES = 4 * 1024 * 1024 * 1024
 COPY_FOLDER_NAME = "dmm-mounted"
 #: Always the game's own, even when DMM serves a changed copy.
 KEEP_GAME_EXTENSIONS = frozenset({
-    ".pabgb", ".pabgh", ".paloc", ".papgt", ".pamt", ".paz", ".pathc", ".paver", ".papk",
+    ".pabgb", ".pabgh", ".staticinfobody", ".staticinfoheader", ".pappt",
+    ".paloc", ".papgt", ".pamt", ".paz", ".pathc", ".paver", ".papk",
 })
 DMM_MERGED_LABEL = "merged by DMM"
+#: The prepared-note part that marks a file DMM serves (``DMM mod: <mod>``).
+DMM_NOTE_PREFIX = "DMM mod:"
 _GROUP_FOLDER = re.compile(r"\d{4}")
 
 
@@ -86,6 +90,34 @@ class DmmRuntimeMount:
 
 def normalized_game_path(value: str) -> str:
     return str(value or "").replace("\\", "/").strip().strip("/").casefold()
+
+
+def is_dmm_note(note: object) -> bool:
+    """Whether a prepared note (comma-joined parts) says DMM serves the file."""
+
+    return any(part.strip().startswith(DMM_NOTE_PREFIX) for part in str(note or "").split(","))
+
+
+def is_dmm_added_entry(entry: object) -> bool:
+    """An entry for a file a DMM mod adds: the game has no file of its own there.
+
+    Such an entry names DMM's manifest as its source and CDMW's copy as its data.
+    The source alone decides: an edited result of it keeps the source but gets
+    the Mesh Editor's note.
+    """
+
+    pamt = Path(str(getattr(entry, "pamt_path", "") or ""))
+    return (pamt.name.casefold() == MANIFEST_RELATIVE_PATH.name
+            and pamt.parent.name.casefold() == MANIFEST_RELATIVE_PATH.parent.name
+            and pamt.parent.parent.name.casefold() == MANIFEST_RELATIVE_PATH.parent.parent.name)
+
+
+def _file_stamp(path: Path) -> tuple[int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_size, stat.st_mtime_ns
 
 
 def _source_path(text: str) -> Path:
@@ -214,17 +246,77 @@ class DmmMountOverlay:
 
     def __init__(self, copy_root: Path | str | None = None) -> None:
         self._lock = threading.RLock()
+        self._prepare_lock = threading.Lock()
         self._copy_root = Path(copy_root) if copy_root is not None else None
         self._enabled = True
-        self._mounts: dict[str, tuple[tuple[int, int] | None, DmmRuntimeMount | None, str]] = {}
+        self._mounts: dict[str, tuple[tuple[object, ...] | None, DmmRuntimeMount | None, str]] = {}
+        self._roots: dict[str, Path] = {}
         self._copies: dict[tuple[str, int, int], PreparedDmmFile] = {}
+        #: Bytes in the copy folder as last counted; None until counted once.
+        self._copy_bytes: int | None = None
+        #: Changes whenever what the overlay serves may have changed.
+        self._generation = 0
+        self._listeners: list[object] = []
 
     @property
     def enabled(self) -> bool:
         return self._enabled
 
+    @property
+    def generation(self) -> int:
+        return self._generation
+
     def set_enabled(self, enabled: bool) -> None:
-        self._enabled = bool(enabled)
+        enabled = bool(enabled)
+        if enabled == self._enabled:
+            return
+        with self._lock:
+            self._enabled = enabled
+            self._generation += 1
+        self._notify()
+
+    def add_listener(self, callback) -> None:
+        """``callback()`` runs on the caller's thread after a toggle or Check again."""
+
+        if callback not in self._listeners:
+            self._listeners.append(callback)
+
+    def remove_listener(self, callback) -> None:
+        if callback in self._listeners:
+            self._listeners.remove(callback)
+
+    def _notify(self) -> None:
+        for callback in tuple(self._listeners):
+            try:
+                callback()
+            except Exception:  # noqa: BLE001 - one stale listener must not stop the others
+                continue
+
+    def refresh(self, game_root: Path | str | None = None) -> None:
+        """Read DMM's manifest and the game's build again (Check again), then tell listeners."""
+
+        with self._lock:
+            self._mounts.clear()
+            self._generation += 1
+        if game_root is not None and str(game_root).strip():
+            self.mount(game_root)
+        self._notify()
+
+    def state_token(self, game_root: Path | str | None = None) -> tuple[object, ...]:
+        """Changes whenever what the overlay serves may have changed; for cache keys.
+
+        Rechecks the manifest, ``meta/0.paver`` and the game's exe of every game
+        folder read so far (a few file stats), so a remount in DMM or a game
+        update is noticed without Check again.
+        """
+
+        with self._lock:
+            roots = list(self._roots.values())
+        if game_root is not None and str(game_root).strip():
+            roots.append(Path(str(game_root)).expanduser())
+        for root in roots:
+            self.mount(root)
+        return ("dmm-overlay", self._enabled, self._generation)
 
     def copy_root(self) -> Path:
         if self._copy_root is None:
@@ -239,14 +331,15 @@ class DmmMountOverlay:
         root = Path(str(game_root or "")).expanduser()
         if not str(game_root or "").strip():
             return None, ""
-        manifest = root / MANIFEST_RELATIVE_PATH
-        try:
-            stat = manifest.stat()
-            stamp: tuple[int, int] | None = (stat.st_size, stat.st_mtime_ns)
-        except OSError:
-            stamp = None
+        manifest_stamp = _file_stamp(root / MANIFEST_RELATIVE_PATH)
+        # The plugin compares the mount's build with meta/0.paver and the exe, so a
+        # game update changes what it serves although the manifest stays the same.
+        stamp: tuple[object, ...] | None = None if manifest_stamp is None else (
+            manifest_stamp, _file_stamp(root / "meta" / "0.paver"),
+            _file_stamp(root / "bin64" / "CrimsonDesert.exe"))
         key = str(root).casefold()
         with self._lock:
+            self._roots.setdefault(key, root)
             cached = self._mounts.get(key)
             if cached is not None and cached[0] == stamp:
                 return cached[1], cached[2]
@@ -256,6 +349,8 @@ class DmmMountOverlay:
                     mount = read_runtime_mount(root)
                 except (OSError, UnicodeDecodeError, DmmManifestError) as exc:
                     error = f"DMM's runtime manifest cannot be read: {exc}"
+            if cached is not None:
+                self._generation += 1
             self._mounts[key] = (stamp, mount, error)
             return mount, error
 
@@ -268,6 +363,20 @@ class DmmMountOverlay:
         if mount is None or not mount.serving:
             return None
         return mount.files.get(normalized_game_path(game_path))
+
+    def serves_any(self, game_root: Path | str, game_paths: Iterable[str]) -> bool:
+        """Whether DMM serves one of ``game_paths`` that the overlay would show; no file reads."""
+
+        if not self._enabled:
+            return False
+        mount, _error = self.mount(game_root)
+        if mount is None or not mount.serving:
+            return False
+        for game_path in game_paths:
+            key = normalized_game_path(game_path)
+            if key in mount.files and PurePosixPath(key).suffix not in KEEP_GAME_EXTENSIONS:
+                return True
+        return False
 
     def prepare(self, game_root: Path | str, game_path: str) -> PreparedDmmFile | None:
         """A private copy of the file DMM serves for ``game_path``, or None."""
@@ -284,13 +393,17 @@ class DmmMountOverlay:
         if stat.st_size > MAX_SERVED_FILE_BYTES:
             return None
         key = (str(source).casefold(), stat.st_size, stat.st_mtime_ns)
-        with self._lock:
-            known = self._copies.get(key)
+        # Previews, exports and Files DMM adds prepare from their own threads. One at a
+        # time, so a prune never deletes a copy that is made but not yet registered.
+        with self._prepare_lock:
+            with self._lock:
+                known = self._copies.get(key)
             if known is not None and known.path.is_file() and known.path.stat().st_size == known.size:
                 return known
-        prepared = self._copy(source, served)
-        with self._lock:
-            self._copies[key] = prepared
+            prepared = self._copy(source, served)
+            with self._lock:
+                self._copies[key] = prepared
+            self._prune(keep=(prepared.path,))
         return prepared
 
     def _copy(self, source: Path, served: DmmServedFile) -> PreparedDmmFile:
@@ -312,35 +425,72 @@ class DmmMountOverlay:
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.is_file() and target.stat().st_size == size:
                 temporary.unlink(missing_ok=True)
+                try:
+                    os.utime(target)  # a reused copy counts as recent when pruning
+                except OSError:
+                    pass
             else:
                 os.replace(temporary, target)
+                with self._lock:
+                    if self._copy_bytes is not None:
+                        self._copy_bytes += size
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
-        self._prune(root, keep=target)
         return PreparedDmmFile(target, size, sha, served.mod)
 
-    @staticmethod
-    def _prune(root: Path, *, keep: Path) -> None:
+    def _prune(self, *, keep: Iterable[Path] = ()) -> None:
+        """Delete the oldest copies above the folder limit.
+
+        The folder is counted once and the count kept up to date, so a copy costs
+        no folder walk until the limit is passed. Copies handed out in this run go
+        last, and ``keep`` never.
+        """
+        root = self.copy_root()
+        with self._lock:
+            known = self._copy_bytes
+            handed_out = {str(item.path).casefold() for item in self._copies.values()}
+        if known is not None and known <= COPY_FOLDER_LIMIT_BYTES:
+            return
+        files: list[tuple[Path, int, int]] = []
         try:
-            files = [path for path in root.glob("*/*") if path.is_file()]
-            total = sum(path.stat().st_size for path in files)
-            if total <= COPY_FOLDER_LIMIT_BYTES:
-                return
-            for path in sorted(files, key=lambda item: item.stat().st_mtime_ns):
-                if total <= COPY_FOLDER_LIMIT_BYTES:
-                    break
-                if path == keep:
+            for path in root.rglob("*"):
+                if path.name.startswith(".copy-"):
                     continue
-                size = path.stat().st_size
-                path.unlink(missing_ok=True)
-                total -= size
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                if S_ISREG(stat.st_mode):
+                    files.append((path, stat.st_size, stat.st_mtime_ns))
         except OSError:
             return
+        total = sum(size for _path, size, _mtime in files)
+        if total > COPY_FOLDER_LIMIT_BYTES:
+            protected = {str(path).casefold() for path in keep}
+            order = sorted(files, key=lambda item: (str(item[0]).casefold() in handed_out, item[2]))
+            for path, size, _mtime in order:
+                if total <= COPY_FOLDER_LIMIT_BYTES:
+                    break
+                if str(path).casefold() in protected:
+                    continue
+                try:
+                    path.unlink()
+                except OSError:
+                    continue
+                total -= size
+                if path.parent.parent != root and path.parent != root:
+                    try:
+                        path.parent.rmdir()  # a folder an earlier version named a copy in, now empty
+                    except OSError:
+                        pass
+        with self._lock:
+            self._copy_bytes = total
 
     def clear_copies(self) -> None:
         with self._lock:
             self._copies.clear()
+            self._copy_bytes = None
             root = self._copy_root
         if root is not None and root.is_dir():
             shutil.rmtree(root, ignore_errors=True)
@@ -516,6 +666,21 @@ MAX_ADDED_DEPENDENCIES = 256
 _MAX_SCANNED_BYTES = 64 * 1024 * 1024
 
 
+def added_entry(mount: DmmRuntimeMount, served: DmmServedFile, prepared: PreparedDmmFile):
+    """A prepared ``ArchiveEntry`` for a file a DMM mod adds, read from CDMW's copy.
+
+    It names DMM's manifest as its source (:func:`is_dmm_added_entry`); the game
+    has no file of its own at that path.
+    """
+    from cdmw.models import ArchiveEntry
+
+    return ArchiveEntry(path=served.game_path, pamt_path=mount.manifest_path, paz_file=prepared.path,
+                        offset=0, comp_size=prepared.size, orig_size=prepared.size, flags=0, paz_index=0,
+                        prepared_path=prepared.path, prepared_sha256=prepared.sha256,
+                        prepared_note=f"{DMM_NOTE_PREFIX} {prepared.mod}",
+                        prepared_size=prepared.size)
+
+
 def added_dependency_entries(game_root: Path | str, entries: Iterable[object], *,
                              overlay: DmmMountOverlay | None = None) -> list[object]:
     """Files DMM serves that ``entries`` lack, named by the DMM files in ``entries``.
@@ -524,8 +689,6 @@ def added_dependency_entries(game_root: Path | str, entries: Iterable[object], *
     then the added files themselves, a few rounds deep. Each found file becomes a
     prepared ``ArchiveEntry`` read from CDMW's copy (experimental).
     """
-    from cdmw.models import ArchiveEntry
-
     overlay = overlay or current_overlay()
     mount, _error = overlay.mount(game_root)
     if not overlay.enabled or mount is None or not mount.serving:
@@ -536,7 +699,7 @@ def added_dependency_entries(game_root: Path | str, entries: Iterable[object], *
                   if key not in known and PurePosixPath(key).suffix not in KEEP_GAME_EXTENSIONS}
     if not candidates:
         return []
-    pending = [entry for entry in entries if "DMM mod:" in str(getattr(entry, "prepared_note", "") or "")]
+    pending = [entry for entry in entries if is_dmm_note(getattr(entry, "prepared_note", ""))]
     added: list[object] = []
     for _round in range(4):
         if not pending or not candidates or len(added) >= MAX_ADDED_DEPENDENCIES:
@@ -561,11 +724,7 @@ def added_dependency_entries(game_root: Path | str, entries: Iterable[object], *
                 prepared = None
             if prepared is None:
                 continue
-            entry = ArchiveEntry(path=served.game_path, pamt_path=mount.manifest_path, paz_file=prepared.path,
-                                 offset=0, comp_size=prepared.size, orig_size=prepared.size, flags=0, paz_index=0,
-                                 prepared_path=prepared.path, prepared_sha256=prepared.sha256,
-                                 prepared_note=f"DMM mod: {prepared.mod}",
-                                 prepared_size=prepared.size)
+            entry = added_entry(mount, served, prepared)
             added.append(entry)
             pending.append(entry)
             if len(added) >= MAX_ADDED_DEPENDENCIES:

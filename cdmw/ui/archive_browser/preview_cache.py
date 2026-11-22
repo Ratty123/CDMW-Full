@@ -38,6 +38,13 @@ from cdmw.services.mesh_rust_preview_cache import (
 from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
 
 
+def _dmm_overlay_key() -> str:
+    from cdmw.services.dmm_runtime_mount import current_overlay
+
+    _name, enabled, generation = current_overlay().state_token()
+    return f"dmm:{int(bool(enabled))}:{generation}"
+
+
 def _archive_preview_dependency_digest(entries: Sequence[ArchiveEntry]) -> str:
     """Hash one authoritative prepared dependency snapshot without archive I/O."""
 
@@ -123,6 +130,7 @@ class ArchivePreviewCacheMixin:
         dependency_entries: Sequence[ArchiveEntry] = (),
         enabled_prefab_component_paths: Optional[Sequence[str]] = None,
         preview_context_components: Optional[Sequence[object]] = None,
+        include_dmm_state: bool = True,
     ) -> str:
         if entry is None:
             return ""
@@ -214,6 +222,14 @@ class ArchivePreviewCacheMixin:
             ]
         if dependency_digest:
             key_parts.append(f"dependencies:{dependency_digest}")
+        # The selected file's own bytes, and what DMM serves: turning the DMM overlay
+        # on or off, or mounting in DMM, changes the files a preview reads. The
+        # overlay's state counts only within a run, so packages on disk leave it out.
+        prepared_sha256 = str(getattr(entry, "prepared_sha256", "") or "").strip().lower()
+        if prepared_sha256:
+            key_parts.append(f"prepared:{prepared_sha256}")
+        if include_dmm_state:
+            key_parts.append(_dmm_overlay_key())
         # A container that holds several sounds produces a different preview per
         # sound from the same entry, so the chosen one belongs in the key. It is
         # appended only when a sound is actually selected, so every other preview
@@ -348,6 +364,7 @@ class ArchivePreviewCacheMixin:
             dependency_entries=dependency_entries,
             enabled_prefab_component_paths=enabled_prefab_paths,
             preview_context_components=preview_context_components,
+            include_dmm_state=False,
         )
         if not base_key:
             return ""

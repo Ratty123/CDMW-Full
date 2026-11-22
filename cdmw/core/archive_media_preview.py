@@ -388,10 +388,25 @@ def ensure_archive_preview_source(
         except OSError:
             pathc_stamp = "|missing_pathc"
 
+    # A prepared entry's bytes are its prepared file, which can differ from the
+    # archive's (a file DMM serves, an edited result): they are part of the key.
+    # v2 drops folders keyed on the archive alone, which could hold a prepared file.
+    prepared_stamp = ""
+    if getattr(entry, "prepared_path", None) is not None:
+        prepared_stamp = (
+            f"|prepared:{str(getattr(entry, 'prepared_sha256', '') or '').strip().casefold()}"
+            f":{getattr(entry, 'prepared_size', None)}"
+        )
+        if not str(getattr(entry, "prepared_sha256", "") or "").strip():
+            try:
+                prepared_stat = Path(entry.prepared_path).stat()
+                prepared_stamp += f"|{Path(entry.prepared_path).resolve()}|{prepared_stat.st_size}:{prepared_stat.st_mtime_ns}"
+            except OSError:
+                prepared_stamp += "|missing_prepared"
     cache_key = hashlib.sha256(
         (
-            f"{entry.path}|{entry.pamt_path.resolve()}|{pamt_stamp}|{entry.paz_file.resolve()}|{paz_stamp}|"
-            f"{entry.offset}|{entry.comp_size}|{entry.orig_size}|{entry.flags}{pathc_stamp}"
+            f"v2|{entry.path}|{entry.pamt_path.resolve()}|{pamt_stamp}|{entry.paz_file.resolve()}|{paz_stamp}|"
+            f"{entry.offset}|{entry.comp_size}|{entry.orig_size}|{entry.flags}{pathc_stamp}{prepared_stamp}"
         ).encode("utf-8")
     ).hexdigest()
     suffix = Path(entry.path).suffix or ".bin"

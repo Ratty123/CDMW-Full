@@ -1,15 +1,40 @@
+// The archive entry, and for a prepared DDS its own bytes: a file DMM serves for
+// the same entry must never share the archive's cache file.
+static std::string native_dds_cache_identity(const ArchiveEntryRef& ref) {
+    std::string identity =
+        "native_dds_v" + std::to_string(kNativeDdsExtractionVersion) + "|"
+        + path_utf8(ref.pamt_path) + "|" + ref.path + "|" + std::to_string(ref.offset) + "|"
+        + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
+    if (!ref.prepared_path.empty()) {
+        identity += "|prepared:" + ref.prepared_sha256 + "|" + std::to_string(ref.prepared_size);
+        if (ref.prepared_sha256.empty()) {
+            std::error_code ec;
+            const auto stamp = fs::last_write_time(native_file_path(ref.prepared_path), ec);
+            identity += "|" + path_utf8(ref.prepared_path) + "|"
+                + (ec ? std::string("missing") : std::to_string(stamp.time_since_epoch().count()));
+        }
+    }
+    return identity;
+}
+
 static std::string extracted_dds_path_for_entry(
     const ArchiveEntryRef& ref,
     const fs::path& cache_root,
     std::vector<std::string>& notes
 ) {
     if (ref.path.empty() || ref.extension != ".dds") return "";
-    if (!ref.prepared_path.empty()) {
+    const bool prepared_ref = !ref.prepared_path.empty();
+    if (prepared_ref) {
+        // A prepared DDS (a file DMM serves, an edited texture) need not be the
+        // archive entry's size: an upscale or recompression is larger or smaller.
         try {
             const fs::path prepared = ref.prepared_path;
             if (fs::is_regular_file(native_file_path(prepared))) {
                 const auto prepared_size = fs::file_size(native_file_path(prepared));
-                if (prepared_size >= 128 && (ref.orig_size == 0 || prepared_size == ref.orig_size)) {
+                const bool size_matches = ref.prepared_size >= 0
+                    ? prepared_size == static_cast<std::uint64_t>(ref.prepared_size)
+                    : (ref.orig_size == 0 || prepared_size == ref.orig_size);
+                if (prepared_size >= 128 && size_matches) {
                     std::ifstream in(native_file_path(prepared), std::ios::binary);
                     char magic[4] = {};
                     in.read(magic, sizeof(magic));
@@ -26,12 +51,12 @@ static std::string extracted_dds_path_for_entry(
         // Partial DDS entries are reconstructed with PATHC before reaching this cache.
         // The cache key includes the native extraction version to avoid stale padded DDS.
     }
-    const std::string identity =
-        "native_dds_v" + std::to_string(kNativeDdsExtractionVersion) + "|"
-        + path_utf8(ref.pamt_path) + "|" + ref.path + "|" + std::to_string(ref.offset) + "|"
-        + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
+    const std::string identity = native_dds_cache_identity(ref);
     const fs::path out_path = cache_root / "dds" / (hex64(fnv1a64(identity)) + "_" + safe_filename(ref.basename));
-    const std::uint64_t expected_size = ref.orig_size > 0 ? ref.orig_size : ref.comp_size;
+    // A prepared DDS smaller than the archive entry is padded below like a sparse one.
+    const std::uint64_t expected_size = prepared_ref && ref.prepared_size >= 0
+        ? std::max<std::uint64_t>(static_cast<std::uint64_t>(ref.prepared_size), ref.orig_size)
+        : (ref.orig_size > 0 ? ref.orig_size : ref.comp_size);
     if (expected_size > 0) {
         try {
             if (fs::is_regular_file(native_file_path(out_path)) && fs::file_size(native_file_path(out_path)) == expected_size) {
@@ -83,9 +108,24 @@ static std::uint32_t read_u32_le_raw(const std::vector<char>& data, size_t offse
     return static_cast<std::uint32_t>(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
 }
 
+// A DDS read cache key: the path with its size and write time, because a prepared
+// or cached DDS at one path can be replaced by another texture while the helper
+// stays open. Empty when the file cannot be read, which is never cached.
+static std::string dds_file_cache_key(const std::string& path) {
+    if (path.empty()) return "";
+    std::error_code ec;
+    const fs::path file = native_file_path(utf8_path(path));
+    const auto size = fs::file_size(file, ec);
+    if (ec) return "";
+    const auto stamp = fs::last_write_time(file, ec);
+    if (ec) return "";
+    return path + "|" + std::to_string(size) + "|" + std::to_string(stamp.time_since_epoch().count());
+}
+
 static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
     static std::map<std::string, DdsHeaderInfo> cache;
-    auto cached = cache.find(path);
+    const std::string key = dds_file_cache_key(path);
+    auto cached = key.empty() ? cache.end() : cache.find(key);
     if (cached != cache.end()) return cached->second;
     DdsHeaderInfo info;
     std::ifstream in(native_file_path(utf8_path(path)), std::ios::binary);
@@ -105,10 +145,64 @@ static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
             info.format = fourcc;
         }
     }
-    if (!path.empty() && cache.size() < 4096) {
-        cache.emplace(path, info);
+    if (!key.empty() && cache.size() < 4096) {
+        cache.emplace(key, info);
     }
     return info;
+}
+
+// A file DMM serves in place of an archive DDS, larger or smaller than it, is read
+// from its own file, never from or into the archive's cache file.
+static void run_prepared_dds_cache_self_test() {
+    const fs::path folder = fs::absolute(fs::temp_directory_path()).lexically_normal()
+        / ("cdmw_preview_core_prepared_dds_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    fs::create_directories(folder);
+    const auto dds = [](std::uint32_t width, std::uint32_t height, size_t size) {
+        std::vector<char> data(size, 0);
+        std::copy_n("DDS ", 4, data.begin());
+        const auto put = [&](size_t offset, std::uint32_t value) {
+            for (int i = 0; i < 4; ++i) data[offset + i] = static_cast<char>((value >> (8 * i)) & 0xff);
+        };
+        put(4, 124);
+        put(12, height);
+        put(16, width);
+        std::copy_n("DXT1", 4, data.begin() + 84);
+        return data;
+    };
+    try {
+        ArchiveEntryRef ref;
+        ref.path = "character/texture/upscaled.dds";
+        ref.basename = "upscaled.dds";
+        ref.extension = ".dds";
+        ref.pamt_path = folder / "0.pamt";
+        ref.comp_size = ref.orig_size = 256;
+        const std::string vanilla = native_dds_cache_identity(ref);
+        ref.prepared_path = folder / "served" / "upscaled.dds";
+        ref.prepared_sha256 = std::string(64, 'a');
+        ref.prepared_size = 512;
+        const std::string served_a = native_dds_cache_identity(ref);
+        ref.prepared_sha256 = std::string(64, 'b');
+        if (served_a == vanilla || native_dds_cache_identity(ref) == served_a) {
+            throw std::runtime_error("prepared DDS shares a cache identity");
+        }
+        fs::create_directories(ref.prepared_path.parent_path());
+        write_binary(ref.prepared_path, dds(64, 64, 512));
+        std::vector<std::string> messages;
+        const std::string path = extracted_dds_path_for_entry(ref, folder / "cache", messages);
+        if (fs::path(utf8_path(path)).lexically_normal() != fs::absolute(ref.prepared_path).lexically_normal()) {
+            throw std::runtime_error("a larger prepared DDS was not read from its own file");
+        }
+        if (fs::exists(folder / "cache" / "dds")) throw std::runtime_error("a prepared DDS was written to the cache");
+        if (inspect_dds_header_file(path).width != 64) throw std::runtime_error("prepared DDS header misread");
+        write_binary(ref.prepared_path, dds(32, 32, 384));
+        if (inspect_dds_header_file(path).width != 32) throw std::runtime_error("a replaced DDS kept its old header");
+    } catch (...) {
+        std::error_code ignored;
+        fs::remove_all(folder, ignored);
+        throw;
+    }
+    std::error_code ignored;
+    fs::remove_all(folder, ignored);
 }
 
 // Channel statistics for a packed surface map, read straight from the DDS.
@@ -172,7 +266,8 @@ static void accumulate_bc1_colour_block(
 
 static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& path) {
     static std::map<std::string, DdsChannelStatistics> cache;
-    auto cached = cache.find(path);
+    const std::string key = dds_file_cache_key(path);
+    auto cached = key.empty() ? cache.end() : cache.find(key);
     if (cached != cache.end()) return cached->second;
     DdsChannelStatistics stats;
     const DdsHeaderInfo header = inspect_dds_header_file(path);
@@ -183,7 +278,7 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
     const bool bc1 = format == "dxt1";
     const bool bc3 = format == "dxt5" || format == "dxt4";
     if ((!bc1 && !bc3) || header.width <= 0 || header.height <= 0) {
-        if (cache.size() < 4096) cache.emplace(path, stats);
+        if (!key.empty() && cache.size() < 4096) cache.emplace(key, stats);
         return stats;
     }
     std::ifstream in(native_file_path(utf8_path(path)), std::ios::binary);
@@ -224,7 +319,7 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
         stats.blue_coverage = static_cast<float>(
             static_cast<double>(blue_high) / static_cast<double>(texels));
     }
-    if (cache.size() < 4096) cache.emplace(path, stats);
+    if (!key.empty() && cache.size() < 4096) cache.emplace(key, stats);
     return stats;
 }
 

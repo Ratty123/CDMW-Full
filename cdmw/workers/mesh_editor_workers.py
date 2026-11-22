@@ -81,10 +81,16 @@ def _game_original_reader(stop_event: threading.Event | None) -> Callable[[objec
     """
 
     from cdmw.services.archive_read_service import read_archive_entry_data
+    from cdmw.services.dmm_runtime_mount import is_dmm_added_entry, is_dmm_note
     from cdmw.services.mesh_archive_results import RESULT_NOTES
 
     def read(entry) -> bytes:
-        if getattr(entry, "prepared_path", None) is not None and entry.prepared_note in RESULT_NOTES:
+        # A file DMM serves is not the game's: the game's own is read in its place,
+        # and a file a DMM mod adds has no game original at all.
+        if is_dmm_added_entry(entry):
+            raise FileNotFoundError(entry.path)  # the original stays unknown, as for an unreadable one
+        if getattr(entry, "prepared_path", None) is not None and (
+                entry.prepared_note in RESULT_NOTES or is_dmm_note(entry.prepared_note)):
             entry = replace(entry, prepared_path=None, prepared_sha256="", prepared_size=None, prepared_note="")
         return read_archive_entry_data(entry, stop_event=stop_event)[0]
 

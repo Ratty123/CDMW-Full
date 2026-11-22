@@ -23,6 +23,15 @@ ADDED_RESULT_NOTE = "Mesh Editor added result"
 # Build Mod leaves it out unless Include the body is chosen.
 BODY_RESULT_NOTE = "Mesh Editor Fit body result"
 RESULT_NOTES = (EDITED_RESULT_NOTE, ADDED_RESULT_NOTE, BODY_RESULT_NOTE)
+SOURCE_DEPENDENCY_NOTE = "Mesh Editor source dependency"
+
+
+def _source_dependency_note(note: str) -> str:
+    """The note of an unchanged source copy, keeping a ``DMM mod:`` part if it had one."""
+    from cdmw.services.dmm_runtime_mount import DMM_NOTE_PREFIX
+
+    dmm = [part.strip() for part in str(note or "").split(",") if part.strip().startswith(DMM_NOTE_PREFIX)]
+    return ",".join((SOURCE_DEPENDENCY_NOTE, *dmm[:1]))
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,7 +209,8 @@ def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, ou
                 prepared_note=(ADDED_RESULT_NOTE if identity in added else BODY_RESULT_NOTE if identity in body
                                else EDITED_RESULT_NOTE) if output is not None
                 else (candidate.prepared_note if candidate.prepared_note in RESULT_NOTES
-                      else "Mesh Editor source dependency")))
+                      # Keeps saying DMM serves it, so a later Build Mod reads the game's own.
+                      else _source_dependency_note(candidate.prepared_note))))
         session = service._session(snapshot.session_id)
         with session.export_lock:
             raise_if_cancelled(stop_event)

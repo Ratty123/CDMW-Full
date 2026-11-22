@@ -113,6 +113,14 @@ class _CatalogueRequest:
     #: Export items streamed in batches: (game path, output path, status), for DMM's files.
     export_items: list[tuple[str, str | None, str]] = field(default_factory=list)
     export_items_truncated: bool = False
+    #: False keeps the game's own files even when DMM serves others.
+    dmm_overlay: bool = True
+
+
+class _DmmDeliveryRelay(QObject):
+    """Brings a result whose files DMM serves, copied on a worker, back to the UI thread."""
+
+    done = Signal(object)
 
 
 class ArchiveCatalogueService(QObject):
@@ -148,6 +156,13 @@ class ArchiveCatalogueService(QObject):
         self._session_aliases: dict[str, str] = {}
         self._invalid_queries: set[str] = set()
         self._publication_budgets: dict[int, _RetryBudget] = {}
+        # Copying the files DMM serves reads, hashes and writes them: one worker,
+        # so a request's batches and result keep their order.
+        self._dmm_executor = None
+        self._dmm_inflight: dict[str, int] = {}
+        self._dmm_dropped: set[str] = set()
+        self._dmm_relay = _DmmDeliveryRelay(self)
+        self._dmm_relay.done.connect(self._run_dmm_delivery)
         for signal, handler in (
             (client.request_progress, self._handle_progress),
             (client.request_batch, self._handle_batch),
@@ -481,7 +496,8 @@ class ArchiveCatalogueService(QObject):
             session=session,
         )
 
-    def prepare_entry(self, request: PrepareEntryRequest, *, ui_generation: int) -> str:
+    def prepare_entry(self, request: PrepareEntryRequest, *, ui_generation: int, dmm_overlay: bool = True) -> str:
+        """``dmm_overlay=False`` prepares the game's own file even when DMM serves another."""
         session = self._require_session(request.session_id)
         return self._submit(
             ArchiveBackendOperation.PREPARE_ENTRY,
@@ -489,6 +505,7 @@ class ArchiveCatalogueService(QObject):
             PrepareEntryResult.from_wire,
             ui_generation=ui_generation,
             session=session,
+            dmm_overlay=dmm_overlay,
         )
 
     @property
@@ -567,7 +584,8 @@ class ArchiveCatalogueService(QObject):
         return self._submit(ArchiveBackendOperation.FIND_NPC_WEARERS, request,
                             NpcWearersResult.from_wire, ui_generation=ui_generation, session=session)
 
-    def prepare_entries(self, request: PrepareEntriesRequest, *, ui_generation: int) -> str:
+    def prepare_entries(self, request: PrepareEntriesRequest, *, ui_generation: int, dmm_overlay: bool = True) -> str:
+        """``dmm_overlay=False`` prepares the game's own files even when DMM serves others."""
         session = self._require_session(request.session_id)
         return self._submit(
             ArchiveBackendOperation.PREPARE_ENTRY,
@@ -576,6 +594,7 @@ class ArchiveCatalogueService(QObject):
             batch_parser=PrepareEntriesResult.from_wire,
             ui_generation=ui_generation,
             session=session,
+            dmm_overlay=dmm_overlay,
         )
 
     def text_search(self, request: ArchiveTextSearchRequest, *, ui_generation: int) -> str:
@@ -601,6 +620,9 @@ class ArchiveCatalogueService(QObject):
         )
 
     def cancel(self, request_id: str) -> bool:
+        if str(request_id) in self._dmm_inflight:
+            # Its batches or result are still being copied: drop them when they arrive.
+            self._dmm_dropped.add(str(request_id))
         request = self._requests.pop(str(request_id), None)
         self._failed_requests.pop(str(request_id), None)
         if request is None:
@@ -639,6 +661,8 @@ class ArchiveCatalogueService(QObject):
         self._watchdog.stop()
         for request_id in tuple(self._requests):
             self.cancel(request_id)
+        if self._dmm_executor is not None:
+            self._dmm_executor.shutdown(wait=False, cancel_futures=True)
         self._client.shutdown()
 
     @staticmethod
@@ -665,8 +689,9 @@ class ArchiveCatalogueService(QObject):
         DMM 5 serves its mods at run time and leaves the game's archives vanilla, so
         a prepared entry is the game's own file unless DMM has mounted a mod for it.
         Game tables stay the game's own; a file that cannot be copied stays the game's.
+        This copies files, so the service runs it on its DMM worker (:meth:`_publish_with_dmm`).
         """
-        if not request.package_root:
+        if not request.package_root or not getattr(request, "dmm_overlay", True):
             return result
         from cdmw.services.dmm_runtime_mount import current_overlay
 
@@ -698,6 +723,78 @@ class ArchiveCatalogueService(QObject):
             return result
         return replace(result, items=items, total_bytes=max(0, result.total_bytes + sum(
             new.size - old.size for new, old in zip(items, result.items))))
+
+    def _run_dmm_delivery(self, delivery: object) -> None:
+        if callable(delivery):
+            delivery()
+
+    @staticmethod
+    def _dmm_may_apply(request: _CatalogueRequest, result: object, *, final: bool) -> bool:
+        """Whether DMM serves a file of ``result``: a manifest lookup, no file I/O beyond stats."""
+        if not request.package_root or not getattr(request, "dmm_overlay", True):
+            return False
+        from cdmw.services.dmm_runtime_mount import current_overlay
+
+        overlay = current_overlay()
+        if not overlay.enabled:
+            return False
+        if isinstance(result, ArchiveExportResult):
+            if not final or result.cancelled:
+                return False
+            mount, _error = overlay.mount(request.package_root)
+            return mount is not None and mount.serving
+        if isinstance(result, PrepareEntryResult):
+            items: tuple[PrepareEntryResult, ...] = (result,)
+        elif isinstance(result, PrepareEntriesResult):
+            items = tuple(result.items)
+        else:
+            return False
+        return overlay.serves_any(request.package_root, (item.entry.identity.normalized_path for item in items))
+
+    def _publish_with_dmm(self, request_id: str, request: _CatalogueRequest, result: object, *, final: bool,
+                          publish: Callable[[object], None]) -> None:
+        """``publish(result)`` with DMM's files in place of the game's, on the UI thread.
+
+        A result DMM serves nothing of is emitted at once. Otherwise the files are
+        copied on the DMM worker; a request's later batches and its result wait
+        behind it so they keep their order, and a cancel drops what is still queued.
+        """
+        if not self._dmm_inflight.get(request_id) and not self._dmm_may_apply(request, result, final=final):
+            publish(result)
+            return
+        self._dmm_inflight[request_id] = self._dmm_inflight.get(request_id, 0) + 1
+        relay = self._dmm_relay
+
+        def deliver(swapped: object) -> None:
+            left = self._dmm_inflight.get(request_id, 1) - 1
+            if left > 0:
+                self._dmm_inflight[request_id] = left
+            else:
+                self._dmm_inflight.pop(request_id, None)
+            dropped = request_id in self._dmm_dropped
+            if left <= 0:
+                self._dmm_dropped.discard(request_id)
+            if not dropped and not self._closing:
+                publish(swapped)
+
+        def job() -> None:
+            try:
+                swapped = self._with_dmm_mounted_files(request, result, final=final)
+            except Exception:  # noqa: BLE001 - a file that cannot be copied stays the game's
+                swapped = result
+            try:
+                relay.done.emit(lambda: deliver(swapped))
+            except RuntimeError:
+                pass  # the service was deleted meanwhile
+
+        if self._dmm_executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+
+            self._dmm_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dmm-overlay")
+        try:
+            self._dmm_executor.submit(job)
+        except RuntimeError:  # shut down
+            deliver(result)
 
     @staticmethod
     def _export_with_dmm_files(request: _CatalogueRequest, result: ArchiveExportResult, overlay) -> ArchiveExportResult:
@@ -734,6 +831,7 @@ class ArchiveCatalogueService(QObject):
         session: ArchiveSessionHandle | None = None,
         batch_parser: _ResultParser | None = None,
         query: ArchiveQuery | None = None,
+        dmm_overlay: bool = True,
     ) -> str:
         if self._closing:
             raise RuntimeError("Archive catalogue is shutting down.")
@@ -754,6 +852,7 @@ class ArchiveCatalogueService(QObject):
             session_id=session.session_id if session is not None else None,
             fingerprint=session.fingerprint if session is not None else None,
             package_root=session.package_root if session is not None else str(getattr(payload, "package_root", "")),
+            dmm_overlay=bool(dmm_overlay),
         )
         try:
             request = self._requests[request_id]
@@ -831,7 +930,6 @@ class ArchiveCatalogueService(QObject):
             return
         if request.stall_deadline is not None:
             return
-        result = self._with_dmm_mounted_files(request, result, final=False)
         if isinstance(result, ArchiveExportResult):
             request.export_items.extend((item.source_path, item.output_path, item.status) for item in result.items)
             request.export_items_truncated = request.export_items_truncated or result.items_truncated
@@ -839,7 +937,9 @@ class ArchiveCatalogueService(QObject):
             request.last_batch = result
             request.last_progress_at = self._clock()
             request.delay_notice_shown = False
-        self.batch_ready.emit(request_id, request.operation.value, result)
+        operation = request.operation.value
+        self._publish_with_dmm(request_id, request, result, final=False,
+                               publish=lambda published: self.batch_ready.emit(request_id, operation, published))
 
     def _handle_result(self, request_id: str, payload: object) -> None:
         request = self._requests.get(request_id)
@@ -912,8 +1012,9 @@ class ArchiveCatalogueService(QObject):
             return
         if isinstance(result, ArchiveSessionHandle):
             self.session_published.emit(result)
-        result = self._with_dmm_mounted_files(request, result)
-        self.result_ready.emit(request_id, request.operation.value, result)
+        operation = request.operation.value
+        self._publish_with_dmm(request_id, request, result, final=True,
+                               publish=lambda published: self.result_ready.emit(request_id, operation, published))
 
     def _handle_failure(self, request_id: str, error: object) -> None:
         request = self._requests.get(request_id)

@@ -51,8 +51,9 @@ class _CatalogueService(QObject):
         self.requests.append((request, ui_generation))
         return f"resolve-{len(self.requests)}"
 
-    def prepare_entries(self, request: object, *, ui_generation: int) -> str:
+    def prepare_entries(self, request: object, *, ui_generation: int, dmm_overlay: bool = True) -> str:
         self.requests.append((request, ui_generation))
+        self.dmm_overlay = dmm_overlay
         return f"prepare-{len(self.requests)}"
 
     def cancel(self, request_id: str) -> bool:
@@ -727,6 +728,27 @@ def test_the_set_s_file_stamps_are_taken_off_the_ui_thread(tmp_path: Path, monke
     assert threads == ["preview-dependency-stamps"] * 2
     assert provider.snapshot_for(2, selected.entry_id) is not None
     assert len(service.requests) == 2
+
+
+@pytest.mark.parametrize("seen_first", (False, True))
+def test_turning_dmm_files_on_or_off_never_reuses_a_kept_set(tmp_path: Path, monkeypatch, seen_first: bool) -> None:
+    """Kept copies keep their stamps, so only the overlay's state shows that they are stale."""
+
+    from cdmw.services import dmm_runtime_mount as dmm
+
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    service, provider, selected = _reusable_provider(tmp_path)
+    kept = provider._snapshot.selected_entry
+    assert provider.snapshot_for_entry(kept) is not None
+    overlay.set_enabled(False)
+    if seen_first:
+        # Open in Mesh Editor asks for the kept set before the preview asks again.
+        assert provider.snapshot_for_entry(kept) is None
+    assert provider.request(selected, ui_request_id=2, reuse_prepared=True)
+    _settle_stamps(provider)
+    # The lookup starts again instead of publishing the kept set.
+    assert len(service.requests) == 3 and provider.snapshot_for(2, selected.entry_id) is None
 
 
 def test_a_follow_up_while_stamps_are_taken_reuses_the_snapshot(tmp_path: Path) -> None:
