@@ -7,234 +7,77 @@
 
 A Windows app for creating **Crimson Desert** mods. Browse game assets, create
 new equipment, edit meshes and textures, adjust equipment placement, and build
-mod packages.
+DMM mod packages.
 
 **[Download for Windows (portable)](https://github.com/Ratty123/CDMW-Full/releases)**
+· **[Documentation (Wiki)](https://github.com/Ratty123/CDMW-Full/wiki)**
 · [Release history](CHANGELOG.md) · [Research reference](docs/crimson-desert-research.md)
 · [Report a problem](https://github.com/Ratty123/CDMW-Full/issues)
 
 `0.12.0-alpha.6` is the current source version. For browsing and extraction only,
 see the smaller, read-only [CDMW Lite](https://github.com/Ratty123/CDMW-Lite).
 
+## Features
+
+**Assets**
+- **[Archive Browser](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-archive-browser)** — Find, preview, and extract game assets, including Body & Face Finder.
+- **[Create New Item](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-create-new-item)** — Create equipment from templates or imported models as DMM mods or `.cdmw` packages.
+- **[Model Library](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-model-library)** — Preview local or catalogue models and send them to Create New Item.
+- **[Icon Creator](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-item-icons)** — Prepare item icons and build compatible replacement packages.
+
+**Authoring**
+- **[Mesh Editor](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-mesh-editor)** — Edit meshes, materials, textures, UVs, cloth/physics, hair, and body refits (`OBJ`/`FBX`/`GLB` export; `OBJ`/`FBX`/`DAE`/`glTF`/`GLB` import).
+- **[Placement & Animations](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-placement-and-animations)** — Move weapon carry sockets, swap or edit animations, and adjust hand-off timing.
+- **[Speed & Prefabs](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-speed-and-prefabs)** *(experimental)* — Tune character action-chart speeds, prefab values, and movement tables as DMM mods.
+- **[Textures](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-textures)** — Edit layered textures, replace files in bulk, recolour, upscale, and export DDS.
+
+**Utilities**
+- **[Mod Management](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-mod-management)** — List `.cdmw` item packages and send them to DMM.
+- **[Format Explorer](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-formats-and-research)** — Check which file formats and edit operations are supported.
+- **[Translations](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-translations-and-text-search)** — Edit game language tables or loose `.paloc` files, with optional AI assistance.
+- **[Research](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-formats-and-research)** & **[Text Search](https://github.com/Ratty123/CDMW-Full/wiki/Home#guide-translations-and-text-search)** — Review texture families and references, or search archive and loose text files.
+
 ## Install
 
 1. Download and run `CDMW.exe`. Check **Help > About** or Windows file properties for the version.
 2. Set the game folder in **Settings > Paths > Archive Locations**.
-3. Open **Assets > Browse Archives** to inspect files, or choose a tool below.
+3. Open **Assets > Browse Archives** to inspect files, or choose a tool from the workspace sidebar.
 
-The portable app includes its required runtimes and DDS tools. Blender is optional
-for FBX import in Create New Item; Real-ESRGAN NCNN and chaiNNer are optional
-upscaling tools. Configure these only for workflows that need them.
+The portable app includes its required runtimes and DDS tools. Blender (for FBX import in Create New Item and Mesh Editor) and Real-ESRGAN NCNN / chaiNNer (for upscaling) are optional.
 
-Settings are stored beside the executable. App-managed files, including caches,
-projects and outputs, use the `workspace/` folder.
+Settings stay beside the executable, and app-managed files (caches, projects, and outputs) use `workspace/`.
 
-Generated material textures use `workspace/cache/generated_materials/`. Each run
-keeps its textures locked while CDMW is using them. Background maintenance on a
-later launch removes abandoned marked runs after a 30-minute grace period and
-retries marked preview, Effects and model-import leftovers. The shared cache
-budget remains 512 MiB, with a 384 MiB pruning target; active files can exceed
-that soft limit.
-The latest maintenance summary is `workspace/logs/temp_data_cleanup.json`.
+## Safety and limitations
 
-Unmarked legacy folders and inaccessible files are recorded and preserved.
-Recovery backups, Mesh Editor baselines, export history, projects and mod outputs
-are retained data and are excluded from this cleanup. Some per-user history and
-native preferences live in Windows AppData, and short-lived helper files still
-use Windows Temp.
-
-## Contents
-
-- [Tools](#tools)
-- [Create New Item](#create-new-item)
-- [Mesh Editor](#mesh-editor)
-- [Placement & Animations](#placement--animations)
-- [Bulk texture replacement](#bulk-texture-replacement)
-- [Known limitations](#known-limitations)
-- [Build from source](#build-from-source)
-
-## Tools
-
-Compact is the default layout. Classic is available in
-**Settings > Appearance > Layout**. The table shows the Compact navigation paths.
-
-| Tool | Navigation | Purpose |
-|---|---|---|
-| **Archive Browser** | Assets > Browse Archives | Find, preview and extract game assets; browse characters with Body & Face Finder. |
-| **Create New Item** | Assets > Create New Item | Create equipment from a template, with model, appearance, stats and distribution choices. |
-| **Model Library** | Assets > Model Library | Find and preview local or catalogue models, then send them to Create New Item. |
-| **Icon Creator** | Assets > Item Icons | Prepare item icons and build compatible replacement packages. |
-| **Mesh Editor** | Authoring > Mesh Editor | Edit supported meshes, materials and their textures (Textures panel); OBJ/FBX/GLB export, OBJ/FBX/DAE/glTF/GLB import. FBX import uses your selected Blender. |
-| **Placement & Animations** | Authoring > Placement & Animations | Adjust equipment attachments and review animation changes before packaging. |
-| **Textures** | Authoring > Textures | Edit layered textures, replace files in bulk, recolour, upscale and export. |
-| **Mod Management** | Utilities > Mod Management | List `.cdmw` item packages and send them to DMM, which loads them into the game. |
-| **Format Explorer** | Utilities > Inspect File Formats | Check which formats and operations are supported. |
-| **Translations** | Utilities > Edit Translations | Edit game language tables or existing `.paloc` mods, with optional AI assistance. |
-| **Research** | Utilities > Asset Research | Review texture families, classifications, references and quality reports. |
-| **Text Search** | Utilities > Search File Text | Search, preview and export archive or loose text files. |
+- **Never writes into the game folder.** Browsing, previewing, and extracting are read-only; outputs are written as DMM mod folders or `.cdmw` packages sent via **Mod Management**. **Browse Archives > Restore Backup...** and **Remove What an Older CDMW Installed...** ask first before undoing older CDMW installs.
+- **DMM-only mod output.** DMM (Definitive Mod Manager) is the supported mod manager after the October 2026 DLC; CDMW game overlays and direct archive patching are disabled.
+- **Experimental authoring needs in-game testing.** Hair Tools, generated cloth guides and weapon colliders, material/shader experiments, mesh texture editing, **Speed & Prefabs**, and item stats, perks, recipes, and rewards are experimental; previews approximate the game and do not guarantee in-game behavior.
+- **AI connections are experimental.** `Settings > AI connections` lets local AI apps operate CDMW's controls; review every change, test in game, and keep approval prompts on. No AI tool writes into the game folder, and calls log to `workspace\logs\ai-calls.log`.
+- **Format support is operation-specific.** Reading a file does not mean every part of it can be edited; check **Inspect File Formats** or the [capability manifest](schemas/archive_content_capabilities.v1.json).
 
 ## Documentation and languages
 
-Read the [Crimson Desert research reference](docs/crimson-desert-research.md) for
-file formats, research findings, evidence levels and remaining questions.
+Workflow guides live on the [GitHub Wiki](https://github.com/Ratty123/CDMW-Full/wiki)
+(available in [14 built-in languages](https://github.com/Ratty123/CDMW-Full/wiki/Languages))
+and under **Help > Documentation**.
 
-Open **Help > Documentation** for searchable workflow guides. Change the interface
-language in **Settings > Appearance**, using a built-in language or a custom pack.
-Mesh Editor follows the selected interface language. The **Translations** tool
-edits game text separately and can open loose `.paloc` files without a game install.
-
-## Create New Item
-
-Create a distinct equipment item from a shipped template. Keep the template model
-or import a replacement, then adjust placement, materials, icons and distribution.
-Model variants retain their own appearance settings. Material tools include glow,
-translucency and painted transparency; experimental options are labelled.
-
-For an imported model, use **Apply placement** before **Build plan**. Review the
-planned files and warnings in **Output**, then write a DMM mod folder or a portable
-`.cdmw` item package. Use **Add to existing mod** to extend a package deliberately;
-fresh exports check for unintended inherited custom items.
-
-**Available outputs: DMM mod folders and portable `.cdmw` item packages.**
-CDMW game overlays are disabled following the DLC update. Add `.cdmw` packages in
-**Mod Management** to load them in the game through CDMW's runtime (experimental).
-New mod folders can have a custom name and an optional ZIP copy.
-
-**Include mounted items in a new mod** is unavailable while archive overlays are
-disabled. Use **Add to existing mod** to review a selected package's included items
-and assets before extending it.
-
-See the [Create New Item guide](cdmw/ui/new_item/README.md) for detailed controls.
-
-## Mesh Editor
-
-Open a supported archive or local mesh, edit with Undo/Redo, then use
-**Finish Edit Mesh** to validate and accept the result. **Build Mod** writes a DMM
-package, with an optional ZIP. Several meshes open as tabs, and **Ctrl+Shift+P**
-opens the command palette.
-
-The **Textures** button shows each part's textures beside the 3D view;
-double-click one to paint or adjust it in the Texture Editor panel. Each stroke
-shows on the model, one Undo history covers mesh and texture edits, and Build Mod
-writes the edited textures into the same mod. Texture editing is new and not yet
-checked in game.
-
-DMM (Definitive Mod Manager) is the supported mod manager; other managers are not
-being updated for the October 2026 DLC. Check the producing tool's output limitations
-before installing.
-
-Tools include selection, transforms, sculpting, UVs, material controls, cloth and
-jiggle settings, Hair Tools, and Morph & Refit for body and garment adjustments.
-Availability depends on the source format and selected output; disabled controls
-explain their requirements. Hiding a part changes its preview visibility; use the
-mod inclusion controls to exclude it from output.
-
-Open **Selection** directly for selection controls. In **Cloth**, expand
-**Experimental features** for weapon colliders, collision sources and cloth-guide
-creation. Cloth can preview contact with a separately positioned weapon reference;
-experimental collider export still needs in-game testing.
-
-See the [Mesh Editor guide](cdmw/ui/mesh_editor/README.md) for supported edits,
-physics controls, draft recovery and output limits.
-
-## Placement & Animations
-
-Change where a character carries a weapon and which animations go with it. On
-**Carry**, pick a spot and press **Move it** (mirrored for left-handed bodies), then
-fine-tune the attach point; on **Animations**, give the weapon another weapon's draws,
-preview them before anything changes, and move each hand-off to when the hand reaches
-the weapon. **Edit** changes an animation or makes a new one: key bones
-on a timeline, reach and plant hands and feet, retime, mirror, borrow body parts, join
-animations, or animate in Blender and import the result. **Your mod** lists every
-change in plain words and saves them as one DMM mod, straight into DMM's mods folder
-or a folder you choose; enable it in DMM and click Mount.
-
-Preview checks do not certify in-game contact, physics or animation behavior. An
-attach point several slots share is refused at save time, because changing it would
-move all of them.
-
-## Bulk texture replacement
-
-For textures edited in another application, open **Authoring > Textures > Replace**:
-
-1. Use **Open Folder** to load edited PNG/DDS files, including subfolders.
-2. Choose **Game archives** or a **Local DDS folder**, then **Auto-Match** originals.
-   Resolve ambiguous matches explicitly.
-3. Review the files and package settings, then **Build Mod**.
-
-After external edits, use **Reload Folder**, match again and rebuild. For in-app
-editing, **Textures > Edit** provides layers, masks and adjustments; Recolor and
-Upscale share the workspace. **Review & Export** provides the available file and
-package outputs.
-
-## Known limitations
-
-- **Experimental authoring needs in-game testing.** This includes Hair Tools,
-  generated cloth guides and weapon colliders, material/shader experiments, and
-  item stats, perks, recipes and rewards. A successful build or preview does not
-  prove game behavior.
-- **Transparent surfaces can show visual artifacts when they overlap.** Physics
-  and material previews approximate the game; preview tuning is separate from
-  saved mesh and physics-profile edits.
-- **AI connections are experimental.** Settings > AI connections lets AI apps
-  such as Claude Code and Codex CLI use CDMW's tools. An AI app works through the
-  same controls you do, can misread what it sees and does not know what a good
-  mod looks like; it will not make a finished mod for you. Review every change it
-  makes, test the result in game, and keep the approval questions on unless you
-  watch it work.
-- **Format support is operation-specific.** Reading a file does not mean every
-  part of it can be edited. Check **Inspect File Formats** or the
-  [capability manifest](schemas/archive_content_capabilities.v1.json) for details.
-
-## Safety model
-
-CDMW never writes into the game folder. Browsing, previewing and extracting read
-the archives; edits are written as mod folders and packages, and items reach the
-game through DMM. **Browse Archives > Restore Backup...** and **Remove What an
-Older CDMW Installed...** take out what an older CDMW version installed; both list
-what they will change and ask first.
-
-AI connections follow the same rule: no tool writes into the game folder, changes
-the AI connection settings or the game folder, or answers its own approval
-question, and every call is logged in `workspace\logs\ai-calls.log`.
+Change the interface language or import a custom language pack in **Settings > Appearance**
+(Mesh Editor follows the interface language; **Translations** edits game `.paloc` text separately).
+Read the [Crimson Desert research reference](docs/crimson-desert-research.md) for file
+formats, findings, evidence levels, and remaining questions.
 
 ## Privacy and support
 
-Archive and editing workflows use local files. Optional online features, including
-model catalogues and AI translation, connect to external services. Crash reports
-and diagnostic bundles stay local unless you share them.
+Archive and editing workflows run locally; optional online features such as model
+catalogues and AI translation connect to external services, and crash reports or
+diagnostic bundles stay local unless you share them.
 
-**Report a Problem...** sits below **Support Me** in the sidebar and is also
-available under **Help**. Its five steps cover problem, reproduction, setup,
-evidence, then review. Select the tool and affected action;
-the input choices, examples and setup questions follow that selection. Stalls ask
-about wait time and progress; app-only issues can skip game and mod questions.
-Short prompts keep the form compact; **?** buttons provide targeted help. It prepares a
-local draft with redacted paths and common credentials, recent tool logs and
-activity, detailed worker/helper errors, recent crash or hang reports, application
-and helper fingerprints, a bounded folder listing and optional screenshots.
-Collection refreshes when you prepare the draft and identifies missing, unreadable
-or truncated evidence. Log evidence can be excluded. The review screen has a readable
-summary, full report details and fitted screenshots with a full-size option.
-Review it before sharing; screenshots can still contain visible personal
-information. It does not upload game file contents.
-
-After explicit review and consent, **Send report** opens a browser check, then CDMW
-sends the reviewed draft. No GitHub account or private access key is needed. Reports
-go through Cloudflare to private GitHub issues in a separate inbox restricted to
-the maintainer and invited collaborators. CDMW Full's public source repository does
-not make reports public.
-Anyone with a complete evidence link can read that one report without signing in;
-keep those links in the restricted inbox. Cloud evidence expires after 90 days;
-issue summaries and local drafts remain until removed. A failed upload keeps the
-draft for retry; **Open draft…** reopens it after restarting. The receiver checks
-that the inbox is private, rejects duplicate problems and limits new submissions.
-CDMW shows a countdown when it must wait before retrying.
-
+**Help > Report a Problem...** prepares a redacted local draft and submits through a
+browser check to a private inbox (no GitHub account needed, and no game file contents
+uploaded); see [problem reporting and privacy](tools/problem_report_receiver/README.md).
 **Help > Export Diagnostics...** and **Help > Copy Latest Problem Summary** remain
-available for manual reporting. Review diagnostic bundles before sharing them.
-See [Contributing](CONTRIBUTING.md) for bug reports and development, and
-[Security](SECURITY.md) for vulnerability reporting.
+available for manual reporting. See [Contributing](CONTRIBUTING.md) and
+[Security](SECURITY.md).
 
 ## Build from source
 
@@ -256,32 +99,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Nat
 .\.venv\Scripts\python.exe cdmw_app.py
 ```
 
-Prepare the helpers before running from a fresh checkout. DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe` helper.
-
 To build a portable executable:
 
 ```powershell
 .\build.bat onefile release
 ```
 
-Output: `dist\CDMW.exe`.
-Packaging resolves runtime DLLs from Windows and the selected Python environment;
-unrelated tools on the caller's `PATH` cannot supply replacement libraries.
-Run `build.bat help` for other build modes. Follow the [test guide](tests/README.md)
-for focused validation; source tests and packaging checks are separate from
-visible UI and in-game testing.
-
-CI runs focused startup and safety checks on code changes to `main` and pull
-requests. Packaging and the full Python compatibility matrix are manual options;
-release tags do not start another package build. CodeQL runs weekly when `main`
-has new commits, or on request.
-
-Before publishing, run the focused tests for the changed behavior and verify the
-requested release build, including its bundled helpers and startup checks. A
-verified local artifact does not need a duplicate CI build or a fresh CodeQL run
-for every release. Publish it with its matching source revision and checksum.
-Investigate relevant failing checks; add broader validation when the changed
-behavior requires it.
+Output: `dist\CDMW.exe`. Run `build.bat help` for other build modes, and follow the
+[test guide](tests/README.md) for focused validation.
 
 </details>
 

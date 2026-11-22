@@ -81,7 +81,6 @@ PAGE_REFERENCES = {
     "Create-New-Item": ("cdmw/ui/new_item/README.md",),
     "Mesh-Editor": ("cdmw/ui/mesh_editor/README.md", "cdmw/ui/mesh_editor/SHADER_CONTROLS.md"),
     "Textures": ("cdmw/ui/texture_workflow/README.md", "cdmw/ui/replace_assistant/README.md"),
-    "Placement-and-Animations": ("README.md#placement--animations",),
     "Model-Library": ("cdmw/ui/model_library/README.md",),
     "Item-Icons": ("cdmw/ui/item_icons/README.md",),
     "Mod-Management": ("cdmw/ui/new_item/README.md#output-review-and-mod-management",),
