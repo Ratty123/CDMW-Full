@@ -1042,6 +1042,10 @@ class SpeedPrefabsWorkspace(QWidget):
             if listed:
                 self.set_factor_spin.setValue(1.0)
                 self.linked_checkbox.setChecked(False)
+                # Per-move factors belong to the set they were typed on; carried into many sets they would
+                # change every listed set that plays one of those clips, out of sight.
+                self._move_factors = {}
+                self._fill_moves()
             else:
                 self.linked_checkbox.setChecked(any(inside for _path, inside in self._linked))
         finally:
@@ -1159,6 +1163,11 @@ class SpeedPrefabsWorkspace(QWidget):
                 self.named_edit.setText(", ".join(chart.factors.named))
                 self.named_spin.setValue(float(chart.factors.named_factor))
                 self._move_factors = {clip.lower(): float(value) for clip, value in chart.factors.moves.items()}
+            else:
+                # A move factor typed on the set shown before stays only for the moves this set shows too;
+                # the rest would go to every listed set with no row left to show or reset it.
+                shown = {move.clip.lower() for move in chart.moves}
+                self._move_factors = {clip: value for clip, value in self._move_factors.items() if clip in shown}
             self._fill_moves()
             self._refresh_named_label()
             included = [path for path, inside in self._linked if inside]
@@ -1384,6 +1393,8 @@ class SpeedPrefabsWorkspace(QWidget):
         self.mod_label.setVisible(bool(self._mod_title))
         self._fill_start_combo()
         self._mark_mod_sets()
+        # Whether all listed sets can go back to 1x depends on the sets this mod holds.
+        self._sync_buttons()
         if reload and self.set_list.currentItem() is not None:
             self._open_selected_set()
 
@@ -1449,8 +1460,11 @@ class SpeedPrefabsWorkspace(QWidget):
     def _sync_buttons(self) -> None:
         chart_open = self._chart is not None
         if self.scope() == "listed":
-            listed = bool(self.listed_sets())
-            self.export_button.setEnabled(listed and self.has_changes and not self._batch)
+            listed_sets = self.listed_sets()
+            listed = bool(listed_sets)
+            # All at 1x still exports while the open mod holds a listed set: that takes them out of it.
+            in_mod = bool(self._mod_title) and any(path.lower() in self._mod_charts for path in listed_sets)
+            self.export_button.setEnabled(listed and chart_open and (self.has_changes or in_mod) and not self._batch)
             self.export_button.setToolTip("" if self.export_button.isEnabled()
                                           else "The listed sets are being checked." if self._batch
                                           else "No set is listed." if not listed

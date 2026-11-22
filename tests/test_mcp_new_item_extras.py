@@ -88,8 +88,11 @@ def test_send_to_dmm_writes_into_the_mods_folder_and_asks_before_replacing(page,
     (dmm / "mods").mkdir(parents=True)
     (dmm / "DMM.exe").write_bytes(b"")
 
-    # Without a current plan the page's own message comes back.
+    # Without a current plan the page's own message comes back, and DMM's folder is not remembered.
+    from cdmw.services.dmm_send import DMM_FOLDER_SETTING
+
     assert client.call("new_item.send_to_dmm", dmm_folder=str(dmm))["error"]["code"] == "unavailable"
+    assert not tab.output_panel._settings.value(DMM_FOLDER_SETTING)
     assert client.ok("new_item.plan", action="refresh")["current"]
     elsewhere = tmp_path / "not-dmm"
     elsewhere.mkdir()
@@ -97,6 +100,7 @@ def test_send_to_dmm_writes_into_the_mods_folder_and_asks_before_replacing(page,
 
     sent = client.ok("new_item.send_to_dmm", dmm_folder=str(dmm), mod_name="Copper Sword")
     assert sent["started"] and sent["dmm_mods_folder"] == str(dmm / "mods")
+    assert tab.output_panel._settings.value(DMM_FOLDER_SETTING) == str(dmm)
     first = _finished(client)
     assert first["status"] == "written" and Path(first["path"]).parent == dmm / "mods", first
     assert Path(first["path"]).is_dir() and not first.get("replaced")

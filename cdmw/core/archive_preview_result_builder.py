@@ -161,10 +161,15 @@ def _archive_image_preview_path(source_path: Path) -> Tuple[Optional[Path], str]
             return converted, ""
         from PIL import Image
 
+        from cdmw.core.atomic_file import atomic_binary_writer
+
         with Image.open(source_path) as image:
             image.load()
             mode = "RGBA" if image.mode in {"RGBA", "LA", "P", "PA"} or "transparency" in image.info else "RGB"
-            image.convert(mode).save(converted, format="PNG")
+            # Published whole: a PNG cut short by a cancel or a second preview of the same file would be
+            # newer than its TGA, so the check above would serve it as the preview from then on.
+            with atomic_binary_writer(converted, durable=False) as handle:
+                image.convert(mode).save(handle, format="PNG")
         return converted, ""
     except Exception as exc:
         return None, f"This TGA image could not be decoded for preview: {exc}"

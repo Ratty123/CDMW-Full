@@ -141,6 +141,9 @@ def test_a_given_dmm_folder_is_the_one_written_and_remembered(browse, tmp_path) 
     settings.sync()
 
     state = client.ok("tables.editor_edit", action="open", table="inventory")
+    # Nothing to write yet: the refusal leaves the remembered folder as it was.
+    assert client.call("tables.editor_write", name="Given", dmm_folder=str(dmm))["error"]["code"] == "unavailable"
+    assert QSettings(str(tmp_path / "cdmw.ini"), QSettings.Format.IniFormat).value(DMM_FOLDER_SETTING) == str(other)
     money = next(row for row in state["rows"] if row["name"] == "Money")
     values = client.ok("tables.editor_state", row=money["row"])["values"]
     slots = next(value for value in values if value["label"] == "Maximum slots")

@@ -266,6 +266,30 @@ def test_the_editors_own_cancel_then_exit_is_a_close_with_its_reason(tmp_path, m
         _dispose(tab)
 
 
+
+def test_the_cancel_after_a_protocol_failure_keeps_its_reason_on_the_status_bar(tmp_path, monkeypatch) -> None:
+    tab, *_rest = _ready_tab(tmp_path, monkeypatch)
+    statuses: list[tuple[str, bool]] = []
+    monkeypatch.setattr(tab, "_start_next_rust_protocol_worker", lambda: None)
+    monkeypatch.setattr(tab, "_send_rust_message", lambda *_args, **_kwargs: None)
+    try:
+        tab._handle_rust_protocol_event({
+            "event": "cancel", "protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": "draft-a",
+            "request_id": 41, "process_generation": tab.standalone_rust_process_generation,
+            "reason": "protocol failure: Preview Core material resource conservation does not match"})
+        monkeypatch.setattr(tab, "_set_rust_status", lambda message, error=False: statuses.append((message, error)))
+        tab.standalone_rust_active_event = dict(tab.standalone_rust_protocol_queue[-1])
+        tab.standalone_rust_protocol_thread = None
+        tab._handle_rust_protocol_completed(
+            tab.standalone_rust_protocol_request_id, 41, {"event": "response", "request_id": 41, "ok": True}, False)
+        assert statuses and statuses[-1][1] is True, statuses
+        assert "material resource conservation does not match" in statuses[-1][0]
+        assert not tab.standalone_rust_cancel_failure
+    finally:
+        tab.standalone_rust_authoring_session = None
+        _dispose(tab)
+
+
 def test_a_window_close_cancel_shows_no_error(tmp_path, monkeypatch) -> None:
     tab, session, written, launched, failures, _fail = _ready_tab(tmp_path, monkeypatch)
     shown: list[str] = []

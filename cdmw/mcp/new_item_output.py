@@ -133,7 +133,7 @@ def _build(call):
 
 def _send(call):
     """Send to DMM: the mod goes straight into DMM's mods folder, through the page's own button."""
-    from cdmw.mcp.game_table_tools import _mods_folder
+    from cdmw.mcp.game_table_tools import _mods_folder, _remember_dmm_folder
 
     a, context = call.arguments, call.context
     mods = checked_output(context, _mods_folder(call, a.get("dmm_folder")), existing=True)
@@ -145,16 +145,13 @@ def _send(call):
         if not page.controller.has_current_plan or panel.output_mode.currentData() != "folder":
             raise ToolError(UNAVAILABLE, panel.plan_state.plain_text(),
                             {"action": "Refresh the plan in folder mode first."})
-        if a.get("dmm_folder"):
-            # The page reads its own settings for DMM's folder: point them at the folder the tool checked.
-            from cdmw.services.dmm_send import DMM_FOLDER_SETTING
-            from cdmw.ui.widgets import request_settings_sync
-            panel._settings.setValue(DMM_FOLDER_SETTING, str(a["dmm_folder"]))
-            request_settings_sync(panel._settings)
         if "mod_name" in a:
             set_control(panel.mod_name, a["mod_name"])
         if not panel.send_dmm_button.isEnabled():
             raise ToolError(UNAVAILABLE, panel.export_problem.plain_text() or panel.send_dmm_button.toolTip())
+        # The page reads its own settings for DMM's folder: point them at the folder the tool checked, here on
+        # the UI thread and only once the plan and the button are known to be ready.
+        _remember_dmm_folder(a.get("dmm_folder"), panel._settings)
         state, notify = _notify_export(call, panel, mods)
         started = panel._send_to_dmm(notify=notify)
         if not started and state["status"] == "running":

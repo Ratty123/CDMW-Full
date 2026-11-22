@@ -191,6 +191,28 @@ def _load_spec_rust_payload_validator():
     return namespace["_validate_rust_mesh_editor_payload"]
 
 
+
+def test_packaging_validator_requires_every_capability_the_app_requires() -> None:
+    from cdmw.services.mesh_rust_contract import (
+        RUST_MESH_REQUIRED_CAPABILITIES,
+        RUST_PREVIEW_REQUIRED_CAPABILITIES,
+    )
+
+    spec_path = ROOT / "CrimsonDesertModWorkbench.spec"
+    parsed = ast.parse(spec_path.read_text(encoding="utf-8"), filename=str(spec_path))
+    validator = next(node for node in parsed.body
+                     if isinstance(node, ast.FunctionDef) and node.name == "_validate_rust_mesh_editor_payload")
+    required = {
+        node.targets[0].id: set(ast.literal_eval(node.value))
+        for node in ast.walk(validator)
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"required_editor_capabilities", "required_preview_capabilities"}
+    }
+    # A build that passed the spec must not be refused by the app it ships in.
+    assert required["required_editor_capabilities"] == set(RUST_MESH_REQUIRED_CAPABILITIES)
+    assert required["required_preview_capabilities"] == set(RUST_PREVIEW_REQUIRED_CAPABILITIES)
+
+
 def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path: Path) -> None:
     validate = _load_spec_rust_payload_validator()
     executable = tmp_path / "cdmw_mesh_lab.exe"
@@ -263,6 +285,8 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
                         "embedded_child_window_v1",
                         "rust_preview_runtime_v1",
                         "hair_authoring_v2",
+                        "mesh_document_binary_v1",
+                        "empty_authoring_parts_v1",
                     ],
                     "preview_capabilities": [
                         "preview_profile_read_only_v1",

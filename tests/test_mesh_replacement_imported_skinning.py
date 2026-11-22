@@ -477,3 +477,19 @@ def test_rig_and_weights_edit_an_imported_part_and_the_edit_is_written(editor, t
     finally:
         if not host.closed:
             host.cancel()
+
+
+def test_a_rig_export_that_keeps_files_checks_the_name_it_writes(tmp_path):
+    """The edited rig is <stem>_edited_rig.glb: a plain <stem>_rig.glb neither blocks it nor is the one kept."""
+    from cdmw.services.mesh_skinning_preflight import export_rig_glb, export_template_rig_glb
+
+    no_rig = SimpleNamespace(bones=())
+    (tmp_path / "sword_rig.glb").write_bytes(b"mine")
+    with pytest.raises(ValueError, match="No game skeleton"):  # past the name check, on to the rig
+        export_rig_glb(b"", "weapon/sword.pac", no_rig, tmp_path, suffix="_edited_rig", replace=False)
+    (tmp_path / "sword_edited_rig.glb").write_bytes(b"mine too")
+    with pytest.raises(FileExistsError, match="does not replace"):
+        export_rig_glb(b"", "weapon/sword.pac", no_rig, tmp_path, suffix="_edited_rig", replace=False)
+    with pytest.raises(FileExistsError, match="sword_rig.glb"):  # no edit: refused before the rig is read
+        export_template_rig_glb(SimpleNamespace(), "weapon/sword.pac", tmp_path, replace=False)
+    assert (tmp_path / "sword_edited_rig.glb").read_bytes() == b"mine too"

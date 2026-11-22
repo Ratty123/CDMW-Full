@@ -31,6 +31,11 @@ def test_app_settings_shortcuts_and_diagnostics_reach_the_real_window(real):
     from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING
 
     tab = real.window.shell.settings_tab
+    # On by default: setting it on changes no control, and the saved file still holds the answer.
+    shown = real.ok("app_settings_set", {"key": "dmm/show_mounted_mods", "value": True})
+    assert shown["value"] in (True, "true")
+    assert QSettings(tab.settings.fileName(), QSettings.Format.IniFormat).value(
+        "dmm/show_mounted_mods", type=bool) is True
     real.ok("app_settings_set", {"key": "preferences/remember_splitter_sizes", "value": False})
     assert not tab.remember_splitters_checkbox.isChecked()
     store = QSettings(tab.settings.fileName(), QSettings.Format.IniFormat)

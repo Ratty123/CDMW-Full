@@ -621,9 +621,15 @@ class NewItemModelControllerMixin:
             # After every other listener has seen the controller go idle.
             QTimer.singleShot(0, self, self._reweight_for_skeleton_edits)
 
-    def start_rig_export(self, output_dir: Path) -> bool:
-        """Write the template skinned to its rig (with the matching skeleton edit's bones) as GLB."""
+    def start_rig_export(self, output_dir: Path, *, replace: bool | None = None) -> bool:
+        """Write the template skinned to its rig (with the matching skeleton edit's bones) as GLB.
 
+        ``replace`` False refuses a GLB of the written name already in the folder; None takes
+        ``rig_export_replaces``, which a caller pressing the page's button can set for that press.
+        """
+
+        if replace is None:
+            replace = getattr(self, "rig_export_replaces", True)
         snapshot, entry, edits = self.snapshot, self.template_primary_entry(), self.skeleton_edits
         if snapshot is None or entry is None:
             self.status_message.emit("Choose a template first; its mesh and rig are exported.", True)
@@ -633,7 +639,8 @@ class NewItemModelControllerMixin:
         def task(log, progress, stop_event):
             from cdmw.services.mesh_skinning_preflight import export_template_rig_glb
             progress(0, 0, "Exporting the template rig")
-            return export_template_rig_glb(snapshot, entry.path, folder, skeleton_edits=edits, stop_event=stop_event)
+            return export_template_rig_glb(snapshot, entry.path, folder, skeleton_edits=edits, stop_event=stop_event,
+                                           replace=replace)
 
         def done(paths):
             self.status_message.emit(f"Rig exported: {paths[0]}", False)

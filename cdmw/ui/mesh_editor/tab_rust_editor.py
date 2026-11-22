@@ -274,6 +274,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_failure_reported = False
         self.standalone_rust_process_error_reported = False
         self.standalone_rust_helper_cancelled = False
+        self.standalone_rust_cancel_failure = ""
         self.standalone_rust_stop_after_protocol = False
         self.standalone_rust_close_session_pending = False
         self.standalone_rust_terminal_close_pending = False
@@ -1010,6 +1011,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_failure_reported = False
         self.standalone_rust_process_error_reported = False
         self.standalone_rust_helper_cancelled = False
+        self.standalone_rust_cancel_failure = ""
         self.standalone_rust_stop_after_protocol = False
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_finish_timer.stop()

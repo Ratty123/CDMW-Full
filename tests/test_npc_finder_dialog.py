@@ -181,16 +181,32 @@ def test_open_mesh_waits_for_browse_to_select_the_piece(finder) -> None:
     assert clicks == [True] and dialog._closing
 
 
+
+def test_closing_or_reopening_ends_the_wait_to_open_mesh_editor(finder) -> None:
+    dialog, service, _scopes, _created, window = finder
+    _ready(dialog, service)
+    service.answer("outfit", _outfit())
+    window._current_archive_mesh_entry = lambda: None
+    assert dialog.open_mesh() and dialog._mesh_timer.isActive()
+    assert feature.show_npc_finder(window) is dialog
+    assert not dialog._mesh_timer.isActive() and not dialog._pending_mesh_path
+    assert dialog.open_mesh() and dialog._mesh_timer.isActive()
+    dialog.close()
+    assert dialog._closing and not dialog._mesh_timer.isActive() and not dialog._pending_mesh_path
+
+
 def test_worn_by_refills_the_list(finder) -> None:
     dialog, service, *_ = finder
     _ready(dialog, service)
     service.answer("outfit", _outfit())
     dialog._pieces.setCurrentCell(1, 0)
+    dialog._page_start = 100  # the search was on its second page
     assert dialog.find_wearers()
     assert service.last("wearers")[1].piece == CLOAK
     wearers = tuple(NpcWearer(_row(f"npc:{i}", f"Wearer {i}", i), ROSS_APP, "armor", "Cloak", "p", CLOAK) for i in range(3))
     service.answer("wearers", NpcWearersResult("session-a", CLOAK, wearers, 3, False))
     assert dialog._results.rowCount() == 3 and dialog._banner.isVisible()
+    assert dialog._count.text() == "1 to 3 of 3"
     assert "cd_phm_00_cloak_00_0446.pac" in dialog._banner.text()
 
 

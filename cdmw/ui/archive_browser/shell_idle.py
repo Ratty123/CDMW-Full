@@ -25,13 +25,14 @@ def run_task_when_shell_idle(shell, owner, *, status_message: str, on_error: Cal
     Waits for as long as ``owner`` (the page's widget) lives, so a first prefab search of
     several minutes does not make a table read fail. ``on_waiting`` is called once when
     the task has to wait and ``on_start`` just before it starts. Every outcome reaches
-    ``on_complete`` or ``on_error``.
+    ``on_complete`` or ``on_error``, except once the window is closing: then the wait ends
+    and nothing starts or is called, since a new worker thread would outlive the shutdown.
 
     ``status_message`` is named here and handed on below (not in a nested function), so the
     translation catalogue finds the text callers pass, as it does for `_run_utility_task`.
     """
 
-    if not isValid(owner):
+    if not isValid(owner) or getattr(shell, "_shutting_down", False):
         return
     if getattr(shell, "worker_thread", None) is not None:
         if not _told and on_waiting is not None:

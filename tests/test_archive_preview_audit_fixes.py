@@ -66,6 +66,29 @@ def test_run_length_encoded_tga_previews_through_a_png(tmp_path):
     assert _archive_image_preview_path(source) == (preview, "")
 
 
+
+def test_a_tga_preview_png_cut_short_is_never_left_in_the_cache(tmp_path, monkeypatch):
+    pixels = np.zeros((8, 8, 4), np.uint8)
+    pixels[..., 3] = 255
+    source = tmp_path / "rle.tga"
+    Image.fromarray(pixels, "RGBA").save(source, compression="tga_rle")
+    real_save = Image.Image.save
+
+    def interrupted(self, target, *args, **kwargs):
+        target.write(b"\x89PNG")  # a few bytes in, then the write stops
+        raise OSError("cancelled")
+
+    monkeypatch.setattr(Image.Image, "save", interrupted)
+    preview, warning = _archive_image_preview_path(source)
+    assert preview is None and "cancelled" in warning
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["rle.tga"]
+    monkeypatch.setattr(Image.Image, "save", real_save)
+    preview, warning = _archive_image_preview_path(source)
+    assert warning == "" and preview is not None
+    with Image.open(preview) as converted:
+        assert converted.size == (8, 8)
+
+
 def test_unreadable_tga_says_why_instead_of_an_empty_pane(tmp_path):
     source = tmp_path / "broken.tga"
     source.write_bytes(b"\x00\x00\x0a" + b"\x00" * 5)

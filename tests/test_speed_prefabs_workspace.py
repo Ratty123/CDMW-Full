@@ -665,6 +665,44 @@ def test_all_listed_sets_keeps_the_factors_and_exports_what_the_list_shows(qt_ap
     assert not plain.scope_combo.isEnabled() and not plain.set_scope("listed")
 
 
+def test_all_listed_sets_drops_the_open_sets_move_factors(qt_app):
+    dialog, calls = _dialog()
+    dialog.select_set(PATH)
+    dialog.kind_spins["attack"].setValue(2.0)
+    dialog.move_table.cellWidget(2, 4).setValue(0.5)
+    assert dialog.factors().moves == {IDLE: 0.5}
+    assert dialog.set_scope("listed")
+    assert dialog.factors().moves == {} and dialog.factors().kinds == {"attack": 2.0}
+    assert dialog.move_table.cellWidget(2, 4).value() == 1.0
+    dialog.export_button.click()
+    assert calls.batches == [((PATH, SECOND), SpeedFactors(kinds={"attack": 2.0}))]
+    # A move factor typed while all sets are listed stays only while a shown set has that move.
+    dialog.move_table.cellWidget(2, 4).setValue(0.5)
+    assert dialog.factors().moves == {IDLE: 0.5}
+    second = SpeedChart(SECOND, "Dagger", 1.0, (SpeedMove(ATTACK, "cd_phm_sword_attack_00", "attack", 1, 1, 1.5),),
+                        SpeedFactors())
+    dialog._load_set = lambda path: second if path == SECOND else _chart(path)
+    assert dialog.select_set(SECOND) and dialog.move_table.rowCount() == 1
+    assert dialog.factors().moves == {}
+
+
+def test_all_listed_sets_at_one_still_exports_while_the_open_mod_holds_one(qt_app):
+    dialog, calls = _dialog()
+    dialog.select_set(PATH)
+    assert dialog.set_scope("listed")
+    assert not dialog.export_button.isEnabled()  # nothing to change and no mod open
+    dialog.set_mod("Fast Kliff", {SECOND: "attacks x2"}, folder="C:/mods/Fast Kliff")
+    assert dialog.export_button.isEnabled() and dialog.factors().is_identity
+    dialog.export_button.click()
+    assert calls.batches == [((PATH, SECOND), SpeedFactors())]
+    dialog.set_filter_edit.setText("sword")  # the mod holds no listed set now
+    assert not dialog.export_button.isEnabled()
+    dialog.set_filter_edit.setText("")
+    assert dialog.export_button.isEnabled()
+    dialog.set_mod("", {}, reload=False)  # after the export took them out, the mod is closed
+    assert not dialog.export_button.isEnabled()
+
+
 def test_start_from_puts_a_starting_point_into_the_sliders(qt_app):
     dialog, calls = _dialog()
     dialog.select_set(PATH)

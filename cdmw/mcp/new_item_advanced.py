@@ -311,7 +311,7 @@ def advanced_tool():
 
 
 def _export_rig(call):
-    from pathlib import Path, PurePosixPath
+    from pathlib import Path
 
     from cdmw.mcp.new_item_workflow import checked_output, idle
 
@@ -328,15 +328,18 @@ def _export_rig(call):
         entry = controller.template_primary_entry()
         if entry is None:
             raise ToolError(UNAVAILABLE, "Choose a template first; its mesh and rig are exported.")
-        target = folder / (PurePosixPath(str(entry.path).replace("\\", "/")).stem + "_rig.glb")
-        if target.exists():
-            raise ToolError(UNAVAILABLE, f"{target} already exists; choose another folder. CDMW does not replace it.")
         if not panel.export_rig_button.isEnabled():
             raise ToolError(UNAVAILABLE, widget_reason(panel.export_rig_button))
         record = lambda message, error: messages.append((str(message), bool(error)))  # noqa: E731
         controller.status_message.connect(record)
         capture["record"], capture["controller"] = record, controller
-        panel.export_rig_button.click()  # Its folder prompt is answered with folder.
+        # The export refuses a GLB already there under the name it writes (<stem>_rig.glb, or
+        # <stem>_edited_rig.glb when bones were added); only it knows which once the rig is read.
+        controller.rig_export_replaces = False
+        try:
+            panel.export_rig_button.click()  # Its folder prompt is answered with folder.
+        finally:
+            controller.rig_export_replaces = True
         return {}
 
     capture = {}

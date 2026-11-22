@@ -211,26 +211,52 @@ def template_skeleton(snapshot, target_path, skeleton_edit=None, *, skeleton_edi
     return skeleton, skeleton_data, entry.path, skeleton_edit
 
 
-def export_template_rig_glb(snapshot, target_path, output_dir, *, skeleton_edit=None, skeleton_edits=(), stop_event=None):
-    """Write the template mesh skinned to its rig as GLB, added bones included, for weighting elsewhere."""
+def export_template_rig_glb(snapshot, target_path, output_dir, *, skeleton_edit=None, skeleton_edits=(), stop_event=None,
+                            replace=True):
+    """Write the template mesh skinned to its rig as GLB, added bones included, for weighting elsewhere.
+
+    The file is ``<stem>_edited_rig.glb`` when a skeleton edit applies to this rig, else ``<stem>_rig.glb``;
+    with ``replace`` False an existing file of that name is refused rather than written over.
+    """
     from cdmw.domain.cancellation import raise_if_cancelled
 
+    if not replace and skeleton_edit is None and not tuple(skeleton_edits or ()):
+        # Without an edit the name is known now: refuse before reading the rig.
+        refuse_existing_rig_glb(target_path, output_dir, "_rig")
     raise_if_cancelled(stop_event)
     skeleton, _data, _path, skeleton_edit = template_skeleton(snapshot, target_path, skeleton_edit,
                                                                skeleton_edits=skeleton_edits)
     raise_if_cancelled(stop_event)
     return export_rig_glb(snapshot.payload(target_path), target_path, skeleton, output_dir,
-                          suffix="_edited_rig" if skeleton_edit is not None else "_rig")
+                          suffix="_edited_rig" if skeleton_edit is not None else "_rig", replace=replace)
 
 
-def export_rig_glb(pac_data, pac_path, skeleton, output_dir, *, suffix="_rig"):
+def rig_glb_name(pac_path, suffix="_rig"):
+    """The GLB file name `export_rig_glb` writes for ``pac_path``."""
+    from pathlib import PurePosixPath
+
+    return PurePosixPath(str(pac_path).replace("\\", "/")).stem + suffix + ".glb"
+
+
+def refuse_existing_rig_glb(pac_path, output_dir, suffix="_rig"):
+    from pathlib import Path
+
+    target = Path(output_dir) / rig_glb_name(pac_path, suffix)
+    if target.exists():
+        raise FileExistsError(f"{target} already exists; choose another folder. CDMW does not replace it.")
+
+
+def export_rig_glb(pac_data, pac_path, skeleton, output_dir, *, suffix="_rig", replace=True):
     """Write a PAC skinned to its PAB as GLB, every bone included, for weighting a new model.
 
-    The file is named after the PAC with ``suffix``. Returns the written paths.
+    The file is named after the PAC with ``suffix``. Returns the written paths. With ``replace`` False an
+    existing file of that name is refused.
     """
     from pathlib import Path, PurePosixPath
     from cdmw.modding.mesh_glb_interchange import export_glb
 
+    if not replace:
+        refuse_existing_rig_glb(pac_path, output_dir, suffix)
     if not tuple(getattr(skeleton, "bones", ()) or ()):
         raise ValueError("No game skeleton is attached to this model, so there is no rig to export.")
     mesh = parse_pac(pac_data, pac_path)

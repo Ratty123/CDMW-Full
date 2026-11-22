@@ -638,6 +638,10 @@ class NpcFinderDialog(QDialog):
     def _open_mesh(self) -> None:
         self.open_mesh()
 
+    def _cancel_mesh_wait(self) -> None:
+        self._mesh_timer.stop()
+        self._pending_mesh_path = ""
+
     def _open_mesh_when_selected(self) -> None:
         archive = self._window.archive
         current = archive._current_archive_mesh_entry() if hasattr(archive, "_current_archive_mesh_entry") else None
@@ -676,6 +680,8 @@ class NpcFinderDialog(QDialog):
         if not text:
             return False
         self._wearers_of = text.replace("\\", "/").rsplit("/", 1)[-1]
+        # The wearers are one list from its first row; a page of the search before must not offset its count.
+        self._page_start = 0
         self._select_after_search = self._selected_key()
         self._submit("wearers", lambda: self._service.find_npc_wearers(
             NpcWearersRequest(self._session_id, text), ui_generation=self._generation()))
@@ -790,8 +796,8 @@ class NpcFinderDialog(QDialog):
         self._save()
         self._closing = True
         self._search_timer.stop()
-        if not self._pending_mesh_path:
-            self._mesh_timer.stop()
+        # A wait for Browse Archives must not outlive the window: it would press Open in Mesh Editor later.
+        self._cancel_mesh_wait()
         for kind in tuple(self._requests):
             self._cancel(kind)
         for signal, slot in ((self._service.result_ready, self._result), (self._service.request_failed, self._failed),
@@ -832,6 +838,8 @@ def show_npc_finder(window, *, query: str = "") -> NpcFinderDialog | None:
         return None
     existing = npc_finder_dialog(window)
     if existing is not None and not existing._invalid:
+        # Shown again while it waited, hidden, to open a piece in Mesh Editor: the user came back instead.
+        existing._cancel_mesh_wait()
         if query:
             existing._search_edit.setText(query)
         existing.show()
