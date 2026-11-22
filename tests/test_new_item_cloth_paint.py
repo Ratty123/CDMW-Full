@@ -464,6 +464,114 @@ def test_accepted_page_offers_the_way_back_only_for_the_linked_mesh():
         app.processEvents()
 
 
+def test_finish_goes_back_once_although_the_accepted_page_is_shown_twice():
+    """Finish shows the page when its reply is accepted and again when the helper exits."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from cdmw.ui.mesh_editor.rust_host import RustMeshEditorHostFrame
+
+    app = QApplication.instance() or QApplication([])
+    frame = RustMeshEditorHostFrame()
+    try:
+        calls = []
+        frame.set_return_action(lambda: calls.append("back"), lambda: True)
+        frame.show_result("")
+        app.processEvents()
+        frame.detach_child_window()  # the helper exits
+        frame.show_result("")
+        app.processEvents()
+        assert calls == ["back"]
+        frame._return_button.click()
+        assert calls == ["back", "back"], "the button still goes back"
+        # Keep editing, then Finish again: that result goes back by itself too.
+        frame.show_loading("Reopening the accepted mesh revision for editing...")
+        frame.show_editor()
+        frame.show_result("")
+        app.processEvents()
+        assert calls == ["back", "back", "back"]
+    finally:
+        frame.deleteLater()
+        app.processEvents()
+
+
+class _Documents:
+    """A Mesh Editor tab strip: attribute reads answer for the shown document."""
+
+    def __init__(self, *documents):
+        self.documents, self.shown = list(documents), 0
+
+    @property
+    def active(self):
+        return self.documents[self.shown]
+
+    def open_new_document(self):
+        raise AssertionError("not used")
+
+    def index_of(self, document):
+        return self.documents.index(document) if document in self.documents else -1
+
+    def set_active(self, index):
+        self.shown = index
+
+    def __getattr__(self, name):
+        return getattr(self.documents[self.shown], name)
+
+
+def _mesh_document(*, finish_accepted):
+    document = SimpleNamespace(
+        standalone_controller=SimpleNamespace(active_session_id=""),
+        standalone_native_host_frame=SimpleNamespace(set_return_action=lambda *args: None),
+        standalone_rust_authoring_session=object(), standalone_rust_finish_accepted=finish_accepted,
+        standalone_pending_dotnet_topology_request=None, _wait_for_dotnet_export_updates=None)
+
+    def open_mesh_session(mesh, *, session_id, **_kw):
+        document.standalone_controller = SimpleNamespace(active_session_id=session_id)
+        return SimpleNamespace(session_id=session_id)
+
+    document.open_mesh_session = open_mesh_session
+    return document
+
+
+def test_the_imported_model_stays_linked_to_its_own_mesh_editor_document():
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+    ours, other = _mesh_document(finish_accepted=False), _mesh_document(finish_accepted=True)
+    view = _Documents(ours, other)
+    shown = []
+    shell = SimpleNamespace(mesh_editor_tab=SimpleNamespace(ensure_widget=lambda: view),
+                            _activate_tool_widget=lambda widget: shown.append(view.active))
+    source = SimpleNamespace(scene=SimpleNamespace(mesh=object()))
+    prepared = SimpleNamespace(mesh=object(), view=SimpleNamespace(session_id="new-item-model:test"),
+                               service=object(), adopted=False)
+    states, applied = [], []
+    fake = SimpleNamespace(
+        _window=SimpleNamespace(shell=shell), _model_part_editor_source=None, _model_part_editor_controller=None,
+        _model_part_editor_session_id="", _model_part_editor_widget=None, _model_part_editor_documents=None,
+        model_panel=SimpleNamespace(set_part_editor_state=lambda active, message="": states.append(message)),
+        controller=SimpleNamespace(
+            model_import=source, busy=False, model_result=None, _active_variant=None,
+            start_model_editor_session=lambda ready, failed: ready(prepared),
+            start_model_part_edit_apply=lambda *args, **kw: applied.append(args) or True))
+    fake._model_part_editor_is_open = lambda: NewItemStudioTab._model_part_editor_is_open(fake)
+    fake._activate_model_part_editor = lambda: NewItemStudioTab._activate_model_part_editor(fake)
+    fake._return_from_model_part_editor = lambda: None
+    NewItemStudioTab._open_model_part_editor(fake)
+    assert fake._model_part_editor_widget is ours and fake._model_part_editor_documents is view
+    assert prepared.adopted and shown == [ours]
+
+    view.set_active(1)  # another document tab is shown
+    NewItemStudioTab._use_model_part_editor_changes(fake)
+    # Its own document has not finished, whatever the shown one says.
+    assert applied == [] and "Finish and return to Create New Item" in states[-1]
+    # Edit Parts in Mesh Editor again shows the imported model's document.
+    NewItemStudioTab._open_model_part_editor(fake)
+    assert view.active is ours and shown == [ours, ours]
+    ours.standalone_rust_finish_accepted = True
+    view.set_active(1)
+    NewItemStudioTab._use_model_part_editor_changes(fake)
+    assert len(applied) == 1 and applied[0][1] is ours.standalone_controller
+
+
 def test_return_shows_create_new_item_then_uses_the_changes():
     from cdmw.ui.new_item.tab import NewItemStudioTab
     events = []

@@ -183,6 +183,10 @@ class RustMeshEditorHostFrame(QFrame):
         # Shown only while Create New Item owns the open mesh: its edits go back there.
         self._return_callback = None
         self._return_is_current = None
+        #: The accepted page already went back by itself. Finish shows the page twice
+        #: (when the reply is accepted, and again when the helper exits); the second
+        #: showing must not hand the same edit to Create New Item again.
+        self._auto_returned = False
         self._return_button = QPushButton("Return to Create New Item", content)
         self._return_button.setObjectName("MeshEditorRustResultReturnToNewItem")
         self._return_button.setProperty("primaryAction", True)
@@ -452,6 +456,7 @@ class RustMeshEditorHostFrame(QFrame):
     def show_idle(self) -> None:
         """Nothing is open here and nothing is being prepared: the page claims neither."""
 
+        self._auto_returned = False
         self._editor_visible = False
         self._set_child_visible(False)
         self._status_label.setText("")
@@ -460,6 +465,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._pages.setVisible(True)
 
     def show_loading(self, message: str) -> None:
+        self._auto_returned = False
         self._editor_visible = False
         self._set_child_visible(False)
         self._status_label.setText(str(message or "Preparing Mesh Editor..."))
@@ -468,6 +474,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._pages.setVisible(True)
 
     def show_error(self, message: str) -> None:
+        self._auto_returned = False
         self._editor_visible = False
         self._set_child_visible(False)
         self._status_label.setText(str(message or "Mesh Editor failed."))
@@ -476,6 +483,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._pages.setVisible(True)
 
     def show_editor(self) -> None:
+        self._auto_returned = False
         self._editor_visible = True
         self._pages.setVisible(False)
         self._sync_child_geometry(force_frame_refresh=True)
@@ -488,9 +496,11 @@ class RustMeshEditorHostFrame(QFrame):
         self._refresh_return_button()
         self._pages.setCurrentWidget(self._result_page)
         self._pages.setVisible(True)
-        if self._return_is_offered():
-            # Finish and return to Create New Item: go back without another click. The
-            # page stays behind with Keep editing and the return button for a later visit.
+        if self._return_is_offered() and not self._auto_returned:
+            # Finish and return to Create New Item: go back without another click, once
+            # per accepted result. The page stays behind with Keep editing and the
+            # return button for a later visit.
+            self._auto_returned = True
             QTimer.singleShot(0, self._return_requested)
 
     def eventFilter(self, watched: object, event: QEvent) -> bool:

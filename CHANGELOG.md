@@ -132,6 +132,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Create New Item:** a template the game ships without any display name, such as `TestSword` (72 development leftovers), says so when you build the plan. It used to say "the ara table has no entry", which read as a problem with the Arabic text.
 - **Create New Item:** the sealable item list of `KuKu_Pot_TwoHandSpear` and `Kuku_Pot_BackPack` can be edited on a clone. The game ships empty entries (item 0) in it, which the editor refused with "Item definition integer is outside its range".
 - **Create New Item:** stat columns you added no longer carry over to the next template when you change templates.
+- **Create New Item:** **Finish and return to Create New Item** uses the Mesh Editor edit once. It could stop with "Still busy with the previous step" or skip applying the placement again. With several Mesh Editor documents open, the imported model now stays linked to its own document: **Use Mesh Editor changes** reads that document, not the one shown, and **Open in Mesh Editor** switches back to its tab.
 - **AI connections (experimental):** saving a Create New Item draft with **Game table** edits as a draft file works. It failed with "The draft holds an unsupported setting: TableFieldEdit".
 
 ## [0.12.0-alpha.6] - 2026-11-19
