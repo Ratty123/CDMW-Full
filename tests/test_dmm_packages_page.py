@@ -45,12 +45,14 @@ def _files(tmp_path, *names):
 
 
 def test_mod_management_offers_only_the_dmm_list(tmp_path):
+    from cdmw.ui.tools.dmm_mounted_mods_page import DmmMountedModsPage
     from cdmw.ui.tools.mod_management import ModManagementTab
     app = QApplication.instance() or QApplication([])
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
         assert isinstance(tab.virtual_page, DmmPackagesPage)
-        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Mods"]
+        assert isinstance(tab.mounted_page, DmmMountedModsPage)
+        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Item Packages", "Mounted in DMM"]
         assert not hasattr(tab.virtual_page, "apply_button") and not hasattr(tab.virtual_page, "launch_button")
     finally:
         tab.request_shutdown()

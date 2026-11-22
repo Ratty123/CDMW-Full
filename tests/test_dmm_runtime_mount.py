@@ -354,7 +354,7 @@ def test_files_dmm_adds_list(tmp_path, monkeypatch):
 
 
 def test_compact_workspace_opens_dmm_mounted_mods_and_edited_results_from_actions(tmp_path, monkeypatch):
-    """Compact Workspace exposes the toolbar DMM Mods button, Actions > DMM Mounted Mods..., and Edited Results."""
+    """Compact Workspace exposes the toolbar DMM Mods button (jumping to Mod Management) and Actions > Edited Results."""
 
     from types import SimpleNamespace
 
@@ -377,10 +377,12 @@ def test_compact_workspace_opens_dmm_mounted_mods_and_edited_results_from_action
         def _canonicalize_archive_extension_filter_control(self): pass
         def _rebuild_archive_extension_filter_choices(self, *_): pass
 
+    opened_pages = []
     window = Window()
     window.archive = window
     window.shell = SimpleNamespace(_archive_controls_sidebar_bounds=lambda: (290, 360, 520),
-                                   current_theme_key=DEFAULT_UI_THEME)
+                                   current_theme_key=DEFAULT_UI_THEME,
+                                   open_mod_management_page=lambda key: opened_pages.append(key) or True)
     window.textures = SimpleNamespace(_add_combo_choice=lambda combo, label, value: combo.addItem(label, value))
     window.archive_splitter = QSplitter(window)
     window.archive_catalogue_service = SimpleNamespace(character_catalog_available=False)
@@ -390,14 +392,22 @@ def test_compact_workspace_opens_dmm_mounted_mods_and_edited_results_from_action
     build_archive_command_strip(window, root)
 
     actions = root._cdmw_compact_archive_panel_actions
-    assert set(actions) == {"edited_results", "dmm_mounted_mods"}
-    assert actions["dmm_mounted_mods"].text() == "DMM Mounted Mods..."
+    assert set(actions) == {"edited_results"}
     assert root.findChild(QPushButton, "ArchiveDmmModsButton") is window.archive_dmm_mods_button
     assert root._cdmw_compact_archive_actions_button.isEnabled()
 
     window.resize(1200, 800)
     window.show()
-    actions["dmm_mounted_mods"].trigger()
+    # Toolbar DMM Mods jumps straight to Mod Management > Mounted in DMM when shell supports it.
+    window.archive_dmm_mods_button.click()
+    application.processEvents()
+    assert opened_pages == ["mounted"]
+    assert getattr(window, "_dmm_mounted_mods_dialog", None) is None
+
+    # Standalone Archive widget without open_mod_management_page falls back to the compatibility dialog.
+    window.shell = SimpleNamespace(_archive_controls_sidebar_bounds=lambda: (290, 360, 520),
+                                   current_theme_key=DEFAULT_UI_THEME)
+    window.archive_dmm_mods_button.click()
     application.processEvents()
     dialog = getattr(window, "_dmm_mounted_mods_dialog", None)
     assert isinstance(dialog, DmmMountedModsDialog) and dialog.isVisible()

@@ -60,18 +60,34 @@ class ModManagementTab(QWidget):
         layout.addWidget(source_card)
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
         from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
+        from cdmw.ui.tools.dmm_mounted_mods_page import DmmMountedModsPage
         from cdmw.ui.tools.dmm_packages_page import DmmPackagesPage
         root = str(self._get_package_root() or '')
         self.merge_page = ModMergeDialog(self.controller, root, self, embedded=True)
         self.update_page = ModUpdateDialog(self.controller, root, self, installed=True, embedded=True)
         self.mods_page = DmmPackagesPage(self.controller, root, self)
+        self.mounted_page = DmmMountedModsPage(
+            archive=self._repackage_owner,
+            parent=self,
+            get_game_root=self._get_package_root,
+            settings=getattr(window, 'settings', None),
+            defer_initial_load=True,
+        )
         #: The name earlier callers and tests use for the Mods page.
         self.virtual_page = self.mods_page
         self.mods_page.activity.connect(self._append_activity)
+        self.mounted_page.activity.connect(self._append_activity)
         from cdmw.ui.tools.mod_package_retrofit_tasks import ModPackageRetrofitToolWidget
         self.repackage_page = ModPackageRetrofitToolWidget()
-        self._page_by_key = {'mods': self.mods_page, 'virtual': self.mods_page, 'repackage': self.repackage_page,
-                             'merge': self.merge_page, 'updates': self.update_page}
+        self._page_by_key = {
+            'mods': self.mods_page,
+            'virtual': self.mods_page,
+            'mounted': self.mounted_page,
+            'dmm_mounted': self.mounted_page,
+            'repackage': self.repackage_page,
+            'merge': self.merge_page,
+            'updates': self.update_page,
+        }
         # Preserve existing entry-point attributes for callers; navigation is
         # through the inline pages, not launcher buttons and child windows.
         self.merge_button = QPushButton('Merge mods', self)
@@ -81,7 +97,10 @@ class ModManagementTab(QWidget):
         self.update_button.clicked.connect(self._update_mods)
         self.update_button.hide()
         from cdmw.ui.tools.mod_management_advanced import ModManagementPages
-        self.pages = ModManagementPages(self.mods_page, self.repackage_page, self.merge_page, self.update_page, self)
+        self.pages = ModManagementPages(
+            self.mods_page, self.repackage_page, self.merge_page, self.update_page, self,
+            mounted=self.mounted_page,
+        )
         layout.addWidget(self.pages, 1)
         self.pages.currentChanged.connect(self._page_changed)
         self.pages.task_changed.connect(lambda: self._page_changed(0))
@@ -127,6 +146,8 @@ class ModManagementTab(QWidget):
         self._update_operation_bar()
         if self._current_page() is self.mods_page:
             self.mods_page.refresh()
+        elif self._current_page() is self.mounted_page:
+            self.mounted_page.refresh_if_needed()
         if self._current_page() is not self.repackage_page or self.repackage_ui is not None:
             return
         if self._repackage_owner is None:
@@ -202,8 +223,11 @@ class ModManagementTab(QWidget):
         self.merge_page.game_root.setText(root)
         self.update_page.game_root.setText(root)
         self.mods_page.set_game_root(root)
+        self.mounted_page.set_game_root(root)
         if self._current_page() is self.mods_page:
             self.mods_page.refresh()
+        elif self._current_page() is self.mounted_page:
+            self.mounted_page.refresh_if_needed()
 
     def _status_changed(self, message, error=False):
         self.status_message_requested.emit(str(message), bool(error))
@@ -247,6 +271,7 @@ class ModManagementTab(QWidget):
         self._closed = True
         self.repackage_page.request_shutdown()
         self.mods_page.request_shutdown()
+        self.mounted_page.request_shutdown()
         for page in (self.merge_page, self.update_page):
             page._finished(0)
         self.controller.request_shutdown()

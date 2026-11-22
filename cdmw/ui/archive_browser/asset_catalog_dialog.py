@@ -46,6 +46,10 @@ class ArchiveAssetCatalogDialogMixin:
         show_npc_finder(self)
 
     def _show_archive_dmm_mods_dialog(self) -> None:
+        shell = getattr(self, "shell", None)
+        opener = getattr(shell, "open_mod_management_page", None)
+        if callable(opener) and opener("mounted"):
+            return
         from cdmw.ui.archive_browser.dmm_mounted_mods_dialog import show_dmm_mounted_mods_dialog
 
         show_dmm_mounted_mods_dialog(self)

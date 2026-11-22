@@ -96,13 +96,15 @@ def test_mod_management_offers_only_the_mods_page_by_default(app, tmp_path):
     assert not constants.MOD_FOLDER_TOOLS_ENABLED
     tab = ModManagementTab(get_package_root=lambda: str(tmp_path))
     try:
-        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Mods"]
+        assert [tab.pages.tabText(i) for i in range(tab.pages.count())] == ["Item Packages", "Mounted in DMM"]
         assert tab.virtual_page is tab.mods_page
         original = tab._current_page()
         assert original is tab.mods_page
         for key in ("overview", "recovery", "installed", "shared", "independent", "repackage", "merge", "updates"):
             tab.open_page(key)
             assert tab._current_page() is original
+        tab.open_page("mounted")
+        assert tab._current_page() is tab.mounted_page
         for removed in ("overlay_removal_button", "overlay_migration_button", "independent_page", "recovery",
                         "inventory", "overview"):
             assert not hasattr(tab, removed), removed

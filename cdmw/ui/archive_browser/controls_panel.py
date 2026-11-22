@@ -87,7 +87,7 @@ class ArchiveControlsPanelMixin:
         self.archive_dmm_mods_button = QPushButton("DMM Mods")
         self.archive_dmm_mods_button.setObjectName("ArchiveDmmModsButton")
         self.archive_dmm_mods_button.setToolTip(
-            "Inspect files DMM mounts at run time, toggle DMM vs. vanilla previews, or open modded meshes and textures."
+            "Open Mod Management > Mounted in DMM to inspect files DMM mounts, check overlaps, toggle DMM vs. vanilla previews, or open modded meshes and textures."
         )
         self.archive_dmm_mods_button.clicked.connect(self._show_archive_dmm_mods_dialog)
         self.archive_clear_asset_scope_button = QPushButton("Clear Scope")

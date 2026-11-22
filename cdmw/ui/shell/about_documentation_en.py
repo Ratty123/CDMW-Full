@@ -477,7 +477,7 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Actions &gt; Edited Results...</b> lists meshes added from the Mesh Editor during the current app session so you can open one for another pass.</p>
                 <h3>Mods mounted in DMM (experimental)</h3>
                 <p>When DMM 5 mounts mods through <code>bin64\\dmm\\manifest.tsv</code>, Browse Archives, previews, Mesh Editor, Texture Editor, and Extract open DMM's mounted files in place of the game's own while keeping game tables vanilla. Previews show a DMM mod badge and Details notes the active mod; CDMW never changes DMM's files.</p>
-                <p>Click <b>DMM Mods</b> on the Browse Archives toolbar or choose <b>Actions &gt; DMM Mounted Mods...</b> to see every mounted file (both replaced game files and mod-added files), filter by mod or type, toggle DMM vs. vanilla with instant preview refresh, filter Browse Archives, or open mounted meshes and DDS textures directly.</p>
+                <p>Click <b>DMM Mods</b> on the Browse Archives toolbar to jump to <b>Mod Management &gt; Mounted in DMM</b>, inspect every mounted file and any overlaps across enabled mods, toggle DMM vs. vanilla with instant preview refresh, filter Browse Archives, or open mounted or overridden meshes and DDS textures directly.</p>
                 <h3>Skinned decal sequences</h3>
                 <p>Right-click a PASEQ in Archive Browser and choose Edit Skinned Decal... to change existing texture paths and decal settings, then save a loose copy. Only stored settings are shown; missing settings keep their game defaults. Texture paths may change length. Unchanged saves preserve the original bytes; edited saves are reopened and checked for unrelated changes. This experimental editor supports metadata 3 and serialization 13/14 sequences with skinned decals. It does not add events or settings, install the effect, or verify in-game blending, attachment or removal.</p>
                 <h3>GLB / FBX / OBJ export</h3>
@@ -1047,12 +1047,14 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "mod_management",
                 "title": "Mod Management",
-                "summary": "Keep a list of .cdmw item packages and send them to DMM as one mod.",
-                "keywords": "utilities mods cdmw cditem item package send dmm identities",
+                "summary": "Send .cdmw item packages to DMM and inspect mounted DMM mods and file overlaps.",
+                "keywords": "utilities mods cdmw cditem item package send dmm identities mounted overlaps conflicts",
                 "html": """
-                <p>DMM (Definitive Mod Manager) loads CDMW's items into the game. Mod Management keeps a list of .cdmw item packages and sends them to DMM as one mod.</p>
+                <p>Mod Management has two tabs: <b>Item Packages</b> sends CDMW item packages to DMM, and <b>Mounted in DMM</b> inspects what DMM currently mounts for the game.</p>
+                <h3>Item Packages</h3>
+                <p>DMM (Definitive Mod Manager) loads CDMW's items into the game. Item Packages keeps a list of .cdmw item packages and sends them to DMM as one mod.</p>
                 <ol>
-                  <li>On Mods, choose Add item packages and select the .cdmw files.</li>
+                  <li>On Item Packages, choose Add item packages and select the .cdmw files.</li>
                   <li>Select the packages to send, or select none to send them all, and choose Send to DMM. The first time, choose DMM's folder, the one that contains DMM.exe, if CDMW does not find it.</li>
                   <li>In DMM, enable the mod named CDMW items, click Mount and start the game from DMM.</li>
                 </ol>
@@ -1060,6 +1062,14 @@ class AboutDocumentationEnglishMixin:
                 <p>Sending again replaces CDMW items. Keep all your CDMW items in that one mod: a DMM mod carries complete item and shop tables, so two such mods replace each other's items. Each item keeps its ID from one send to the next, so saves find their items again. CDMW records the IDs in its own folder, separately for each game folder, and writes nothing into the game folder.</p>
                 <p><b>Send to DMM</b> carries over item IDs from the old <code>.cdmw</code> folder in the game directory the next time you send and leaves the old record intact.</p>
                 <p>After a game update, send the items again. A package that refuses with an incompatible game dependency needs updating in Create New Item first. A DMM mod that replaces the item or shop tables may hide CDMW's items.</p>
+                <h3>Mounted in DMM (experimental)</h3>
+                <p><b>Mounted in DMM</b> reads DMM's mount list and checks enabled mods in DMM read-only to show which mods replace or add each file and where multiple enabled mods touch the same path.</p>
+                <ul>
+                  <li>Pick a mod on the left to see both its active files and any files overridden by a higher-priority mod, or stay on All mounted mods for one active row per path.</li>
+                  <li>Overlaps use amber status text and a bottom detail bar showing the active winner and overridden mods; files merged by DMM stay marked as merged.</li>
+                  <li>Notice banners warn when DMM's mount is outdated or out of sync with enabled mods.</li>
+                  <li>Open mounted or overridden meshes and DDS textures safely in the editors, filter Browse Archives, open a mod's folder, or choose Copy Overlap Report.</li>
+                </ul>
                 """,
             },
             {
