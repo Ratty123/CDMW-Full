@@ -420,7 +420,7 @@ public sealed class ArchiveLookupService(
             CancellationToken.None).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await WriteAsync(path, session.Index.EntryCount, built, cancellationToken).ConfigureAwait(false);
-        await cache.UpdateSecondaryStateAsync(session.GenerationPath, lookupsReady: true, namesReady: null, cancellationToken).ConfigureAwait(false);
+        cache.RequestMaintenance();
         return built;
     }
 
