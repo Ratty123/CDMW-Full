@@ -1725,11 +1725,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
         "{count} topics",
         "Compatible  ·  {value_0} target",
         "Compatible  ·  {value_0} targets",
-        (
-            ", choose the language, shared theme, and Compact or Classic layout "
-            "you want. Compact is the first-run default; a saved choice remains "
-            "authoritative."
-        ),
+        ", choose the language and shared theme you want.",
         "Settings > Paths > Archive Locations",
         "Choose output folders outside the game folder. Enable and mount finished mods in DMM.",
         (

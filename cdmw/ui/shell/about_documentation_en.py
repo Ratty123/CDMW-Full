@@ -152,7 +152,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, <a href="topic:speed_prefabs">Speed &amp; Prefabs</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
                   <tr><td>Utilities</td><td><a href="topic:mod_management">Mod Management</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
-                <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
+                <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. The app opens in Compact Workspace.</p>
                 <p><b>Help &gt; Documentation</b> opens the GitHub Wiki manual in your interface language. If CDMW cannot open a browser, it opens the built-in manual.</p>
                 <p><b>Command Palette</b> opens with Ctrl+Shift+P from the app or the Mesh Editor viewport. Search commands for the current tool or the app. Recent commands appear first, with their shortcuts. Unavailable commands explain why. In Mesh Editor, commands act on the visible tab.</p>
                 <p>Documentation follows the source build it describes. Published releases and development builds can differ; check the release notes when controls or output options differ from your installed version.</p>
@@ -172,7 +172,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "first run checklist setup appearance language layout archive paths browser tools safety profile texture policy",
                 "html": """
                 <ol>
-                  <li>In <b>Settings &gt; Appearance</b>, choose the language, shared theme, and Compact or Classic layout you want. Compact is the first-run default; a saved choice remains authoritative.</li>
+                  <li>In <b>Settings &gt; Appearance</b>, choose the language and shared theme you want.</li>
                   <li>In <b>Settings &gt; Setup</b>, run <b>Init Workspace</b> if you want the app to create its usual working folders, then review the status of bundled and optional helpers.</li>
                   <li>In <b>Settings &gt; Paths &gt; Archive Locations</b>, set <b>Game / Package</b> to the Crimson Desert folder or package root before the first Archive Browser scan.</li>
                   <li>Start in <b>Archive Browser</b> for read-only discovery: scan, filter, preview, inspect Asset Family links, and extract a small sample before opening an authoring tool.</li>
@@ -1167,9 +1167,9 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "window_layout",
                 "title": 'Window & Layout',
-                "summary": 'Compact or Classic navigation around the same tools.',
+                "summary": 'Compact Workspace navigation around the tools.',
                 "keywords": "window layout detach attach tab geometry splitter restore detached tool",
-                "html": '<p>Choose Compact or Classic in Settings &gt; Appearance &gt; Layout, then restart.</p><p>Compact is the default; your saved layout choice is preserved.</p><p>In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser.</p>',
+                "html": '<p>CDMW uses Compact Workspace. Classic Workspace is retired; a saved Classic choice opens Compact Workspace.</p><p>In Compact, choose Discord above Help in the sidebar to open the community invite in your default browser.</p>',
             },
             {
                 "id": "safety",
