@@ -1730,6 +1730,8 @@ class SpeedPrefabsWorkspace(QWidget):
             "set": chart.path if chart is not None else "",
             "set_label": chart.label if chart is not None else "",
             "factors": self.factors().to_data() if chart is not None else None,
+            "show_unused_kinds": self.show_unused_kinds_checkbox.isChecked(),
+            "kinds_shown": [kind for kind, row in self.kind_rows.items() if not row.isHidden()],
             "linked": list(self.linked_paths()),
             "scope": self.scope(),
             "scope_sets": list(self.listed_sets()) if self.scope() == "listed" else [],
