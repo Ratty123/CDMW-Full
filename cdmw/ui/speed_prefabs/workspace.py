@@ -8,7 +8,7 @@ every listed prefab into one item package. Game tables holds Edit Game Table Val
 the two speed tables.
 
 The tab does no archive work itself: the Archive Browser passes the calls in, so it can
-be tested with fakes. Writing speeds into the running game stays in Crimson Live Edit.
+be tested with fakes.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -35,12 +36,14 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSlider,
     QSplitter,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -60,14 +63,13 @@ from cdmw.services.animation_speed_service import (
     speed_preset,
 )
 from cdmw.services.prefab_speed_service import MAX_SCALE, MIN_SCALE
+from cdmw.ui.table_coherence import fit_resizable_columns
 
 TOOL_TITLE = "Speed & Prefabs"
 _PATH_ROLE = Qt.ItemDataRole.UserRole + 1
-#: The app draws group boxes without a frame, as a heading over their contents. These
-#: margins put the contents straight under the heading's text, and `_EDGE` puts the
-#: rows outside a group (the set's title, the bottom buttons) on the same line.
-_EDGE = 6
-_BOX_MARGINS = (_EDGE, 6, _EDGE, 4)
+_SCALABLE_ROLE = Qt.ItemDataRole.UserRole + 2
+_EDGE = 4
+_BOX_MARGINS = (_EDGE, 4, _EDGE, 4)
 _MOVE_COLUMNS = ("Move", "Kind", "Seconds", "Windows", "Factor")
 
 
@@ -252,23 +254,23 @@ class SpeedPrefabsWorkspace(QWidget):
         self._review_timer.timeout.connect(self.refresh_review)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
-        header = QHBoxLayout()
-        header.setSpacing(10)
-        badge = QLabel("Experimental")
-        badge.setObjectName("WarningBadge")
-        badge.setToolTip("Chart speed edits were seen working in game through Crimson Live Edit. Prefab and game "
-                         "table speed edits have not been tested in game. Check the result in game before sharing.")
-        header.addWidget(badge)
-        header.addWidget(_hint(
-            "A factor multiplies the game's speed: 2x plays twice as fast. Exports a DMM mod; game files are only read.",
-            "To try speeds in the running game without a mod, use Crimson Live Edit."), 1)
-        layout.addLayout(header)
+
         self.tabs = QTabWidget()
         self.tabs.setObjectName("speedPrefabsTabs")
         self.tabs.setDocumentMode(True)
+        corner = QWidget()
+        corner_row = QHBoxLayout(corner)
+        corner_row.setContentsMargins(0, 0, 0, 4)
+        corner_row.setSpacing(6)
+        badge = QLabel("Experimental")
+        badge.setObjectName("WarningBadge")
+        badge.setToolTip("Writes a DMM mod or item package without modifying game archives.")
+        corner_row.addWidget(badge)
+        self.tabs.setCornerWidget(corner, Qt.Corner.TopRightCorner)
         layout.addWidget(self.tabs, 1)
+
         # Only the animation page waits for the chart index: prefabs wait for it to search,
         # and the game tables need nothing from it.
         self.stack = QStackedWidget()
@@ -340,7 +342,6 @@ class SpeedPrefabsWorkspace(QWidget):
 
     @property
     def load_failed(self) -> bool:
-        # Kept as a flag: the loading page is hidden while another page of the tab shows.
         return self._load_failed
 
     @property
@@ -385,9 +386,37 @@ class SpeedPrefabsWorkspace(QWidget):
         if pending and self.select_set(pending):
             return
         if self.set_list.currentItem() is None:
-            first = next((row for row in range(self.set_list.count()) if not self.set_list.item(row).isHidden()), -1)
-            if first >= 0:
-                self.set_list.setCurrentRow(first)
+            visible = [row for row in range(self.set_list.count()) if not self.set_list.item(row).isHidden()]
+            weapon_tokens = (
+                "twohandsword", "two-handed sword", "longsword", "dualsword", "dual swords",
+                "battleaxe", "battle axe", "dagger", "bow", "spear", "fist", "sword",
+            )
+            utility_prefixes = ("actionpoint", "ai ", "ai_", "common ", "common_", "debug")
+
+            def _label_path(r: int) -> tuple[str, str]:
+                item = self.set_list.item(r)
+                return item.text().strip().lower(), str(item.data(_PATH_ROLE) or "").lower()
+
+            preferred = next(
+                (
+                    row
+                    for row in visible
+                    if any(tok in lbl or tok in pth for lbl, pth in (_label_path(row),) for tok in weapon_tokens)
+                ),
+                next(
+                    (
+                        row
+                        for row in visible
+                        if not any(lbl.startswith(pfx) for lbl, _pth in (_label_path(row),) for pfx in utility_prefixes)
+                        and not any(
+                            part in pth for _lbl, pth in (_label_path(row),) for part in ("/actionpoint", "/ai_", "/common")
+                        )
+                    ),
+                    visible[0] if visible else -1,
+                ),
+            )
+            if preferred >= 0:
+                self.set_list.setCurrentRow(preferred)
 
     def open_set(self, path: str) -> bool:
         """Show the animation page on ``path``; while loading, select it once the sets are read.
@@ -419,6 +448,7 @@ class SpeedPrefabsWorkspace(QWidget):
         self.served_label.setVisible(False)
         self.move_table.setRowCount(0)
         self.review_text.setPlainText("")
+        self.impact_summary_label.setText("No speed values changed")
         self.linked_label.setText("")
         self.prefab_table.setRowCount(0)
         self._prefab_scalable = ()
@@ -433,19 +463,60 @@ class SpeedPrefabsWorkspace(QWidget):
     def _build_animation_page(self) -> QWidget:
         page = QWidget()
         page.setObjectName("speedAnimationPage")
-        row = QHBoxLayout(page)
-        row.setContentsMargins(8, 8, 8, 8)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 8, 0, 0)
+        outer.setSpacing(8)
+
+        # Top command bar: Presets, Scope, Action Chart Editor, Reset
+        cmd_bar = QFrame()
+        cmd_bar.setObjectName("speedCommandBar")
+        cmd_bar.setProperty("commandBar", True)
+        cmd_layout = QHBoxLayout(cmd_bar)
+        cmd_layout.setContentsMargins(10, 6, 10, 6)
+        cmd_layout.setSpacing(8)
+        self.start_combo = QComboBox()
+        self.start_combo.setObjectName("speedStartCombo")
+        self.start_combo.setToolTip("Starting points put factors into the sliders and leave the others as they are. "
+                                    "A speed mod you made shows that mod's factors, so you can change them and export again.")
+        self.start_combo.activated.connect(self._start_chosen)
+        self._fill_start_combo()
+        self.scope_label = QLabel("Apply to:")
+        self.scope_combo = QComboBox()
+        self.scope_combo.setObjectName("speedScopeCombo")
+        self.scope_combo.setToolTip("All listed sets: every set shown in the list on the left gets these factors "
+                                    "in one mod. Narrow the list with Search sets first.")
+        self.scope_combo.addItem("This set", "set")
+        self.scope_combo.addItem("All listed sets", "listed")
+        self.scope_combo.setEnabled(self._export_sets is not None)
+        self.scope_combo.currentIndexChanged.connect(lambda _index: self._scope_changed())
+        self.open_chart_button = QPushButton("Open in Action Chart Editor")
+        self.open_chart_button.setObjectName("speedOpenChartButton")
+        self.open_chart_button.setToolTip("Edit this set's clips, timing and events by hand.")
+        self.open_chart_button.clicked.connect(self._open_in_editor)
+        self.reset_button = QPushButton("Reset to 1x")
+        self.reset_button.setObjectName("speedResetButton")
+        self.reset_button.clicked.connect(self.reset_factors)
+
+        cmd_layout.addWidget(self.start_combo)
+        cmd_layout.addSpacing(4)
+        cmd_layout.addWidget(self.scope_label)
+        cmd_layout.addWidget(self.scope_combo)
+        cmd_layout.addStretch(1)
+        cmd_layout.addWidget(self.open_chart_button)
+        cmd_layout.addWidget(self.reset_button)
+        outer.addWidget(cmd_bar)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(8)
-        splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
-        row.addWidget(splitter)
+        outer.addWidget(splitter, 1)
 
-        left = QGroupBox("Set")
+        left = QFrame()
+        left.setObjectName("speedSetCard")
+        left.setProperty("surfaceCard", True)
         left.setToolTip("A set is one action chart: the moves of one weapon or stance.")
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(*_BOX_MARGINS)
-        left_layout.setSpacing(8)
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setSpacing(6)
         self.character_combo = QComboBox()
         self.character_combo.setObjectName("speedCharacterCombo")
         self.character_combo.setToolTip("Character")
@@ -459,8 +530,8 @@ class SpeedPrefabsWorkspace(QWidget):
         left_layout.addWidget(self.set_filter_edit)
         self.set_list = QListWidget()
         self.set_list.setObjectName("speedSetList")
-        self.set_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.set_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.set_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.set_list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.set_list.currentItemChanged.connect(lambda _current, _previous: self._open_selected_set())
         left_layout.addWidget(self.set_list, 1)
         self.mod_label = _hint("")
@@ -472,11 +543,12 @@ class SpeedPrefabsWorkspace(QWidget):
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(6, 0, 0, 0)
         right_layout.setSpacing(8)
+
         heading_box = QWidget()
         heading = QVBoxLayout(heading_box)
-        heading.setContentsMargins(_EDGE, 0, _EDGE, 0)
+        heading.setContentsMargins(2, 0, 2, 0)
         heading.setSpacing(2)
         self.set_title_label = QLabel("Choose a set.")
         self.set_title_label.setObjectName("speedSetTitleLabel")
@@ -488,86 +560,155 @@ class SpeedPrefabsWorkspace(QWidget):
         self.set_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         heading.addWidget(self.set_path_label)
         right_layout.addWidget(heading_box)
+
         self.served_label = QLabel()
         self.served_label.setObjectName("speedServedByLabel")
         self.served_label.setStyleSheet("color: #d9822b;")
         self.served_label.setWordWrap(True)
-        self.served_label.setContentsMargins(_EDGE, 0, _EDGE, 0)
+        self.served_label.setContentsMargins(2, 0, 2, 0)
         self.served_label.setVisible(False)
         right_layout.addWidget(self.served_label)
 
-        factors = QGroupBox("Speed factors")
+        factors = QFrame()
+        factors.setObjectName("speedFactorsCard")
+        factors.setProperty("surfaceCard", True)
+        factors.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         factors.setToolTip("A kind's factor applies to every move of that kind; a move's own factor wins over it.")
-        grid = QGridLayout(factors)
-        grid.setContentsMargins(*_BOX_MARGINS)
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(8)
-        # Two columns of label, slider and value; the gap column keeps them apart.
+        self._factors_card = factors
+        factors_layout = QVBoxLayout(factors)
+        factors_layout.setContentsMargins(8, 8, 8, 8)
+        factors_layout.setSpacing(8)
+
+        # Highlighted Whole set multiplier row
+        whole_row_frame = QFrame()
+        whole_row_frame.setObjectName("speedWholeSetRow")
+        whole_row_frame.setProperty("highlightRow", True)
+        whole_row_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        whole_row = QHBoxLayout(whole_row_frame)
+        whole_row.setContentsMargins(8, 6, 8, 6)
+        whole_row.setSpacing(10)
         whole = QLabel("Whole set:")
         whole.setToolTip("ActionSpeedRate: scales every move in this set.")
         whole.setStyleSheet("font-weight: 600;")
-        grid.addWidget(whole, 0, 0)
+        whole_row.addWidget(whole)
         self.set_factor_spin = _spin("speedSetFactorSpin")
         self.set_factor_spin.setToolTip("ActionSpeedRate: scales every move in this set.")
         self.set_factor_spin.valueChanged.connect(lambda _value: self._changed())
         self.set_factor_slider = _factor_slider(self.set_factor_spin)
-        grid.addWidget(self.set_factor_slider, 0, 1)
-        grid.addWidget(self.set_factor_spin, 0, 2)
+        whole_row.addWidget(self.set_factor_slider, 1)
+        whole_row.addWidget(self.set_factor_spin)
         self.whole_note_label = _hint("Applies on top of every kind and move below.")
-        grid.addWidget(self.whole_note_label, 0, 4, 1, 3)
+        self.whole_note_label.setWordWrap(False)
+        whole_row.addWidget(self.whole_note_label, 1)
+        factors_layout.addWidget(whole_row_frame)
+
+        # Category subheader + Show unused toggle
+        kind_bar = QHBoxLayout()
+        kind_bar.setContentsMargins(2, 0, 2, 0)
+        kind_header = _hint("Move categories")
+        kind_header.setWordWrap(False)
+        kind_bar.addWidget(kind_header)
+        kind_bar.addStretch(1)
+        self.show_unused_kinds_checkbox = QCheckBox("Show unused")
+        self.show_unused_kinds_checkbox.setObjectName("speedShowUnusedKindsCheck")
+        self.show_unused_kinds_checkbox.setChecked(False)
+        self.show_unused_kinds_checkbox.toggled.connect(lambda _checked: self._apply_scope())
+        kind_bar.addWidget(self.show_unused_kinds_checkbox)
+        factors_layout.addLayout(kind_bar)
+
+        # Two-column grid of per-kind widgets inside its own container so dynamic
+        # row count changes (1..8 visible categories) recalculate height cleanly.
+        self._kinds_container = QWidget(factors)
+        self._kinds_container.setObjectName("speedKindsContainer")
+        self._kinds_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        kinds_grid = QGridLayout(self._kinds_container)
+        kinds_grid.setContentsMargins(0, 0, 0, 0)
+        kinds_grid.setHorizontalSpacing(14)
+        kinds_grid.setVerticalSpacing(8)
+        self._kinds_grid = kinds_grid
         self.kind_spins: dict[str, QDoubleSpinBox] = {}
         self.kind_labels: dict[str, QLabel] = {}
         self.kind_sliders: dict[str, QSlider] = {}
+        self.kind_net_labels: dict[str, QLabel] = {}
+        self.kind_rows: dict[str, QWidget] = {}
         for number, (kind, label) in enumerate(KIND_LABELS.items()):
-            text = QLabel(label + ":")
+            row_widget = QWidget(self._kinds_container)
+            row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+            text = QLabel(label + ":", row_widget)
+            text.setMinimumWidth(148)
             spin = _spin(f"speedKindFactor_{kind}")
             spin.valueChanged.connect(lambda _value: self._kind_changed())
-            line, column = 1 + number // 2, (number % 2) * 4
-            grid.addWidget(text, line, column)
             slider = _factor_slider(spin)
-            grid.addWidget(slider, line, column + 1)
-            grid.addWidget(spin, line, column + 2)
+            net_label = _hint("1x")
+            net_label.setObjectName(f"speedKindNet_{kind}")
+            net_label.setWordWrap(False)
+            net_label.setFixedWidth(74)
+            net_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row_layout.addWidget(text)
+            row_layout.addWidget(slider, 1)
+            row_layout.addWidget(spin)
+            row_layout.addWidget(net_label)
             self.kind_spins[kind] = spin
             self.kind_sliders[kind] = slider
             self.kind_labels[kind] = text
-        # The user's own kind: moves picked by parts of their names, in this set and in every listed set.
-        line = 1 + (len(KIND_LABELS) + 1) // 2
+            self.kind_net_labels[kind] = net_label
+            self.kind_rows[kind] = row_widget
+            kinds_grid.addWidget(row_widget, number // 2, number % 2)
+        kinds_grid.setColumnStretch(0, 1)
+        kinds_grid.setColumnStretch(1, 1)
+        factors_layout.addWidget(self._kinds_container)
+
+        # Moves named row in its own fixed-height container so it never collides
+        # with the last row of move categories above it.
+        named_row_widget = QWidget(factors)
+        named_row_widget.setObjectName("speedNamedRow")
+        named_row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        named_row = QHBoxLayout(named_row_widget)
+        named_row.setContentsMargins(0, 4, 0, 0)
+        named_row.setSpacing(8)
         named_tip = ("Type parts of move names, separated by commas. Every move whose name contains one of them "
                      "gets this factor. A move's own factor wins, then this, then its kind. Moves without speed "
                      "windows do not change.")
-        self.named_label = QLabel(NAMED_LABEL + ":")
+        self.named_label = QLabel(NAMED_LABEL + ":", named_row_widget)
         self.named_label.setObjectName("speedNamedLabel")
         self.named_label.setToolTip(named_tip)
-        grid.addWidget(self.named_label, line, 0)
-        self.named_edit = QLineEdit()
+        self.named_label.setMinimumWidth(148)
+        named_row.addWidget(self.named_label)
+        self.named_edit = QLineEdit(named_row_widget)
         self.named_edit.setObjectName("speedNamedEdit")
         self.named_edit.setPlaceholderText("part of a move name, such as finish, takedown")
         self.named_edit.setClearButtonEnabled(True)
         self.named_edit.setToolTip(named_tip)
         self.named_edit.textChanged.connect(lambda _text: self._kind_changed())
-        grid.addWidget(self.named_edit, line, 1, 1, 2)
-        # The factor gets a label of its own in the right column, so it does not read as a slider
-        # without a name; it stays greyed until a name is typed, since only then does it change anything.
-        self.named_factor_label = QLabel("Factor for these moves:")
+        named_row.addWidget(self.named_edit, 2)
+        # The factor gets a label of its own, so it does not read as a slider without a name;
+        # it stays greyed until a name is typed, since only then does it change anything.
+        self.named_factor_label = QLabel("Factor for these moves:", named_row_widget)
         self.named_factor_label.setObjectName("speedNamedFactorLabel")
         self.named_factor_label.setToolTip(named_tip)
-        grid.addWidget(self.named_factor_label, line, 4)
+        named_row.addWidget(self.named_factor_label)
         self.named_spin = _spin("speedNamedFactorSpin")
         self.named_spin.setToolTip(named_tip)
         self.named_spin.valueChanged.connect(lambda _value: self._kind_changed())
         self.named_slider = _factor_slider(self.named_spin)
         self.named_slider.setToolTip(named_tip)
-        grid.addWidget(self.named_slider, line, 5)
-        grid.addWidget(self.named_spin, line, 6)
+        named_row.addWidget(self.named_slider, 1)
+        named_row.addWidget(self.named_spin)
+        named_spacer = QWidget(named_row_widget)
+        named_spacer.setFixedWidth(74)
+        named_row.addWidget(named_spacer)
         self._enable_named_factor(False)
-        grid.setColumnMinimumWidth(3, 24)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(5, 1)
+        factors_layout.addWidget(named_row_widget)
         right_layout.addWidget(factors)
 
-        moves = QGroupBox("Moves")
+        moves = QFrame()
+        moves.setObjectName("speedMovesCard")
+        moves.setProperty("surfaceCard", True)
         moves_layout = QVBoxLayout(moves)
-        moves_layout.setContentsMargins(*_BOX_MARGINS)
+        moves_layout.setContentsMargins(8, 8, 8, 8)
         moves_layout.setSpacing(6)
         self.move_filter_edit = QLineEdit()
         self.move_filter_edit.setObjectName("speedMoveFilterEdit")
@@ -579,80 +720,69 @@ class SpeedPrefabsWorkspace(QWidget):
         self.move_table.setObjectName("speedMoveTable")
         self.move_table.setHorizontalHeaderLabels(list(_MOVE_COLUMNS))
         header = self.move_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, len(_MOVE_COLUMNS) - 1):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-        # The factor box keeps one fixed width, so its arrows stay usable however long the names are.
-        header.setSectionResizeMode(len(_MOVE_COLUMNS) - 1, QHeaderView.ResizeMode.Fixed)
+        for column in range(len(_MOVE_COLUMNS)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        # Keep factor box starting width usable while staying user-resizable.
         header.resizeSection(len(_MOVE_COLUMNS) - 1, 96)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.move_table.verticalHeader().setVisible(False)
         self.move_table.verticalHeader().setDefaultSectionSize(32)
         self.move_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.move_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.move_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.move_table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.move_table.setWordWrap(False)
         moves_layout.addWidget(self.move_table, 1)
-        linked_row = QHBoxLayout()
-        linked_row.setSpacing(10)
+        right_layout.addWidget(moves, 1)
+
+        # Docked Bottom Impact & Export Bar
+        footer = QFrame()
+        footer.setObjectName("speedExportFooter")
+        footer.setProperty("footerBar", True)
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(10, 8, 10, 8)
+        footer_layout.setSpacing(6)
+
+        footer_row = QHBoxLayout()
+        footer_row.setSpacing(10)
         self.linked_checkbox = QCheckBox("Also change linked charts")
         self.linked_checkbox.setObjectName("speedLinkedCheckbox")
         self.linked_checkbox.setToolTip("Also change these moves in the charts that include this set's clips.")
         self.linked_checkbox.toggled.connect(lambda _checked: self._changed())
-        linked_row.addWidget(self.linked_checkbox)
+        footer_row.addWidget(self.linked_checkbox)
         self.linked_label = _hint("")
         self.linked_label.setObjectName("speedLinkedLabel")
-        linked_row.addWidget(self.linked_label, 1)
-        moves_layout.addLayout(linked_row)
-        right_layout.addWidget(moves, 1)
+        footer_row.addWidget(self.linked_label, 1)
 
-        review = QGroupBox("Review")
-        review_layout = QVBoxLayout(review)
-        review_layout.setContentsMargins(*_BOX_MARGINS)
-        self.review_text = QPlainTextEdit()
-        self.review_text.setObjectName("speedReviewText")
-        self.review_text.setReadOnly(True)
-        self.review_text.setMaximumHeight(72)
-        review_layout.addWidget(self.review_text)
-        right_layout.addWidget(review)
+        self.impact_summary_label = _hint("No speed values changed")
+        self.impact_summary_label.setObjectName("speedImpactSummaryLabel")
+        self.impact_summary_label.setWordWrap(False)
+        footer_row.addWidget(self.impact_summary_label)
 
-        buttons = QHBoxLayout()
-        buttons.setContentsMargins(_EDGE, 0, _EDGE, 0)
-        self.reset_button = QPushButton("Reset to 1x")
-        self.reset_button.setObjectName("speedResetButton")
-        self.reset_button.clicked.connect(self.reset_factors)
-        self.open_chart_button = QPushButton("Open in Action Chart Editor")
-        self.open_chart_button.setObjectName("speedOpenChartButton")
-        self.open_chart_button.setToolTip("Edit this set's clips, timing and events by hand.")
-        self.open_chart_button.clicked.connect(self._open_in_editor)
+        self.review_toggle_button = QToolButton()
+        self.review_toggle_button.setObjectName("speedReviewToggleButton")
+        self.review_toggle_button.setText("Details ▾")
+        self.review_toggle_button.setCheckable(True)
+        self.review_toggle_button.setChecked(False)
+        footer_row.addWidget(self.review_toggle_button)
+
         self.export_button = QPushButton("Export DMM Mod...")
         self.export_button.setObjectName("speedExportButton")
         self.export_button.setProperty("primaryAction", True)
         self.export_button.clicked.connect(self._export_clicked)
-        self.start_combo = QComboBox()
-        self.start_combo.setObjectName("speedStartCombo")
-        self.start_combo.setToolTip("Starting points put factors into the sliders and leave the others as they are; "
-                                    "the numbers are not tested in game. A speed mod you made shows that mod's "
-                                    "factors, so you can change them and export again.")
-        self.start_combo.activated.connect(self._start_chosen)
-        self._fill_start_combo()
-        self.scope_label = QLabel("Apply to:")
-        self.scope_combo = QComboBox()
-        self.scope_combo.setObjectName("speedScopeCombo")
-        self.scope_combo.setToolTip("All listed sets: every set shown in the list on the left gets these factors "
-                                    "in one mod. Narrow the list with Search sets first.")
-        self.scope_combo.addItem("This set", "set")
-        self.scope_combo.addItem("All listed sets", "listed")
-        self.scope_combo.setEnabled(self._export_sets is not None)
-        self.scope_combo.currentIndexChanged.connect(lambda _index: self._scope_changed())
-        buttons.addWidget(self.reset_button)
-        buttons.addWidget(self.start_combo)
-        buttons.addStretch(1)
-        buttons.addWidget(self.open_chart_button)
-        buttons.addSpacing(8)
-        buttons.addWidget(self.scope_label)
-        buttons.addWidget(self.scope_combo)
-        buttons.addWidget(self.export_button)
-        right_layout.addLayout(buttons)
+        footer_row.addWidget(self.export_button)
+        footer_layout.addLayout(footer_row)
+
+        self.review_text = QPlainTextEdit()
+        self.review_text.setObjectName("speedReviewText")
+        self.review_text.setReadOnly(True)
+        self.review_text.setMaximumHeight(90)
+        self.review_text.setVisible(False)
+        self.review_toggle_button.toggled.connect(self.review_text.setVisible)
+        footer_layout.addWidget(self.review_text)
+
+        right_layout.addWidget(footer)
+
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -662,78 +792,96 @@ class SpeedPrefabsWorkspace(QWidget):
     def _build_prefab_page(self, categories: Sequence[tuple[str, str]]) -> QWidget:
         page = QWidget()
         page.setObjectName("speedPrefabPage")
-        row = QHBoxLayout(page)
-        row.setContentsMargins(8, 8, 8, 8)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(8)
-        splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
-        row.addWidget(splitter)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 8, 0, 0)
+        outer.setSpacing(8)
 
-        left = QGroupBox("Find prefabs")
-        left.setToolTip("Speeds of scene cameras, spinning and wind-driven objects and clouds. Not the player's "
-                        "moves, and not effects. Prefab speed edits have not been tested in game.")
-        layout = QVBoxLayout(left)
-        layout.setContentsMargins(*_BOX_MARGINS)
-        layout.setSpacing(8)
-        search = QHBoxLayout()
+        # Top Command Bar
+        cmd = QFrame()
+        cmd.setObjectName("speedPrefabCommandBar")
+        cmd.setProperty("commandBar", True)
+        cmd_row = QHBoxLayout(cmd)
+        cmd_row.setContentsMargins(10, 6, 10, 6)
+        cmd_row.setSpacing(8)
         self.prefab_category_combo = QComboBox()
         self.prefab_category_combo.setObjectName("speedPrefabCategoryCombo")
         self.prefab_category_combo.setToolTip("Category")
         self.prefab_category_combo.addItem("All categories", "")
         for key, label in categories:
             self.prefab_category_combo.addItem(label, key)
-        search.addWidget(self.prefab_category_combo, 1)
+        cmd_row.addWidget(self.prefab_category_combo)
+
         self.prefab_search_button = QPushButton("Search")
         self.prefab_search_button.setObjectName("speedPrefabSearchButton")
         self.prefab_search_button.setToolTip("The first search reads every prefab and takes a few minutes; "
                                              "later searches are quick.")
         self.prefab_search_button.clicked.connect(self._search_prefabs)
-        search.addWidget(self.prefab_search_button)
-        layout.addLayout(search)
-        self.prefab_progress = QProgressBar()
-        self.prefab_progress.setObjectName("speedPrefabProgress")
-        self.prefab_progress.setTextVisible(False)
-        self.prefab_progress.setMaximumHeight(8)
-        self.prefab_progress.setVisible(False)
-        layout.addWidget(self.prefab_progress)
-        self.prefab_status_label = _hint("Choose a category and search.")
-        self.prefab_status_label.setObjectName("speedPrefabStatusLabel")
-        layout.addWidget(self.prefab_status_label)
-        self.prefab_table = QTableWidget(0, 3)
-        self.prefab_table.setObjectName("speedPrefabTable")
-        self.prefab_table.setHorizontalHeaderLabels(["Prefab", "Category", "Speed values"])
-        header = self.prefab_table.horizontalHeader()
-        # The three columns always share the list's width (see _fit_prefab_columns): long
-        # names are cut in the middle and shown whole in their tooltips, never scrolled sideways.
-        for column in range(3):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.prefab_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.prefab_table.viewport().installEventFilter(self)
-        self.prefab_table.verticalHeader().setVisible(False)
-        self.prefab_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.prefab_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.prefab_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.prefab_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        self.prefab_table.setWordWrap(False)
-        self.prefab_table.itemSelectionChanged.connect(self._prefab_selected)
-        layout.addWidget(self.prefab_table, 1)
-        batch = QHBoxLayout()
-        batch.setSpacing(8)
-        batch.addWidget(QLabel("Scale the listed prefabs by"))
+        cmd_row.addWidget(self.prefab_search_button)
+
+        self.prefab_editable_only_checkbox = QCheckBox("Editable only")
+        self.prefab_editable_only_checkbox.setObjectName("speedPrefabEditableOnlyCheck")
+        self.prefab_editable_only_checkbox.setChecked(True)
+        self.prefab_editable_only_checkbox.toggled.connect(lambda _checked: self._apply_prefab_filter())
+        cmd_row.addWidget(self.prefab_editable_only_checkbox)
+
+        cmd_row.addStretch(1)
+        cmd_row.addWidget(QLabel("Scale listed by"))
         self.prefab_batch_spin = _spin("speedPrefabBatchFactorSpin")
         self.prefab_batch_spin.setRange(MIN_SCALE, MAX_SCALE)
         self.prefab_batch_spin.setFixedWidth(84)
         self.prefab_batch_spin.setToolTip("2x doubles every speed value, 0.5x halves it.")
         self.prefab_batch_spin.valueChanged.connect(lambda _value: self._sync_buttons())
-        batch.addWidget(self.prefab_batch_spin)
-        batch.addStretch(1)
+        cmd_row.addWidget(self.prefab_batch_spin)
         self.prefab_batch_button = QPushButton("Scale Listed Prefabs…")
         self.prefab_batch_button.setObjectName("speedPrefabBatchButton")
         self.prefab_batch_button.clicked.connect(self._scale_prefabs_clicked)
-        batch.addWidget(self.prefab_batch_button)
-        layout.addLayout(batch)
+        cmd_row.addWidget(self.prefab_batch_button)
+        outer.addWidget(cmd)
+
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(2, 0, 2, 0)
+        status_row.setSpacing(10)
+        self.prefab_status_label = _hint("Choose a category and search.")
+        self.prefab_status_label.setObjectName("speedPrefabStatusLabel")
+        status_row.addWidget(self.prefab_status_label, 1)
+        self.prefab_progress = QProgressBar()
+        self.prefab_progress.setObjectName("speedPrefabProgress")
+        self.prefab_progress.setTextVisible(False)
+        self.prefab_progress.setMaximumHeight(8)
+        self.prefab_progress.setFixedWidth(220)
+        self.prefab_progress.setVisible(False)
+        status_row.addWidget(self.prefab_progress)
+        outer.addLayout(status_row)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        outer.addWidget(splitter, 1)
+
+        left = QFrame()
+        left.setObjectName("speedPrefabsCard")
+        left.setProperty("surfaceCard", True)
+        left.setToolTip("Speeds of scene cameras, spinning and wind-driven objects and clouds.")
+        layout = QVBoxLayout(left)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+        self.prefab_table = QTableWidget(0, 3)
+        self.prefab_table.setObjectName("speedPrefabTable")
+        self.prefab_table.setHorizontalHeaderLabels(["Prefab", "Category", "Speed values"])
+        header = self.prefab_table.horizontalHeader()
+        for column in range(3):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.prefab_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.prefab_table.viewport().installEventFilter(self)
+        self.prefab_table.verticalHeader().setVisible(False)
+        self.prefab_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.prefab_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.prefab_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.prefab_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.prefab_table.setWordWrap(False)
+        self.prefab_table.itemSelectionChanged.connect(self._prefab_selected)
+        layout.addWidget(self.prefab_table, 1)
         left.setMinimumWidth(320)
         splitter.addWidget(left)
 
@@ -753,11 +901,11 @@ class SpeedPrefabsWorkspace(QWidget):
         empty_layout.addWidget(self.prefab_empty_detail)
         empty_layout.addStretch(2)
         self.prefab_host.addWidget(empty)
-        # Framed like the list beside it, so both sides line up under one kind of heading.
-        inspector_box = QGroupBox("Prefab Inspector")
+        inspector_box = QFrame()
         inspector_box.setObjectName("speedPrefabInspectorBox")
+        inspector_box.setProperty("surfaceCard", True)
         inspector_layout = QVBoxLayout(inspector_box)
-        inspector_layout.setContentsMargins(*_BOX_MARGINS)
+        inspector_layout.setContentsMargins(8, 8, 8, 8)
         inspector_layout.addWidget(self.prefab_host)
         splitter.addWidget(inspector_box)
         splitter.setStretchFactor(0, 2)
@@ -769,10 +917,14 @@ class SpeedPrefabsWorkspace(QWidget):
         page = QWidget()
         page.setObjectName("speedTablePage")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(8)
-        choose = QHBoxLayout()
-        choose.setContentsMargins(_EDGE, 0, _EDGE, 0)
+
+        choose_bar = QFrame()
+        choose_bar.setObjectName("speedTableCommandBar")
+        choose_bar.setProperty("commandBar", True)
+        choose = QHBoxLayout(choose_bar)
+        choose.setContentsMargins(10, 6, 10, 6)
         choose.setSpacing(6)
         self.table_buttons: dict[str, QPushButton] = {}
         for table, label, detail in (
@@ -781,18 +933,16 @@ class SpeedPrefabsWorkspace(QWidget):
             button = QPushButton(label)
             button.setObjectName(f"speedTableButton_{table}")
             button.setCheckable(True)
-            button.setToolTip(detail + " Units are not known, and these edits have not been tested in game.")
+            button.setToolTip(detail)
             button.setEnabled(self._open_game_table is not None)
             button.clicked.connect(lambda _checked=False, name=table: self.open_table(name))
             choose.addWidget(button)
             self.table_buttons[table] = button
-        choose.addSpacing(8)
-        choose.addWidget(_hint("Change values in existing rows of the game's tables. Their effect in game has not "
-                               "been verified."), 1)
-        layout.addLayout(choose)
+        choose.addStretch(1)
+        layout.addWidget(choose_bar)
         editor = getattr(self.game_table_panel, "editor", None)
         if editor is not None and hasattr(editor, "intro"):
-            editor.intro.setVisible(False)  # said once, beside the table buttons
+            editor.intro.setVisible(False)
         if self.game_table_panel is not None:
             layout.addWidget(self.game_table_panel, 1)
         else:
@@ -887,7 +1037,7 @@ class SpeedPrefabsWorkspace(QWidget):
         self._filling = True
         try:
             if listed:
-                self.set_factor_spin.setValue(1.0)  # one set at a time: see WHOLE_SET_ONE_AT_A_TIME
+                self.set_factor_spin.setValue(1.0)
                 self.linked_checkbox.setChecked(False)
             else:
                 self.linked_checkbox.setChecked(any(inside for _path, inside in self._linked))
@@ -900,17 +1050,42 @@ class SpeedPrefabsWorkspace(QWidget):
         """Which controls the scope leaves usable: no whole-set factor on many sets, every kind for them."""
 
         listed = self.scope() == "listed"
+        show_unused = self.show_unused_kinds_checkbox.isChecked()
         self.set_factor_spin.setEnabled(not listed)
         self.set_factor_slider.setEnabled(not listed)
         self.whole_note_label.setText("Works on one set at a time." if listed
                                       else "Applies on top of every kind and move below.")
         kinds = {kind for kind, _label, _count in self._chart.kinds()} if self._chart is not None else set()
+        while self._kinds_grid.count():
+            self._kinds_grid.takeAt(0)
+        visible_slot = 0
         for kind, spin in self.kind_spins.items():
-            # A kind this set has no moves of stays visible but greyed, so the grid keeps its shape.
+            usable = listed or kind in kinds
             for widget in (spin, self.kind_sliders[kind], self.kind_labels[kind]):
-                widget.setEnabled(listed or kind in kinds)
-        # The listed sets are the selection: what the list shows is what changes.
+                widget.setEnabled(usable)
+            visible = listed or show_unused or self._chart is None or kind in kinds
+            row_widget = self.kind_rows[kind]
+            row_widget.setVisible(visible)
+            if visible:
+                self._kinds_grid.addWidget(row_widget, visible_slot // 2, visible_slot % 2)
+                visible_slot += 1
+        self._kinds_container.setVisible(visible_slot > 0)
+        self._kinds_grid.invalidate()
+        self._kinds_container.updateGeometry()
+        if self._factors_card.layout() is not None:
+            self._factors_card.layout().invalidate()
+        self._factors_card.updateGeometry()
         self.linked_checkbox.setEnabled(not listed and bool(self._linked))
+        self._refresh_net_labels()
+
+    def _refresh_net_labels(self) -> None:
+        whole = 1.0 if self.scope() == "listed" else float(self.set_factor_spin.value())
+        for kind, label in self.kind_net_labels.items():
+            net = whole * float(self.kind_spins[kind].value())
+            if abs(net - 1.0) > 1e-4:
+                label.setText(f"Net {net:g}x")
+            else:
+                label.setText("1x")
 
     @property
     def pending_set(self) -> str:
@@ -975,7 +1150,6 @@ class SpeedPrefabsWorkspace(QWidget):
             for kind in self.kind_spins:
                 self.kind_labels[kind].setText(f"{KIND_LABELS[kind]} ({counts.get(kind, 0)}):")
             if not listed:
-                # With "All listed sets" the factors belong to the whole list, so they stay as they are.
                 self.set_factor_spin.setValue(float(chart.factors.set))
                 for kind, spin in self.kind_spins.items():
                     spin.setValue(float(chart.factors.kinds.get(kind, 1.0)))
@@ -1024,7 +1198,6 @@ class SpeedPrefabsWorkspace(QWidget):
             spin = _spin(f"speedMoveFactor_{row}", self._shown_factor(move.clip, move.kind))
             spin.setProperty("inCell", True)
             spin.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            # Puts the number on the same line and the same left edge as the row's other cells.
             spin.lineEdit().setTextMargins(2, 0, 0, 2)
             spin.setMinimumWidth(0)
             spin.setMaximumWidth(16777215)
@@ -1035,6 +1208,7 @@ class SpeedPrefabsWorkspace(QWidget):
             spin.valueChanged.connect(lambda value, clip=move.clip: self._move_changed(clip, value))
             self.move_table.setCellWidget(row, 4, spin)
         self._filter_moves()
+        fit_resizable_columns(self.move_table)
 
     def _named(self) -> tuple[str, ...]:
         return named_texts(self.named_edit.text().split(","))
@@ -1089,6 +1263,7 @@ class SpeedPrefabsWorkspace(QWidget):
         if self._filling:
             return
         self._refresh_named_label()
+        self._refresh_net_labels()
         if self._chart is None:
             self._changed()
             return
@@ -1133,6 +1308,7 @@ class SpeedPrefabsWorkspace(QWidget):
             self._move_factors = {clip.lower(): float(value) for clip, value in factors.moves.items()}
             self._fill_moves()
             self._refresh_named_label()
+            self._refresh_net_labels()
             if linked is not None and self.linked_checkbox.isEnabled():
                 self.linked_checkbox.setChecked(bool(linked))
         finally:
@@ -1166,7 +1342,7 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def _start_chosen(self, index: int) -> None:
         choice = str(self.start_combo.itemData(index) or "")
-        self.start_combo.setCurrentIndex(0)  # a pick-and-apply list: it always shows its caption
+        self.start_combo.setCurrentIndex(0)
         self.choose_start(choice)
 
     def choose_start(self, choice: str) -> bool:
@@ -1175,7 +1351,7 @@ class SpeedPrefabsWorkspace(QWidget):
         if choice.startswith("preset:"):
             self.apply_preset(choice.partition(":")[2])
         elif choice == "open_mod" and self._open_mod is not None:
-            self._open_mod(None)  # the owner asks for the mod's folder
+            self._open_mod(None)
         elif choice == "close_mod" and self._close_mod is not None and self._mod_title:
             self._close_mod()
         else:
@@ -1192,12 +1368,7 @@ class SpeedPrefabsWorkspace(QWidget):
 
     def set_mod(self, title: str, charts: Mapping[str, str], *, folder: str = "", derived: bool = False,
                 reload: bool = True) -> None:
-        """Show which speed mod is open (an empty title closes it) and mark the sets it holds.
-
-        ``charts`` maps a chart path to one line on what the mod does to it. With ``reload`` the
-        selected set is read again, so its controls show the mod's factors (or the game's speeds
-        once the mod is closed).
-        """
+        """Show which speed mod is open (an empty title closes it) and mark the sets it holds."""
 
         self._mod_title = str(title or "")
         self._mod_folder = str(folder or "") if self._mod_title else ""
@@ -1219,15 +1390,17 @@ class SpeedPrefabsWorkspace(QWidget):
     def _changed(self) -> None:
         if self._filling:
             return
+        self._refresh_net_labels()
         self._sync_buttons()
         self._review_timer.start()
 
     def refresh_review(self) -> None:
         self._review_timer.stop()
         if self._batch:
-            return  # the Review shows the check of the listed sets until it ends
+            return
         if self._chart is None:
             self.review_text.setPlainText("")
+            self.impact_summary_label.setText("No speed values changed")
             self.last_plans = ()
             return
         listed = self.scope() == "listed"
@@ -1239,17 +1412,25 @@ class SpeedPrefabsWorkspace(QWidget):
         try:
             self.last_plans = tuple(self._plan(self._chart.path, self.factors(), self.linked_paths()))
             self.review_text.setPlainText(head + plan_summary(self.last_plans))
+            total_changed = sum(plan.changed_values for plan in self.last_plans if not plan.empty)
+            if total_changed > 0:
+                self.impact_summary_label.setText(f"{total_changed:,} value(s) change")
+            else:
+                self.impact_summary_label.setText("No speed values changed")
         except Exception as exc:  # noqa: BLE001 - shown to the user
             self.last_plans = ()
             self.review_text.setPlainText(f"These factors cannot be applied: {exc}")
+            self.impact_summary_label.setText("Factors cannot be applied")
         self._sync_buttons()
 
     def show_batch_progress(self, done: int, total: int, path: str = "") -> None:
         """How far the owner's check of the listed sets got; the Review shows it until end_batch."""
 
         self._batch = True
-        self.review_text.setPlainText(f"Checking set {min(int(done) + 1, int(total))} of {int(total)}…"
-                                      if total > 0 else "Checking the listed sets…")
+        msg = (f"Checking set {min(int(done) + 1, int(total))} of {int(total)}…"
+               if total > 0 else "Checking the listed sets…")
+        self.review_text.setPlainText(msg)
+        self.impact_summary_label.setText(msg)
         self._sync_buttons()
 
     def end_batch(self) -> None:
@@ -1272,7 +1453,6 @@ class SpeedPrefabsWorkspace(QWidget):
                                           else "No set is listed." if not listed
                                           else "Set a factor other than 1x first.")
         else:
-            # A set back at 1x everywhere can still be exported when it came from a mod: that takes it out.
             self.export_button.setEnabled(chart_open and self._export is not None and not self._batch
                                           and (self.has_changes or bool(self._chart and self._chart.mod)))
             self.export_button.setToolTip("" if self.export_button.isEnabled()
@@ -1296,7 +1476,7 @@ class SpeedPrefabsWorkspace(QWidget):
                 else "No listed prefab holds a speed value that can be scaled." if not self._prefab_scalable
                 else "Set a factor other than 1x first." if not changes
                 else "Scales every speed value of the listed prefabs that is fully read and saves them as one "
-                     "item package. Prefab speed edits have not been tested in game.")
+                     "item package.")
 
     def _export_clicked(self) -> None:
         if self.scope() == "listed":
@@ -1351,12 +1531,16 @@ class SpeedPrefabsWorkspace(QWidget):
             self.prefab_status_label.setText(detail)
         self.prefab_progress.setVisible(True)
 
-    def show_prefab_results(self, rows: Sequence[Mapping[str, object]], *, note: str = "") -> None:
-        """Rows with path, category label and what was reached; called by the caller's search worker.
+    def _apply_prefab_filter(self) -> None:
+        editable_only = self.prefab_editable_only_checkbox.isChecked()
+        for row in range(self.prefab_table.rowCount()):
+            item = self.prefab_table.item(row, 0)
+            scalable = item.data(_SCALABLE_ROLE)
+            hide = editable_only and scalable is False
+            self.prefab_table.setRowHidden(row, hide)
 
-        A row with ``values`` shows how many speed values were reached and their names, or why
-        the prefab cannot be scaled (``state``); a row without it shows its ``members``.
-        """
+    def show_prefab_results(self, rows: Sequence[Mapping[str, object]], *, note: str = "") -> None:
+        """Rows with path, category label and what was reached; called by the caller's search worker."""
 
         self._prefab_searching = False
         self._prefab_scaling = False
@@ -1373,6 +1557,7 @@ class SpeedPrefabsWorkspace(QWidget):
             category = QTableWidgetItem(str(row.get("category_label", row.get("category", ""))))
             self.prefab_table.setItem(number, 1, category)
             if "values" not in row:
+                path.setData(_SCALABLE_ROLE, None)
                 members = [str(m) for m in row.get("members", ())]
                 cell = QTableWidgetItem(", ".join(_short_member(m) for m in members))
                 cell.setToolTip("\n".join(members))
@@ -1381,7 +1566,9 @@ class SpeedPrefabsWorkspace(QWidget):
             counted += 1
             count, state = int(row.get("values") or 0), str(row.get("state") or "")
             labels = [str(label) for label in row.get("labels", ())]
-            if count and not state:
+            is_scalable = bool(count and not state)
+            path.setData(_SCALABLE_ROLE, is_scalable)
+            if is_scalable:
                 scalable.append(full)
                 cell = QTableWidgetItem(f"{count}: {', '.join(labels)}")
                 cell.setToolTip("\n".join(labels))
@@ -1390,7 +1577,7 @@ class SpeedPrefabsWorkspace(QWidget):
                 cell.setToolTip(f"Cannot be scaled: {state}." if state
                                 else "The prefab names a speed type and holds no value of it.")
                 for item in (path, category, cell):
-                    item.setForeground(Qt.GlobalColor.gray)  # readable in the light and the dark themes
+                    item.setForeground(Qt.GlobalColor.gray)
             self.prefab_table.setItem(number, 2, cell)
         self._prefab_scalable = tuple(scalable)
         if note:
@@ -1402,8 +1589,9 @@ class SpeedPrefabsWorkspace(QWidget):
         else:
             self.prefab_status_label.setText(f"{len(scalable):,} prefab(s) hold speed values; "
                                              f"{counted - len(scalable):,} hold none that can be scaled.")
+        self._apply_prefab_filter()
         self._fit_prefab_columns()
-        self._select_prefab_row(self._prefab_path)  # the open prefab stays marked when it is listed again
+        self._select_prefab_row(self._prefab_path)
         self._sync_buttons()
 
     def scalable_prefabs(self) -> tuple[str, ...]:
@@ -1452,19 +1640,9 @@ class SpeedPrefabsWorkspace(QWidget):
         return super().eventFilter(watched, event)
 
     def _fit_prefab_columns(self) -> None:
-        """Share the list's width: the category as wide as it needs, the name before the speed values."""
+        """Keep prefab columns user-resizable while showing full content."""
 
-        table = self.prefab_table
-        width = table.viewport().width()
-        if width <= 0:
-            return
-        header = table.horizontalHeader()
-        wanted = [max(table.sizeHintForColumn(column), header.sectionSizeHint(column)) + 8 for column in range(3)]
-        category = min(wanted[1], width * 3 // 10)
-        rest = width - category
-        values = min(wanted[2], rest * 2 // 5)
-        for column, size in enumerate((rest - values, category, values)):
-            header.resizeSection(column, max(size, 40))
+        fit_resizable_columns(self.prefab_table)
 
     def _select_prefab_row(self, path: str) -> None:
         """Mark ``path``'s row without opening it again; no row when it is not listed."""
@@ -1494,10 +1672,7 @@ class SpeedPrefabsWorkspace(QWidget):
             self.open_prefab(path)
 
     def open_prefab(self, path: str, *, discard: Optional[bool] = None) -> bool:
-        """Open ``path`` beside the list; False when the open prefab's unsaved changes are kept.
-
-        ``discard`` answers for those changes: True drops them, False keeps them, None asks.
-        """
+        """Open ``path`` beside the list; False when the open prefab's unsaved changes are kept."""
 
         if self._open_prefab is None:
             return False
