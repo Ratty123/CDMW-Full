@@ -93,14 +93,23 @@ def surface_rgb_dds(red: int, green: int, blue: int) -> bytes:
     return _uniform_dds(red, green, blue)
 
 
+def wrapper_key(name) -> str:
+    """A wrapper or material name as the surface code matches it: trimmed and case-folded.
+
+    A few shipped ``_subMeshName`` values carry a stray space, which the part
+    names bound to them do not.
+    """
+    return str(name or "").strip().casefold()
+
+
 def bind_texture(text: str, material_names, parameter: str, path: str, item_id: str) -> tuple[str, int]:
     """Bind ``path`` as ``parameter`` (with the game row's ItemID) on every named wrapper."""
-    names = {str(name).casefold() for name in material_names}
+    names = {wrapper_key(name) for name in material_names}
 
     def edit(fragment):
         changed = 0
         for wrapper in reversed(find_material_wrappers(fragment)):
-            if wrapper.submesh_name.casefold() in names:
+            if wrapper_key(wrapper.submesh_name) in names:
                 block = _write_parameter(fragment[wrapper.start:wrapper.end], parameter, "Texture", path, item_id,
                                          static=False)
                 fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
@@ -131,9 +140,9 @@ def wrapper_shaders(text: str, material_names) -> dict[str, str]:
     One name can use a different shader in each variant (the last one wins
     here); use ``wrapper_shader_sets`` to see them all.
     """
-    names = {str(name).casefold() for name in material_names}
-    return {wrapper.submesh_name.casefold(): wrapper.shader
-            for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in names}
+    names = {wrapper_key(name) for name in material_names}
+    return {wrapper_key(wrapper.submesh_name): wrapper.shader
+            for wrapper in find_material_wrappers(text) if wrapper_key(wrapper.submesh_name) in names}
 
 
 def wrapper_shader_sets(text: str, material_names) -> dict[str, frozenset[str]]:
@@ -143,11 +152,11 @@ def wrapper_shader_sets(text: str, material_names) -> dict[str, frozenset[str]]:
     ``SkinnedMeshStandard`` in another, as ``cd_phm_00_ub_belt_0010_02`` is in
     ``cd_m0001_00_so_phm_ub_33005``; each reads its surface from a different texture.
     """
-    names = {str(name).casefold() for name in material_names}
+    names = {wrapper_key(name) for name in material_names}
     result: dict[str, set[str]] = {}
     for wrapper in find_material_wrappers(text):
-        if wrapper.submesh_name.casefold() in names:
-            result.setdefault(wrapper.submesh_name.casefold(), set()).add(wrapper.shader)
+        if wrapper_key(wrapper.submesh_name) in names:
+            result.setdefault(wrapper_key(wrapper.submesh_name), set()).add(wrapper.shader)
     return {name: frozenset(shaders) for name, shaders in result.items()}
 
 
@@ -199,10 +208,10 @@ def apply_surface_fragment(fragment: str, material_names, texture_path: str, mat
     given. A wrapper whose path is empty is refused rather than bound to
     nothing, which the game reads as roughness 0.
     """
-    names = {str(name).casefold() for name in material_names}
+    names = {wrapper_key(name) for name in material_names}
     changed = 0
     for wrapper in reversed(find_material_wrappers(fragment)):
-        if wrapper.submesh_name.casefold() not in names or wrapper.shader not in SURFACE_SHADERS:
+        if wrapper_key(wrapper.submesh_name) not in names or wrapper.shader not in SURFACE_SHADERS:
             continue
         block = fragment[wrapper.start:wrapper.end]
         material = wrapper.shader in MATERIAL_TEXTURE_SURFACE_SHADERS

@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "메시 내보내기와 함께 복사해야 하는 확인된 참조 파일을 선택합니다. 선택한 파일은 선택한 내보내기 디렉터리 내의 referenced_files/ 폴더에 기록됩니다.",
     "Select whole mesh islands before changing their output inclusion.": "출력 포함 여부를 변경하기 전에 메시 아일랜드 전체를 선택하세요.",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "아카이브 브라우저에서 {value_0}을(를) 선택한 다음 편집 이어하기를 다시 선택하세요.",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "아카이브 목록에서 {value_0}을(를) 선택한 다음 메시 편집기에서 열기를 선택하세요. 이 파일의 자체 파일이 아직 준비되지 않았습니다.",
     "Select {value_0}.": "{value_0}을(를) 선택합니다.",
     "Selected": "선택됨",
     "Selected ({value_0})": "선택됨 ({value_0})",

@@ -315,3 +315,73 @@ def test_files_are_listed_in_the_set_s_order_as_the_parts_list_lists_them() -> N
     # Each file keeps its own parts after the move.
     assert [panel.tree.topLevelItem(i).child(0).text(0) for i in range(3)] == ["Part 0", "Part 2", "Part 1"]
     assert all(panel.tree.topLevelItem(i).text(1) == "1" for i in range(3))
+
+
+def _dto(entry_id: int, path: str):
+    from cdmw.domain.archives.catalogue import ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRole
+    return ArchiveEntryDto(
+        session_id="s", entry_id=entry_id, identity=ArchiveDurableIdentity(path.casefold(), "C:/G/0009/0.pamt", 0, entry_id),
+        path=path, source_pamt="C:/G/0009/0.pamt", paz_file="C:/G/0009/0.paz", paz_index=0, offset=entry_id,
+        stored_size=64, original_size=64, flags=0, extension=".pac", package="0009", role=ArchiveEntryRole.MODEL,
+        category="ModelMeshPhysics", is_previewable=True)
+
+
+def _prepared(*entries):
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+    return ArchivePreviewDependencySet(
+        "s", 1, entries, {entry.path.casefold(): (entry,) for entry in entries},
+        {entry.basename.casefold(): (entry,) for entry in entries}, len(entries), False)
+
+
+def _v2_host(*, members=(), prepared=None):
+    """A v2 Browse Archives: its catalogue-wide path index stays empty (#91)."""
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
+
+    sword = ArchiveCatalogueService.compatibility_entry(_dto(1, SWORD))
+    prepared = prepared or {}
+    launched, status = [], []
+
+    class Host(ArchivePreviewD3D11PartsMixin):
+        archive_entries_by_normalized_path = {}
+        archive_preview_request_entry = sword
+        shell = SimpleNamespace(_launch_archive_mesh_editor_for_entry=launched.append,
+                                set_status_message=lambda text, error=False: status.append((text, error)))
+        archive_remote_bridge = SimpleNamespace(
+            displays_v2=True, item_set_active=bool(members), item_set_members=members,
+            prepared_dependencies_for=lambda entry: prepared.get(entry.path.casefold()))
+
+        def _current_archive_entry(self):
+            return sword
+
+    return Host(), sword, launched, status
+
+
+def test_v2_scene_panel_opens_a_set_member_by_its_path():
+    helm = "character/model/cd_phm_00_hel_0001.pac"
+    host, sword, launched, status = _v2_host(members=(_dto(1, SWORD), _dto(2, helm)))
+    host._archive_scene_open_file(helm.upper())
+    assert [entry.path for entry in launched] == [helm] and not status
+    host._archive_scene_open_file(SWORD)
+    assert launched[-1] is sword
+
+
+def test_v2_scene_panel_opens_a_prefab_component_only_with_its_own_prepared_set():
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+
+    scabbard = ArchiveCatalogueService.compatibility_entry(_dto(3, SCABBARD))
+    sword = ArchiveCatalogueService.compatibility_entry(_dto(1, SWORD))
+    shared = _prepared(sword, scabbard)
+    host, _sword, launched, status = _v2_host(prepared={SWORD: shared, SCABBARD: shared})
+    # Only listed in the sword's set: opening it would refuse with "still preparing", forever.
+    host._archive_scene_open_file(SCABBARD)
+    assert not launched and status and status[-1][1] and "cd_phm_02_sword_0015_in.pac" in status[-1][0]
+    host, _sword, launched, status = _v2_host(prepared={SWORD: shared, SCABBARD: _prepared(scabbard)})
+    host._archive_scene_open_file(SCABBARD)
+    assert [entry.path for entry in launched] == [SCABBARD] and not status
+
+
+def test_v2_scene_panel_names_a_file_it_cannot_find():
+    host, _sword, launched, status = _v2_host()
+    host._archive_scene_open_file("character/model/elsewhere.pac")
+    assert not launched and len(status) == 1 and "elsewhere.pac" in status[0][0]

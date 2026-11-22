@@ -28,16 +28,23 @@ def _edit(mesh, mode):
     return edited
 
 
+@pytest.mark.parametrize("version, packed", [(4, False), (3, False), (3, True)], ids=["v4", "v3", "v3-packed"])
 @pytest.mark.parametrize("mode", ["hide_part", "add_vertex", "add_vertex_outside_bounds"])
-def test_lod0_count_change_restates_the_level_table(mode):
-    source = shipped_pamlod()
+def test_lod0_count_change_restates_the_level_table(mode, version, packed):
+    """Version 3 states offsets alone, each block running to the next with its padding.
+    The rebuild stated unpadded sizes, so the table check refused most edits, and a
+    LOD0 that ended in padding was refused outright. Packed blocks stay packed."""
+    source = shipped_pamlod(version=version, packed=packed)
     original = parse_pamlod(source, "object/stone.pamlod")
     rebuilt = build_pamlod(_edit(original, mode), source)
 
     geometry = struct.unpack_from("<I", rebuilt, 4)[0]
     stated = _pamlod_level_blocks(rebuilt, 3, geometry)
     assert stated is not None
-    assert all(offset % 16 == 0 for offset, _size in stated[1])
+    if not packed:
+        assert all(offset % 16 == 0 for offset, _size in stated[1])
+    if version == 3:
+        assert all(start + size == end for (start, size), (end, _) in zip(stated[1], stated[1][1:]))
     reparsed = parse_pamlod(rebuilt, "object/stone.pamlod")
     assert [[len(part.vertices) for part in level] for level in reparsed.lod_levels[1:]] == [[3, 3], [3]]
     worst = max(

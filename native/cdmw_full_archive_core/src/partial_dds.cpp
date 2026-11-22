@@ -221,9 +221,9 @@ std::vector<std::uint8_t> cached_pathc_header(const fs::path& pamt_path, const s
     const auto pathc_path = pamt_path.parent_path().parent_path() / "meta" / "0.pathc";
     std::error_code error;
     const auto size = fs::file_size(cdmw::long_path(pathc_path), error);
-    if (error) throw std::runtime_error("partial DDS metadata was not found: " + pathc_path.string());
+    if (error) throw std::runtime_error("partial DDS metadata was not found: " + pathc_path.u8string());
     const auto write_time = fs::last_write_time(cdmw::long_path(pathc_path), error);
-    if (error) throw std::runtime_error("could not inspect PATHC timestamp: " + pathc_path.string());
+    if (error) throw std::runtime_error("could not inspect PATHC timestamp: " + pathc_path.u8string());
 
     struct CacheValue {
         std::uintmax_t size;
@@ -233,7 +233,7 @@ std::vector<std::uint8_t> cached_pathc_header(const fs::path& pamt_path, const s
     static std::mutex cache_mutex;
     static std::map<std::string, CacheValue> cache;
     std::lock_guard<std::mutex> guard(cache_mutex);
-    const auto key = fs::absolute(pathc_path).lexically_normal().string();
+    const auto key = fs::absolute(pathc_path).lexically_normal().u8string();
     auto found = cache.find(key);
     if (found == cache.end() || found->second.size != size || found->second.write_time != write_time) {
         if (found == cache.end() && cache.size() >= kMaximumPathcCacheEntries) cache.erase(cache.begin());

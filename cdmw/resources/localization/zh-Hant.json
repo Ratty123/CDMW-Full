@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "選擇應將哪些解析的參考檔案與網格匯出一起複製。所選檔案將寫入所選匯出目錄內的referenced_files/資料夾中。",
     "Select whole mesh islands before changing their output inclusion.": "變更輸出包含狀態前，請選擇完整的網格孤島。",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "請在封存檔瀏覽器中選取 {value_0}，然後再次選擇繼續編輯。",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "請在封存檔清單中選取 {value_0}，然後選擇「在網格編輯器中開啟」；它自己的檔案尚未準備好。",
     "Select {value_0}.": "選擇 {value_0}。",
     "Selected": "已選擇",
     "Selected ({value_0})": "已選取（{value_0}）",

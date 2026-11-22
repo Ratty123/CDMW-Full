@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "Seleziona quali file di riferimento risolti devono essere copiati insieme all'esportazione della mesh. I file selezionati verranno scritti in una cartella referenced_files/ all'interno della directory di esportazione scelta.",
     "Select whole mesh islands before changing their output inclusion.": "Seleziona intere isole della mesh prima di modificarne l’inclusione nell’output.",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "Seleziona {value_0} in Esplora archivi, poi scegli di nuovo Continua a modificare.",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "Seleziona {value_0} nell'elenco dell'archivio, poi scegli Apri nell'Editor di mesh; i suoi file non sono ancora pronti.",
     "Select {value_0}.": "Seleziona {value_0}.",
     "Selected": "Selezionato",
     "Selected ({value_0})": "Selezionati ({value_0})",

@@ -154172,6 +154172,16 @@
       ]
     },
     {
+      "key": "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/preview_d3d11_parts.py",
+          "line": 189,
+          "sink": "set_status_message"
+        }
+      ]
+    },
+    {
       "key": "Select {value_0}.",
       "origins": [
         {

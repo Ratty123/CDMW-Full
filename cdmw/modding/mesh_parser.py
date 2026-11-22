@@ -1230,13 +1230,15 @@ def _pamlod_level_blocks(data: bytes, lod_count: int, geom_off: int):
 
 def _decode_stated_pamlod_levels(data, filename, table_off, blocks, geom_off, bmin, bmax):
     """Decode each level at its stated block with the parts its descriptors state."""
-    groups = _pamlod_descriptor_groups(data, table_off, blocks)
+    offsets_only = data[PAMLOD_VERSION] == 3
+    groups = _pamlod_descriptor_groups(data, table_off, blocks, offsets_only=offsets_only)
     if groups is None:
         # Owned fixtures write a block table beside flat descriptor records. Their scanned
         # parts are used only when they account for every stated block exactly.
         groups = _scan_pamlod_entry_groups(data, geom_off, len(blocks))
-        if len(groups) != len(blocks) or any(
-            _pamlod_group_block_size(group) != size for group, (_offset, size) in zip(groups, blocks)
+        if len(groups) != len(blocks) or not all(
+            _pamlod_block_fits(data, offset, size, _pamlod_group_block_size(group), offsets_only)
+            for group, (offset, size) in zip(groups, blocks)
         ):
             raise ValueError(
                 f"PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the "
@@ -1258,21 +1260,35 @@ def _decode_stated_pamlod_levels(data, filename, table_off, blocks, geom_off, bm
     return levels
 
 
-def _pamlod_descriptor_groups(data: bytes, table_off: int, blocks):
+def _pamlod_block_fits(data: bytes, offset: int, size: int, used: int, offsets_only: bool) -> bool:
+    """Whether a level's parts account for its stated block.
+
+    A version 4 block states its own size, which the parts fill exactly. A version 3 table
+    states offsets alone, so a block runs to the next one and may end in up to 15 zero bytes
+    that align the next block to 16.
+    """
+    if used == size:
+        return True
+    return (offsets_only and 0 < size - used < 16
+            and not any(data[offset + used:offset + size]))
+
+
+def _pamlod_descriptor_groups(data: bytes, table_off: int, blocks, *, offsets_only: bool = False):
     """Each level's part records, found by ordinal and confirmed by the level's block size.
 
     The trailer after a level's records varies in length, so the next level is located by its
     ordinal and accepted only when its records run cumulatively from zero and their counts fill
-    that level's stated block exactly.
+    that level's stated block (``_pamlod_block_fits``).
     """
     groups = []
     cursor = PAMLOD_LEVEL_DESCRIPTORS
-    for level, (_offset, size) in enumerate(blocks):
+    for level, (offset, size) in enumerate(blocks):
         ordinal = struct.pack("<I", level + 1)
         found = None
         start = data.find(ordinal, cursor, table_off)
         while start != -1:
-            found = _pamlod_descriptor_group(data, start, table_off, size)
+            found = _pamlod_descriptor_group(data, start, table_off, size,
+                                             block_offset=offset, offsets_only=offsets_only)
             if found is not None:
                 break
             start = data.find(ordinal, start + 1, table_off)
@@ -1283,7 +1299,8 @@ def _pamlod_descriptor_groups(data: bytes, table_off: int, blocks):
     return groups
 
 
-def _pamlod_descriptor_group(data: bytes, start: int, limit: int, block_size: int):
+def _pamlod_descriptor_group(data: bytes, start: int, limit: int, block_size: int, *,
+                             block_offset: int = 0, offsets_only: bool = False):
     if start + PAMLOD_LEVEL_HEADER_SIZE > limit:
         return None
     count = struct.unpack_from("<I", data, start + 4)[0]
@@ -1304,7 +1321,7 @@ def _pamlod_descriptor_group(data: bytes, start: int, limit: int, block_size: in
         })
         vertices += nv
         indices += ni
-    if _pamlod_group_block_size(group) != block_size:
+    if not _pamlod_block_fits(data, block_offset, block_size, _pamlod_group_block_size(group), offsets_only):
         return None
     return group, records + count * PAMLOD_PART_RECORD_SIZE
 

@@ -45884,7 +45884,7 @@ MESSAGE_REFERENCE = [
     "message": "Input is missing the PAR mesh header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2938
+      "cdmw/modding/mesh_parser.py": 2955
     }
   },
   {
@@ -51512,7 +51512,7 @@ MESSAGE_REFERENCE = [
     "message": "Not a valid PAC file: bad magic {data[:4]}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1490
+      "cdmw/modding/mesh_parser.py": 1507
     }
   },
   {
@@ -51963,7 +51963,7 @@ MESSAGE_REFERENCE = [
     "message": "Original PAMLOD data required for rebuild",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 642
+      "cdmw/modding/mesh_pamlod_builder.py": 655
     }
   },
   {
@@ -52227,7 +52227,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC LOD index is invalid.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2600
+      "cdmw/modding/mesh_parser.py": 2617
     }
   },
   {
@@ -52667,7 +52667,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3057
+      "cdmw/modding/mesh_parser.py": 3074
     }
   },
   {
@@ -53044,7 +53044,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 2983
+      "cdmw/modding/mesh_parser.py": 3000
     }
   },
   {
@@ -53084,7 +53084,7 @@ MESSAGE_REFERENCE = [
     "message": "PAM to PAMLOD transfer requires non-empty source geometry.",
     "recovery": "empty",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 59
+      "cdmw/modding/mesh_pamlod_builder.py": 60
     }
   },
   {
@@ -53108,7 +53108,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 entry rebuild supports at most 65535 vertices per entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 470
+      "cdmw/modding/mesh_pamlod_builder.py": 471
     }
   },
   {
@@ -53116,7 +53116,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 original entry mapping is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 350
+      "cdmw/modding/mesh_pamlod_builder.py": 351
     }
   },
   {
@@ -53124,7 +53124,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD LOD0 rebuild requires either one flattened submesh or one submesh per LOD0 entry.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 361
+      "cdmw/modding/mesh_pamlod_builder.py": 362
     }
   },
   {
@@ -53140,7 +53140,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD face references an out-of-range vertex.",
     "recovery": "limits",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 453
+      "cdmw/modding/mesh_pamlod_builder.py": 454
     }
   },
   {
@@ -53244,7 +53244,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD lower LOD vertex lies outside its stated level block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 613
+      "cdmw/modding/mesh_pamlod_builder.py": 624
     }
   },
   {
@@ -53276,7 +53276,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD parse failed while inspecting layout: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 3018
+      "cdmw/modding/mesh_parser.py": 3035
     }
   },
   {
@@ -53284,7 +53284,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD topology-changing rebuild is currently supported for LOD0 only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 669
+      "cdmw/modding/mesh_pamlod_builder.py": 682
     }
   },
   {
@@ -53292,7 +53292,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: level {lod_i} part {entry_index} indexes vertex {highest} of {e['nv']}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1251
+      "cdmw/modding/mesh_parser.py": 1253
     }
   },
   {
@@ -53300,7 +53300,7 @@ MESSAGE_REFERENCE = [
     "message": "PAMLOD {filename or '(unnamed)'}: the part descriptors do not account for the stated level blocks with {PAMLOD_VERTEX_STRIDE}-byte vertices.",
     "recovery": "locked",
     "sources": {
-      "cdmw/modding/mesh_parser.py": 1241
+      "cdmw/modding/mesh_parser.py": 1243
     }
   },
   {
@@ -55276,7 +55276,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt PAMLOD level block table does not validate; the output was not written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 632
+      "cdmw/modding/mesh_pamlod_builder.py": 645
     }
   },
   {
@@ -55284,7 +55284,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt PAMLOD lower LODs do not read back as the source levels; the output was not written.",
     "recovery": "internal",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 636
+      "cdmw/modding/mesh_pamlod_builder.py": 649
     }
   },
   {
@@ -60096,7 +60096,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD layout currently supports position-only patching. Topology/UV edits are not supported for it yet ({layout.get('reason', 'unknown layout')}).",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 497
+      "cdmw/modding/mesh_pamlod_builder.py": 498
     }
   },
   {
@@ -60104,7 +60104,7 @@ MESSAGE_REFERENCE = [
     "message": "This PAMLOD's LOD0 geometry does not match its level block table, so its lower LODs cannot be kept safely after a LOD0 vertex count change.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 509
+      "cdmw/modding/mesh_pamlod_builder.py": 514
     }
   },
   {
@@ -62881,7 +62881,7 @@ MESSAGE_REFERENCE = [
     "message": "could not locate PAMLOD LOD0 geometry layout",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 279
+      "cdmw/modding/mesh_pamlod_builder.py": 280
     }
   },
   {
@@ -65091,7 +65091,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid PAMLOD geometry header",
     "recovery": "format",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 218
+      "cdmw/modding/mesh_pamlod_builder.py": 219
     }
   },
   {
@@ -66553,7 +66553,7 @@ MESSAGE_REFERENCE = [
     "message": "missing PAMLOD header",
     "recovery": "missing",
     "sources": {
-      "cdmw/modding/mesh_pamlod_builder.py": 214
+      "cdmw/modding/mesh_pamlod_builder.py": 215
     }
   },
   {
@@ -81687,7 +81687,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 186
+      "cdmw/core/pac_xml_surface_layer.py": 195
     }
   },
   {
@@ -81695,7 +81695,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 189
+      "cdmw/core/pac_xml_surface_layer.py": 198
     }
   },
   {

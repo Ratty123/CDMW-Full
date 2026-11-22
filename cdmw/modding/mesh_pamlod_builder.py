@@ -35,6 +35,7 @@ from .mesh_parser import (
     _compute_smooth_normals,
     PAMLOD_VERSION,
     _dequant_u16,
+    _pamlod_block_fits,
     _pamlod_level_blocks,
     parse_pam,
     parse_pamlod,
@@ -505,7 +506,11 @@ def _serialize_pamlod_lod0_full_rebuild(
     if stated is not None:
         _table_off, stated_blocks = stated
         lod0_start, lod0_size = stated_blocks[0]
-        if layout["vertex_base"] != lod0_start or layout["old_lod0_end"] != lod0_start + lod0_size:
+        # A version 3 block runs to the next one, so it may end in alignment padding.
+        offsets_only = original_data[PAMLOD_VERSION] == 3
+        if layout["vertex_base"] != lod0_start or not _pamlod_block_fits(
+            original_data, lod0_start, lod0_size, layout["old_lod0_end"] - lod0_start, offsets_only,
+        ):
             raise ValueError(
                 "This PAMLOD's LOD0 geometry does not match its level block table, so its "
                 "lower LODs cannot be kept safely after a LOD0 vertex count change."
@@ -592,18 +597,24 @@ def _append_pamlod_lower_levels(
 ) -> None:
     """Append the lower level blocks after a rebuilt LOD0 and restate the level table.
 
-    Each block starts on a 16-byte boundary, as the parser requires. When LOD0 widened
-    the bounds, the lower levels' quantized positions are re-encoded against the new
-    bounds so they keep their place.
+    A version 4 block starts on a 16-byte boundary, as the parser requires. A version 3
+    table states offsets alone and each block runs to the next one, padding included; its
+    blocks keep the source's own alignment (16 when every lower block of the source starts
+    on 16, otherwise packed), and each restated size runs to the next offset as the parser
+    reads it. When LOD0 widened the bounds, the lower levels' quantized positions are
+    re-encoded against the new bounds so they keep their place.
     """
     table_off, blocks = stated
+    offsets_only = len(original_data) > PAMLOD_VERSION and original_data[PAMLOD_VERSION] == 3
+    aligned = not offsets_only or all(offset % 16 == 0 for offset, _size in blocks[1:])
     orig_bmin = struct.unpack_from("<fff", original_data, 0x10)
     orig_bmax = struct.unpack_from("<fff", original_data, 0x1C)
     requantize = (tuple(bmin), tuple(bmax)) != (tuple(orig_bmin), tuple(orig_bmax))
     lower_levels = list(original_mesh.lod_levels or [])[1:]
     new_blocks = [(blocks[0][0], len(result) - blocks[0][0])]
     for level_index, (offset, size) in enumerate(blocks[1:], start=1):
-        result.extend(bytes((-len(result)) % 16))
+        if aligned:
+            result.extend(bytes((-len(result)) % 16))
         block = bytearray(original_data[offset:offset + size])
         if requantize and level_index - 1 < len(lower_levels):
             for submesh in lower_levels[level_index - 1]:
@@ -622,7 +633,9 @@ def _append_pamlod_lower_levels(
         new_blocks.append((len(result), size))
         result.extend(block)
     lod_count = int(layout["lod_count"])
-    if len(original_data) > PAMLOD_VERSION and original_data[PAMLOD_VERSION] == 3:
+    if offsets_only:
+        starts = [start for start, _size in new_blocks] + [len(result)]
+        new_blocks = [(start, end - start) for start, end in zip(starts, starts[1:])]
         struct.pack_into(f"<{lod_count}I", result, table_off, *(start for start, _size in new_blocks))
     else:
         for level_index, (start, size) in enumerate(new_blocks):

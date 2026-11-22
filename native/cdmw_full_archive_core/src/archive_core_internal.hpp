@@ -130,20 +130,20 @@ inline std::vector<std::uint8_t> read_binary(const fs::path& path, std::uint64_t
     std::error_code error;
     const auto size = fs::file_size(cdmw::long_path(path), error);
     if (error) {
-        throw std::runtime_error("could not determine file size for " + path.string());
+        throw std::runtime_error("could not determine file size for " + path.u8string());
     }
     if (size > maximum_bytes || size > static_cast<std::uint64_t>(std::numeric_limits<size_t>::max())) {
-        throw std::runtime_error("file exceeds the read-only resource limit: " + path.string());
+        throw std::runtime_error("file exceeds the read-only resource limit: " + path.u8string());
     }
     std::ifstream stream(cdmw::long_path(path), std::ios::binary);
     if (!stream) {
-        throw std::runtime_error("could not open " + path.string());
+        throw std::runtime_error("could not open " + path.u8string());
     }
     std::vector<std::uint8_t> data(static_cast<size_t>(size));
     if (!data.empty()) {
         stream.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
         if (static_cast<size_t>(stream.gcount()) != data.size()) {
-            throw std::runtime_error("short read from " + path.string());
+            throw std::runtime_error("short read from " + path.u8string());
         }
     }
     return data;
