@@ -110,6 +110,9 @@ class _CatalogueRequest:
     internal_kind: str = ""
     recovery_target_id: str | None = None
     recovery_old_session_id: str | None = None
+    #: Export items streamed in batches: (game path, output path, status), for DMM's files.
+    export_items: list[tuple[str, str | None, str]] = field(default_factory=list)
+    export_items_truncated: bool = False
 
 
 class ArchiveCatalogueService(QObject):
@@ -655,6 +658,72 @@ class ArchiveCatalogueService(QObject):
             paz_index=entry.paz_index,
         )
 
+    @staticmethod
+    def _with_dmm_mounted_files(request: _CatalogueRequest, result: object, *, final: bool = True) -> object:
+        """Prepared files replaced by the ones DMM serves the game for the same path (experimental).
+
+        DMM 5 serves its mods at run time and leaves the game's archives vanilla, so
+        a prepared entry is the game's own file unless DMM has mounted a mod for it.
+        Game tables stay the game's own; a file that cannot be copied stays the game's.
+        """
+        if not request.package_root:
+            return result
+        from cdmw.services.dmm_runtime_mount import current_overlay
+
+        overlay = current_overlay()
+        if not overlay.enabled:
+            return result
+        if isinstance(result, ArchiveExportResult):
+            # Batches report files still in the export's staging folder; the result comes after publishing.
+            return ArchiveCatalogueService._export_with_dmm_files(request, result, overlay) if final else result
+        if not isinstance(result, (PrepareEntryResult, PrepareEntriesResult)):
+            return result
+
+        def swap(item: PrepareEntryResult) -> PrepareEntryResult:
+            try:
+                served = overlay.prepare(request.package_root, item.entry.identity.normalized_path)
+            except OSError:
+                served = None
+            if served is None:
+                return item
+            note = ",".join(part for part in (str(item.note or "").strip(), f"DMM mod: {served.mod}") if part)
+            return replace(item, prepared_path=str(served.path), size=served.size, sha256=served.sha256, note=note,
+                           content_analysis_json_path=None, content_analysis_text_path=None,
+                           content_analysis_version=None)
+
+        if isinstance(result, PrepareEntryResult):
+            return swap(result)
+        items = tuple(swap(item) for item in result.items)
+        if all(new is old for new, old in zip(items, result.items)):
+            return result
+        return replace(result, items=items, total_bytes=max(0, result.total_bytes + sum(
+            new.size - old.size for new, old in zip(items, result.items))))
+
+    @staticmethod
+    def _export_with_dmm_files(request: _CatalogueRequest, result: ArchiveExportResult, overlay) -> ArchiveExportResult:
+        """After an export is published, the files DMM serves replace the game's (experimental)."""
+        from cdmw.services.dmm_runtime_mount import apply_to_export, exported_files
+
+        payload = request.payload
+        destination = getattr(payload, "destination", "")
+        if result.cancelled or not destination:
+            return result
+        streamed = [*request.export_items, *((item.source_path, item.output_path, item.status) for item in result.items)]
+        files, _short = exported_files(Path(destination), result.manifest_path, streamed,
+                                       not (request.export_items_truncated or result.items_truncated))
+        swaps = apply_to_export(request.package_root, destination, files, result.manifest_path, overlay)
+        if not swaps:
+            return result
+        by_output = {str(swap.output_path).casefold(): swap for swap in swaps}
+
+        def noted(item):
+            swap = by_output.get(str(Path(item.output_path).resolve()).casefold()) if item.output_path else None
+            if swap is None:
+                return item
+            return replace(item, message=",".join(part for part in (item.message or "", f"DMM mod: {swap.mod}") if part))
+
+        return replace(result, items=tuple(noted(item) for item in result.items))
+
     def _submit(
         self,
         operation: ArchiveBackendOperation,
@@ -762,6 +831,10 @@ class ArchiveCatalogueService(QObject):
             return
         if request.stall_deadline is not None:
             return
+        result = self._with_dmm_mounted_files(request, result, final=False)
+        if isinstance(result, ArchiveExportResult):
+            request.export_items.extend((item.source_path, item.output_path, item.status) for item in result.items)
+            request.export_items_truncated = request.export_items_truncated or result.items_truncated
         if request.last_batch != result:
             request.last_batch = result
             request.last_progress_at = self._clock()
@@ -839,6 +912,7 @@ class ArchiveCatalogueService(QObject):
             return
         if isinstance(result, ArchiveSessionHandle):
             self.session_published.emit(result)
+        result = self._with_dmm_mounted_files(request, result)
         self.result_ready.emit(request_id, request.operation.value, result)
 
     def _handle_failure(self, request_id: str, error: object) -> None:

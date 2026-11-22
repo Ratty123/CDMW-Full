@@ -127,6 +127,7 @@ def _set(call):
     from cdmw.domain.archives.discovery import ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, normalize_ignored_archive_folders
     from cdmw.domain.output_paths import game_path_reason
     from cdmw.domain.preview_view_modes import LEGACY_VIEW_MODE_KEY, VIEW_MODE_KEY
+    from cdmw.services.dmm_runtime_mount import SHOW_MOUNTED_MODS_SETTING
 
     raw = call.arguments["key"]
     key = str(raw).strip().replace("\\", "/").strip("/").casefold()
@@ -164,6 +165,10 @@ def _set(call):
                 # The page that holds the field is not built yet; it reads the setting when it is.
                 current.shell.settings.setValue(key, value)
                 current.shell.settings.sync()
+        elif key == SHOW_MOUNTED_MODS_SETTING:
+            if type(value) is not bool:
+                raise ToolError(INVALID_ARGUMENTS, "Supply true or false.")
+            _control_value(tab.dmm_mounted_mods_group.show_checkbox, value)
         elif key == ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING:
             if not isinstance(value, list):
                 raise ToolError(INVALID_ARGUMENTS, "Supply the list of paths to ignore.")
@@ -199,7 +204,7 @@ def _set(call):
         else:
             keys = _SETTINGS_CONTROLS.keys() | _NUMERIC_MODES.keys() | _PATH_CONTROLS.keys() | _CHECKED_PATHS.keys()
             raise ToolError(NOT_FOUND, f"There is no supported Settings control for {raw!r}.",
-                            {"keys": sorted(keys | {ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING})})
+                            {"keys": sorted(keys | {ARCHIVE_IGNORED_FOLDERS_OVERRIDE_SETTING, SHOW_MOUNTED_MODS_SETTING})})
         tab.flush_settings_save()
         return {"key": key, "value": tab.settings.value(key)}
 

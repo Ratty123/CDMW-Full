@@ -162,6 +162,10 @@ class ArchiveControlsPanelMixin:
         archive_search_layout.addLayout(archive_filter_grid)
         archive_controls_layout.addWidget(archive_search_group)
         archive_controls_layout.addWidget(self._build_archive_edited_results())
+        from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup
+
+        self.archive_dmm_added_files_group = DmmAddedFilesGroup(self)
+        archive_controls_layout.addWidget(self.archive_dmm_added_files_group)
 
         self.archive_preview_settings_status_label = QLabel("")
         self.archive_preview_settings_status_label.setObjectName("HintLabel")

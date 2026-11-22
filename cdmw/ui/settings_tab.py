@@ -74,6 +74,7 @@ from cdmw.models import (
 )
 from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
 from cdmw.ui.archive_ignored_folders import ArchiveIgnoredFoldersGroup
+from cdmw.ui.dmm_mounted_mods_group import DmmMountedModsGroup
 from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.domain.camera_bindings import (
     normalize_camera_drag,
@@ -155,6 +156,8 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self._build_settings_navigation(root_layout)
         self.archive_ignored_folders_group = ArchiveIgnoredFoldersGroup(settings, self)
         self.paths_page_layout.addWidget(self.archive_ignored_folders_group)
+        self.dmm_mounted_mods_group = DmmMountedModsGroup(settings, self)
+        self.paths_page_layout.addWidget(self.dmm_mounted_mods_group)
 
         self.appearance_group = QGroupBox("Appearance")
         appearance_layout = QFormLayout(self.appearance_group)
