@@ -77466,7 +77466,7 @@ MESSAGE_REFERENCE = [
     "message": "Give mod_folder: the folder of a speed mod CDMW wrote.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 555
+      "cdmw/mcp/speed_tools.py": 557
     }
   },
   {
@@ -77498,7 +77498,7 @@ MESSAGE_REFERENCE = [
     "message": "Give prefab_factor.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 538
+      "cdmw/mcp/speed_tools.py": 540
     }
   },
   {
@@ -80151,7 +80151,7 @@ MESSAGE_REFERENCE = [
     "message": "No set is open in the tab; give set (speed_sets lists them).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 568
+      "cdmw/mcp/speed_tools.py": 570
     }
   },
   {
@@ -80167,7 +80167,7 @@ MESSAGE_REFERENCE = [
     "message": "No speed mod is open in the tab.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 550
+      "cdmw/mcp/speed_tools.py": 552
     }
   },
   {
@@ -83997,7 +83997,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab search cannot start now.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 544
+      "cdmw/mcp/speed_tools.py": 546
     }
   },
   {
@@ -84349,7 +84349,7 @@ MESSAGE_REFERENCE = [
     "message": "The tab lists no set {arguments['set']}; speed_sets lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 566
+      "cdmw/mcp/speed_tools.py": 568
     }
   },
   {
@@ -84494,7 +84494,7 @@ MESSAGE_REFERENCE = [
     "message": "The whole-set factor works on one set at a time; leave set at 1 for all listed sets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 585
+      "cdmw/mcp/speed_tools.py": 587
     }
   },
   {
@@ -85014,7 +85014,7 @@ MESSAGE_REFERENCE = [
     "message": "This set has no move {detail}; speed_set lists its clips.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 590
+      "cdmw/mcp/speed_tools.py": 592
     }
   },
   {
@@ -85086,7 +85086,7 @@ MESSAGE_REFERENCE = [
     "message": "This tab cannot apply factors to all listed sets.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 570
+      "cdmw/mcp/speed_tools.py": 572
     }
   },
   {
@@ -85094,7 +85094,7 @@ MESSAGE_REFERENCE = [
     "message": "This tab cannot open a mod.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/speed_tools.py": 561
+      "cdmw/mcp/speed_tools.py": 563
     }
   },
   {

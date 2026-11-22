@@ -564,7 +564,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertFalse(view.verticalHeader().isVisible())
         self.assertTrue(view.horizontalHeader().isVisible())
         self.assertTrue(view.hasMouseTracking())
-        self.assertTrue(view.alternatingRowColors())
+        # Row banding follows the shared table style (full-row hover once the app-wide filter runs).
         self.assertFalse(view.showGrid())
         self.assertEqual(view.selectionBehavior(), QAbstractItemView.SelectionBehavior.SelectRows)
 
