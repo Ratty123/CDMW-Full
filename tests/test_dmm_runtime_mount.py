@@ -320,3 +320,67 @@ def test_files_dmm_adds_list(tmp_path, monkeypatch):
     assert Path(written[0]).read_bytes() == b"modded mesh" and Path(written[0]).as_posix().endswith(MESH)
     with pytest.raises(ValueError):
         group.copy_selected(game / "mods-here")
+
+
+def test_compact_workspace_opens_files_dmm_adds_and_edited_results_from_actions(monkeypatch):
+    """Compact Workspace hides the controls pane, so its panels open from the Actions menu."""
+
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication, QFrame, QSplitter, QVBoxLayout, QWidget
+
+    from cdmw.constants import DEFAULT_UI_THEME
+    from cdmw.ui.archive_browser.asset_catalog_dialog import ArchiveAssetCatalogDialogMixin
+    from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
+    from cdmw.ui.archive_browser.controls_panel import ArchiveControlsPanelMixin
+    from cdmw.ui.archive_browser.edited_results import ArchiveEditedResultsMixin
+
+    application = QApplication.instance() or QApplication([])
+
+    class Window(ArchiveControlsPanelMixin, ArchiveAssetCatalogDialogMixin, ArchiveEditedResultsMixin, QWidget):
+        def _build_archive_location_controls(self): pass
+        def _open_archive_extension_picker(self): pass
+        def _canonicalize_archive_extension_filter_control(self): pass
+        def _rebuild_archive_extension_filter_choices(self, *_): pass
+
+    window = Window()
+    window.archive = window
+    window.shell = SimpleNamespace(_archive_controls_sidebar_bounds=lambda: (290, 360, 520),
+                                   current_theme_key=DEFAULT_UI_THEME)
+    window.textures = SimpleNamespace(_add_combo_choice=lambda combo, label, value: combo.addItem(label, value))
+    window.archive_splitter = QSplitter(window)
+    window.archive_catalogue_service = SimpleNamespace(character_catalog_available=False)
+    window._build_archive_controls_panel(lambda *_: None)
+    root = QWidget(window)
+    QVBoxLayout(root)
+    build_archive_command_strip(window, root)
+
+    actions = root._cdmw_compact_archive_panel_actions
+    assert set(actions) == {"edited_results", "dmm_added_files"}
+    assert actions["dmm_added_files"].text() == "Files DMM Adds (Experimental)..."
+    assert root._cdmw_compact_archive_actions_button.isEnabled()
+    dmm_popup = root._cdmw_compact_archive_actions_button.findChild(QFrame, "CompactArchiveDmmAddedFilesPanel")
+    assert window.archive_dmm_added_files_group.parentWidget() is dmm_popup
+
+    window.resize(1200, 800)
+    window.show()
+    actions["dmm_added_files"].trigger()
+    application.processEvents()
+    assert dmm_popup.isVisible() and window.archive_dmm_added_files_group.isVisible()
+    assert window.archive_dmm_added_files_group.find_button.isVisible()
+    dmm_popup.hide()
+
+    # Edited Results is offered once the Mesh Editor has handed back a result.
+    menu = root._cdmw_compact_archive_actions_button.menu()
+    menu.aboutToShow.emit()
+    assert not actions["edited_results"].isEnabled()
+    window.archive_edited_results_list.addItem("helmet.pac (edit 1)")
+    menu.aboutToShow.emit()
+    assert actions["edited_results"].isEnabled()
+    actions["edited_results"].trigger()
+    application.processEvents()
+    edited_popup = root._cdmw_compact_archive_actions_button.findChild(QFrame, "CompactArchiveEditedResultsPanel")
+    assert edited_popup.isVisible() and window.archive_edited_results_group.isVisible()
+    edited_popup.hide()
+    window.deleteLater()
+    application.processEvents()

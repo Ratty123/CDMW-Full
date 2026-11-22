@@ -8,9 +8,9 @@ from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, Q
 class _ArchiveFiltersPopup(QFrame):
     """Keep filter widgets in a popup without QMenu's widget-action handoff."""
 
-    def __init__(self, filters: QGroupBox, button: QToolButton) -> None:
+    def __init__(self, filters: QGroupBox, button: QToolButton, name: str = "CompactArchiveFiltersMenu") -> None:
         super().__init__(button, Qt.WindowType.Popup)
-        self.setObjectName("CompactArchiveFiltersMenu")
+        self.setObjectName(name)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_NoMouseReplay)
@@ -118,17 +118,41 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
         action.triggered.connect(lambda _checked=False, source=source: source.click())
         action_pairs.append((action, source))
 
+    # Compact Workspace hides the controls pane, so its panels open from here.
+    panel_actions: dict[str, QAction] = {}
+    edited_group = getattr(archive, "archive_edited_results_group", None)
+    dmm_group = getattr(archive, "archive_dmm_added_files_group", None)
+    if isinstance(edited_group, QGroupBox) or isinstance(dmm_group, QGroupBox):
+        actions_menu.addSeparator()
+
+    def add_panel(group: QGroupBox, action: QAction, key: str, popup_name: str) -> None:
+        group.setMinimumWidth(360)
+        popup = _ArchiveFiltersPopup(group, actions_button, popup_name)
+        action.setToolTip(group.toolTip() or group.title())
+        action.triggered.connect(lambda _checked=False: (group.show(), popup.toggle()))
+        panel_actions[key] = action
+
+    if isinstance(edited_group, QGroupBox):
+        add_panel(edited_group, actions_menu.addAction("Edited Results..."), "edited_results",
+                  "CompactArchiveEditedResultsPanel")
+    if isinstance(dmm_group, QGroupBox):
+        add_panel(dmm_group, actions_menu.addAction("Files DMM Adds (Experimental)..."), "dmm_added_files",
+                  "CompactArchiveDmmAddedFilesPanel")
+
     def sync_actions() -> None:
         for action, source in action_pairs:
             action.setText(source.text())
             action.setToolTip(source.toolTip())
             action.setEnabled(source.isEnabled())
             action.setVisible(not source.isHidden())
+        edited = getattr(archive, "archive_edited_results_list", None)
+        if "edited_results" in panel_actions and edited is not None:
+            panel_actions["edited_results"].setEnabled(edited.count() > 0)
 
     actions_menu.aboutToShow.connect(sync_actions)
     sync_actions()
     actions_button.setMenu(actions_menu)
-    actions_button.setEnabled(bool(action_pairs))
+    actions_button.setEnabled(bool(action_pairs or panel_actions))
     layout.addWidget(actions_button)
 
     more_filters = QToolButton(strip)
@@ -159,4 +183,5 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     root_layout.insertWidget(0, strip)
     widget._cdmw_compact_archive_command_strip = strip  # type: ignore[attr-defined]
     widget._cdmw_compact_archive_actions_button = actions_button  # type: ignore[attr-defined]
+    widget._cdmw_compact_archive_panel_actions = panel_actions  # type: ignore[attr-defined]
     widget._cdmw_compact_archive_more_filters_button = more_filters  # type: ignore[attr-defined]

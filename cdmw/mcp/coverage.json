@@ -2532,6 +2532,14 @@
       "tool": "app.ui_act"
     },
     {
+      "key": "menu:cdmw/ui/archive_browser/command_strip.py|Edited Results...",
+      "tool": "app.ui_act"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/command_strip.py|Files DMM Adds (Experimental)...",
+      "tool": "app.dmm_added_files"
+    },
+    {
       "key": "menu:cdmw/ui/archive_browser/header.py|<label>",
       "tool": "app.ui_act"
     },
