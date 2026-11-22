@@ -39,13 +39,23 @@ if {spec.category for spec in COMPACT_TOOL_SPECS} != set(COMPACT_CATEGORY_ORDER)
     raise RuntimeError("Compact tool categories must match the stable category order.")
 
 
+_AUXILIARY_TOOL_LABELS = {
+    "settings": "Settings",
+}
+
+
 def compact_tool_spec(key: str) -> CompactToolSpec | None:
     return _COMPACT_TOOL_SPECS_BY_KEY.get(str(key or ""))
 
 
 def compact_tool_label(key: str, fallback: str = "") -> str:
     spec = compact_tool_spec(key)
-    return spec.label if spec is not None else str(fallback or key)
+    if spec is not None:
+        return spec.label
+    auxiliary = _AUXILIARY_TOOL_LABELS.get(str(key or ""))
+    if auxiliary is not None:
+        return auxiliary
+    return str(fallback or key)
 
 
 def compact_specs_for_category(category: str) -> tuple[CompactToolSpec, ...]:

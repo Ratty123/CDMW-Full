@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.display_scaling import scrollable_content
@@ -15,6 +15,7 @@ from cdmw.ui.shell.compact.registry import compact_tool_label
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
 from cdmw.ui.shell.compact.status_strip import CompactBottomStatusStrip
 from cdmw.ui.shell.navigation_visibility import NavigationVisibilityButton
+from cdmw.ui.table_coherence import install_table_coherence_filter
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -27,12 +28,15 @@ class CompactWorkspace(QWidget):
         self._active_tool_key = ""
         self._explicit_snapshot_keys: set[str] = set()
         self.activity_history = ActivityHistory(parent=self)
+        install_table_coherence_filter()
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.rail = CompactWorkspaceRail(owner, owner.shell.settings, self)
-        navigation_column = QWidget(self)
+        navigation_column = QFrame(self)
+        navigation_column.setObjectName("CompactNavigationColumn")
+        navigation_column.setFrameShape(QFrame.NoFrame)
         navigation_layout = QVBoxLayout(navigation_column)
         navigation_layout.setContentsMargins(0, 0, 0, 0)
         navigation_layout.setSpacing(0)

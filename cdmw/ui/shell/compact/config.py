@@ -9,25 +9,28 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 SHELL_VARIANT_SETTING = "ui/shell_variant"
 LEGACY_SHELL_VARIANT = "legacy"
 COMPACT_SHELL_VARIANT = "compact_rail"
-SHELL_VARIANTS = (LEGACY_SHELL_VARIANT, COMPACT_SHELL_VARIANT)
+SHELL_VARIANTS = (COMPACT_SHELL_VARIANT,)
 
 # Compatibility names for settings written before Classic and Compact shared one theme.
 COMPACT_SHELL_THEME_SETTING = "appearance/compact_shell_theme"
 DEFAULT_COMPACT_SHELL_THEME = DEFAULT_UI_THEME
 
-# Both navigation styles share the same native tool content.
-APPLICATION_LAYOUT_SELECTOR_EXPOSED = True
+# Classic Workspace is retired; Compact Workspace is the single active shell.
+APPLICATION_LAYOUT_SELECTOR_EXPOSED = False
 
 
 def normalize_shell_variant(value: object) -> str:
-    candidate = str(value or "").strip().lower()
-    return candidate if candidate in SHELL_VARIANTS else COMPACT_SHELL_VARIANT
+    _ = value
+    return COMPACT_SHELL_VARIANT
 
 
 def read_shell_variant(settings: object) -> str:
-    return normalize_shell_variant(
-        settings.value(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)  # type: ignore[attr-defined]
-    )
+    raw = settings.value(SHELL_VARIANT_SETTING, None)  # type: ignore[attr-defined]
+    if raw is not None and str(raw).strip().lower() != COMPACT_SHELL_VARIANT:
+        setter = getattr(settings, "setValue", None)
+        if callable(setter):
+            setter(SHELL_VARIANT_SETTING, COMPACT_SHELL_VARIANT)
+    return COMPACT_SHELL_VARIANT
 
 
 def normalize_theme_key(value: object, *, default: str) -> str:

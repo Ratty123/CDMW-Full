@@ -17,24 +17,28 @@ from cdmw.ui.shell.compact.config import (
 class CompactWorkspaceSettingsMixin:
     def _build_compact_workspace_settings_ui(self, appearance_layout: QFormLayout) -> None:
         self._running_shell_variant = read_shell_variant(self.settings)
-        self.application_layout_combo = QComboBox()
+        host = appearance_layout.parentWidget()
+        self.application_layout_combo = QComboBox(host)
         self.application_layout_combo.setObjectName("ApplicationLayoutCombo")
-        self.application_layout_combo.addItem("Classic Workspace", LEGACY_SHELL_VARIANT)
         self.application_layout_combo.addItem("Compact Workspace", COMPACT_SHELL_VARIANT)
-        appearance_layout.addRow("Layout", self.application_layout_combo)
-        self.application_layout_restart_label = QLabel()
+        self.application_layout_restart_label = QLabel(host)
         self.application_layout_restart_label.setObjectName("ApplicationLayoutRestartNotice")
         self.application_layout_restart_label.setWordWrap(True)
-        layout_label = appearance_layout.labelForField(self.application_layout_combo)
-        if layout_label is not None:
-            layout_label.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
-        self.application_layout_combo.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
+        if APPLICATION_LAYOUT_SELECTOR_EXPOSED:
+            appearance_layout.addRow("Layout", self.application_layout_combo)
+        else:
+            self.application_layout_combo.setVisible(False)
         # The notice is not in a layout yet; showing it now would open it as a window of
         # its own for a moment. _show_compact_workspace_settings_notice shows it once placed.
         self.application_layout_restart_label.setVisible(False)
 
-    def _show_compact_workspace_settings_notice(self) -> None:
-        self.application_layout_restart_label.setVisible(APPLICATION_LAYOUT_SELECTOR_EXPOSED)
+    def _show_compact_workspace_settings_notice(self, appearance_layout: QFormLayout | None = None) -> None:
+        if APPLICATION_LAYOUT_SELECTOR_EXPOSED:
+            if appearance_layout is not None:
+                appearance_layout.addRow("", self.application_layout_restart_label)
+            self.application_layout_restart_label.setVisible(True)
+        else:
+            self.application_layout_restart_label.setVisible(False)
 
     def _connect_compact_workspace_settings(self) -> None:
         self.application_layout_combo.currentIndexChanged.connect(

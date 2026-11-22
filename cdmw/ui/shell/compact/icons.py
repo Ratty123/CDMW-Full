@@ -17,6 +17,11 @@ _DISCORD_SYMBOL = b'''<svg viewBox="0 0 64 48" xmlns="http://www.w3.org/2000/svg
 </svg>'''
 
 
+_PIXMAP_CACHE: dict[tuple, QPixmap] = {}
+_PIXMAP_CACHE_MAX = 512
+_DISCORD_RENDERERS: dict[bytes, QSvgRenderer] = {}
+
+
 def _line(painter: QPainter, *points: tuple[float, float]) -> None:
     for start, end in zip(points, points[1:]):
         painter.drawLine(QPointF(*start), QPointF(*end))
@@ -28,6 +33,11 @@ class _LineIconEngine(QIconEngine):
         self.name = name
         self.palette = QPalette(palette)
         self.extent = max(12, int(extent))
+        self._color_key = (
+            palette.color(QPalette.ColorRole.ButtonText).rgba(),
+            palette.color(QPalette.ColorRole.Highlight).rgba(),
+            palette.color(QPalette.ColorRole.Window).rgba(),
+        )
 
     def clone(self):
         return _LineIconEngine(self.name, self.palette, self.extent)
@@ -43,6 +53,17 @@ class _LineIconEngine(QIconEngine):
         return self.scaledPixmap(size, mode, state, 1.0)
 
     def scaledPixmap(self, size, mode, state, scale):
+        key = (
+            self.name,
+            self.extent,
+            self._color_key,
+            size.width(),
+            size.height(),
+            round(float(scale), 3),
+        )
+        cached = _PIXMAP_CACHE.get(key)
+        if cached is not None:
+            return cached
         pixmap = QPixmap(QSize(max(1, ceil(size.width() * scale)), max(1, ceil(size.height() * scale))))
         pixmap.setDevicePixelRatio(scale)
         pixmap.fill(Qt.transparent)
@@ -51,6 +72,9 @@ class _LineIconEngine(QIconEngine):
             self.paint(painter, QRect(0, 0, size.width(), size.height()), mode, state)
         finally:
             painter.end()
+        if len(_PIXMAP_CACHE) >= _PIXMAP_CACHE_MAX:
+            _PIXMAP_CACHE.clear()
+        _PIXMAP_CACHE[key] = pixmap
         return pixmap
 
 
@@ -145,9 +169,11 @@ def _paint_icon(painter: QPainter, name: str, palette: QPalette, extent: int) ->
         linear = (value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels)
         luminance = sum(weight * value for weight, value in zip((0.2126, 0.7152, 0.0722), linear))
         ink = b"black" if luminance > 0.179 else b"white"
-        QSvgRenderer(_DISCORD_SYMBOL.replace(b'fill="white"', b'fill="' + ink + b'"')).render(
-            painter, QRectF(1, 3, 16, 12)
-        )
+        renderer = _DISCORD_RENDERERS.get(ink)
+        if renderer is None:
+            renderer = QSvgRenderer(_DISCORD_SYMBOL.replace(b'fill="white"', b'fill="' + ink + b'"'))
+            _DISCORD_RENDERERS[ink] = renderer
+        renderer.render(painter, QRectF(1, 3, 16, 12))
     elif key == "book":
         path = QPainterPath(QPointF(2.5, 4))
         path.quadTo(6, 3, 9, 6)
@@ -182,6 +208,16 @@ def _paint_icon(painter: QPainter, name: str, palette: QPalette, extent: int) ->
         pen.setColor(accent)
         painter.setPen(pen)
         _line(painter, (2, 10), (5.5, 10), (7.5, 5), (10, 14), (12, 8), (16, 8))
+    elif key == "settings":
+        _line(painter, (2.5, 4.5), (5.0, 4.5))
+        _line(painter, (9.0, 4.5), (15.5, 4.5))
+        painter.drawEllipse(QRectF(5.0, 2.5, 4.0, 4.0))
+        _line(painter, (2.5, 9.0), (9.5, 9.0))
+        _line(painter, (13.5, 9.0), (15.5, 9.0))
+        painter.drawEllipse(QRectF(9.5, 7.0, 4.0, 4.0))
+        _line(painter, (2.5, 13.5), (6.5, 13.5))
+        _line(painter, (10.5, 13.5), (15.5, 13.5))
+        painter.drawEllipse(QRectF(6.5, 11.5, 4.0, 4.0))
     elif key == "more":
         for x in (5.0, 9.0, 13.0):
             painter.drawEllipse(QPointF(x, 9), 0.9, 0.9)

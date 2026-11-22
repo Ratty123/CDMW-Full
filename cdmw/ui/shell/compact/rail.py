@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QPalette
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QFrame,
     QMenu,
@@ -250,46 +251,50 @@ class CompactWorkspaceRail(QFrame):
         if not button.isChecked():
             button.setChecked(True)
     def refresh_palette(self) -> None:
-        palette = self.palette()
+        app = QApplication.instance()
+        palette = app.palette() if app is not None else self.palette()
         text = palette.color(QPalette.ColorRole.ButtonText)
-        base = palette.color(QPalette.ColorRole.Window)
+        sidebar_bg = palette.color(QPalette.ColorRole.AlternateBase)
         highlight = palette.color(QPalette.ColorRole.Highlight)
         disabled = palette.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText)
         self.setStyleSheet(
-            "QFrame#CompactWorkspaceRail { border-right: 1px solid %s; }"
-            "QToolButton[compactCategoryHeader=\"true\"] { text-align: left; padding: 4px 9px; border: 0; border-left: 2px solid %s; background: %s; }"
-            "QToolButton[compactCategoryHeader=\"true\"]:hover { background: %s; }"
+            "QFrame#CompactWorkspaceRail { background: %s; border: none; }"
+            "QScrollArea#CompactToolScrollArea, QWidget#CompactToolRailContent { background: transparent; border: none; }"
+            "QToolButton[compactCategoryHeader=\"true\"] { text-align: left; padding: 10px 10px 4px 10px; border: 0; color: %s; background: transparent; font-weight: 600; }"
+            "QToolButton[compactCategoryHeader=\"true\"]:hover { color: %s; background: %s; border-radius: 4px; }"
             "QToolButton[compactCategoryHeader=\"true\"]:pressed { background: %s; }"
-            "QToolButton[compactCategoryHeader=\"true\"]:focus { outline: none; border: 1px solid %s; border-left: 2px solid %s; }"
-            "QToolButton[compactToolRow=\"true\"], QToolButton[compactFooterRow=\"true\"], QPushButton[compactFooterRow=\"true\"] { text-align: left; padding: 3px 7px; border: 1px solid transparent; border-left: 2px solid transparent; border-radius: 0; background: transparent; }"
+            "QToolButton[compactCategoryHeader=\"true\"]:focus { outline: none; border: 1px solid %s; border-radius: 4px; }"
+            "QToolButton[compactToolRow=\"true\"] { text-align: left; padding: 4px 9px; margin: 1px 0px; border: 1px solid transparent; border-left: 2px solid transparent; border-radius: 4px; background: transparent; }"
+            "QToolButton[compactFooterRow=\"true\"], QPushButton[compactFooterRow=\"true\"] { text-align: left; padding: 3px 9px; margin: 0px; border: 1px solid transparent; border-left: 2px solid transparent; border-radius: 4px; background: transparent; }"
             "QToolButton[compactToolRow=\"true\"]:hover, QToolButton[compactFooterRow=\"true\"]:hover, QPushButton[compactFooterRow=\"true\"]:hover { background: %s; }"
             "QToolButton[compactToolRow=\"true\"]:pressed, QToolButton[compactFooterRow=\"true\"]:pressed, QPushButton[compactFooterRow=\"true\"]:pressed { background: %s; }"
-            "QToolButton[compactToolRow=\"true\"]:checked { border-left: 2px solid %s; background: %s; }"
+            "QToolButton[compactToolRow=\"true\"]:checked { border-left: 2px solid %s; background: %s; font-weight: 600; }"
             "QToolButton[compactToolRow=\"true\"]:focus, QToolButton[compactFooterRow=\"true\"]:focus, QPushButton[compactFooterRow=\"true\"]:focus { border: 1px solid %s; border-left: 2px solid %s; }"
             "QToolButton[compactToolRow=\"true\"]:disabled, QToolButton[compactFooterRow=\"true\"]:disabled, QPushButton[compactFooterRow=\"true\"]:disabled { color: %s; }"
-            "QWidget#CompactRailFooter { border: 0; background: transparent; }"
+            "QWidget#CompactRailFooter { border: 0; border-top: 1px solid %s; background: transparent; }"
             % (
-                _rgba(text, 45),
-                _rgba(highlight, 190),
-                _rgba(base.lighter(120), 150),
-                _rgba(highlight, 35),
-                _rgba(highlight, 65),
+                sidebar_bg.name(),
+                _rgba(text, 155),
+                text.name(),
+                _rgba(highlight, 22),
+                _rgba(highlight, 45),
                 _rgba(highlight, 180),
-                _rgba(highlight, 220),
-                _rgba(highlight, 32),
-                _rgba(highlight, 58),
+                _rgba(highlight, 26),
+                _rgba(highlight, 48),
                 highlight.name(),
-                _rgba(highlight, 42),
+                _rgba(highlight, 38),
                 _rgba(highlight, 180),
                 _rgba(highlight, 220),
                 disabled.name(),
+                _rgba(text, 28),
             )
         )
         for spec in COMPACT_TOOL_SPECS:
             self._tool_buttons[spec.key].setIcon(compact_line_icon(spec.icon, palette))
         for header in self._category_headers.values():
             header._refresh_icon()
-        self.settings_button.setIcon(compact_line_icon("mesh", palette))
+        self._owner.shell.open_settings_action.setIcon(compact_line_icon("settings", palette))
+        self.settings_button.setIcon(compact_line_icon("settings", palette))
         self.discord_button.setIcon(compact_line_icon("discord", palette))
         self.help_button.setIcon(compact_line_icon("book", palette))
         self._owner.shell.report_problem_action.setIcon(compact_line_icon("bug", palette))
