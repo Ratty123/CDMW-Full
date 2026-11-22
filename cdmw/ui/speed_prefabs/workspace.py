@@ -739,19 +739,22 @@ class SpeedPrefabsWorkspace(QWidget):
         moves_layout.addWidget(self.move_filter_edit)
         self.move_table = QTableWidget(0, len(_MOVE_COLUMNS))
         self.move_table.setObjectName("speedMoveTable")
+        self.move_table.setProperty("_cdmwKeepFixedColumns", True)
         self.move_table.setHorizontalHeaderLabels(list(_MOVE_COLUMNS))
         header = self.move_table.horizontalHeader()
-        for column in range(len(_MOVE_COLUMNS)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-        header.setStretchLastSection(False)
-        # Keep factor box starting width usable while staying user-resizable.
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in range(1, len(_MOVE_COLUMNS) - 1):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        # Keep the factor box at one fixed usable width on the right edge.
+        header.setSectionResizeMode(len(_MOVE_COLUMNS) - 1, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(len(_MOVE_COLUMNS) - 1, 96)
+        header.setStretchLastSection(False)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.move_table.verticalHeader().setVisible(False)
         self.move_table.verticalHeader().setDefaultSectionSize(32)
         self.move_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.move_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.move_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.move_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.move_table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.move_table.setWordWrap(False)
         moves_layout.addWidget(self.move_table, 1)
         right_layout.addWidget(moves, 1)
@@ -1241,7 +1244,6 @@ class SpeedPrefabsWorkspace(QWidget):
             spin.valueChanged.connect(lambda value, clip=move.clip: self._move_changed(clip, value))
             self.move_table.setCellWidget(row, 4, spin)
         self._filter_moves()
-        fit_resizable_columns(self.move_table)
 
     def _named(self) -> tuple[str, ...]:
         return named_texts(self.named_edit.text().split(","))

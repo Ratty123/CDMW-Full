@@ -1034,3 +1034,141 @@ def test_speed_net_labels_and_moves_named_alignment_match_category_columns(qt_ap
         dialog.close()
         dialog.deleteLater()
         qt_app.processEvents()
+
+
+def test_move_table_columns_stay_balanced_across_resizes_and_table_coherence(qt_app):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHeaderView
+
+    from cdmw.ui.table_coherence import fit_resizable_columns
+
+    chart = SpeedChart(
+        "actionchart/battleaxe.paac",
+        "Battle axe",
+        1.0,
+        (
+            SpeedMove(
+                "1_pc/1_phm/cd_phm_battleaxe_01_01_att_com_1_move_f_swing_4_00.paa",
+                "cd_phm_battleaxe_01_01_att_com_1_move_f_swing_4_00",
+                "attack",
+                1,
+                11,
+                3.617,
+            ),
+            SpeedMove(
+                "1_pc/1_phm/cd_phm_battleaxe_01_01_att_finish_link_phm_move_facedownsmash_00.paa",
+                "cd_phm_battleaxe_01_01_att_finish_link_phm_move_facedownsmash_00",
+                "attack",
+                1,
+                5,
+                3.033,
+            ),
+        ),
+        SpeedFactors(),
+        "",
+        "",
+    )
+    dialog = SpeedPrefabsWorkspace(
+        (SpeedCharacter("Kliff", (SpeedSet(chart.path, chart.label),)),),
+        load_set=lambda _path: chart,
+        plan=lambda *_args: (),
+    )
+    try:
+        dialog.resize(1400, 700)
+        dialog.show()
+        assert dialog.select_set(chart.path)
+        fit_resizable_columns(dialog.move_table)
+        qt_app.processEvents()
+
+        table = dialog.move_table
+        header = table.horizontalHeader()
+        assert table.property("_cdmwKeepFixedColumns") is True
+        assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
+        assert all(header.sectionResizeMode(col) == QHeaderView.ResizeMode.ResizeToContents for col in (1, 2, 3))
+        assert header.sectionResizeMode(4) == QHeaderView.ResizeMode.Fixed
+        assert header.sectionSize(4) == 96
+        assert table.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        assert table.textElideMode() == Qt.TextElideMode.ElideMiddle
+        assert sum(header.sectionSize(c) for c in range(5)) == table.viewport().width()
+        assert header.sectionSize(0) > header.sectionSize(3)
+        assert header.sectionSize(3) < 200
+        assert table.horizontalScrollBar().value() == 0
+        move_width_1400 = header.sectionSize(0)
+
+        dialog.resize(960, 700)
+        qt_app.processEvents()
+        assert sum(header.sectionSize(c) for c in range(5)) == table.viewport().width()
+        assert header.sectionSize(4) == 96
+        assert header.sectionSize(3) < 200
+        assert header.sectionSize(0) < move_width_1400
+        assert table.horizontalScrollBar().value() == 0
+        move_width_960 = header.sectionSize(0)
+
+        dialog.resize(1600, 700)
+        qt_app.processEvents()
+        assert sum(header.sectionSize(c) for c in range(5)) == table.viewport().width()
+        assert header.sectionSize(4) == 96
+        assert header.sectionSize(3) < 200
+        assert header.sectionSize(0) > move_width_960
+        assert table.horizontalScrollBar().value() == 0
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        qt_app.processEvents()
+
+
+def test_move_table_ignores_previously_saved_broken_column_widths(qt_app, tmp_path):
+    import json
+
+    from PySide6.QtCore import QSettings
+
+    from cdmw.ui.layout_persistence import UiLayoutPersistence
+    from cdmw.ui.table_coherence import fit_resizable_columns
+
+    chart = SpeedChart(
+        "actionchart/battleaxe.paac",
+        "Battle axe",
+        1.0,
+        (
+            SpeedMove(
+                "1_pc/1_phm/cd_phm_battleaxe_01_01_att_com_1_move_f_swing_4_00.paa",
+                "cd_phm_battleaxe_01_01_att_com_1_move_f_swing_4_00",
+                "attack",
+                1,
+                11,
+                3.617,
+            ),
+        ),
+        SpeedFactors(),
+        "",
+        "",
+    )
+    settings = QSettings(str(tmp_path / "layout.cfg"), QSettings.IniFormat)
+    policy = UiLayoutPersistence(settings)
+    dialog = SpeedPrefabsWorkspace(
+        (SpeedCharacter("Kliff", (SpeedSet(chart.path, chart.label),)),),
+        load_set=lambda _path: chart,
+        plan=lambda *_args: (),
+    )
+    try:
+        table = dialog.move_table
+        header = table.horizontalHeader()
+        policy.watch_header(header)
+        key = policy._headers[header][0]
+        settings.setValue(key, json.dumps([480, 90, 75, 620, 96]))
+        policy.restore_header(header)
+
+        dialog.resize(1280, 700)
+        dialog.show()
+        assert dialog.select_set(chart.path)
+        fit_resizable_columns(table)
+        qt_app.processEvents()
+
+        assert header.sectionSize(3) < 200
+        assert header.sectionSize(4) == 96
+        assert sum(header.sectionSize(c) for c in range(5)) == table.viewport().width()
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        policy.deleteLater()
+        qt_app.processEvents()
