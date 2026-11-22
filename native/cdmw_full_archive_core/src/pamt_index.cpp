@@ -101,8 +101,8 @@ bool parse_decimal(const std::string& value, std::uint64_t& parsed) {
 
 LoadPriority load_priority(const Entry& entry) {
     const auto& pamt_path = entry.source->pamt_path;
-    const auto package = lower_copy(pamt_path.parent_path().filename().string());
-    const auto pamt_stem = lower_copy(pamt_path.stem().string());
+    const auto package = lower_copy(pamt_path.parent_path().filename().u8string());
+    const auto pamt_stem = lower_copy(pamt_path.stem().u8string());
     std::uint64_t package_number = 0;
     std::uint64_t pamt_number = 0;
     const auto numeric_package = parse_decimal(package, package_number);
@@ -112,12 +112,12 @@ LoadPriority load_priority(const Entry& entry) {
     // the base files at the same path, so the DLC layer ranks above the base copy.
     std::uint64_t dlc_layer = 0;
     const auto layer_dir = pamt_path.parent_path().parent_path();
-    const auto layer_name = lower_copy(layer_dir.filename().string());
-    if (lower_copy(layer_dir.parent_path().filename().string()) == "dlc" && layer_name.rfind("dlc_", 0) == 0
+    const auto layer_name = lower_copy(layer_dir.filename().u8string());
+    if (lower_copy(layer_dir.parent_path().filename().u8string()) == "dlc" && layer_name.rfind("dlc_", 0) == 0
         && !parse_decimal(layer_name.substr(4), dlc_layer)) {
         dlc_layer = 0;
     }
-    return {tier, package_number, dlc_layer, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.string())};
+    return {tier, package_number, dlc_layer, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.u8string())};
 }
 
 // Override priority depends only on the entry source and its PAZ index, so it is
@@ -154,7 +154,7 @@ bool lower_priority(const LoadPriority& left, const LoadPriority& right) {
 
 std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     const auto data = read_binary(pamt_path, kMaximumPamtBytes);
-    if (data.size() < 12) throw std::runtime_error(pamt_path.string() + " is too small to be a PAMT file");
+    if (data.size() < 12) throw std::runtime_error(pamt_path.u8string() + " is too small to be a PAMT file");
     size_t offset = 0;
     const auto paz_count = read_u32(data, 4);
     offset = 12;
@@ -472,7 +472,7 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
     if (!fs::exists(cdmw::long_path(package_root), error) || error) throw std::runtime_error("archive root does not exist");
     std::vector<fs::path> pamt_files;
     if (fs::is_regular_file(cdmw::long_path(package_root), error)) {
-        if (lower_copy(package_root.extension().string()) != ".pamt") throw std::runtime_error("archive file is not a PAMT");
+        if (lower_copy(package_root.extension().u8string()) != ".pamt") throw std::runtime_error("archive file is not a PAMT");
         pamt_files.push_back(package_root);
         if (progress) progress(1, 0, "discover", package_root.filename().u8string());
     } else {
@@ -495,7 +495,7 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
                     continue;
                 }
             }
-            if (item.is_regular_file(error) && lower_copy(item.path().extension().string()) == ".pamt") {
+            if (item.is_regular_file(error) && lower_copy(item.path().extension().u8string()) == ".pamt") {
                 pamt_files.push_back(package_root / item.path().lexically_relative(long_root));
                 if (progress && (pamt_files.size() == 1 || (pamt_files.size() & 0x3F) == 0)) {
                     progress(pamt_files.size(), 0, "discover", item.path().filename().u8string());

@@ -137,12 +137,12 @@ std::vector<std::uint8_t> read_entry_raw(
     if (stored_size > kMaximumDecodedEntryBytes) throw std::runtime_error("stored entry exceeds the one GiB resource limit");
     std::error_code error;
     const auto file_size = fs::file_size(cdmw::long_path(paz_path), error);
-    if (error) throw std::runtime_error("could not determine PAZ size: " + paz_path.string());
+    if (error) throw std::runtime_error("could not determine PAZ size: " + paz_path.u8string());
     if (archive_offset > file_size || stored_size > file_size - archive_offset) {
         throw std::runtime_error("archive entry range is outside the PAZ file");
     }
     std::ifstream stream(cdmw::long_path(paz_path), std::ios::binary);
-    if (!stream) throw std::runtime_error("could not open PAZ file: " + paz_path.string());
+    if (!stream) throw std::runtime_error("could not open PAZ file: " + paz_path.u8string());
     stream.seekg(static_cast<std::streamoff>(archive_offset), std::ios::beg);
     std::vector<std::uint8_t> data(static_cast<size_t>(stored_size));
     if (!data.empty()) {
@@ -241,7 +241,7 @@ DecodeResult decode_entry(
             data = lz4_decompress(data, static_cast<size_t>(original_size));
             notes.emplace_back("LZ4");
         } else if (compression_type == 1) {
-            const auto extension = lower_copy(fs::path(virtual_path).extension().string());
+            const auto extension = lower_copy(fs::u8path(virtual_path).extension().u8string());
             auto static_mesh = cdmw::archive::decode_partial_static_mesh(extension, data, original_size, lz4_decompress);
             auto partial_par = static_mesh.empty() ? maybe_decompress_partial_par(data, original_size) : std::vector<std::uint8_t>{};
             if (!static_mesh.empty()) {
@@ -250,7 +250,7 @@ DecodeResult decode_entry(
             } else if (!partial_par.empty()) {
                 data = std::move(partial_par);
                 notes.emplace_back("PartialPAR");
-            } else if (lower_copy(fs::path(virtual_path).extension().string()) == ".dds" && !pamt_path.empty()) {
+            } else if (lower_copy(fs::u8path(virtual_path).extension().u8string()) == ".dds" && !pamt_path.empty()) {
                 data = reconstruct_partial_dds(virtual_path, pamt_path, data, original_size);
                 notes.emplace_back("PartialDDS+PATHC");
             } else {
