@@ -49,6 +49,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Changed
 
+- **Settings > Appearance > Global font size** now starts at 8 pt instead of 10 pt on a new install. CDMW keeps the size an earlier version saved, so an existing install stays at its size until you change it there. **Lists / columns font size** stays at 10 pt.
 - **Speed.**
   - Textures show sooner in Browse Archives. Going from one DDS texture to the next takes about a tenth of a second instead of half a second, and the previous texture stays on screen until the next one is ready instead of a loading page.
   - Item Finder, Body & Face Finder and NPC Finder are ready sooner the first time they are opened after a game update or a new game folder: on the current game about 10 seconds instead of 15, 8 instead of 12 and 3 instead of 5.

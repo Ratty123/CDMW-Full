@@ -203,7 +203,7 @@ MODEL_PREVIEW_BACKGROUND_COLOR = "#15191d"
 MODEL_PREVIEW_TEXT_COLOR = "#c8d3df"
 MODEL_PREVIEW_GRID_COLOR = "#2f3740"
 DEFAULT_UI_FONT_FAMILY = "Segoe UI"
-DEFAULT_UI_FONT_SIZE = 10
+DEFAULT_UI_FONT_SIZE = 8
 DEFAULT_UI_DATA_FONT_SIZE = 10
 # One font range for the UI, data and log fonts on every surface (P11 step 2).
 # The floor of 6 is the recommendation Fredric left open (decision 16).
