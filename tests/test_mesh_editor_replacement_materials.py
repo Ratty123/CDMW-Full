@@ -34,7 +34,7 @@ def entry(root, path, data):
 
 
 def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", surface=None,
-                     surface_parameter="_materialTexture", untextured=()):
+                     surface_parameter="_materialTexture", untextured=(), stray_space=False):
     source = root / "color.dds"
     Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(source)
     original = root / "original.dds"
@@ -57,7 +57,8 @@ def material_fixture(root, snapshot, *, layered=False, normal=False, shader="", 
                  f'Index="1"><ResourceReferencePath_ITexture Name="_value" _path="character/texture/original{i}_sp.dds"/>'
                  '</MaterialParameterTexture>')
     xml = ('<Root>' + ''.join(
-        f'<SkinnedMeshMaterialWrapper _subMeshName="target{i}">'
+        # 56 shipped wrappers carry a stray leading space (`` cd_phm_00_cloak_00_0447_02``).
+        f'<SkinnedMeshMaterialWrapper _subMeshName="{" " if stray_space else ""}target{i}">'
         + (f'<Material Name="_resourceMaterial" _materialName="{shader[i] if isinstance(shader, tuple) else shader}">'
            if shader else '<Material>')
         # A part in `untextured` is drawn by a material with an empty parameter list, as the game writes it (a mold).
@@ -255,6 +256,29 @@ def test_imported_materials_write_roughness_and_metallic_as_the_material_texture
     assert [file.path for file in textures] == [material.group(1)]  # the unused layer-R texture is pruned
     with Image.open(io.BytesIO(textures[0].data)) as image:
         assert image.size == (4, 4) and image.convert("RGBA").getpixel((0, 0)) == (255, 204, 64, 255)
+
+
+@pytest.mark.parametrize("shader, parameter", [("SkinnedMeshCloth_Ver2", "_detailMaterialMaskR"),
+                                               ("SkinnedMeshStandard", "_materialTexture")])
+def test_surface_reaches_wrappers_named_with_a_stray_space(editor, tmp_path, shader, parameter):
+    """56 shipped wrappers are named `` cd_...``. The binding names are trimmed,
+    so the surface code, comparing the untrimmed wrapper name, refused the
+    sliders ("found no replaced equipment material") and at defaults wrote no
+    surface at all, which the game reads as roughness 0."""
+    for surface in ((0.8, 0.25), None):
+        root = tmp_path / ("slider" if surface else "default")
+        root.mkdir()
+        pending, key = _surface_pending(editor, root, shader=shader, stray_space=True)
+        files = prepare_imported_materials(pending, (key,), root, surface=surface)
+        text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+        replaced, untouched = text.split('_subMeshName=" target1"')
+        match = re.search(rf'_name="{parameter}"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"', replaced)
+        assert match and "_cdmw_surface_" in match.group(1), replaced
+        assert "_cdmw_surface_" not in untouched
+        expected = (204, 64) if surface else (128, 0)
+        texture = next(file for file in files if file.path == match.group(1))
+        with Image.open(io.BytesIO(texture.data)) as image:
+            assert image.convert("RGBA").getpixel((0, 0))[1:3] == expected
 
 
 def test_one_surface_reaches_ver2_and_standard_wrappers_by_their_own_paths():

@@ -138,10 +138,10 @@ def _check_helper_targets(pending, targets):
     if not helpers:
         return
     sources = pending.source.mesh.submeshes
-    routed = {str(part.material or part.name).casefold()
+    routed = {_folded(part.material or part.name)
               for part, target in zip(sources, targets) if target not in helpers}
     for part, target in zip(sources, targets):
-        if target in helpers and str(part.material or part.name).casefold() not in routed:
+        if target in helpers and _folded(part.material or part.name) not in routed:
             raise ValueError(
                 f"{helpers[target]} is a helper material for the inside of the model and cannot take imported textures. "
                 f"Map {part.name or part.material} to a main part, join it with one before exporting, "
@@ -451,7 +451,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
         resolve_mesh_import_sidecars(state)
         collect_mesh_import_references(state)
         state.texture_references = tuple(reference for reference in state.texture_references
-                                         if reference.material_name.casefold() in names or reference.part_name.casefold() in names)
+                                         if _folded(reference.material_name) in names or _folded(reference.part_name) in names)
         configure_mesh_import_materials(state)
         payloads, report = build_static_texture_payloads(state, state.original_sidecars_for_static)
         raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
@@ -475,7 +475,7 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None,
                     pending, index, material_binding_name(original.submeshes[rows[targets[index]].target_index], bindings)))
         if not payloads:
             raise ValueError("Imported materials produced no output textures or sidecars; original-material fallback is disabled.")
-        slots = [slot for slot in report.slot_mappings if slot.target_material_name.casefold() in names]
+        slots = [slot for slot in report.slot_mappings if _folded(slot.target_material_name) in names]
         for slot in slots:
             target_path = str(getattr(slot, "output_texture_path", "") or "").casefold()
             if not target_path or target_path not in outputs:
@@ -579,7 +579,7 @@ def _restore_own_surfaces(pending, files, sidecar_keys, names):
 
     def edit(index, fragment):
         for wrapper in find_material_wrappers(fragment):
-            name = wrapper.submesh_name.casefold()
+            name = _folded(wrapper.submesh_name)
             if name not in names or wrapper.shader in SURFACE_SHADERS:
                 continue
             present = {parameter.name for parameter in wrapper.parameters}
@@ -655,7 +655,7 @@ def _apply_default_surface(pending, targets, files, sidecar_keys, names, directo
         means = _variant_means(originals, index)
         paths = {}
         for wrapper in find_material_wrappers(fragment):
-            name = wrapper.submesh_name.casefold()
+            name = _folded(wrapper.submesh_name)
             if name not in names or wrapper.shader not in SURFACE_SHADERS:
                 continue
             material = wrapper.shader in MATERIAL_TEXTURE_SURFACE_SHADERS
@@ -687,7 +687,7 @@ def _wrapper_source_materials(pending, targets):
             continue
         source = pending.source.mesh.submeshes[index]
         wrapper = material_binding_name(original.submeshes[rows[key].target_index], bindings)
-        result[wrapper].add(str(source.material or source.name or "").casefold())
+        result[wrapper].add(_folded(source.material or source.name))
     return result
 
 
@@ -738,7 +738,7 @@ def _fragment_surface_means(pending, fragment, names):
     files = {file.path.replace("\\", "/").casefold(): file for file in pending.state.dependencies}
     result = {}
     for wrapper in find_material_wrappers(fragment):
-        name = wrapper.submesh_name.casefold()
+        name = _folded(wrapper.submesh_name)
         if name not in names or name in result:
             continue
         means = {}
@@ -855,21 +855,21 @@ def _source_surface_inputs(pending):
     glTF roughness/metalness map (R), or a packed metallic-roughness map (G
     roughness, B metal); ``("value", v)`` for OBJ Pr/Pm; or None.
     """
-    used = {str(part.material or part.name or "").casefold() for part in pending.source.mesh.submeshes}
+    used = {_folded(part.material or part.name) for part in pending.source.mesh.submeshes}
     result = {}
     source = Path(pending.source_path)
     if source.suffix.lower() == ".obj":
         from cdmw.modding.scene_texture_discovery import _obj_material_parameters, _obj_material_texture_slots
-        slots = {name.casefold(): value for name, value in _obj_material_texture_slots(source).items()}
-        factors = {name.casefold(): value for name, value in _obj_material_parameters(source).items()}
+        slots = {_folded(name): value for name, value in _obj_material_texture_slots(source).items()}
+        factors = {_folded(name): value for name, value in _obj_material_parameters(source).items()}
         materials = {material: ({slot.slot_kind: slot.path for slot in slots.get(material, ())},
                                 {parameter.parameter_name: parameter.numeric_value for parameter in factors.get(material, ())})
                      for material in used}
     else:
-        materials = {str(binding.material_name or "").casefold(): (
+        materials = {_folded(binding.material_name): (
             {str(role).casefold(): texture for role, texture in binding.texture_slots}, {})
             for binding in getattr(pending.source, "material_bindings", ()) or ()
-            if str(binding.material_name or "").casefold() in used}
+            if _folded(binding.material_name) in used}
     for material, (kinds, values) in materials.items():
         entry = {}
         for key, kind, factor, channel in (("roughness", "roughness", "_roughnessFactor", "G"),
@@ -952,6 +952,6 @@ def _target_variant_wrappers(pending, names):
     sidecar = target_sidecar(pending)
     if sidecar is None:
         return ()
-    return tuple((index, wrapper.submesh_name.casefold(), wrapper.shader)
+    return tuple((index, _folded(wrapper.submesh_name), wrapper.shader)
                  for index, fragment in enumerate(material_variant_fragments(_sidecar_text(sidecar.data)))
-                 for wrapper in find_material_wrappers(fragment) if wrapper.submesh_name.casefold() in names)
+                 for wrapper in find_material_wrappers(fragment) if _folded(wrapper.submesh_name) in names)
