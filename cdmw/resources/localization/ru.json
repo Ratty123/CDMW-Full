@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "Выберите, какие разрешенные файлы ссылок следует скопировать вместе с экспортом сетки. Выбранные файлы будут записаны в папку referenced_files/ внутри выбранного каталога экспорта.",
     "Select whole mesh islands before changing their output inclusion.": "Выберите острова сетки целиком перед изменением их включения в вывод.",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "Выделите {value_0} в инструменте «Браузер архивов», затем снова нажмите «Продолжить редактирование».",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "Выделите {value_0} в списке архива, затем выберите «Открыть в Редакторе сеток»: его собственные файлы еще не подготовлены.",
     "Select {value_0}.": "Выбрать {value_0}.",
     "Selected": "Выбрано",
     "Selected ({value_0})": "Выбрано ({value_0})",

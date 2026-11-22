@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "どの解決された参照ファイルをメッシュ エクスポートと一緒にコピーするかを選択します。選択したファイルは、選択したエクスポート ディレクトリ内の Referenced_files/ フォルダーに書き込まれます。",
     "Select whole mesh islands before changing their output inclusion.": "出力対象を変更する前に、メッシュアイランド全体を選択してください。",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "アーカイブ ブラウザーで {value_0} を選択してから、もう一度「編集を続ける」を選んでください。",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "アーカイブの一覧で {value_0} を選択してから、「メッシュ エディタで開く」を選んでください。このファイル自身の関連ファイルはまだ準備されていません。",
     "Select {value_0}.": "{value_0} を選択します。",
     "Selected": "選択済み",
     "Selected ({value_0})": "選択済み ({value_0})",

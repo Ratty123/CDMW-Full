@@ -13177,6 +13177,7 @@
     "Select which resolved referenced files should be copied alongside the mesh export. The selected files will be written into a referenced_files/ folder inside the chosen export directory.": "Sélectionnez les fichiers référencés résolus qui doivent être copiés avec l'exportation du maillage. Les fichiers sélectionnés seront écrits dans un dossier referenced_files/ à l'intérieur du répertoire d'exportation choisi.",
     "Select whole mesh islands before changing their output inclusion.": "Sélectionnez des îlots de maillage entiers avant de modifier leur inclusion dans la sortie.",
     "Select {value_0} in Archive Browser, then choose Continue Editing again.": "Sélectionnez {value_0} dans le Navigateur d'archives, puis choisissez à nouveau Continuer l'édition.",
+    "Select {value_0} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.": "Sélectionnez {value_0} dans la liste des archives, puis choisissez Ouvrir dans l'éditeur de maillage ; ses propres fichiers ne sont pas encore préparés.",
     "Select {value_0}.": "Sélectionne {value_0}.",
     "Selected": "Sélectionné",
     "Selected ({value_0})": "Sélectionnées ({value_0})",

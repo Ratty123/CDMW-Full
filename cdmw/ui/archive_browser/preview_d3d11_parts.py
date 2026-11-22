@@ -169,15 +169,61 @@ class ArchivePreviewD3D11PartsMixin:
     def _archive_scene_open_file(self, path: str) -> None:
         """Open in Mesh Editor on one file of the Scene panel (P5)."""
 
-        key = str(path or "").replace("\\", "/").strip().casefold()
+        key = self._archive_scene_path_key(path)
         current = self._current_archive_entry()
-        entry = current if str(getattr(current, "path", "")).replace("\\", "/").casefold() == key else None
-        if entry is None:
-            entries = tuple((getattr(self, "archive_entries_by_normalized_path", {}) or {}).get(key, ()))
-            entry = entries[0] if entries else None
-        launch = getattr(getattr(self, "shell", None), "_launch_archive_mesh_editor_for_entry", None)
-        if entry is not None and callable(launch):
+        shell = getattr(self, "shell", None)
+        launch = getattr(shell, "_launch_archive_mesh_editor_for_entry", None)
+        if not key or not callable(launch):
+            return
+        if self._archive_scene_path_key(getattr(current, "path", "")) == key:
+            launch(current)
+            return
+        entry, openable = self._archive_scene_entry_for_path(key)
+        if entry is not None and openable:
             launch(entry)
+            return
+        # v2 keeps no catalogue-wide index here: a file the preview did not prepare,
+        # or a prefab component without a set of its own, opens from its own row.
+        if callable(getattr(shell, "set_status_message", None)):
+            name = Path(str(path or "").replace("\\", "/")).name or str(path or "")
+            shell.set_status_message(
+                f"Select {name} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.",
+                error=True,
+            )
+
+    @staticmethod
+    def _archive_scene_path_key(path: object) -> str:
+        return str(path or "").replace("\\", "/").strip().strip("/").casefold()
+
+    def _archive_scene_entry_for_path(self, key: str) -> tuple[object | None, bool]:
+        """(entry, whether Open in Mesh Editor can take it) for one Scene panel file.
+
+        The legacy browser indexes the whole catalogue. In v2 that index stays empty, so
+        the file is found among the item set's members (whose open prepares the set) or
+        in the preview's prepared files; a prefab component found there opens only when
+        its own set is prepared, as Open in Mesh Editor requires.
+        """
+        from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is None or not bool(getattr(bridge, "displays_v2", False)):
+            entries = tuple((getattr(self, "archive_entries_by_normalized_path", {}) or {}).get(key, ()))
+            return (entries[0], True) if entries else (None, False)
+        if bool(getattr(bridge, "item_set_active", False)):
+            for member in tuple(getattr(bridge, "item_set_members", ()) or ()):
+                if self._archive_scene_path_key(getattr(member, "path", "")) == key:
+                    entry = ArchiveCatalogueService.compatibility_entry(member)
+                    prepared = bridge.prepared_dependencies_for(entry)
+                    entries = tuple(getattr(prepared, "entries", ()) or ())
+                    return next((item for item in entries if item.identity == entry.identity), entry), True
+        preview = getattr(self, "archive_preview_request_entry", None) or self._current_archive_entry()
+        prepared = bridge.prepared_dependencies_for(preview) if preview is not None else None
+        entries = tuple((getattr(prepared, "entries_by_normalized_path", {}) or {}).get(key, ()))
+        if not entries:
+            return None, False
+        own = bridge.prepared_dependencies_for(entries[0])
+        selected = getattr(own, "selected_entry", None)
+        return entries[0], getattr(selected, "identity", None) == entries[0].identity
 
     def _archive_scene_prefab_toggled(self, path: str, checked: bool) -> None:
         """A prefab component file ticked in the Scene panel is loaded into the preview (P5)."""
