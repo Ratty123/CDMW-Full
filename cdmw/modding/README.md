@@ -52,21 +52,6 @@ Structured material slots take priority over the legacy texture-name field.
 When a relocated reference needs a filename search, a match beneath the model's
 own directory takes priority over matches elsewhere in the package.
 
-## Body region decomposition
-
-`mesh_region_decompose.py` splits the difference between two same-topology
-bodies across the segmented regions, turning any existing body mod into an
-editable slider set. Region weights are a partition of unity, so every region at
-100% rebuilds the captured body vertex for vertex; anything no region claims
-becomes its own slider rather than being dropped.
-
-Capture is deliberately not `build_morph_delta`, which also requires matching
-submesh names — body variants rename their parts (`cd_phw_00_nude_0001` versus
-`CD_PHW_00_Nude_0001_Fat`). Correspondence is checked per submesh because it
-varies within one file: between those two bodies the torso and hands are
-index-identical while the head shares only a vertex count, so the head is
-skipped and named instead of subtracted.
-
 ## PAC skin-influence layout
 
 Inside the proven 40-byte PAC vertex record, two little-endian u32 fields at
@@ -308,7 +293,7 @@ by these inspected update bodies and are not exposed as proven solver controls.
 
 ### CPU jiggle activation and shader handoff
 
-`pac_jiggle_runtime.py` provides pure reference stages for a supplied 0x220-byte
+[`pac_jiggle_runtime.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_jiggle_runtime.py) (removed; no app path imported it, the link is pinned to its last revision) provides pure reference stages for a supplied 0x220-byte
 CPU runtime record. This is runtime state, not a PAC record or a live-process
 reader. Constructor `0x15144F5D0`, update `0x142DB60D0`, resource refresh
 `0x142DE7D40` and upload `0x142DDFFA0` establish the field-to-shader chain in
@@ -890,7 +875,7 @@ and offsets agree. Relevant runtime fields include:
 | Particle extra | 12 / 14 / 16 / 18 | Restore-angle / elasticity / gravity / damping override |
 | Simulation parameter (312 bytes) | 264 / 266 | Stretching scale / overstretch reference ratio |
 
-`pac_cloth_constraints.py` implements the decoded core stretch, angle-bending
+[`pac_cloth_constraints.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_cloth_constraints.py) (removed; no app path imported it, the link is pinned to its last revision) implements the decoded core stretch, angle-bending
 and coefficient-bending projections as mathematical references. They return
 per-particle position corrections from one input iteration, before contacts,
 flag propagation and dispatch. Stiffness is supplied per particle;
@@ -962,7 +947,7 @@ or evidence of visible/game parity, and does not change the preview.
 
 ### Timing, animation and state stages
 
-`pac_cloth_state.py` connects timing, guide/static animation and explicit state stages
+[`pac_cloth_state.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_cloth_state.py) (removed; no app path imported it, the link is pinned to its last revision) connects timing, guide/static animation and explicit state stages
 from the same base shader:
 
 - `select_cloth_base_substep` reads the supplied 1216-byte global parameter
@@ -1663,7 +1648,7 @@ fade and `select_guide_result_positions`; no visible or gameplay claim follows.
 
 ### Water, wind and environment forces
 
-`pac_cloth_environment.py` decodes water volume queries and constructs environmental
+[`pac_cloth_environment.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_cloth_environment.py) (removed; no app path imported it, the link is pinned to its last revision) decodes water volume queries and constructs environmental
 acceleration from explicit runtime records and scene samples. `plan_cloth_water_samples`
 consumes the 768-byte water constant buffer and a position already relative to the
 previous view. Common UVs are `(0.5 + x * float8, 0.5 - z * float12)`. The detailed top
@@ -1721,7 +1706,7 @@ prediction and final movement; they do not prove GPU or game equivalence.
 
 ### Final movement and input blending
 
-`pac_cloth_movement.py` implements the decoded core of the normal final-movement
+[`pac_cloth_movement.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_cloth_movement.py) (removed; no app path imported it, the link is pinned to its last revision) implements the decoded core of the normal final-movement
 pass, confirmed against both packed and native-16-bit variants of
 `ComputePbdProcessFinalMovement`. `cloth_attachment_correction` uses the selected
 solver output (`_p[iterationCount & 1]`) for the current particle, but always
@@ -1765,7 +1750,7 @@ geometry; they do not establish game or rendered parity.
 
 ### Guide result frames
 
-`pac_cloth_frames.py` provides a mathematical reference for the guide branch of
+[`pac_cloth_frames.py`](https://github.com/Ratty123/CDMW-Full/blob/d5f6257535a830a4364404f8b51c1fd177b355e6/cdmw/modding/pac_cloth_frames.py) (removed; no app path imported it, the link is pinned to its last revision) provides a mathematical reference for the guide branch of
 `ComputePbdUpdateResult`, using explicitly supplied runtime inputs. Particle
 offset 0 is the animation target `_ix`; offset 36 is the simulated position `_x`.
 `select_guide_result_positions` interpolates `_p[0]` at offset 12 toward `_x`

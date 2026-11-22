@@ -409,8 +409,6 @@ def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:
     source = SPEC.read_text(encoding="utf-8")
     assert "from PyInstaller.utils.hooks import collect_all, collect_submodules" in source
     assert 'hiddenimports += collect_submodules("cdmw", filter=_should_collect_cdmw_submodule)' in source
-    assert '"cdmw.services.mesh_dotnet_experiment"' in source
-    assert '"cdmw.services.mesh_dotnet_runtime_status"' in source
     assert "Retired Vortice preview payload was collected" in source
 
 

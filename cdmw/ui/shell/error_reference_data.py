@@ -387,489 +387,6 @@ ERROR_REFERENCE = [
     "recovery": "write"
   },
   {
-    "group": "capture",
-    "code": "capture_blocked",
-    "messages": [
-      "Start/load the game, then rerun capture or pass --launch-game when launch is intended."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "capture",
-    "code": "client_to_screen_failed",
-    "messages": [
-      "Could not map game client point to screen."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "comparison_unavailable",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [
-      "warning"
-    ],
-    "recovery": "missing"
-  },
-  {
-    "group": "capture",
-    "code": "focus_failed",
-    "messages": [
-      "Game window did not have focus after prompt interaction.",
-      "Game window did not have focus; skipped key {key_label}.",
-      "Game window did not have focus; skipped window capture.",
-      "Game window did not have focus; skipped {button_key} mouse click."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "game_exe_missing",
-    "messages": [
-      "Crimson Desert executable is missing: {exe}"
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "helper"
-  },
-  {
-    "group": "capture",
-    "code": "game_launch_failed",
-    "messages": [
-      "Could not launch Crimson Desert: {exc}"
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "game_launch_requested",
-    "messages": [
-      "Launched Crimson Desert process."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "game_window_not_found",
-    "messages": [
-      "No running Crimson Desert game window was found."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "missing"
-  },
-  {
-    "group": "capture",
-    "code": "increase_masked_detail_contrast",
-    "messages": [
-      "Preview has weaker masked detail contrast than the reference; increase masked detail contrast before brightness hacks."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_masked_gold_strength",
-    "messages": [
-      "Reference contains gold that preview under-represents; raise masked gold strength or mask contrast."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_masked_green_strength",
-    "messages": [
-      "Reference contains green that preview under-represents; raise masked green strength or mask visibility."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_masked_silver_strength",
-    "messages": [
-      "Reference contains silver that preview under-represents; raise masked silver strength or neutral metal base visibility."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_preview_luma_or_source_brightness",
-    "messages": [
-      "Preview is darker than the reference; raise source brightness slightly or lift the neutral metal base/tone response."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_red_gem_or_emissive_strength",
-    "messages": [
-      "Reference contains red that preview under-represents; check gem base/emissive color and red channel handling."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "increase_tint_or_mask_saturation",
-    "messages": [
-      "Preview is less saturated than the reference; increase tint strength or masked green/gold/silver layer visibility."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "key_send_failed",
-    "messages": [
-      "Could not send key {key_label} to game window."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "key_sent",
-    "messages": [
-      "Sent key {key_label} to game window."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "lower_roughness_or_raise_reflection",
-    "messages": [
-      "Preview lacks highlights; lower roughness or raise specular/environment reflection."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "missing_masked_details",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "missing"
-  },
-  {
-    "group": "capture",
-    "code": "mouse_click_sent",
-    "messages": [
-      "Sent {button_key} mouse click to game window."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "mouse_move_failed",
-    "messages": [
-      "Could not move cursor inside game window."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "raise_roughness_or_reduce_reflection",
-    "messages": [
-      "Preview has too many highlights; raise roughness or reduce specular/environment reflection."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "limits"
-  },
-  {
-    "group": "capture",
-    "code": "reduce_blue_gem_or_check_channel_swizzle",
-    "messages": [
-      "Preview has more blue than the reference; check gem base/emissive color and possible red/blue channel swizzle."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "reduce_preview_luma_or_source_brightness",
-    "messages": [
-      "Preview is brighter than the reference; lower source brightness or compress the metal base tone response."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "reduce_tint_or_mask_saturation",
-    "messages": [
-      "Preview is more saturated than the reference; reduce tint strength or masked layer saturation."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "source_missing",
-    "messages": [
-      "Source mod directory is missing: {source}"
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "missing"
-  },
-  {
-    "group": "capture",
-    "code": "too_bright",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "too_dark",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "too_dull",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "too_glossy",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "too_matte",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "too_saturated",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "unexpected_blue",
-    "messages": [],
-    "sources": [
-      "cdmw/rendering/preview_comparison.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "capture",
-    "code": "unexpected_mod_name",
-    "messages": [
-      "Refusing to sync anything except TestRunSword."
-    ],
-    "sources": [
-      "cdmw/rendering/test_run_sword_tuning.py"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "capture",
-    "code": "unsupported_mouse_button",
-    "messages": [
-      "Unsupported mouse button: {button}"
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "unsupported"
-  },
-  {
-    "group": "capture",
-    "code": "unsupported_platform",
-    "messages": [
-      "In-game window capture is only available on Windows.",
-      "Key send is only available on Windows.",
-      "Mouse input is only available on Windows.",
-      "Window capture is only available on Windows.",
-      "Window interaction is only available on Windows."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "unsupported"
-  },
-  {
-    "group": "capture",
-    "code": "window_capture_failed",
-    "messages": [
-      "Could not capture game window: {exc}"
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "window_captured",
-    "messages": [
-      "Captured game client area."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "window_interacted_for_keyboard_prompts",
-    "messages": [
-      "Focused game window and clicked inside client area."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "capture",
-    "code": "window_rect_empty",
-    "messages": [
-      "Game client bounds were empty."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "empty"
-  },
-  {
-    "group": "capture",
-    "code": "window_rect_failed",
-    "messages": [
-      "Could not read game client bounds."
-    ],
-    "sources": [
-      "cdmw/rendering/ingame_capture.py"
-    ],
-    "severity": [],
-    "recovery": "format"
-  },
-  {
     "group": "dds",
     "code": "bad_dimensions",
     "messages": [
@@ -2572,26 +2089,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
-    "code": "capture_file_collected",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "capture_file_timeout",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "timeout"
-  },
-  {
-    "group": "mesh_validation",
     "code": "cloth_guide.collapsed_triangles",
     "messages": [
       "Skipped {len(collapsed_faces)} collapsed triangles on {name}, LOD {rule.source_lod}."
@@ -2877,16 +2374,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
-    "code": "existing_game_window_running",
-    "messages": [],
-    "sources": [
-      "tools/calibrate_crimson_startup.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
     "code": "failed",
     "messages": [
       "Body & Face Finder did not show that row in time. {detail}",
@@ -2953,16 +2440,6 @@ ERROR_REFERENCE = [
     ],
     "severity": [],
     "recovery": "configuration"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "import_failed",
-    "messages": [],
-    "sources": [
-      "tools/mesh_pipeline.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
   },
   {
     "group": "mesh_validation",
@@ -3846,46 +3323,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
-    "code": "pose_completed",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "pose_failed",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "pose_skipped",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "pose_unknown",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
     "code": "preserved_unnormalized_bone_weights",
     "messages": [
       "Bone weights are not normalized, but they match the original asset and will be preserved."
@@ -3965,16 +3402,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
-    "code": "renderdoc_capture_launch_requested",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
     "code": "selected-sidecar-no-bindings",
     "messages": [
       "The selected material sidecar file(s) were loaded, but no supported material/texture bindings were detected. Import can continue, but compatibility checks are limited."
@@ -3984,36 +3411,6 @@ ERROR_REFERENCE = [
     ],
     "severity": [],
     "recovery": "limits"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "shutdown_failed",
-    "messages": [],
-    "sources": [
-      "tools/calibrate_crimson_startup.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "shutdown_requested",
-    "messages": [],
-    "sources": [
-      "tools/calibrate_crimson_startup.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "mesh_validation",
-    "code": "shutdown_skipped",
-    "messages": [],
-    "sources": [
-      "tools/calibrate_crimson_startup.py"
-    ],
-    "severity": [],
-    "recovery": "internal"
   },
   {
     "group": "mesh_validation",
@@ -4613,16 +4010,6 @@ ERROR_REFERENCE = [
   },
   {
     "group": "mesh_validation",
-    "code": "unsupported_pose_action",
-    "messages": [],
-    "sources": [
-      "tools/run_crimson_renderdoc_hotkey_capture.py"
-    ],
-    "severity": [],
-    "recovery": "unsupported"
-  },
-  {
-    "group": "mesh_validation",
     "code": "unsupported_sdk",
     "messages": [
       "SDK {sdk} is not the measured {HKX_TAGFILE_SDK_VERSION}."
@@ -4982,66 +4369,6 @@ ERROR_REFERENCE = [
     ],
     "sources": [
       "tools/rust_mesh_lab/crates/cdmw_archive/src/lib.rs"
-    ],
-    "severity": [],
-    "recovery": "unsupported"
-  },
-  {
-    "group": "native_tools",
-    "code": "CDMW_ARCHIVE_BUFFER_TOO_SMALL",
-    "messages": [
-      "CDMW_ARCHIVE_BUFFER_TOO_SMALL = 5"
-    ],
-    "sources": [
-      "native/cdmw_archive_core/include/cdmw_archive_core.h"
-    ],
-    "severity": [],
-    "recovery": "limits"
-  },
-  {
-    "group": "native_tools",
-    "code": "CDMW_ARCHIVE_FORMAT_ERROR",
-    "messages": [
-      "CDMW_ARCHIVE_FORMAT_ERROR = 3"
-    ],
-    "sources": [
-      "native/cdmw_archive_core/include/cdmw_archive_core.h"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "native_tools",
-    "code": "CDMW_ARCHIVE_INVALID_ARGUMENT",
-    "messages": [
-      "CDMW_ARCHIVE_INVALID_ARGUMENT = 1"
-    ],
-    "sources": [
-      "native/cdmw_archive_core/include/cdmw_archive_core.h"
-    ],
-    "severity": [],
-    "recovery": "input"
-  },
-  {
-    "group": "native_tools",
-    "code": "CDMW_ARCHIVE_IO_ERROR",
-    "messages": [
-      "CDMW_ARCHIVE_IO_ERROR = 2"
-    ],
-    "sources": [
-      "native/cdmw_archive_core/include/cdmw_archive_core.h"
-    ],
-    "severity": [],
-    "recovery": "internal"
-  },
-  {
-    "group": "native_tools",
-    "code": "CDMW_ARCHIVE_UNSUPPORTED",
-    "messages": [
-      "CDMW_ARCHIVE_UNSUPPORTED = 4"
-    ],
-    "sources": [
-      "native/cdmw_archive_core/include/cdmw_archive_core.h"
     ],
     "severity": [],
     "recovery": "unsupported"
@@ -9056,14 +8383,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive companion indexing cancelled.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/domain/archives/lightweight_lookup.py": 47
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive comparison package must stay inside its output root",
     "recovery": "input",
     "sources": {
@@ -9224,102 +8543,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
-    "message": "Archive entry store PAMT id is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 226
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store extension index is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 200
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store extension ranges are invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 205
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store has too many extension values.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 88
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store is incomplete.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 187
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store manifest is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 151
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store path bytes are invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 196
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store path index is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 207
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store path offsets are invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 189
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store row contract is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 156
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store rows are invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 198
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive entry store schema is unsupported.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 153
-    }
-  },
-  {
-    "area": "archive",
     "message": "Archive export cancelled.",
     "recovery": "cancelled",
     "sources": {
@@ -9476,14 +8699,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveLookupService.cs": 506
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive lookup indexing cancelled.",
-    "recovery": "cancelled",
-    "sources": {
-      "cdmw/domain/archives/lightweight_lookup.py": 32
     }
   },
   {
@@ -10247,46 +9462,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/WorkerProgram.cs": 35
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CDMW_ARCHIVE_BUFFER_TOO_SMALL = 5",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_archive_core/include/cdmw_archive_core.h": 28
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CDMW_ARCHIVE_FORMAT_ERROR = 3",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_archive_core/include/cdmw_archive_core.h": 26
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CDMW_ARCHIVE_INVALID_ARGUMENT = 1",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_archive_core/include/cdmw_archive_core.h": 24
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CDMW_ARCHIVE_IO_ERROR = 2",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_archive_core/include/cdmw_archive_core.h": 25
-    }
-  },
-  {
-    "area": "archive",
-    "message": "CDMW_ARCHIVE_UNSUPPORTED = 4",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_archive_core/include/cdmw_archive_core.h": 27
     }
   },
   {
@@ -12213,7 +11388,6 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 block decompressed to an unexpected size",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 128,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 129
     }
   },
@@ -12246,7 +11420,6 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 literal run is outside its buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 103,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 104
     }
   },
@@ -12255,7 +11428,6 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 match offset is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 112,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 113,
       "native/cdmw_preview_core/src/owners/archive_decode.cpp": 95
     }
@@ -12265,7 +11437,6 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 match offset is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 109,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 110,
       "native/cdmw_preview_core/src/owners/archive_decode.cpp": 92
     }
@@ -12275,7 +11446,6 @@ MESSAGE_REFERENCE = [
     "message": "LZ4 match run is outside its output buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 122,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 123
     }
   },
@@ -13663,7 +12833,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT PAZ table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 81,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 161
     }
   },
@@ -13672,7 +12841,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT directory block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 90,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 170,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 441
     }
@@ -13690,7 +12858,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT entry has an invalid PAZ index",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 145,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 232
     }
   },
@@ -13787,7 +12954,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT file table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 105,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 185,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 463
     }
@@ -13797,7 +12963,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT filename block is truncated",
     "recovery": "locked",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 95,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 175,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 447
     }
@@ -13823,7 +12988,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT folder range is outside the file table",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 120,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 200
     }
   },
@@ -13832,7 +12996,6 @@ MESSAGE_REFERENCE = [
     "message": "PAMT folder table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 100,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 180,
       "native/cdmw_preview_core/src/owners/archive_index.cpp": 455
     }
@@ -13843,7 +13006,6 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 657,
-      "native/cdmw_archive_core/src/pamt_index.cpp": 85,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 165
     }
   },
@@ -17459,7 +16621,6 @@ MESSAGE_REFERENCE = [
     "message": "VFS path contains a parent cycle",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 28,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 32
     }
   },
@@ -17468,7 +16629,6 @@ MESSAGE_REFERENCE = [
     "message": "VFS path depth exceeds 255 records",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 37,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 41
     }
   },
@@ -17477,7 +16637,6 @@ MESSAGE_REFERENCE = [
     "message": "VFS path offset is outside the name block",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 21,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 25
     }
   },
@@ -17486,7 +16645,6 @@ MESSAGE_REFERENCE = [
     "message": "VFS path record is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 41,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 45
     }
   },
@@ -17495,7 +16653,6 @@ MESSAGE_REFERENCE = [
     "message": "VFS path text is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 45,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 49
     }
   },
@@ -17873,7 +17030,6 @@ MESSAGE_REFERENCE = [
     "message": "archive entry range is outside the PAZ file",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 141,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 142
     }
   },
@@ -17882,7 +17038,6 @@ MESSAGE_REFERENCE = [
     "message": "archive field is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 92,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 101
     }
   },
@@ -17891,7 +17046,6 @@ MESSAGE_REFERENCE = [
     "message": "archive file is not a PAMT",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 181,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 475
     }
   },
@@ -17900,7 +17054,6 @@ MESSAGE_REFERENCE = [
     "message": "archive index build was cancelled",
     "recovery": "cancelled",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core.cpp": 58,
       "native/cdmw_full_archive_core/src/archive_core.cpp": 60
     }
   },
@@ -17933,7 +17086,6 @@ MESSAGE_REFERENCE = [
     "message": "archive index header size is invalid",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 273,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 611
     }
   },
@@ -17958,7 +17110,6 @@ MESSAGE_REFERENCE = [
     "message": "archive root does not exist",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 178,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 472
     }
   },
@@ -18103,7 +17254,6 @@ MESSAGE_REFERENCE = [
     "message": "could not atomically publish archive index",
     "recovery": "write",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 165,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 459
     }
   },
@@ -18120,7 +17270,6 @@ MESSAGE_REFERENCE = [
     "message": "could not create archive index staging file",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 288,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 444
     }
   },
@@ -18145,7 +17294,6 @@ MESSAGE_REFERENCE = [
     "message": "could not determine PAZ size: {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 139,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 140
     }
   },
@@ -18154,7 +17302,6 @@ MESSAGE_REFERENCE = [
     "message": "could not determine file size for {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 124,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 133
     }
   },
@@ -18179,7 +17326,6 @@ MESSAGE_REFERENCE = [
     "message": "could not flush archive index staging file",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 293,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 449
     }
   },
@@ -18204,7 +17350,6 @@ MESSAGE_REFERENCE = [
     "message": "could not open PAZ file: {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 144,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 145
     }
   },
@@ -18230,7 +17375,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 170,
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 131,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 140
     }
   },
@@ -18335,7 +17479,6 @@ MESSAGE_REFERENCE = [
     "message": "decoded entry exceeds the one GiB resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 88,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 89
     }
   },
@@ -18508,7 +17651,6 @@ MESSAGE_REFERENCE = [
     "message": "file exceeds the read-only resource limit: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 127,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 136
     }
   },
@@ -18637,7 +17779,6 @@ MESSAGE_REFERENCE = [
     "message": "index path must not be empty",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 231,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 533
     }
   },
@@ -18646,7 +17787,6 @@ MESSAGE_REFERENCE = [
     "message": "index string is too large",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 154,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 240
     }
   },
@@ -18711,7 +17851,6 @@ MESSAGE_REFERENCE = [
     "message": "is too small to be a PAMT file",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 77,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 157
     }
   },
@@ -19025,7 +18164,6 @@ MESSAGE_REFERENCE = [
     "message": "no PAMT files were found under the archive root",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/pamt_index.cpp": 205,
       "native/cdmw_full_archive_core/src/pamt_index.cpp": 510
     }
   },
@@ -19187,7 +18325,6 @@ MESSAGE_REFERENCE = [
     "message": "path must not be empty",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 164,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 195
     }
   },
@@ -19373,7 +18510,6 @@ MESSAGE_REFERENCE = [
     "message": "short read from PAZ file",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 149,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 150,
       "native/cdmw_preview_core/src/owners/archive_decode.cpp": 46
     }
@@ -19383,7 +18519,6 @@ MESSAGE_REFERENCE = [
     "message": "short read from {detail}",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core_internal.hpp": 137,
       "native/cdmw_full_archive_core/src/archive_core_internal.hpp": 146
     }
   },
@@ -19432,7 +18567,6 @@ MESSAGE_REFERENCE = [
     "message": "stored entry exceeds the one GiB resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 136,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 137
     }
   },
@@ -19450,14 +18584,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_mesh_import_validation.py": 231
-    }
-  },
-  {
-    "area": "archive",
-    "message": "surrogatepass",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/archive_entry_store.py": 38
     }
   },
   {
@@ -19537,7 +18663,6 @@ MESSAGE_REFERENCE = [
     "message": "unknown native archive failure",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/archive_core.cpp": 71,
       "native/cdmw_full_archive_core/src/archive_core.cpp": 85
     }
   },
@@ -19586,7 +18711,6 @@ MESSAGE_REFERENCE = [
     "message": "unsupported archive compression type {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 254,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 260,
       "native/cdmw_preview_core/src/owners/archive_decode.cpp": 601
     }
@@ -19604,7 +18728,6 @@ MESSAGE_REFERENCE = [
     "message": "unsupported archive encryption type {detail}",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 233,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 234,
       "native/cdmw_preview_core/src/owners/archive_decode.cpp": 580
     }
@@ -19678,7 +18801,6 @@ MESSAGE_REFERENCE = [
     "message": "virtual path must not be empty",
     "recovery": "empty",
     "sources": {
-      "native/cdmw_archive_core/src/archive_decode.cpp": 227,
       "native/cdmw_full_archive_core/src/archive_decode.cpp": 228
     }
   },
@@ -20452,86 +19574,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "--capture-xml and --blob-zip required unless --rdc is supplied",
-    "recovery": "input",
-    "sources": {
-      "tools/process_renderdoc_capture_reports.py": 259
-    }
-  },
-  {
-    "area": "capture",
-    "message": "--draw-candidates-json or --dispatch-candidates-json required",
-    "recovery": "input",
-    "sources": {
-      "tools/export_renderdoc_candidate_truth.py": 176
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Captured game client area.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 207
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not capture game window: {exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 206
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not launch Crimson Desert: {exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 522
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not map game client point to screen.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 430
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not move cursor inside game window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 435
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not read game client bounds.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 191
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Could not send key {key_label} to game window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 366
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Crimson Desert executable is missing: {exe}",
-    "recovery": "helper",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 512
-    }
-  },
-  {
-    "area": "capture",
     "message": "Deterministic .NET icon capture timed out.",
     "recovery": "timeout",
     "sources": {
@@ -20540,90 +19582,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "Focused game window and clicked inside client area.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 493
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Game client bounds were empty.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 198
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Game window did not have focus after prompt interaction.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 485
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Game window did not have focus; skipped key {key_label}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 356
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Game window did not have focus; skipped window capture.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 186
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Game window did not have focus; skipped {button_key} mouse click.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 409
-    }
-  },
-  {
-    "area": "capture",
-    "message": "In-game window capture is only available on Windows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 65
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Key send is only available on Windows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 351
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Launched Crimson Desert process.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 523
-    }
-  },
-  {
-    "area": "capture",
     "message": "Mip detail requires an output root.",
     "recovery": "input",
     "sources": {
       "cdmw/workers/research_analysis_workers.py": 137
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Mouse input is only available on Windows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 393
     }
   },
   {
@@ -20652,110 +19614,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "No running Crimson Desert game window was found.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 553
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview has more blue than the reference; check gem base/emissive color and possible red/blue channel swizzle.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 92
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview has too many highlights; raise roughness or reduce specular/environment reflection.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 62
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview has weaker masked detail contrast than the reference; increase masked detail contrast before brightness hacks.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 97
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview is brighter than the reference; lower source brightness or compress the metal base tone response.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 47
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview is darker than the reference; raise source brightness slightly or lift the neutral metal base/tone response.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 42
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview is less saturated than the reference; increase tint strength or masked green/gold/silver layer visibility.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 57
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview is more saturated than the reference; reduce tint strength or masked layer saturation.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 52
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Preview lacks highlights; lower roughness or raise specular/environment reflection.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 67
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Reference contains gold that preview under-represents; raise masked gold strength or mask contrast.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 72
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Reference contains green that preview under-represents; raise masked green strength or mask visibility.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 82
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Reference contains red that preview under-represents; check gem base/emissive color and red channel handling.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 87
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Reference contains silver that preview under-represents; raise masked silver strength or neutral metal base visibility.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 77
-    }
-  },
-  {
-    "area": "capture",
     "message": "Referenced by UI XML with GetRect {first.rect_width}x{first.rect_height}. Upscaling the DDS alone may not change rendered size if the UI layout still uses the same rect.",
     "recovery": "internal",
     "sources": {
@@ -20776,22 +19634,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/research_tools.py": 95
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Refusing to sync anything except TestRunSword.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 544
-    }
-  },
-  {
-    "area": "capture",
-    "message": "RenderDoc truth JSON must be an object",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/renderdoc_truth_pass.py": 365
     }
   },
   {
@@ -20820,38 +19662,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "Sent key {key_label} to game window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 374
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Sent {button_key} mouse click to game window.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 440
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Source mod directory is missing: {source}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/test_run_sword_tuning.py": 546
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Start/load the game, then rerun capture or pass --launch-game when launch is intended.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 556
-    }
-  },
-  {
-    "area": "capture",
     "message": "The preview process could not capture the thumbnail.",
     "recovery": "internal",
     "sources": {
@@ -20876,14 +19686,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "Unsupported mouse button: {button}",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 405
-    }
-  },
-  {
-    "area": "capture",
     "message": "Unsupported research detail kind: {request.kind}",
     "recovery": "unsupported",
     "sources": {
@@ -20892,68 +19694,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "capture",
-    "message": "Window capture is only available on Windows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 175
-    }
-  },
-  {
-    "area": "capture",
-    "message": "Window interaction is only available on Windows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/ingame_capture.py": 454
-    }
-  },
-  {
-    "area": "capture",
-    "message": "candidate rank not found: {rank}",
-    "recovery": "missing",
-    "sources": {
-      "tools/export_renderdoc_candidate_truth.py": 13
-    }
-  },
-  {
-    "area": "capture",
-    "message": "game_exe_missing",
-    "recovery": "missing",
-    "sources": {
-      "tools/capture_crimson_renderdoc_frame.py": 137
-    }
-  },
-  {
-    "area": "capture",
-    "message": "rdc_not_found",
-    "recovery": "missing",
-    "sources": {
-      "tools/process_renderdoc_capture_reports.py": 49
-    }
-  },
-  {
-    "area": "capture",
-    "message": "renderdoccmd_not_found",
-    "recovery": "missing",
-    "sources": {
-      "tools/capture_crimson_renderdoc_frame.py": 135,
-      "tools/process_renderdoc_capture_reports.py": 51
-    }
-  },
-  {
-    "area": "capture",
     "message": "replace",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/research_references.py": 44,
-      "tools/extract_renderdoc_shader_blobs.py": 26
-    }
-  },
-  {
-    "area": "capture",
-    "message": "rustc_not_found",
-    "recovery": "missing",
-    "sources": {
-      "tools/trigger_renderdoc_capture_api.py": 67
+      "cdmw/core/research_references.py": 44
     }
   },
   {
@@ -20994,30 +19738,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py": 579
-    }
-  },
-  {
-    "area": "formats",
-    "message": "--archive expects exactly one source path.",
-    "recovery": "internal",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 156
-    }
-  },
-  {
-    "area": "formats",
-    "message": "--merge-reports cannot be combined with --shard-dir.",
-    "recovery": "input",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 226
-    }
-  },
-  {
-    "area": "formats",
-    "message": "--shard-size must be greater than 0.",
-    "recovery": "input",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 148
     }
   },
   {
@@ -21154,22 +19874,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 278
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Array count-hint descriptor mutation did not survive parser/rebuild checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 158
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Array count-hint descriptor word is outside the payload.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 134
     }
   },
   {
@@ -21378,7 +20082,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 937
+      "cdmw/ui/speed_prefabs/workspace.py": 946
     }
   },
   {
@@ -21427,22 +20131,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_hkx_parser.py": 376
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Descriptor word3 is outside the payload.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 368
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Descriptor word3 mutation did not survive parser/rebuild checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 392
     }
   },
   {
@@ -21551,14 +20239,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Edit probes disabled for no-edit-only corpus scan.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_audit_stages.py": 334
-    }
-  },
-  {
-    "area": "formats",
     "message": "Edited HKX XML export failed: {message}",
     "recovery": "write",
     "sources": {
@@ -21615,30 +20295,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Experimental length-changing rebuild probe failed parser/layout/JSON checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 340
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Experimental placement length-changing rebuild probe failed offset-candidate remap checks.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 189
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Experimental placement length-changing rebuild probe failed parser/layout/JSON checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 189
-    }
-  },
-  {
-    "area": "formats",
     "message": "Fixup could not be assigned a target or semantic bucket.",
     "recovery": "internal",
     "sources": {
@@ -21651,14 +20307,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "native/cd_hkx/src/layout_containers.rs": 68
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Generated report contains a NUL byte: {path}",
-    "recovery": "internal",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 135
     }
   },
   {
@@ -21983,14 +20631,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Merged shard coverage ends at {cursor}; expected {files_discovered}.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 64
-    }
-  },
-  {
-    "area": "formats",
     "message": "Mesh primitive tuple must contain exactly four byte values.",
     "recovery": "input",
     "sources": {
@@ -22047,14 +20687,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "No array descriptor with a nonzero count hint.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 128
-    }
-  },
-  {
-    "area": "formats",
     "message": "No collection {collection_index}; this prefab has {len(document.collections)}",
     "recovery": "internal",
     "sources": {
@@ -22083,38 +20715,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 642
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No editable placement field with a safe length-changing probe candidate.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 156
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No editable placement field with a safe same-length probe candidate.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 109
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No editable resource reference with a safe length-changing probe candidate.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 294
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No editable resource reference with a safe same-length probe candidate.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 57
     }
   },
   {
@@ -22151,30 +20751,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "No non-array/non-reference/non-transform descriptor with a nonzero word3.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 362
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No non-header preserved span available for direct mutation.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 305
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No reference descriptor with a nonzero word3.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 246
-    }
-  },
-  {
-    "area": "formats",
     "message": "No referenced .paa/.hkx/.motionblending animation lane was recovered.",
     "recovery": "internal",
     "sources": {
@@ -22191,14 +20767,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "No report files match: {text}",
-    "recovery": "internal",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 112
-    }
-  },
-  {
-    "area": "formats",
     "message": "No string sits at 0x{edit.offset}",
     "recovery": "internal",
     "sources": {
@@ -22211,14 +20779,6 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/ui/archive_browser/hkx_document_actions.py": 445
-    }
-  },
-  {
-    "area": "formats",
-    "message": "No transform descriptor with a nonzero word3.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 187
     }
   },
   {
@@ -22303,14 +20863,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "PALOC container LZ4 decompression failed: {detail}",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 21
-    }
-  },
-  {
-    "area": "formats",
     "message": "PALOC container LZ4 decompression failed{where}: {exc}",
     "recovery": "format",
     "sources": {
@@ -22319,26 +20871,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "PALOC container compressed size does not match its bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 16
-    }
-  },
-  {
-    "area": "formats",
     "message": "PALOC container compressed size does not match its bytes{where}",
     "recovery": "format",
     "sources": {
       "cdmw/core/paloc_format.py": 101
-    }
-  },
-  {
-    "area": "formats",
-    "message": "PALOC container header is truncated",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 13
     }
   },
   {
@@ -22362,8 +20898,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC container uncompressed size is out of bounds",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/paloc_format.py": 228,
-      "native/cdmw_item_composer/src/paloc.cpp": 17
+      "cdmw/core/paloc_format.py": 228
     }
   },
   {
@@ -22456,14 +20991,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Placement length-changing probe did not increase byte length.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 164
-    }
-  },
-  {
-    "area": "formats",
     "message": "Possible body/constraint reference or flags pair. Structural reference edits are not supported.",
     "recovery": "unsupported",
     "sources": {
@@ -22476,14 +21003,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "native/cd_hkx/src/layout_rigging.rs": 238
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Prefab JSON import, layout rebuild, or same-length edit probe failed.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_audit_rows_0.py": 380
     }
   },
   {
@@ -22768,30 +21287,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Prefab edit document has no editable object.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 41
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Prefab edit document has no placement field rows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 88
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Prefab edit document has no resource reference rows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 44
-    }
-  },
-  {
-    "area": "formats",
     "message": "Prefab layout has a gap or overlap.",
     "recovery": "conflict",
     "sources": {
@@ -22964,14 +21459,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/core/prefab_json_common.py": 97
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Preserved unknown byte mutation did not survive parser/rebuild checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 333
     }
   },
   {
@@ -23169,22 +21656,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Reference descriptor word3 is outside the payload.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 252
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Reference descriptor word3 mutation did not survive parser/rebuild checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 276
-    }
-  },
-  {
-    "area": "formats",
     "message": "Reference word at DATA {word_offset} lies outside every item.",
     "recovery": "internal",
     "sources": {
@@ -23250,86 +21721,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "Report {index} edit probe mode differs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 92
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {index} files_discovered differs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 90
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {index} has no rows array.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 97
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {index} has unsupported format.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 83
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {index} source_paths differ.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 87
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {index} source_type differs.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 85
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {report_index} covers [{start}, {end}); expected start {cursor}.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 59
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {report_index} is a sample report, not a contiguous shard.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 52
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {report_index} scanned more rows than its declared shard count.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 54
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Report {report_index} used discovery_limit and cannot prove full corpus coverage.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 50
-    }
-  },
-  {
-    "area": "formats",
     "message": "Rewriting changed how many pointers the file contains",
     "recovery": "write",
     "sources": {
@@ -23358,22 +21749,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_hkx_tagfile_model.py": 259
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Same-length placement edit probe changed unexpected bytes or broke layout accounting.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 120
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Same-length resource edit probe changed unexpected bytes or broke layout accounting.",
-    "recovery": "stale",
-    "sources": {
-      "cdmw/core/prefab_corpus_edit_probes.py": 75
     }
   },
   {
@@ -23983,7 +22358,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1230
+      "cdmw/ui/speed_prefabs/workspace.py": 1244
     }
   },
   {
@@ -24080,22 +22455,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/archive_hkx_mesh_export_helpers_0.py": 133
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Transform descriptor word3 is outside the payload.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 193
-    }
-  },
-  {
-    "area": "formats",
-    "message": "Transform descriptor word3 mutation did not survive parser/rebuild checks.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_probe_metrics.py": 217
     }
   },
   {
@@ -24321,8 +22680,7 @@ MESSAGE_REFERENCE = [
     "message": "a localization key cannot be empty",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/paloc_format.py": 288,
-      "native/cdmw_item_composer/src/paloc.cpp": 116
+      "cdmw/core/paloc_format.py": 288
     }
   },
   {
@@ -24330,7 +22688,7 @@ MESSAGE_REFERENCE = [
     "message": "a pointee spans the splice point 0x{insert_at}; refusing",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 266
+      "cdmw/core/prefab_component_graft.py": 275
     }
   },
   {
@@ -24346,7 +22704,7 @@ MESSAGE_REFERENCE = [
     "message": "a transform is scale(3), rotation(4), position(3)",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 212
+      "cdmw/core/prefab_component_graft.py": 221
     }
   },
   {
@@ -24354,39 +22712,7 @@ MESSAGE_REFERENCE = [
     "message": "an offset transform is 40 bytes",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 301
-    }
-  },
-  {
-    "area": "formats",
-    "message": "array count-hint direct mutation preserves bytes but proves no count semantics",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 429
-    }
-  },
-  {
-    "area": "formats",
-    "message": "array resize semantics are not proven",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 415
-    }
-  },
-  {
-    "area": "formats",
-    "message": "array theoretical payload later fits are separated by strings or member declarations",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 423
-    }
-  },
-  {
-    "area": "formats",
-    "message": "array theoretical payload ownership is blocked by immediate string-span overlap",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 421
+      "cdmw/core/prefab_component_graft.py": 310
     }
   },
   {
@@ -24394,7 +22720,7 @@ MESSAGE_REFERENCE = [
     "message": "bad member type {member_type} at 0x{member_offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 412
+      "cdmw/core/prefab_binary.py": 448
     }
   },
   {
@@ -24402,7 +22728,7 @@ MESSAGE_REFERENCE = [
     "message": "bad string length {length} at 0x{start}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 385
+      "cdmw/core/prefab_binary.py": 421
     }
   },
   {
@@ -24410,7 +22736,7 @@ MESSAGE_REFERENCE = [
     "message": "bad type name {type_name} at 0x{offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 400
+      "cdmw/core/prefab_binary.py": 436
     }
   },
   {
@@ -24418,7 +22744,7 @@ MESSAGE_REFERENCE = [
     "message": "blob read of {count} past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 629
+      "cdmw/core/prefab_binary.py": 665
     }
   },
   {
@@ -24426,7 +22752,7 @@ MESSAGE_REFERENCE = [
     "message": "blob string length {length} at 0x{offset}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 644
+      "cdmw/core/prefab_binary.py": 680
     }
   },
   {
@@ -24434,7 +22760,7 @@ MESSAGE_REFERENCE = [
     "message": "blob {header.blob_offset}+{header.blob_length} outside a {len(payload)}-byte payload",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1703
+      "cdmw/core/prefab_binary.py": 1843
     }
   },
   {
@@ -24451,14 +22777,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/papr_block.py": 214
-    }
-  },
-  {
-    "area": "formats",
-    "message": "buffer is too short to hold a count",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 60
     }
   },
   {
@@ -24583,14 +22901,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "descriptor word3 direct mutation preserves bytes but proves no count semantics",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 431
-    }
-  },
-  {
-    "area": "formats",
     "message": "driver count runs past the block",
     "recovery": "internal",
     "sources": {
@@ -24711,10 +23021,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "expected a collection here but found count {count}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/prefab_binary.py": 985
+    }
+  },
+  {
+    "area": "formats",
     "message": "expected a collection here but found {_describe_cursor(cursor)} (read count {count}, kind {kind})",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 953
+      "cdmw/core/prefab_binary.py": 1020
     }
   },
   {
@@ -24767,19 +23085,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "full-corpus no-edit rebuild has not been run",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report.py": 115,
-      "cdmw/core/prefab_corpus_report_stages_1.py": 451
-    }
-  },
-  {
-    "area": "formats",
     "message": "group nesting deeper than {_MAX_DEPTH}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1392
+      "cdmw/core/prefab_binary.py": 1530
     }
   },
   {
@@ -24858,7 +23167,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible member count {member_count} for {type_name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 403
+      "cdmw/core/prefab_binary.py": 439
     }
   },
   {
@@ -24874,7 +23183,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible string pool count {pool_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 516
+      "cdmw/core/prefab_binary.py": 552
     }
   },
   {
@@ -24882,7 +23191,7 @@ MESSAGE_REFERENCE = [
     "message": "implausible type count {type_count}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 508
+      "cdmw/core/prefab_binary.py": 544
     }
   },
   {
@@ -24906,7 +23215,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid indexed object-list reference on {member.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1081
+      "cdmw/core/prefab_binary.py": 1160
     }
   },
   {
@@ -24914,7 +23223,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid member count",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 445
+      "cdmw/core/prefab_binary.py": 481
     }
   },
   {
@@ -24922,7 +23231,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid member span",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 453
+      "cdmw/core/prefab_binary.py": 489
     }
   },
   {
@@ -24930,7 +23239,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid motion object-list reference on {member.name}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1076
+      "cdmw/core/prefab_binary.py": 1150
     }
   },
   {
@@ -24938,7 +23247,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid motion root mask width {width}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1469
+      "cdmw/core/prefab_binary.py": 1607
     }
   },
   {
@@ -24946,7 +23255,15 @@ MESSAGE_REFERENCE = [
     "message": "invalid numeric array {member.name}: {count} elements",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1038
+      "cdmw/core/prefab_binary.py": 1105
+    }
+  },
+  {
+    "area": "formats",
+    "message": "invalid object-list preamble on {member.name} at 0x{at}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/core/prefab_binary.py": 1220
     }
   },
   {
@@ -24954,7 +23271,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid schema span",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/prefab_binary.py": 441
+      "cdmw/core/prefab_binary.py": 477
     }
   },
   {
@@ -24962,7 +23279,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid stated motion component {type_index} for mask 0x{mask}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1361
+      "cdmw/core/prefab_binary.py": 1499
     }
   },
   {
@@ -24983,42 +23300,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "key runs past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 71
-    }
-  },
-  {
-    "area": "formats",
     "message": "length prefix at 0x{prefix_at} is {stored}, expected {len(encoded_old)}",
     "recovery": "input",
     "sources": {
       "cdmw/core/prefab_binary_edit.py": 384
-    }
-  },
-  {
-    "area": "formats",
-    "message": "localization key '{detail}' already exists in the table",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 117
-    }
-  },
-  {
-    "area": "formats",
-    "message": "localization key '{detail}' is repeated in the additions",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 118
-    }
-  },
-  {
-    "area": "formats",
-    "message": "localization key may be a Unicode number",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 34
     }
   },
   {
@@ -25042,7 +23327,7 @@ MESSAGE_REFERENCE = [
     "message": "mask 0x{mask} exceeds every candidate component",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1364
+      "cdmw/core/prefab_binary.py": 1502
     }
   },
   {
@@ -25050,7 +23335,7 @@ MESSAGE_REFERENCE = [
     "message": "member {name} at 0x{member_offset} lacks leading underscore",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 409
+      "cdmw/core/prefab_binary.py": 445
     }
   },
   {
@@ -25067,7 +23352,7 @@ MESSAGE_REFERENCE = [
     "message": "more than {_MAX_GROUPS} groups",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1394
+      "cdmw/core/prefab_binary.py": 1532
     }
   },
   {
@@ -25075,7 +23360,7 @@ MESSAGE_REFERENCE = [
     "message": "motion collection count {count} exceeds {_MAX_COUNT}",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_binary.py": 918
+      "cdmw/core/prefab_binary.py": 978
     }
   },
   {
@@ -25083,7 +23368,7 @@ MESSAGE_REFERENCE = [
     "message": "motion object length {declared} != {consumed}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1431
+      "cdmw/core/prefab_binary.py": 1569
     }
   },
   {
@@ -25091,7 +23376,7 @@ MESSAGE_REFERENCE = [
     "message": "motion root type is not the first declared type",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1472
+      "cdmw/core/prefab_binary.py": 1610
     }
   },
   {
@@ -25099,7 +23384,7 @@ MESSAGE_REFERENCE = [
     "message": "name pointer is not self-relative",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1287
+      "cdmw/core/prefab_binary.py": 1425
     }
   },
   {
@@ -25107,7 +23392,7 @@ MESSAGE_REFERENCE = [
     "message": "name record entries are out of order",
     "recovery": "stale",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1304
+      "cdmw/core/prefab_binary.py": 1442
     }
   },
   {
@@ -25155,7 +23440,7 @@ MESSAGE_REFERENCE = [
     "message": "no component type for group",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1405
+      "cdmw/core/prefab_binary.py": 1543
     }
   },
   {
@@ -25171,7 +23456,7 @@ MESSAGE_REFERENCE = [
     "message": "no element header near 0x{base}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1269
+      "cdmw/core/prefab_binary.py": 1407
     }
   },
   {
@@ -25195,7 +23480,7 @@ MESSAGE_REFERENCE = [
     "message": "no name record near 0x{cursor.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1283
+      "cdmw/core/prefab_binary.py": 1421
     }
   },
   {
@@ -25227,7 +23512,7 @@ MESSAGE_REFERENCE = [
     "message": "no pointer record near 0x{cursor.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 786
+      "cdmw/core/prefab_binary.py": 846
     }
   },
   {
@@ -25235,7 +23520,7 @@ MESSAGE_REFERENCE = [
     "message": "non-utf8 string at 0x{start}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 391
+      "cdmw/core/prefab_binary.py": 427
     }
   },
   {
@@ -25251,7 +23536,15 @@ MESSAGE_REFERENCE = [
     "message": "numeric array {member.name} opens with kind {kind}, not 0 or 1",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1033
+      "cdmw/core/prefab_binary.py": 1100
+    }
+  },
+  {
+    "area": "formats",
+    "message": "object-list preamble on {member.name} lists {keys} keys",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/prefab_binary.py": 1228
     }
   },
   {
@@ -25268,14 +23561,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/papr_format.py": 557
-    }
-  },
-  {
-    "area": "formats",
-    "message": "offset/count rebuild is not proven",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 411
     }
   },
   {
@@ -25376,34 +23661,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "placement length-changing probe failed rows still block resize-offset readiness",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 445
-    }
-  },
-  {
-    "area": "formats",
-    "message": "placement length-changing probe skipped rows still block resize-offset readiness",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 443
-    }
-  },
-  {
-    "area": "formats",
-    "message": "placement length-changing probes include non-strict effective remap statuses",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 449
-    }
-  },
-  {
-    "area": "formats",
     "message": "pointee length {declared} != {actual}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 846
+      "cdmw/core/prefab_binary.py": 906
     }
   },
   {
@@ -25411,23 +23672,7 @@ MESSAGE_REFERENCE = [
     "message": "pointer at 0x{cursor.pos} is not self-relative",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 791
-    }
-  },
-  {
-    "area": "formats",
-    "message": "potential offset references in preserved prefab bytes must be understood before resizing",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 413
-    }
-  },
-  {
-    "area": "formats",
-    "message": "preserved unknown-byte direct mutation preserves bytes but proves no semantics",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 437
+      "cdmw/core/prefab_binary.py": 851
     }
   },
   {
@@ -25460,22 +23705,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/paloc_format.py": 131
-    }
-  },
-  {
-    "area": "formats",
-    "message": "record header runs past the table",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 65
-    }
-  },
-  {
-    "area": "formats",
-    "message": "record {detail} is not UTF-8",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 79
     }
   },
   {
@@ -25536,22 +23765,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "reference descriptor tail records are preserved but lack semantic column ownership",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 433
-    }
-  },
-  {
-    "area": "formats",
-    "message": "reference word3 direct mutation preserves bytes but proves no semantics",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 435
-    }
-  },
-  {
-    "area": "formats",
     "message": "replace",
     "recovery": "internal",
     "sources": {
@@ -25579,42 +23792,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "resource length-changing probe failed rows still block resize-offset readiness",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 441
-    }
-  },
-  {
-    "area": "formats",
-    "message": "resource length-changing probe skipped rows still block resize-offset readiness",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 439
-    }
-  },
-  {
-    "area": "formats",
-    "message": "resource length-changing probes include non-strict effective remap statuses",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 447
-    }
-  },
-  {
-    "area": "formats",
     "message": "roundtrip-noedit requires input and output paths",
     "recovery": "input",
     "sources": {
       "native/cd_hkx/src/main.rs": 119
-    }
-  },
-  {
-    "area": "formats",
-    "message": "same-length import readiness is not proven",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 409
     }
   },
   {
@@ -25643,22 +23824,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "source path is required unless --merge-reports is used.",
-    "recovery": "input",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 183
-    }
-  },
-  {
-    "area": "formats",
-    "message": "source paths are not allowed with --merge-reports.",
-    "recovery": "internal",
-    "sources": {
-      "tools/report_prefab_json_import_corpus.py": 230
-    }
-  },
-  {
-    "area": "formats",
     "message": "strict",
     "recovery": "internal",
     "sources": {
@@ -25670,7 +23835,7 @@ MESSAGE_REFERENCE = [
     "message": "string array {member.name} has {count} elements",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1008
+      "cdmw/core/prefab_binary.py": 1075
     }
   },
   {
@@ -25678,7 +23843,7 @@ MESSAGE_REFERENCE = [
     "message": "string array {member.name} opens with kind {kind}, not 0 or 1",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 973
+      "cdmw/core/prefab_binary.py": 1040
     }
   },
   {
@@ -25715,18 +23880,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "text runs past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 76
-    }
-  },
-  {
-    "area": "formats",
     "message": "the donor declares no type {component_type}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 179
+      "cdmw/core/prefab_component_graft.py": 188
     }
   },
   {
@@ -25734,7 +23891,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element carries no 40-byte _offsetTransform to overwrite",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 299
+      "cdmw/core/prefab_component_graft.py": 308
     }
   },
   {
@@ -25742,7 +23899,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element does not hold {old_raw} at 0x{d_start + at}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 320
+      "cdmw/core/prefab_component_graft.py": 329
     }
   },
   {
@@ -25750,7 +23907,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor element names type index {old_index}, which the target does not declare",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 294
+      "cdmw/core/prefab_component_graft.py": 303
     }
   },
   {
@@ -25758,7 +23915,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor has {len(candidates)} {component_type} element(s) in {collection_member}, none at index {donor_index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 251
+      "cdmw/core/prefab_component_graft.py": 260
     }
   },
   {
@@ -25766,7 +23923,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor pointer at 0x{site} has no readable header; refusing to remap its type",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 274
+      "cdmw/core/prefab_component_graft.py": 283
     }
   },
   {
@@ -25774,7 +23931,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor prefab did not decode completely: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 247
+      "cdmw/core/prefab_component_graft.py": 256
     }
   },
   {
@@ -25782,7 +23939,7 @@ MESSAGE_REFERENCE = [
     "message": "the donor prefab did not decode completely: {ddoc.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 247
+      "cdmw/core/prefab_component_graft.py": 256
     }
   },
   {
@@ -25795,31 +23952,7 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "the footer counts {detail} records but the table walks {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 84
-    }
-  },
-  {
-    "area": "formats",
     "message": "the grafted element's string {text} did not read back",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_component_graft.py": 384
-    }
-  },
-  {
-    "area": "formats",
-    "message": "the grafted object does not read back with the donor element's members and resources",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_component_graft.py": 379
-    }
-  },
-  {
-    "area": "formats",
-    "message": "the grafted prefab declares the wrong file size",
     "recovery": "internal",
     "sources": {
       "cdmw/core/prefab_component_graft.py": 393
@@ -25827,10 +23960,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
+    "message": "the grafted object does not read back with the donor element's members and resources",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/prefab_component_graft.py": 388
+    }
+  },
+  {
+    "area": "formats",
+    "message": "the grafted prefab declares the wrong file size",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/prefab_component_graft.py": 402
+    }
+  },
+  {
+    "area": "formats",
     "message": "the grafted prefab declares the wrong number of types",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 374
+      "cdmw/core/prefab_component_graft.py": 383
     }
   },
   {
@@ -25838,7 +23987,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab does not read back: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 370
+      "cdmw/core/prefab_component_graft.py": 379
     }
   },
   {
@@ -25846,7 +23995,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab has the wrong number of pointers",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 389
+      "cdmw/core/prefab_component_graft.py": 398
     }
   },
   {
@@ -25854,7 +24003,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab no longer reads all the way through: {after.walk_note}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 372
+      "cdmw/core/prefab_component_graft.py": 381
     }
   },
   {
@@ -25862,7 +24011,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab reads back {len(after.objects)} object(s), expected {len(before.objects) + 1}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 376
+      "cdmw/core/prefab_component_graft.py": 385
     }
   },
   {
@@ -25870,7 +24019,7 @@ MESSAGE_REFERENCE = [
     "message": "the grafted prefab's blob is not the size the graft implies",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 391
+      "cdmw/core/prefab_component_graft.py": 400
     }
   },
   {
@@ -25878,7 +24027,7 @@ MESSAGE_REFERENCE = [
     "message": "the target has {len(targets)} {collection_member} collection(s), none at index {target_collection}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 258
+      "cdmw/core/prefab_component_graft.py": 267
     }
   },
   {
@@ -25886,7 +24035,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab did not decode completely: unknown",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 242
+      "cdmw/core/prefab_component_graft.py": 251
     }
   },
   {
@@ -25894,7 +24043,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab did not decode completely: {tdoc.walk_note}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 242
+      "cdmw/core/prefab_component_graft.py": 251
     }
   },
   {
@@ -25902,7 +24051,7 @@ MESSAGE_REFERENCE = [
     "message": "the target prefab's walk is not determined; refusing to splice into it",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 244
+      "cdmw/core/prefab_component_graft.py": 253
     }
   },
   {
@@ -25910,7 +24059,7 @@ MESSAGE_REFERENCE = [
     "message": "the target's own strings did not survive the graft in order",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 387
+      "cdmw/core/prefab_component_graft.py": 396
     }
   },
   {
@@ -25918,7 +24067,7 @@ MESSAGE_REFERENCE = [
     "message": "the target's {collection_member} collection declares {t_coll.count} element(s) and walked {len(t_coll.elements)}; refusing",
     "recovery": "input",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 262
+      "cdmw/core/prefab_component_graft.py": 271
     }
   },
   {
@@ -25931,34 +24080,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "transform theoretical payload later fits are separated by strings or member declarations",
-    "recovery": "format",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 427
-    }
-  },
-  {
-    "area": "formats",
-    "message": "transform theoretical payload ownership is blocked by immediate string-span overlap",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 425
-    }
-  },
-  {
-    "area": "formats",
-    "message": "transform value editing is not proven",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 417
-    }
-  },
-  {
-    "area": "formats",
     "message": "truncated collection header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 922
+      "cdmw/core/prefab_binary.py": 989
     }
   },
   {
@@ -25966,7 +24091,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated data header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 520
+      "cdmw/core/prefab_binary.py": 556
     }
   },
   {
@@ -25974,7 +24099,7 @@ MESSAGE_REFERENCE = [
     "message": "type table too large",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/prefab_component_graft.py": 286
+      "cdmw/core/prefab_component_graft.py": 295
     }
   },
   {
@@ -26022,7 +24147,7 @@ MESSAGE_REFERENCE = [
     "message": "u16 past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 369
+      "cdmw/core/prefab_binary.py": 405
     }
   },
   {
@@ -26030,7 +24155,7 @@ MESSAGE_REFERENCE = [
     "message": "u32 past end at 0x{self.pos}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 376
+      "cdmw/core/prefab_binary.py": 412
     }
   },
   {
@@ -26046,7 +24171,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected magic 0x{magic}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 490
+      "cdmw/core/prefab_binary.py": 526
     }
   },
   {
@@ -26054,7 +24179,7 @@ MESSAGE_REFERENCE = [
     "message": "unexpected name record header",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1290
+      "cdmw/core/prefab_binary.py": 1428
     }
   },
   {
@@ -26062,15 +24187,15 @@ MESSAGE_REFERENCE = [
     "message": "unexpected pointee header at 0x{start}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/prefab_binary.py": 794
+      "cdmw/core/prefab_binary.py": 854
     }
   },
   {
     "area": "formats",
-    "message": "unknown/reference descriptor edit semantics are not proven",
-    "recovery": "internal",
+    "message": "unselected {member.name}{where} is not empty at 0x{cursor.pos - 4}",
+    "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_corpus_report_stages_1.py": 419
+      "cdmw/core/prefab_binary.py": 1266
     }
   },
   {
@@ -26078,7 +24203,7 @@ MESSAGE_REFERENCE = [
     "message": "unselected {member.name}{where} is not empty at 0x{cursor.pos}",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1161
+      "cdmw/core/prefab_binary.py": 1276
     }
   },
   {
@@ -26099,14 +24224,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "formats",
-    "message": "unsupported PALOC container version {detail}",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/paloc.cpp": 15
-    }
-  },
-  {
-    "area": "formats",
     "message": "unsupported PALOC container version {version}{where}; the workbench needs support for this layout before it can be read",
     "recovery": "unsupported",
     "sources": {
@@ -26118,7 +24235,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported member kind 0x{flags} on {member.name}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1123
+      "cdmw/core/prefab_binary.py": 1202
     }
   },
   {
@@ -26126,7 +24243,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported motion array header {kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 983
+      "cdmw/core/prefab_binary.py": 1050
     }
   },
   {
@@ -26134,7 +24251,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported name count {count}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 1298
+      "cdmw/core/prefab_binary.py": 1436
     }
   },
   {
@@ -26142,7 +24259,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported prefab version {version}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/prefab_binary.py": 493
+      "cdmw/core/prefab_binary.py": 529
     }
   },
   {
@@ -26862,7 +24979,7 @@ MESSAGE_REFERENCE = [
     "message": "{pointee_type.type_name} pointee length {declared} != {actual}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/prefab_binary.py": 827
+      "cdmw/core/prefab_binary.py": 887
     }
   },
   {
@@ -29173,83 +27290,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "'I' format requires 0 <= number <= 4294967295",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 82,
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 173
-    }
-  },
-  {
-    "area": "items",
-    "message": "'ascii' codec can't decode a PAPGT name",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 39
-    }
-  },
-  {
-    "area": "items",
-    "message": "'ascii' codec can't encode a PAPGT name",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 55
-    }
-  },
-  {
-    "area": "items",
-    "message": "'{detail}' is longer than a name record can hold (255 bytes)",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 71
-    }
-  },
-  {
-    "area": "items",
-    "message": "'{detail}' names no file",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 95
-    }
-  },
-  {
-    "area": "items",
-    "message": ", which does not fit the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 11
-    }
-  },
-  {
-    "area": "items",
     "message": "0 or 1",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/game_tables_editor.py": 106
-    }
-  },
-  {
-    "area": "items",
-    "message": ": expected the NUL and 08 80 tag after the name",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 21
-    }
-  },
-  {
-    "area": "items",
-    "message": ": the digit string runs past the row",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 27
-    }
-  },
-  {
-    "area": "items",
-    "message": ": the repeated key reads",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 25
     }
   },
   {
@@ -29502,14 +27546,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Ambiguous added shop entries in {detail} for item {detail}.",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 63
-    }
-  },
-  {
-    "area": "items",
     "message": "Ambiguous layered material binding: {row.submesh_name}",
     "recovery": "internal",
     "sources": {
@@ -29712,14 +27748,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Archive patching does not support compression type {detail} yet.",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 319
-    }
-  },
-  {
-    "area": "items",
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
@@ -29748,14 +27776,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/rules.py": 382
-    }
-  },
-  {
-    "area": "items",
-    "message": "Bad zip file: {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 14
     }
   },
   {
@@ -29797,14 +27817,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/authoring_rules.py": 42
-    }
-  },
-  {
-    "area": "items",
-    "message": "Both table files are required to compose {detail}.",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 387
     }
   },
   {
@@ -29925,22 +27937,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/new_item_eye_cover_overlap.py": 64
-    }
-  },
-  {
-    "area": "items",
-    "message": "ChaCha20 decryption validation failed for {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 433
-    }
-  },
-  {
-    "area": "items",
-    "message": "ChaCha20 keys for non-ASCII file names follow Python's Unicode case folding",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 282
     }
   },
   {
@@ -30153,46 +28149,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Compact PAPGT directory table is truncated",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 102
-    }
-  },
-  {
-    "area": "items",
-    "message": "Compact PAPGT has an invalid or duplicate directory name",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 117
-    }
-  },
-  {
-    "area": "items",
-    "message": "Compact PAPGT string table or trailer has invalid bounds",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 104
-    }
-  },
-  {
-    "area": "items",
-    "message": "Compact VFS offset is outside the name block",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 111
-    }
-  },
-  {
-    "area": "items",
-    "message": "Compact VFS path is too deep",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 128
-    }
-  },
-  {
-    "area": "items",
     "message": "Complete the active dialog before editing the item.",
     "recovery": "internal",
     "sources": {
@@ -30214,30 +28170,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/read_failure.py": 113
-    }
-  },
-  {
-    "area": "items",
-    "message": "Corrupt extra field",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 102
-    }
-  },
-  {
-    "area": "items",
-    "message": "Corrupt unicode path extra field (0x7075)",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 107
-    }
-  },
-  {
-    "area": "items",
-    "message": "Corrupt unicode path extra field (0x7075): invalid utf-8 bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 110
     }
   },
   {
@@ -30271,14 +28203,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/new_item/dye_preview.py": 21
-    }
-  },
-  {
-    "area": "items",
-    "message": "DDS entries are not composed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 437
     }
   },
   {
@@ -30431,14 +28355,6 @@ MESSAGE_REFERENCE = [
     "recovery": "stale",
     "sources": {
       "cdmw/ui/new_item/rust_ui_bridge.py": 42
-    }
-  },
-  {
-    "area": "items",
-    "message": "Duplicate primary keys in an overlay table.",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 134
     }
   },
   {
@@ -30677,14 +28593,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Exceeded the maximum number of bytes that can be encrypted with ChaCha20 for this nonce.",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 293
-    }
-  },
-  {
-    "area": "items",
     "message": "Expected a New Item input message.",
     "recovery": "input",
     "sources": {
@@ -30894,14 +28802,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Incomplete table row directory.",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 126
-    }
-  },
-  {
-    "area": "items",
     "message": "Independent packages cannot include a mod base.",
     "recovery": "input",
     "sources": {
@@ -31002,14 +28902,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 268
-    }
-  },
-  {
-    "area": "items",
-    "message": "Invalid PAZ index {detail} for {detail}",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 385
     }
   },
   {
@@ -31670,22 +29562,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "LZ4 block is invalid: {detail}",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/lz4_block.cpp": 14
-    }
-  },
-  {
-    "area": "items",
-    "message": "LZ4 input exceeds the block size limit",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/lz4_block.cpp": 81
-    }
-  },
-  {
-    "area": "items",
     "message": "Level {edit.level} of {template.internal_name} has no buy price in item {edit.item_key}.",
     "recovery": "internal",
     "sources": {
@@ -31826,14 +29702,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs": 550
-    }
-  },
-  {
-    "area": "items",
-    "message": "Missing PAZ file: {detail}",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 164
     }
   },
   {
@@ -32269,110 +30137,6 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/ui/new_item/item_preview.py": 126,
       "cdmw/ui/new_item/model_import.py": 899
-    }
-  },
-  {
-    "area": "items",
-    "message": "Overlay conflict in {detail}; both installs change the same record.",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/composer_internal.hpp": 104
-    }
-  },
-  {
-    "area": "items",
-    "message": "Overlay conflict in {detail}; overlapping file edits cannot be separated safely.",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 404
-    }
-  },
-  {
-    "area": "items",
-    "message": "PABGH row table count {detail} does not fit the payload.",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/pabgh_table.cpp": 92
-    }
-  },
-  {
-    "area": "items",
-    "message": "PABGH table is too short to contain a row count.",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pabgh_table.cpp": 74
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAMT has duplicate or invalid PAZ identifiers",
-    "recovery": "conflict",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 371
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT checksum does not match its body",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 23
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT directory count {detail} leaves no string table size",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 26
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT does not end where the string table for {detail} directories says it should",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 29
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT is too small to hold a header",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 21
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT name is not terminated",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 37
-    }
-  },
-  {
-    "area": "items",
-    "message": "PAPGT name offset is past the string table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 35
-    }
-  },
-  {
-    "area": "items",
-    "message": "PATHC counts describe {detail} bytes but the buffer holds {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pathc.cpp": 29
-    }
-  },
-  {
-    "area": "items",
-    "message": "PATHC declares more empty headers than an entry can address",
-    "recovery": "empty",
-    "sources": {
-      "native/cdmw_item_composer/src/pathc.cpp": 31
     }
   },
   {
@@ -32931,14 +30695,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Table layout changed in {detail}.",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 146
-    }
-  },
-  {
-    "area": "items",
     "message": "Template dyes were omitted for {old_model}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.",
     "recovery": "internal",
     "sources": {
@@ -33011,14 +30767,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Texture elements must be self-closing",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 190
-    }
-  },
-  {
-    "area": "items",
     "message": "Texture {source} retains its source binding: {exc}",
     "recovery": "internal",
     "sources": {
@@ -33047,14 +30795,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/new_item_advanced.py": 216
-    }
-  },
-  {
-    "area": "items",
-    "message": "That compression method is not supported",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 149
     }
   },
   {
@@ -35034,22 +32774,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Truncated central directory",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 79
-    }
-  },
-  {
-    "area": "items",
-    "message": "Truncated file header",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 135
-    }
-  },
-  {
-    "area": "items",
     "message": "Truncated static record",
     "recovery": "format",
     "sources": {
@@ -35314,34 +33038,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Unsupported archive compression type {detail} for {detail}",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 444
-    }
-  },
-  {
-    "area": "items",
-    "message": "Unsupported archive encryption type for {detail}",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 409
-    }
-  },
-  {
-    "area": "items",
     "message": "Unsupported authoring index: {kind}",
     "recovery": "unsupported",
     "sources": {
       "cdmw/workers/new_item_authoring_index.py": 30
-    }
-  },
-  {
-    "area": "items",
-    "message": "Unsupported bone offset table: {detail}.",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 14
     }
   },
   {
@@ -35446,14 +33146,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/domain/new_item/item_stats.py": 85
-    }
-  },
-  {
-    "area": "items",
-    "message": "Unsupported icon registry in {detail}: {detail}",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 270
     }
   },
   {
@@ -35730,14 +33422,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "Unsupported table directory layout.",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 123
-    }
-  },
-  {
-    "area": "items",
     "message": "Unsupported use-action reference width.",
     "recovery": "unsupported",
     "sources": {
@@ -35805,66 +33489,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "ZIP64 archives are not read",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 70
-    }
-  },
-  {
-    "area": "items",
-    "message": "ZIP64 members are not read",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 104
-    }
-  },
-  {
-    "area": "items",
-    "message": "a PAPGT header holds the directory count in one byte",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 48
-    }
-  },
-  {
-    "area": "items",
-    "message": "a PAPGT header is twelve bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 47
-    }
-  },
-  {
-    "area": "items",
     "message": "a generated icon needs the spec's stem to be allocated",
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_planning.py": 1062
-    }
-  },
-  {
-    "area": "items",
-    "message": "a malformed attribute",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 158
-    }
-  },
-  {
-    "area": "items",
-    "message": "a match offset is truncated",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/lz4_block.cpp": 50
-    }
-  },
-  {
-    "area": "items",
-    "message": "a member whose stream runs past its directory size or ends unfinished",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 161
     }
   },
   {
@@ -35877,38 +33505,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "a path outside the indexed set was looked up: {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 486
-    }
-  },
-  {
-    "area": "items",
-    "message": "a prefab entry without PrefabName",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 57
-    }
-  },
-  {
-    "area": "items",
-    "message": "a repeated attribute",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 171
-    }
-  },
-  {
-    "area": "items",
-    "message": "a tag without a name",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 140
-    }
-  },
-  {
-    "area": "items",
     "message": "ambiguous",
     "recovery": "internal",
     "sources": {
@@ -35917,170 +33513,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "an attribute without a value",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 162
-    }
-  },
-  {
-    "area": "items",
-    "message": "an empty section without a closing tag",
-    "recovery": "empty",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 175
-    }
-  },
-  {
-    "area": "items",
-    "message": "an end tag that does not close",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 123
-    }
-  },
-  {
-    "area": "items",
-    "message": "an end tag without an element",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 124
-    }
-  },
-  {
-    "area": "items",
-    "message": "an overlay file needs a path",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 93
-    }
-  },
-  {
-    "area": "items",
-    "message": "an overlay needs at least one file",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 89
-    }
-  },
-  {
-    "area": "items",
-    "message": "an unclosed element",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 52
-    }
-  },
-  {
-    "area": "items",
-    "message": "an unquoted attribute value",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 165
-    }
-  },
-  {
-    "area": "items",
-    "message": "an unterminated attribute value",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 169
-    }
-  },
-  {
-    "area": "items",
-    "message": "an unterminated comment",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 42
-    }
-  },
-  {
-    "area": "items",
-    "message": "archive entry is too large to compose",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 172
-    }
-  },
-  {
-    "area": "items",
     "message": "both the template stem and the new stem are needed",
     "recovery": "internal",
     "sources": {
       "cdmw/domain/new_item/allocation.py": 161
-    }
-  },
-  {
-    "area": "items",
-    "message": "buffer is too short for a PATHC head",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pathc.cpp": 18
-    }
-  },
-  {
-    "area": "items",
-    "message": "buffer is too short to hold the header",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 27
-    }
-  },
-  {
-    "area": "items",
-    "message": "bzip2, LZMA and Zstandard members are not read",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 148
-    }
-  },
-  {
-    "area": "items",
-    "message": "cannot read {detail}",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 63
-    }
-  },
-  {
-    "area": "items",
-    "message": "cannot write {detail}",
-    "recovery": "write",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 70
-    }
-  },
-  {
-    "area": "items",
-    "message": "collision rows are 24 bytes",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pathc.cpp": 73
-    }
-  },
-  {
-    "area": "items",
-    "message": "could not open {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 166
-    }
-  },
-  {
-    "area": "items",
-    "message": "cp437 file names outside ASCII are not read",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 25
-    }
-  },
-  {
-    "area": "items",
-    "message": "declarations and processing instructions",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 45
     }
   },
   {
@@ -36101,70 +33537,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "encrypted DDS entries are not composed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 417
-    }
-  },
-  {
-    "area": "items",
-    "message": "every texture header must be header_size bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/pathc.cpp": 54
-    }
-  },
-  {
-    "area": "items",
-    "message": "expected one BoneOffsetByPrefab section, found",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 53
-    }
-  },
-  {
-    "area": "items",
-    "message": "flag runs past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 53
-    }
-  },
-  {
-    "area": "items",
-    "message": "flags run past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 46
-    }
-  },
-  {
-    "area": "items",
-    "message": "has length",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 11
-    }
-  },
-  {
-    "area": "items",
-    "message": "head record count runs past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 59
-    }
-  },
-  {
-    "area": "items",
-    "message": "icon registry: {detail}",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 12
-    }
-  },
-  {
-    "area": "items",
     "message": "icon registry: {exc}",
     "recovery": "internal",
     "sources": {
@@ -36177,102 +33549,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_wearers.py": 156
-    }
-  },
-  {
-    "area": "items",
-    "message": "int too big to convert",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 168
-    }
-  },
-  {
-    "area": "items",
-    "message": "invalid deflate stream: {detail}",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/inflate.cpp": 9
-    }
-  },
-  {
-    "area": "items",
-    "message": "invalid flat icon registry XML: mismatched tag",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 123
-    }
-  },
-  {
-    "area": "items",
-    "message": "invalid flat icon registry XML: the file ends inside a tag",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 85
-    }
-  },
-  {
-    "area": "items",
-    "message": "invalid flat icon registry XML: unclosed element",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 65
-    }
-  },
-  {
-    "area": "items",
-    "message": "invalid flat icon registry XML: unterminated attribute value",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 155
-    }
-  },
-  {
-    "area": "items",
-    "message": "is",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 20
-    }
-  },
-  {
-    "area": "items",
-    "message": "is not NUL-terminated",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 12
-    }
-  },
-  {
-    "area": "items",
-    "message": "is not UTF-8",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 14
-    }
-  },
-  {
-    "area": "items",
-    "message": "is too small to be a valid .pamt file.",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 330
-    }
-  },
-  {
-    "area": "items",
-    "message": "is truncated.",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 328
-    }
-  },
-  {
-    "area": "items",
-    "message": "item group {detail}: the name runs past the row",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 17
     }
   },
   {
@@ -36357,42 +33633,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "larger than 4 MiB",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 33
-    }
-  },
-  {
-    "area": "items",
-    "message": "members run past the row",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 36
-    }
-  },
-  {
-    "area": "items",
-    "message": "mismatched end tag",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 127
-    }
-  },
-  {
-    "area": "items",
     "message": "missing family files: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
       "cdmw/ui/new_item/controller.py": 389
-    }
-  },
-  {
-    "area": "items",
-    "message": "nested Texture elements are unsupported",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/icon_registry.cpp": 168
     }
   },
   {
@@ -36409,14 +33653,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_snapshot.py": 630
-    }
-  },
-  {
-    "area": "items",
-    "message": "no free archive directory name is left under the package root",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/composition.cpp": 125
     }
   },
   {
@@ -36445,46 +33681,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "not UTF-8",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 35
-    }
-  },
-  {
-    "area": "items",
-    "message": "not a change set",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 37
-    }
-  },
-  {
-    "area": "items",
-    "message": "not a compose request",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 279
-    }
-  },
-  {
-    "area": "items",
-    "message": "not a merge request",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 156
-    }
-  },
-  {
-    "area": "items",
-    "message": "not an overlay request",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 167
-    }
-  },
-  {
-    "area": "items",
     "message": "not_equipment",
     "recovery": "internal",
     "sources": {
@@ -36501,58 +33697,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "original layout:",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 80
-    }
-  },
-  {
-    "area": "items",
-    "message": "overlay paths must be UTF-8",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 49
-    }
-  },
-  {
-    "area": "items",
-    "message": "part",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 53
-    }
-  },
-  {
-    "area": "items",
-    "message": "part count does not fit a byte",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 99
-    }
-  },
-  {
-    "area": "items",
-    "message": "partial PAR containers are not composed",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 440
-    }
-  },
-  {
-    "area": "items",
     "message": "plain-PBR route: {exc}",
     "recovery": "internal",
     "sources": {
       "cdmw/services/new_item_materials.py": 634
-    }
-  },
-  {
-    "area": "items",
-    "message": "repeated texture checksums",
-    "recovery": "integrity",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 238
     }
   },
   {
@@ -36571,54 +33719,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/domain/new_item/allocation.py": 136
-    }
-  },
-  {
-    "area": "items",
-    "message": "row is too short for a key and a name length",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 11
-    }
-  },
-  {
-    "area": "items",
-    "message": "runs past the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 8
-    }
-  },
-  {
-    "area": "items",
-    "message": "short read from {detail}",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 177
-    }
-  },
-  {
-    "area": "items",
-    "message": "stock condition data must be empty (legacy) or eight bytes (current)",
-    "recovery": "empty",
-    "sources": {
-      "native/cdmw_item_composer/src/storeinfo.cpp": 97
-    }
-  },
-  {
-    "area": "items",
-    "message": "sub-groups run past the row",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/itemgroupinfo.cpp": 31
-    }
-  },
-  {
-    "area": "items",
-    "message": "tag prefix does not match",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 42
     }
   },
   {
@@ -36727,70 +33827,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "the change set has an invalid {detail} mark",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 24
-    }
-  },
-  {
-    "area": "items",
-    "message": "the change set has trailing bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 57
-    }
-  },
-  {
-    "area": "items",
-    "message": "the change set is truncated",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 14
-    }
-  },
-  {
-    "area": "items",
-    "message": "the change set names an invalid path",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 48
-    }
-  },
-  {
-    "area": "items",
-    "message": "the change set names {detail} twice",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/change_set.cpp": 49
-    }
-  },
-  {
-    "area": "items",
-    "message": "the file ends inside a tag",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/bone_offset_table.cpp": 147
-    }
-  },
-  {
-    "area": "items",
-    "message": "the game checks its archive mount list since the October 2026 update and will not start with a private archive group added",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/papgt.cpp": 127
-    }
-  },
-  {
-    "area": "items",
-    "message": "the game has no mount list",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/composition.cpp": 132
-    }
-  },
-  {
-    "area": "items",
     "message": "the icon could not be written to {target}",
     "recovery": "internal",
     "sources": {
@@ -36833,22 +33869,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "the member's data is missing",
-    "recovery": "missing",
-    "sources": {
-      "native/cdmw_item_composer/src/zip_reader.cpp": 153
-    }
-  },
-  {
-    "area": "items",
-    "message": "the mount list names a directory twice",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/archive_reader.cpp": 456
-    }
-  },
-  {
-    "area": "items",
     "message": "the new stem equals the template stem",
     "recovery": "internal",
     "sources": {
@@ -36857,26 +33877,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "the per-record tag prefix is not a supported part-prefab layout",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 88
-    }
-  },
-  {
-    "area": "items",
     "message": "the rebuilt stat block did not parse back the way it was written",
     "recovery": "format",
     "sources": {
       "cdmw/services/new_item_planning.py": 540
-    }
-  },
-  {
-    "area": "items",
-    "message": "the reserved header is eight bytes",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 87
     }
   },
   {
@@ -36929,14 +33933,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "the walk ends before the end of the table",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 68
-    }
-  },
-  {
-    "area": "items",
     "message": "there is no item named {placement.old_item_name}",
     "recovery": "internal",
     "sources": {
@@ -36969,30 +33965,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "trailing request bytes",
-    "recovery": "internal",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 158
-    }
-  },
-  {
-    "area": "items",
-    "message": "truncated request",
-    "recovery": "format",
-    "sources": {
-      "native/cdmw_item_composer/tools/compose_cli.cpp": 93
-    }
-  },
-  {
-    "area": "items",
-    "message": "tuple index out of range",
-    "recovery": "limits",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_merge.cpp": 222
-    }
-  },
-  {
-    "area": "items",
     "message": "unsupported",
     "recovery": "unsupported",
     "sources": {
@@ -37005,23 +33977,6 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/ui/new_item/tab.py": 62
-    }
-  },
-  {
-    "area": "items",
-    "message": "unsupported part-prefab table layout; {detail}",
-    "recovery": "unsupported",
-    "sources": {
-      "native/cdmw_item_composer/src/pappt.cpp": 83
-    }
-  },
-  {
-    "area": "items",
-    "message": "ushort format requires 0 <= number <= 65535",
-    "recovery": "input",
-    "sources": {
-      "native/cdmw_item_composer/src/overlay_archive.cpp": 170,
-      "native/cdmw_item_composer/src/pathc.cpp": 66
     }
   },
   {
@@ -38411,14 +35366,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "materials",
-    "message": "Could not prepare canonical real PAC.",
-    "recovery": "internal",
-    "sources": {
-      "tools/build_mesh_material_profile_corpus.py": 112
-    }
-  },
-  {
-    "area": "materials",
     "message": "Could not read material sidecar: {error}",
     "recovery": "format",
     "sources": {
@@ -39685,14 +36632,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "materials",
-    "message": "PAC_XML audit source has no readable owner",
-    "recovery": "internal",
-    "sources": {
-      "tools/audit_pac_xml_material_authority.py": 152
-    }
-  },
-  {
-    "area": "materials",
     "message": "Packed material-mask channel visualization does not match expected semantics: {target_path}.",
     "recovery": "input",
     "sources": {
@@ -40117,22 +37056,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "materials",
-    "message": "Representative hair PAC resolved no source DDS resources: {entry.path}",
-    "recovery": "internal",
-    "sources": {
-      "tools/build_mesh_material_profile_corpus.py": 69
-    }
-  },
-  {
-    "area": "materials",
-    "message": "Representative {category} PAC is missing: {virtual_path}",
-    "recovery": "missing",
-    "sources": {
-      "tools/build_mesh_material_profile_corpus.py": 59
-    }
-  },
-  {
-    "area": "materials",
     "message": "Resolved Material Authority DDS hash changed before Build Mod.",
     "recovery": "integrity",
     "sources": {
@@ -40153,14 +37076,6 @@ MESSAGE_REFERENCE = [
     "recovery": "integrity",
     "sources": {
       "cdmw/core/material_authority_build_artifacts.py": 370
-    }
-  },
-  {
-    "area": "materials",
-    "message": "Resume report must contain a JSON object: {args.out_json}",
-    "recovery": "input",
-    "sources": {
-      "tools/audit_pac_xml_material_authority.py": 609
     }
   },
   {
@@ -41222,9 +38137,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/modding/material_texture_payloads.py": 908,
-      "cdmw/ui/archive_browser/material_sidecar_actions.py": 158,
-      "tools/audit_crimson_material_profiles.py": 21,
-      "tools/audit_pac_xml_material_authority.py": 414
+      "cdmw/ui/archive_browser/material_sidecar_actions.py": 158
     }
   },
   {
@@ -42530,7 +39443,7 @@ MESSAGE_REFERENCE = [
     "message": "Authoring is unavailable under the current output policy",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2674,
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2784,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs": 393
     }
   },
@@ -42555,7 +39468,7 @@ MESSAGE_REFERENCE = [
     "message": "Auto Unwrap may split vertices and requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4586
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4762
     }
   },
   {
@@ -42636,7 +39549,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1337,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6694
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6870
     }
   },
   {
@@ -42653,7 +39566,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_service.py": 1319,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6681
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6857
     }
   },
   {
@@ -42987,18 +39900,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Blocking external model audit risk flag(s): {detail}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 484
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Body and garment Parts must be different",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5017
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5193
     }
   },
   {
@@ -43532,14 +40437,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Build the native mesh core first, or set CDMW_MESH_CORE_BIN.",
-    "recovery": "internal",
-    "sources": {
-      "tools/refit_bulk_pilot.py": 175
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Built mods are removed from the list, never deleted here.",
     "recovery": "internal",
     "sources": {
@@ -43992,22 +40889,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/skeleton_variation_parser.py": 364
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Cannot capture a body difference: no submesh shares the other body's topology.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/mesh_region_decompose.py": 139
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Cannot capture a body difference: submesh count differs (base {len(base_submeshes)}, target {len(target_submeshes)}).",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/mesh_region_decompose.py": 112
     }
   },
   {
@@ -44706,7 +41587,7 @@ MESSAGE_REFERENCE = [
     "message": "Cleanup that changes topology requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4366
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4542
     }
   },
   {
@@ -45354,7 +42235,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not save editor layout: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2234
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2344
     }
   },
   {
@@ -45410,7 +42291,7 @@ MESSAGE_REFERENCE = [
     "message": "Create Part requires selected faces and Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3916
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4092
     }
   },
   {
@@ -45746,7 +42627,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported PAC, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6232
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6408
     }
   },
   {
@@ -45882,7 +42763,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate and Delete require Free Edit output",
     "recovery": "conflict",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6047
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6223
     }
   },
   {
@@ -46690,26 +43571,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "External model audit has no model rows.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 151
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "External model audit report is not a JSON object: {report_path}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 81
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Extrude requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4276
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4452
     }
   },
   {
@@ -47614,7 +44479,7 @@ MESSAGE_REFERENCE = [
     "message": "Flip Normals reverses face winding, which Exact output cannot write. Choose Free Edit to flip faces.",
     "recovery": "write",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4451
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4627
     }
   },
   {
@@ -48080,7 +44945,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layer visibility cannot change in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6568
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6744
     }
   },
   {
@@ -48088,7 +44953,7 @@ MESSAGE_REFERENCE = [
     "message": "Geometry layers cannot be activated in a read-only session",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6550
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6726
     }
   },
   {
@@ -50660,7 +47525,7 @@ MESSAGE_REFERENCE = [
     "message": "Material Colour is deliberately unavailable in the Mesh Editor product contract",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3476
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3652
     }
   },
   {
@@ -50801,14 +47666,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Mesh .NET edit operations must be a JSON list.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 96
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Mesh .NET editor command failed: {command}: {exc}",
     "recovery": "internal",
     "sources": {
@@ -50882,22 +47739,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Mesh .NET package output directory escapes its package root.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 34
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Mesh .NET package output directory is unavailable.",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 36
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Mesh .NET part colour edit failed: {exc}",
     "recovery": "internal",
     "sources": {
@@ -50918,38 +47759,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/mesh_editor/tab_dotnet_protocol.py": 729
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Mesh .NET {label} path aliases an input OBJ.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 61
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Mesh .NET {label} path contains traversal.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 21
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Mesh .NET {label} path escapes the package output directory.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 43
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Mesh .NET {label} path is invalid.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_dotnet_experiment_output.py": 18
     }
   },
   {
@@ -53096,7 +49905,7 @@ MESSAGE_REFERENCE = [
     "message": "Mirrored geometry requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4388
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4564
     }
   },
   {
@@ -54361,14 +51170,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/skeleton_resolver.py": 93
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "No archive entries under {game_root}: {errors[:1]}",
-    "recovery": "internal",
-    "sources": {
-      "tools/refit_bulk_pilot.py": 100
     }
   },
   {
@@ -57144,7 +53945,7 @@ MESSAGE_REFERENCE = [
     "message": "Preserve each vertex's local offset from the body. This mode can bend a connected piece. Inward tightening requires Surface or Rigid component.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5281
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5457
     }
   },
   {
@@ -58918,7 +55719,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is unavailable",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5669
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5845
     }
   },
   {
@@ -59891,14 +56692,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Resume report must contain a JSON object: {path}",
-    "recovery": "input",
-    "sources": {
-      "tools/audit_external_model_catalogue.py": 28
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Retained jiggle must be between zero and one.",
     "recovery": "input",
     "sources": {
@@ -59939,18 +56732,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Review external model audit risk flag: {flag}.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 487
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Rig inspection cancelled the previous gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2711
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2821
     }
   },
   {
@@ -59982,7 +56767,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5795
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5971
     }
   },
   {
@@ -63501,7 +60286,7 @@ MESSAGE_REFERENCE = [
     "message": "This model's own materials or textures are missing, so only Keep Original Materials is available. The game's textures will be drawn on this model's UVs and will look mixed up unless its UVs match the original layout. Put the model's MTL and textures next to it, then import again.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5878
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6054
     }
   },
   {
@@ -63597,7 +60382,7 @@ MESSAGE_REFERENCE = [
     "message": "This topology action requires Free Edit output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4237
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 4413
     }
   },
   {
@@ -63613,7 +60398,7 @@ MESSAGE_REFERENCE = [
     "message": "Tightness requires Surface or Rigid component mode on every selected garment.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5316
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5492
     }
   },
   {
@@ -63621,7 +60406,7 @@ MESSAGE_REFERENCE = [
     "message": "Tool change cancelled the previous gesture",
     "recovery": "cancelled",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2717
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 2827
     }
   },
   {
@@ -63805,7 +60590,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency is unavailable for this mesh.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6938
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 7114
     }
   },
   {
@@ -64326,22 +61111,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Unsupported external model audit schema_version: {schema_version or '<missing>'}.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 99
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Unsupported external model audit tool: {tool or '<missing>'}.",
-    "recovery": "unsupported",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 102
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Unsupported fitting recipe format.",
     "recovery": "unsupported",
     "sources": {
@@ -64658,7 +61427,7 @@ MESSAGE_REFERENCE = [
     "message": "Use the model's own weights. Its rig must be this model's game skeleton: export it with Export Rig GLB…, weight to it in Blender and keep the bones where they are.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3563
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 3739
     }
   },
   {
@@ -66579,8 +63348,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/mesh/panel_state.py": 31,
-      "cdmw/ui/mesh_editor/tab_support.py": 124,
-      "tools/mesh_pipeline.py": 314
+      "cdmw/ui/mesh_editor/tab_support.py": 124
     }
   },
   {
@@ -68690,14 +65458,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "item {item_key} has no tribe/gender selectors to copy",
-    "recovery": "input",
-    "sources": {
-      "tools/refit_bulk_pilot.py": 285
-    }
-  },
-  {
-    "area": "mesh",
     "message": "item {row.key} ({row.string_key}) has no part whose mesh starts with {model_stem}: {detail}",
     "recovery": "internal",
     "sources": {
@@ -69086,14 +65846,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs": 12789
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "material row(s) lack emissive present/missing evidence",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 458
     }
   },
   {
@@ -70017,14 +66769,6 @@ MESSAGE_REFERENCE = [
     "recovery": "missing",
     "sources": {
       "native/cdmw_mesh_core/src/owners/payload_selection_01.cpp": 25
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "model audit row(s) failed",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 359
     }
   },
   {
@@ -71679,14 +68423,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "native replace-all topology snapshot is incomplete",
-    "recovery": "format",
-    "sources": {
-      "cdmw/ui/mesh_editor/native_topology_updates.py": 27
-    }
-  },
-  {
-    "area": "mesh",
     "message": "native selected-face flip normals unavailable",
     "recovery": "missing",
     "sources": {
@@ -71915,14 +68651,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/mesh_editor/controller.py": 711
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "nearby texture candidate(s) are available for missing references",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 384
     }
   },
   {
@@ -73161,14 +69889,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "referenced texture path(s) are missing",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 382
-    }
-  },
-  {
-    "area": "mesh",
     "message": "refit binding escaped its allowed driver region",
     "recovery": "internal",
     "sources": {
@@ -74131,14 +70851,6 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "native/cdmw_mesh_core/src/owners/interchange_01.cpp": 413
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "source texture slot-route mismatch diagnostic(s) need review",
-    "recovery": "input",
-    "sources": {
-      "cdmw/core/external_model_audit_check.py": 472
     }
   },
   {
@@ -75498,14 +72210,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "{args.stage} needs --inventory",
-    "recovery": "internal",
-    "sources": {
-      "tools/refit_bulk_pilot.py": 565
-    }
-  },
-  {
-    "area": "mesh",
     "message": "{channel} exceeds the finite float32 range.",
     "recovery": "limits",
     "sources": {
@@ -76199,7 +72903,7 @@ MESSAGE_REFERENCE = [
     "message": "{target} has no textures in the game's material, so it cannot take imported textures. Map {part} to another part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5868
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6044
     }
   },
   {
@@ -76207,7 +72911,7 @@ MESSAGE_REFERENCE = [
     "message": "{target} is a helper material for the inside of the model and cannot take imported textures. Map {part} to a main part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 5852
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui.rs": 6028
     }
   },
   {
@@ -76224,14 +72928,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/item_model_family.py": 175
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "{variation} is not in the game archive.",
-    "recovery": "internal",
-    "sources": {
-      "tools/refit_bulk_pilot.py": 121
     }
   },
   {
@@ -76352,14 +73048,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs": 8758
-    }
-  },
-  {
-    "area": "other",
-    "message": "--top must be between 1 and 100",
-    "recovery": "input",
-    "sources": {
-      "tools/match_item_icon_reference.py": 489
     }
   },
   {
@@ -76708,26 +73396,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Active backward boost requires a nonzero direction.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 406
-    }
-  },
-  {
-    "area": "other",
     "message": "Active cloth elasticity transition requires a positive duration.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_runtime.py": 449
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active cloth environment branch requires a {count}-component {name} sample.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 29
     }
   },
   {
@@ -76740,58 +73412,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Active cloth turbulence requires its procedural-noise sample.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 139
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active cloth wind requires its sky-visibility sample.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 186
-    }
-  },
-  {
-    "area": "other",
     "message": "Active jiggle wind blending requires the runtime sample buffer.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_jiggle_skinning.py": 128
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active pre-collision reset requires the resolved ten-uint window.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 480
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active shrink-mask storage requires its resolved uint32 sample.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 342
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active static attachment requires its resolved attaching transform.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 226
-    }
-  },
-  {
-    "area": "other",
-    "message": "Active static particle-extra storage requires its resolved record.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 208
     }
   },
   {
@@ -77116,30 +73740,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Archive request failed: {self.failures[request_id]}",
-    "recovery": "internal",
-    "sources": {
-      "tools/match_item_icon_reference.py": 98
-    }
-  },
-  {
-    "area": "other",
-    "message": "Archive request timed out: {request_id}",
-    "recovery": "timeout",
-    "sources": {
-      "tools/match_item_icon_reference.py": 102
-    }
-  },
-  {
-    "area": "other",
-    "message": "Archive request was cancelled",
-    "recovery": "cancelled",
-    "sources": {
-      "tools/match_item_icon_reference.py": 100
-    }
-  },
-  {
-    "area": "other",
     "message": "Archive search result is missing its archive entry reference.",
     "recovery": "missing",
     "sources": {
@@ -77212,22 +73812,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Attachment arrays must have the same particle count.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 61
-    }
-  },
-  {
-    "area": "other",
-    "message": "Attachment indices must be unsigned 16-bit integers.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 65
-    }
-  },
-  {
-    "area": "other",
     "message": "Attachment payload exceeds the {limit}-byte safety limit: {entry.path}",
     "recovery": "limits",
     "sources": {
@@ -77248,22 +73832,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/workers/attachment_io_workers.py": 76
-    }
-  },
-  {
-    "area": "other",
-    "message": "Attachment scales, inverse masses and rest lengths must be nonnegative.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 70
-    }
-  },
-  {
-    "area": "other",
-    "message": "Attachments require up to four paired indices and rest lengths.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 63
     }
   },
   {
@@ -77308,26 +73876,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Background task failed: %s",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/workers/qt_worker_runner.py": 23
-    }
-  },
-  {
-    "area": "other",
     "message": "Background utility task failed: %s",
     "recovery": "internal",
     "sources": {
       "cdmw/workers/utility_workers.py": 69
-    }
-  },
-  {
-    "area": "other",
-    "message": "Bend selection requires complete 152-byte particle and optional 28-byte extra records.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 79
     }
   },
   {
@@ -78545,14 +75097,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Cloth hold delta time must be nonnegative.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 511
-    }
-  },
-  {
-    "area": "other",
     "message": "Cloth input collision requires reference entry {reference_index}.",
     "recovery": "input",
     "sources": {
@@ -78565,14 +75109,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/pac_cloth_runtime.py": 86
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cloth outward direction is degenerate with no finite shader result.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 468
     }
   },
   {
@@ -78668,16 +75204,7 @@ MESSAGE_REFERENCE = [
     "message": "Cloth prediction delta time must be nonnegative.",
     "recovery": "input",
     "sources": {
-      "cdmw/modding/pac_cloth_base.py": 191,
-      "cdmw/modding/pac_cloth_state.py": 378
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cloth prediction requires the normal dynamic branch.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 384
+      "cdmw/modding/pac_cloth_base.py": 191
     }
   },
   {
@@ -78746,22 +75273,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Cloth state storage variant must be packed or native16.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 375
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cloth state values must fit float32 storage.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 26
-    }
-  },
-  {
-    "area": "other",
     "message": "Cloth stiffness conversion requires a finite power result.",
     "recovery": "input",
     "sources": {
@@ -78782,22 +75293,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_runtime.py": 109
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cloth substep delta time must be nonnegative.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 67
-    }
-  },
-  {
-    "area": "other",
-    "message": "Cloth substep index must be an unsigned 32-bit integer.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 37
     }
   },
   {
@@ -79306,42 +75801,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Constraint flags must be unsigned integers of the declared width.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 31
-    }
-  },
-  {
-    "area": "other",
     "message": "Constraint geometry requires one finite 3D position per guide vertex.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guides.py": 271
-    }
-  },
-  {
-    "area": "other",
-    "message": "Constraint projection produced non-finite geometry.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 132
-    }
-  },
-  {
-    "area": "other",
-    "message": "Constraint projection requires {count} finite scalar inputs with valid signs.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 25
-    }
-  },
-  {
-    "area": "other",
-    "message": "Constraint projection requires {count} finite three-component points.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 19
     }
   },
   {
@@ -80002,14 +76465,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Degenerate guide rotation has no supported finite shader result.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 59
-    }
-  },
-  {
-    "area": "other",
     "message": "Degenerate input collider axis has no supported finite shader result.",
     "recovery": "empty",
     "sources": {
@@ -80102,14 +76557,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/automation/saved_work_commands.py": 45
-    }
-  },
-  {
-    "area": "other",
-    "message": "Dry turbulence has no supported finite result at zero perturbation.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 170
     }
   },
   {
@@ -80226,14 +76673,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/animation_speed_service.py": 324
-    }
-  },
-  {
-    "area": "other",
-    "message": "Early-return cloth modes bypass base finalization.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 454
     }
   },
   {
@@ -80496,22 +76935,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Environment orientation requires the declared particle-position count.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 127
-    }
-  },
-  {
-    "area": "other",
-    "message": "Environment requires nonnegative inverse mass and a positive acceleration cap.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 136
-    }
-  },
-  {
-    "area": "other",
     "message": "Equipment visibility XML exceeds the structural limit.",
     "recovery": "limits",
     "sources": {
@@ -80756,38 +77179,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/core/common.py": 55
-    }
-  },
-  {
-    "area": "other",
-    "message": "Final movement flags must be unsigned 32-bit integers.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 28
-    }
-  },
-  {
-    "area": "other",
-    "message": "Final movement requires a complete {size}-byte runtime record.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 34
-    }
-  },
-  {
-    "area": "other",
-    "message": "Final movement requires finite scalar inputs.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 23
-    }
-  },
-  {
-    "area": "other",
-    "message": "Final movement requires finite three-component vectors.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 17
     }
   },
   {
@@ -81168,30 +77559,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Guide animation blend must be the selected substep ratio in [0, 1].",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 125
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide animation preparation requires a guide-mesh particle.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 120
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide bending selection requires upload type 1 or 2.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 76
-    }
-  },
-  {
-    "area": "other",
     "message": "Guide blending requires finite mass/coefficient and unsigned 32-bit particle flags.",
     "recovery": "input",
     "sources": {
@@ -81384,50 +77751,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Guide frame bases must be 3 by 3 row-major matrices.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 39
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide frame flags must be unsigned 32-bit integers.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 33
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide frame inputs must be finite three-component vectors.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 21
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide frame inputs require one value per guide.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 27
-    }
-  },
-  {
-    "area": "other",
     "message": "Guide initialization requires finite Mass and an explicit vertex-alpha flag together.",
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guides.py": 217
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide position blend inputs must be finite.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 105
     }
   },
   {
@@ -81452,14 +77779,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/modding/pac_cloth_painted_guides.py": 108
-    }
-  },
-  {
-    "area": "other",
-    "message": "Guide runtime blend factors must be finite and within [0, 1].",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 198
     }
   },
   {
@@ -81636,14 +77955,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/problem_report_dialog.py": 716
-    }
-  },
-  {
-    "area": "other",
-    "message": "Input position blending requires an explicit boolean global switch.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 112
     }
   },
   {
@@ -82060,7 +78371,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid prefab name for a bone offset entry: {target}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 206
+      "cdmw/core/bone_offset_table.py": 205
     }
   },
   {
@@ -82630,54 +78941,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_jiggle_rig.py": 179
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime delta time must not be negative.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 51
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime indices must be unsigned 32-bit integers.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 26
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime mask count exceeds its 32-entry shader record.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 55
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime settings need eight floats per block.",
-    "recovery": "configuration",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 91
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime state must contain exactly 0x220 bytes.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 20
-    }
-  },
-  {
-    "area": "other",
-    "message": "Jiggle runtime values must fit finite float32 storage.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_jiggle_runtime.py": 36
     }
   },
   {
@@ -83259,30 +79522,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Movement blend, inverse mass and delta times are outside the supported domain.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 181
-    }
-  },
-  {
-    "area": "other",
-    "message": "Movement requires nonnegative time scale and a positive speed limit.",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 186
-    }
-  },
-  {
-    "area": "other",
-    "message": "Movement velocity requires a positive effective delta time.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 191
-    }
-  },
-  {
-    "area": "other",
     "message": "Moves named must be an object with texts and factor.",
     "recovery": "input",
     "sources": {
@@ -83797,14 +80036,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "No item-catalog-v3.json exists in the selected CDMW cache",
-    "recovery": "input",
-    "sources": {
-      "tools/match_item_icon_reference.py": 117
-    }
-  },
-  {
-    "area": "other",
     "message": "No language {language}.",
     "recovery": "internal",
     "sources": {
@@ -84241,14 +80472,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/core/chacha20.py": 164
-    }
-  },
-  {
-    "area": "other",
-    "message": "Orientation neighbors must be two unsigned 16-bit indices.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 207
     }
   },
   {
@@ -85262,14 +81485,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Reset/hold branches are outside the normal movement reference.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/modding/pac_cloth_movement.py": 176
-    }
-  },
-  {
-    "area": "other",
     "message": "Resolve the compatibility conflicts before writing an updated mod.",
     "recovery": "write",
     "sources": {
@@ -85315,14 +81530,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/item_reward_table.py": 81
-    }
-  },
-  {
-    "area": "other",
-    "message": "Rotation requires known orientation neighbors; untouched memory is unknown.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_frames.py": 205
     }
   },
   {
@@ -86082,14 +82289,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Static animation preparation requires a static-mesh particle.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 200
-    }
-  },
-  {
-    "area": "other",
     "message": "Static item layout instruction limit.",
     "recovery": "limits",
     "sources": {
@@ -86118,30 +82317,6 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "cdmw/core/item_layout.py": 59
-    }
-  },
-  {
-    "area": "other",
-    "message": "Static reference pair has a zero local edge and no finite shader result.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 260
-    }
-  },
-  {
-    "area": "other",
-    "message": "Static reference pair requires both indexed particle and skinning records.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_state.py": 249
-    }
-  },
-  {
-    "area": "other",
-    "message": "Stiffness decoding requires complete 100-byte frame and optional 28-byte extra records.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/modding/pac_cloth_constraints.py": 58
     }
   },
   {
@@ -86770,14 +82945,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The archive query did not resolve any candidate icon paths",
-    "recovery": "internal",
-    "sources": {
-      "tools/match_item_icon_reference.py": 381
-    }
-  },
-  {
-    "area": "other",
     "message": "The archive worker did not answer in time.",
     "recovery": "internal",
     "sources": {
@@ -86845,7 +83012,7 @@ MESSAGE_REFERENCE = [
     "message": "The bone offset table already has a different entry for {target}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 217
+      "cdmw/core/bone_offset_table.py": 216
     }
   },
   {
@@ -86853,7 +83020,7 @@ MESSAGE_REFERENCE = [
     "message": "The bone offset table has {len(found)} entries for {source}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 204
+      "cdmw/core/bone_offset_table.py": 203
     }
   },
   {
@@ -87967,14 +84134,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/modding/pac_cloth_guide_builder.py": 522
-    }
-  },
-  {
-    "area": "other",
-    "message": "The selected item category has no icon paths",
-    "recovery": "input",
-    "sources": {
-      "tools/match_item_icon_reference.py": 337
     }
   },
   {
@@ -89447,7 +85606,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported bone offset table: {reason}.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 60
+      "cdmw/core/bone_offset_table.py": 59
     }
   },
   {
@@ -89895,14 +86054,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "Vertical environment force has no supported finite horizontal-wave direction.",
-    "recovery": "empty",
-    "sources": {
-      "cdmw/modding/pac_cloth_environment.py": 242
-    }
-  },
-  {
-    "area": "other",
     "message": "Visible color texture is not package-resolved: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}.",
     "recovery": "internal",
     "sources": {
@@ -90210,7 +86361,7 @@ MESSAGE_REFERENCE = [
     "message": "a malformed attribute",
     "recovery": "format",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 142
+      "cdmw/core/bone_offset_table.py": 141
     }
   },
   {
@@ -90218,7 +86369,7 @@ MESSAGE_REFERENCE = [
     "message": "a prefab entry without PrefabName",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 175
+      "cdmw/core/bone_offset_table.py": 174
     }
   },
   {
@@ -90226,7 +86377,7 @@ MESSAGE_REFERENCE = [
     "message": "a repeated attribute",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 157
+      "cdmw/core/bone_offset_table.py": 156
     }
   },
   {
@@ -90258,7 +86409,7 @@ MESSAGE_REFERENCE = [
     "message": "a tag without a name",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 123
+      "cdmw/core/bone_offset_table.py": 122
     }
   },
   {
@@ -90322,7 +86473,7 @@ MESSAGE_REFERENCE = [
     "message": "an attribute without a value",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 147
+      "cdmw/core/bone_offset_table.py": 146
     }
   },
   {
@@ -90330,7 +86481,7 @@ MESSAGE_REFERENCE = [
     "message": "an empty section without a closing tag",
     "recovery": "empty",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 162
+      "cdmw/core/bone_offset_table.py": 161
     }
   },
   {
@@ -90346,7 +86497,7 @@ MESSAGE_REFERENCE = [
     "message": "an end tag that does not close",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 108
+      "cdmw/core/bone_offset_table.py": 107
     }
   },
   {
@@ -90354,7 +86505,7 @@ MESSAGE_REFERENCE = [
     "message": "an end tag without an element",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 110
+      "cdmw/core/bone_offset_table.py": 109
     }
   },
   {
@@ -90378,7 +86529,7 @@ MESSAGE_REFERENCE = [
     "message": "an unclosed element",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 168
+      "cdmw/core/bone_offset_table.py": 167
     }
   },
   {
@@ -90386,7 +86537,7 @@ MESSAGE_REFERENCE = [
     "message": "an unquoted attribute value",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 152
+      "cdmw/core/bone_offset_table.py": 151
     }
   },
   {
@@ -90394,7 +86545,7 @@ MESSAGE_REFERENCE = [
     "message": "an unterminated attribute value",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 155
+      "cdmw/core/bone_offset_table.py": 154
     }
   },
   {
@@ -90402,7 +86553,7 @@ MESSAGE_REFERENCE = [
     "message": "an unterminated comment",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 96
+      "cdmw/core/bone_offset_table.py": 95
     }
   },
   {
@@ -90531,14 +86682,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/mcp/schema.py": 96
-    }
-  },
-  {
-    "area": "other",
-    "message": "armature has no bone named {bone_name}",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 139
     }
   },
   {
@@ -90722,7 +86865,7 @@ MESSAGE_REFERENCE = [
     "message": "declarations and processing instructions",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 100
+      "cdmw/core/bone_offset_table.py": 99
     }
   },
   {
@@ -90815,26 +86958,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "expected exactly one armature, found {len(armatures)}",
-    "recovery": "input",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 54
-    }
-  },
-  {
-    "area": "other",
     "message": "expected one {_SECTION.decode()} section, found {len(sections)}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 170
-    }
-  },
-  {
-    "area": "other",
-    "message": "expected {args.bones} bones, imported {bone_count}",
-    "recovery": "input",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 202
+      "cdmw/core/bone_offset_table.py": 169
     }
   },
   {
@@ -91811,16 +87938,7 @@ MESSAGE_REFERENCE = [
       "cdmw/modding/scene_gltf_embedded_images.py": 61,
       "cdmw/ui/replace_assistant/workers.py": 315,
       "cdmw/workers/appearance_workers.py": 85,
-      "cdmw/workers/attachment_loose_workers.py": 252,
-      "tools/report_crimson_normal_y_policy.py": 16
-    }
-  },
-  {
-    "area": "other",
-    "message": "implausible string length byte {stated}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 90
+      "cdmw/workers/attachment_loose_workers.py": 252
     }
   },
   {
@@ -91988,15 +88106,7 @@ MESSAGE_REFERENCE = [
     "message": "larger than 4 MiB",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 80
-    }
-  },
-  {
-    "area": "other",
-    "message": "largest bound mesh has {len(largest.data.vertices)} vertices, below {args.min_vertices}",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 216
+      "cdmw/core/bone_offset_table.py": 79
     }
   },
   {
@@ -92116,7 +88226,7 @@ MESSAGE_REFERENCE = [
     "message": "mismatched end tag",
     "recovery": "input",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 113
+      "cdmw/core/bone_offset_table.py": 112
     }
   },
   {
@@ -92153,35 +88263,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "module index {slot} is out of range",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/projectile_package.py": 148
-    }
-  },
-  {
-    "area": "other",
-    "message": "module list runs past the file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 128
-    }
-  },
-  {
-    "area": "other",
     "message": "module {__name__} has no attribute {name}",
     "recovery": "internal",
     "sources": {
       "cdmw/ui/shell/about_controller.py": 45,
       "cdmw/ui/shell/app_window.py": 621
-    }
-  },
-  {
-    "area": "other",
-    "message": "module {module} is not in the table",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 183
     }
   },
   {
@@ -92282,14 +88368,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "no mesh carries an armature modifier bound to the imported armature",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 78
-    }
-  },
-  {
-    "area": "other",
     "message": "no stride-40 record load found",
     "recovery": "internal",
     "sources": {
@@ -92325,7 +88403,7 @@ MESSAGE_REFERENCE = [
     "message": "not UTF-8",
     "recovery": "format",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 85
+      "cdmw/core/bone_offset_table.py": 84
     }
   },
   {
@@ -92418,50 +88496,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "package counts run past the file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 115
-    }
-  },
-  {
-    "area": "other",
-    "message": "package module range is out of bounds",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/projectile_package.py": 144
-    }
-  },
-  {
-    "area": "other",
-    "message": "package name index {name_index} is out of range",
-    "recovery": "limits",
-    "sources": {
-      "cdmw/core/projectile_package.py": 142
-    }
-  },
-  {
-    "area": "other",
-    "message": "package name {package.name} is not in the table",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 177
-    }
-  },
-  {
-    "area": "other",
     "message": "package read failed: {exc}",
     "recovery": "internal",
     "sources": {
       "cdmw/modding/working_mod_recipe.py": 104
-    }
-  },
-  {
-    "area": "other",
-    "message": "package row runs past the file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 122
     }
   },
   {
@@ -92607,8 +88645,6 @@ MESSAGE_REFERENCE = [
       "cdmw/services/diagnostics_service.py": 233,
       "cdmw/services/old_install_removal.py": 596,
       "cdmw/services/problem_report_diagnostics.py": 61,
-      "tools/audit_crimson_shader_corpus.py": 22,
-      "tools/extract_crimson_shader_corpus.py": 27,
       "tools/patch_day_check.py": 147
     }
   },
@@ -92618,22 +88654,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/effect_binary.py": 479
-    }
-  },
-  {
-    "area": "other",
-    "message": "rotating {bone_name} moved every one of {len(moved_distances)} vertices, so localisation cannot be judged; choose a bone that is not the root of this part",
-    "recovery": "input",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 178
-    }
-  },
-  {
-    "area": "other",
-    "message": "rotating {bone_name} moved no vertices at all; the mesh is not bound to it",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 172
     }
   },
   {
@@ -93020,22 +89040,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "string is not NUL terminated",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 96
-    }
-  },
-  {
-    "area": "other",
-    "message": "string is not printable ASCII",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 98
-    }
-  },
-  {
-    "area": "other",
     "message": "string key must be short ASCII",
     "recovery": "input",
     "sources": {
@@ -93052,14 +89056,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "string length runs past the file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 87
-    }
-  },
-  {
-    "area": "other",
     "message": "string length {length} at 0x{at}",
     "recovery": "internal",
     "sources": {
@@ -93072,14 +89068,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/iteminfo_row.py": 218
-    }
-  },
-  {
-    "area": "other",
-    "message": "string runs past the file",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 93
     }
   },
   {
@@ -93120,14 +89108,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 761
-    }
-  },
-  {
-    "area": "other",
-    "message": "string {text} is not 1..{_MAX_STRING - 1} bytes",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 170
     }
   },
   {
@@ -93295,7 +89275,7 @@ MESSAGE_REFERENCE = [
     "message": "the file ends inside a tag",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/bone_offset_table.py": 131
+      "cdmw/core/bone_offset_table.py": 130
     }
   },
   {
@@ -93492,14 +89472,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "too short to be a package description",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 106
-    }
-  },
-  {
-    "area": "other",
     "message": "tool",
     "recovery": "internal",
     "sources": {
@@ -93656,14 +89628,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/character_finder/creator_look.py": 180
-    }
-  },
-  {
-    "area": "other",
-    "message": "{bone_name}: vertices that moved sit a mean {mean_moved} from the bone against {mean_still} for those that did not; the weights are not on the right bones",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 186
     }
   },
   {
@@ -94333,14 +90297,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "{len(data) - at} bytes left over after the module list",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/core/projectile_package.py": 135
-    }
-  },
-  {
-    "area": "other",
     "message": "{len(data) - stream.pos} bytes follow the last chart section",
     "recovery": "internal",
     "sources": {
@@ -94385,54 +90341,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/action_chart_binary.py": 658
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: evaluated vertex count {len(posed)} != {len(rest)}",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 130
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: rest pose deforms the mesh by up to {worst}; bind pose disagrees",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 133
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: vertex {vertex.index} references a missing group",
-    "recovery": "missing",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 100
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: weights stray from 1.0 by {worst_sum}",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 106
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: {len(unknown)} vertex group(s) name no bone, e.g. {unknown[:5]}",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 88
-    }
-  },
-  {
-    "area": "other",
-    "message": "{mesh_object.name}: {unweighted} vertex/vertices belong to no vertex group",
-    "recovery": "internal",
-    "sources": {
-      "tools/verify_fbx_rig_in_blender.py": 104
     }
   },
   {
@@ -104362,83 +100270,11 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "settings",
-    "message": "e_send_failed",
-    "recovery": "internal",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 289
-    }
-  },
-  {
-    "area": "settings",
-    "message": "existing_game_window_running",
-    "recovery": "internal",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 240
-    }
-  },
-  {
-    "area": "settings",
-    "message": "game_exe_missing",
-    "recovery": "missing",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 235
-    }
-  },
-  {
-    "area": "settings",
-    "message": "gameplay_timeout",
-    "recovery": "timeout",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 350
-    }
-  },
-  {
-    "area": "settings",
     "message": "ignore",
     "recovery": "internal",
     "sources": {
       "cdmw/core/upscale_profiles.py": 948,
       "cdmw/modding/pac_xml_profiles.py": 2676
-    }
-  },
-  {
-    "area": "settings",
-    "message": "menu_timeout",
-    "recovery": "timeout",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 305
-    }
-  },
-  {
-    "area": "settings",
-    "message": "play_key_no_effect",
-    "recovery": "internal",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 332
-    }
-  },
-  {
-    "area": "settings",
-    "message": "pre_e_interaction_failed",
-    "recovery": "internal",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 280
-    }
-  },
-  {
-    "area": "settings",
-    "message": "window_capture_failed",
-    "recovery": "internal",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 262
-    }
-  },
-  {
-    "area": "settings",
-    "message": "window_not_found",
-    "recovery": "missing",
-    "sources": {
-      "tools/calibrate_crimson_startup.py": 249
     }
   },
   {
@@ -105319,14 +101155,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/texture_pipeline/inspection.py": 530
-    }
-  },
-  {
-    "area": "textures",
-    "message": "DDS inspect failed: {exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 372
     }
   },
   {
@@ -106334,7 +102162,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC checksum table is truncated",
     "recovery": "integrity",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 182,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 182
     }
   },
@@ -106343,7 +102170,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC collision table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 198,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 198
     }
   },
@@ -106352,7 +102178,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC entry table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 187,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 187
     }
   },
@@ -106361,7 +102186,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC file is too small",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 159,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 159
     }
   },
@@ -106370,7 +102194,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC filename table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 206,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 206
     }
   },
@@ -106379,7 +102202,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC header size is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 166,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 166
     }
   },
@@ -106388,7 +102210,6 @@ MESSAGE_REFERENCE = [
     "message": "PATHC texture header table is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 174,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 174
     }
   },
@@ -108486,7 +104307,6 @@ MESSAGE_REFERENCE = [
     "message": "could not inspect PATHC timestamp: {detail}",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 226,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 226
     }
   },
@@ -108559,29 +104379,12 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
-    "message": "glossiness roughness unavailable:{label}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1392
-    }
-  },
-  {
-    "area": "textures",
-    "message": "glossiness split failed:{exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1391
-    }
-  },
-  {
-    "area": "textures",
     "message": "ignore",
     "recovery": "internal",
     "sources": {
       "cdmw/core/texture_pipeline/inspection.py": 375,
       "cdmw/core/texture_pipeline/planning.py": 88,
-      "cdmw/modding/scene_texture_discovery.py": 356,
-      "tools/correlate_renderdoc_dds_paths.py": 38
+      "cdmw/modding/scene_texture_discovery.py": 356
     }
   },
   {
@@ -108590,14 +104393,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_recolor_tools.py": 177
-    }
-  },
-  {
-    "area": "textures",
-    "message": "invalid DDS path",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 349
     }
   },
   {
@@ -108642,30 +104437,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
-    "message": "legacy PBR map invalid path",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 249
-    }
-  },
-  {
-    "area": "textures",
-    "message": "legacy PBR map missing:{Path(raw).name}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 252
-    }
-  },
-  {
-    "area": "textures",
-    "message": "material combiner failed:{exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1185
-    }
-  },
-  {
-    "area": "textures",
     "message": "material sidecar exceeds the {MATERIAL_SIDECAR_MAX_BYTES}-byte resource limit",
     "recovery": "limits",
     "sources": {
@@ -108704,14 +104475,6 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_model_texture_reporting.py": 40,
       "cdmw/core/archive_model_texture_resolution.py": 154,
       "cdmw/core/texture_native.py": 330
-    }
-  },
-  {
-    "area": "textures",
-    "message": "missing UVs",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 799
     }
   },
   {
@@ -108804,14 +104567,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
-    "message": "not a DDS file: {path}",
-    "recovery": "input",
-    "sources": {
-      "tools/correlate_renderdoc_dds_paths.py": 34
-    }
-  },
-  {
-    "area": "textures",
     "message": "original mip count {dds_info.mip_count} exceeds output max {max_possible_mips}, clamped to {mip_count}",
     "recovery": "limits",
     "sources": {
@@ -108831,7 +104586,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS LZ4 block decoded to an unexpected size",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 67,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 67
     }
   },
@@ -108840,7 +104594,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS LZ4 literal run is outside its buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 42,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 42
     }
   },
@@ -108849,7 +104602,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS LZ4 match offset is invalid",
     "recovery": "input",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 51,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 51
     }
   },
@@ -108858,7 +104610,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS LZ4 match offset is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 48,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 48
     }
   },
@@ -108867,7 +104618,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS LZ4 match run is outside its output buffer",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 61,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 61
     }
   },
@@ -108876,7 +104626,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS PATHC collision entry was not found for {detail}",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 143,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 143
     }
   },
@@ -108885,7 +104634,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS PATHC entry was not found for {detail}",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 136,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 136
     }
   },
@@ -108894,7 +104642,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS PATHC header index is outside the header table",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 147,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 147
     }
   },
@@ -108903,7 +104650,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS PATHC header is missing or invalid",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 288,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 288
     }
   },
@@ -108912,7 +104658,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS block exceeds the resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 27,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 27
     }
   },
@@ -108921,7 +104666,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS block is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 374,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 374
     }
   },
@@ -108930,7 +104674,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS dimensions exceed the resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 296,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 296
     }
   },
@@ -108939,7 +104682,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS exceeds the decoded resource limit",
     "recovery": "limits",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 377,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 377
     }
   },
@@ -108948,7 +104690,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS header is truncated",
     "recovery": "format",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 305,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 305
     }
   },
@@ -108957,7 +104698,6 @@ MESSAGE_REFERENCE = [
     "message": "partial DDS metadata was not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 224,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 224
     }
   },
@@ -109017,9 +104757,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/chainner.py": 25,
       "cdmw/core/dds_native.py": 202,
       "cdmw/core/texture_pipeline/inspection.py": 425,
-      "cdmw/modding/scene_texture_discovery.py": 893,
-      "cdmw/rendering/native_preview_texture_sources.py": 588,
-      "tools/audit_texture_relationships.py": 117
+      "cdmw/modding/scene_texture_discovery.py": 893
     }
   },
   {
@@ -109140,22 +104878,6 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/mcp/texture_upscale_tools.py": 414
-    }
-  },
-  {
-    "area": "textures",
-    "message": "specular-glossiness roughness unavailable:{label}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1321
-    }
-  },
-  {
-    "area": "textures",
-    "message": "specular-glossiness split failed:{exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1308
     }
   },
   {
@@ -109299,7 +105021,6 @@ MESSAGE_REFERENCE = [
     "message": "unsupported partial DDS pixel format",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_archive_core/src/partial_dds.cpp": 113,
       "native/cdmw_full_archive_core/src/partial_dds.cpp": 113
     }
   },
@@ -109542,46 +105263,6 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_draft_textures.py": 64
-    }
-  },
-  {
-    "area": "textures",
-    "message": "{slot_name} copy failed:{exc}",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 152
-    }
-  },
-  {
-    "area": "textures",
-    "message": "{slot_name} generated texture missing:{Path(local_path).name}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 1001
-    }
-  },
-  {
-    "area": "textures",
-    "message": "{slot_name} invalid generated path",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 998
-    }
-  },
-  {
-    "area": "textures",
-    "message": "{slot_name} invalid path",
-    "recovery": "input",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 92
-    }
-  },
-  {
-    "area": "textures",
-    "message": "{slot_name} missing texture:{Path(raw).name}",
-    "recovery": "missing",
-    "sources": {
-      "cdmw/rendering/native_preview_texture_sources.py": 95
     }
   },
   {
@@ -109899,7 +105580,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/archive_asset_family.py",
     "cdmw/core/archive_audio.py",
     "cdmw/core/archive_compact_index.py",
-    "cdmw/core/archive_entry_store.py",
     "cdmw/core/archive_extraction.py",
     "cdmw/core/archive_format.py",
     "cdmw/core/archive_loose_export.py",
@@ -109989,10 +105669,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/workers/archive_sidecar_workers.py",
     "cdmw/workers/mesh_archive_refit_worker.py",
     "native/cdmw_archive_accelerator/src/main.cpp",
-    "native/cdmw_archive_core/src/archive_core.cpp",
-    "native/cdmw_archive_core/src/archive_core_internal.hpp",
-    "native/cdmw_archive_core/src/archive_decode.cpp",
-    "native/cdmw_archive_core/src/pamt_index.cpp",
     "native/cdmw_full_archive_core/src/archive_core.cpp",
     "native/cdmw_full_archive_core/src/archive_core_internal.hpp",
     "native/cdmw_full_archive_core/src/archive_decode.cpp",
@@ -110045,19 +105721,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/research_references.py",
     "cdmw/services/engine_capture.py",
     "cdmw/workers/research_analysis_workers.py",
-    "tools/analyze_renderdoc_capture_xml.py",
-    "tools/capture_crimson_renderdoc_frame.py",
-    "tools/compare_preview_screenshots.py",
-    "tools/export_renderdoc_candidate_truth.py",
-    "tools/extract_renderdoc_shader_blobs.py",
-    "tools/import_renderdoc_truth_pass.py",
-    "tools/locate_renderdoc_dispatch_truth_candidates.py",
-    "tools/locate_renderdoc_draw_truth_candidates.py",
-    "tools/process_renderdoc_capture_reports.py",
-    "tools/run_crimson_renderdoc_hotkey_capture.py",
-    "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/package_capture.rs",
-    "tools/summarize_renderdoc_shader_bindings.py",
-    "tools/trigger_renderdoc_capture_api.py"
+    "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/package_capture.rs"
   ],
   "formats": [
     "cdmw/core/archive_binary_preview_corpus.py",
@@ -110079,14 +105743,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/core/archive_hkx_xml_export_physics.py",
     "cdmw/core/prefab_binary.py",
     "cdmw/core/prefab_binary_edit.py",
-    "cdmw/core/prefab_corpus_array_metrics.py",
-    "cdmw/core/prefab_corpus_audit_rows_1.py",
-    "cdmw/core/prefab_corpus_descriptor_metrics_0.py",
-    "cdmw/core/prefab_corpus_edit_probes.py",
-    "cdmw/core/prefab_corpus_loading.py",
-    "cdmw/core/prefab_corpus_probe_metrics.py",
-    "cdmw/core/prefab_corpus_report.py",
-    "cdmw/core/prefab_corpus_report_stages_1.py",
     "cdmw/core/prefab_json_apply.py",
     "cdmw/core/prefab_json_validation.py",
     "cdmw/mcp/hkx_tools.py",
@@ -110105,9 +105761,7 @@ DYNAMIC_REFERENCE = {
     "native/cd_hkx/src/editing.rs",
     "native/cd_hkx/src/main.rs",
     "native/cd_hkx/src/no_edit.rs",
-    "native/cd_hkx/src/parsing.rs",
-    "native/cdmw_item_composer/src/paloc.cpp",
-    "tools/report_prefab_json_import_corpus.py"
+    "native/cd_hkx/src/parsing.rs"
   ],
   "independent": [
     "cdmw/services/independent_item_compatibility.py",
@@ -110178,24 +105832,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/workers/new_item_template_search.py",
     "cdmw/workers/new_item_template_selection.py",
     "cdmw/workers/new_item_workers.py",
-    "native/cdmw_item_composer/src/archive_reader.cpp",
-    "native/cdmw_item_composer/src/bone_offset_table.cpp",
-    "native/cdmw_item_composer/src/change_set.cpp",
-    "native/cdmw_item_composer/src/composer_internal.hpp",
-    "native/cdmw_item_composer/src/composition.cpp",
-    "native/cdmw_item_composer/src/icon_registry.cpp",
-    "native/cdmw_item_composer/src/inflate.cpp",
-    "native/cdmw_item_composer/src/itemgroupinfo.cpp",
-    "native/cdmw_item_composer/src/lz4_block.cpp",
-    "native/cdmw_item_composer/src/overlay_archive.cpp",
-    "native/cdmw_item_composer/src/overlay_merge.cpp",
-    "native/cdmw_item_composer/src/pabgh_table.cpp",
-    "native/cdmw_item_composer/src/papgt.cpp",
-    "native/cdmw_item_composer/src/pappt.cpp",
-    "native/cdmw_item_composer/src/pathc.cpp",
-    "native/cdmw_item_composer/src/storeinfo.cpp",
-    "native/cdmw_item_composer/src/zip_reader.cpp",
-    "native/cdmw_item_composer/tools/compose_cli.cpp",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/capture.rs",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/mod.rs",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/new_item_ui/model.rs"
@@ -110226,15 +105862,11 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
     "cdmw/workers/mesh_dotnet_material_update_worker.py",
     "native/cdmw_preview_core/src/owners/material_graph_cache.cpp",
-    "tools/audit_crimson_material_profiles.py",
-    "tools/audit_pac_xml_material_authority.py",
-    "tools/build_mesh_material_profile_corpus.py",
     "tools/check_material_authority_report.py",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs"
   ],
   "mesh": [
     "cdmw/core/external_model_audit.py",
-    "cdmw/core/external_model_audit_check.py",
     "cdmw/core/final_package_preview.py",
     "cdmw/core/item_model_family.py",
     "cdmw/core/mesh_preflight.py",
@@ -110267,7 +105899,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/modding/mesh_pac_builder.py",
     "cdmw/modding/mesh_pac_topology_builder.py",
     "cdmw/modding/mesh_parser.py",
-    "cdmw/modding/mesh_region_decompose.py",
     "cdmw/modding/mesh_roundtrip.py",
     "cdmw/modding/skeleton_writer.py",
     "cdmw/modding/static_mesh_analysis.py",
@@ -110278,7 +105909,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/models.py",
     "cdmw/rendering/native_preview_core.py",
     "cdmw/rendering/native_preview_temp.py",
-    "cdmw/rendering/preview_comparison.py",
     "cdmw/services/effect_preview_geometry.py",
     "cdmw/services/effect_preview_model.py",
     "cdmw/services/mesh_build_combine_service.py",
@@ -110432,13 +106062,6 @@ DYNAMIC_REFERENCE = {
     "native/cdmw_preview_core/src/owners/protocol_jobs.cpp",
     "native/cdmw_preview_core/src/owners/protocol_json.cpp",
     "native/common/partial_static_mesh.hpp",
-    "tools/audit_external_model_catalogue.py",
-    "tools/check_external_model_audit.py",
-    "tools/mesh_editor_visual_audit_manifest.py",
-    "tools/mesh_editor_visual_audit_review.py",
-    "tools/mesh_pipeline.py",
-    "tools/refit_bulk_inventory.py",
-    "tools/refit_bulk_pilot.py",
     "tools/refit_reference_poses.py",
     "tools/rust_mesh_lab/apps/cdmw_asset_probe/src/headless.rs",
     "tools/rust_mesh_lab/apps/cdmw_asset_probe/src/main.rs",
@@ -110551,7 +106174,6 @@ DYNAMIC_REFERENCE = {
     "cdmw/mcp/ui_menus.py",
     "cdmw/mcp/ui_tree.py",
     "cdmw/mcp/view_tools.py",
-    "cdmw/modding/pac_cloth_constraints.py",
     "cdmw/modding/pac_cloth_guide_builder.py",
     "cdmw/modding/pac_cloth_skinning.py",
     "cdmw/modding/scene_gltf_uv.py",
@@ -110610,23 +106232,16 @@ DYNAMIC_REFERENCE = {
     "cdmw/workers/item_icon_workers.py",
     "cdmw/workers/problem_report_network.py",
     "cdmw/workers/problem_report_workers.py",
-    "cdmw/workers/qt_worker_runner.py",
     "cdmw/workers/utility_workers.py",
     "cdmw_app.py",
-    "tools/audit_crimson_shader_corpus.py",
     "tools/dump_body_region_map.py",
-    "tools/headless_feature_stress.py",
-    "tools/match_item_icon_reference.py",
     "tools/pac_cloth_guide_study.py",
     "tools/pac_midpoint_derivation_study.py",
     "tools/pac_shader_consumer_study.py",
     "tools/pac_vertex_channel_sampling.py",
     "tools/pac_vertex_channel_study.py",
     "tools/patch_day_check.py",
-    "tools/report_crimson_normal_y_policy.py",
-    "tools/report_crimson_shader_long_run_status.py",
-    "tools/report_format_decode_progress.py",
-    "tools/verify_fbx_rig_in_blender.py"
+    "tools/report_format_decode_progress.py"
   ],
   "packages": [
     "cdmw/core/archive_patching.py",
@@ -110734,8 +106349,7 @@ DYNAMIC_REFERENCE = {
     "tools/placement_studio/window_rig_behaviour.py",
     "tools/placement_studio/window_rig_tabs.py",
     "tools/placement_studio/window_save.py",
-    "tools/placement_studio/window_timing.py",
-    "tools/weapon_placement_studio_ctf_smoke.py"
+    "tools/placement_studio/window_timing.py"
   ],
   "settings": [
     "cdmw/app/app_folder.py",
@@ -110748,8 +106362,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/localization_catalogs_v2.py",
     "cdmw/ui/shell/profile_controller.py",
     "cdmw/ui/shell/startup_path_task_controller.py",
-    "cdmw/ui/shell/theme_controller.py",
-    "tools/calibrate_crimson_startup.py"
+    "cdmw/ui/shell/theme_controller.py"
   ],
   "textures": [
     "cdmw/core/archive_model_texture_base_attach.py",
@@ -110796,10 +106409,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/texture_workflow/editor_workers.py",
     "cdmw/ui/texture_workflow/unavailable_editor.py",
     "cdmw/workers/texture_workers.py",
-    "native/cdmw_archive_core/src/partial_dds.cpp",
     "native/cdmw_full_archive_core/src/partial_dds.cpp",
-    "tools/audit_texture_relationships.py",
-    "tools/correlate_renderdoc_dds_paths.py",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_live_textures.rs",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/texture_view.rs",
     "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/texture_upload.rs",
@@ -110953,10 +106563,6 @@ SOURCE_COVERAGE = {
   "cdmw/core/archive_data_table_preview.py": {},
   "cdmw/core/archive_dlc_metadata_preview.py": {
     "raise": 6
-  },
-  "cdmw/core/archive_entry_store.py": {
-    "diagnostic_field": 3,
-    "raise": 14
   },
   "cdmw/core/archive_extraction.py": {
     "diagnostic_field": 4,
@@ -111378,12 +106984,6 @@ SOURCE_COVERAGE = {
     "raise": 1,
     "report": 20
   },
-  "cdmw/core/external_model_audit_check.py": {
-    "diagnostic_field": 24,
-    "finding": 6,
-    "raise": 1,
-    "report": 6
-  },
   "cdmw/core/external_model_audit_resume.py": {},
   "cdmw/core/eye_cover_overlap.py": {
     "raise": 8
@@ -111629,7 +107229,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/prefab_asset_catalog.py": {},
   "cdmw/core/prefab_binary.py": {
-    "raise": 53
+    "raise": 57
   },
   "cdmw/core/prefab_binary_edit.py": {
     "raise": 31
@@ -111639,54 +107239,6 @@ SOURCE_COVERAGE = {
   "cdmw/core/prefab_component_graft.py": {
     "raise": 31
   },
-  "cdmw/core/prefab_corpus.py": {},
-  "cdmw/core/prefab_corpus_array_metrics.py": {
-    "assertion": 4
-  },
-  "cdmw/core/prefab_corpus_audit.py": {},
-  "cdmw/core/prefab_corpus_audit_rows_0.py": {
-    "report": 1
-  },
-  "cdmw/core/prefab_corpus_audit_rows_1.py": {
-    "report": 10
-  },
-  "cdmw/core/prefab_corpus_audit_stages.py": {
-    "report": 5
-  },
-  "cdmw/core/prefab_corpus_candidate_offsets_0.py": {},
-  "cdmw/core/prefab_corpus_candidate_offsets_1.py": {},
-  "cdmw/core/prefab_corpus_candidate_roles.py": {},
-  "cdmw/core/prefab_corpus_contracts.py": {},
-  "cdmw/core/prefab_corpus_descriptor_metrics_0.py": {
-    "assertion": 4
-  },
-  "cdmw/core/prefab_corpus_descriptor_metrics_1.py": {},
-  "cdmw/core/prefab_corpus_edit_probes.py": {
-    "diagnostic_field": 2,
-    "raise": 9,
-    "report": 14
-  },
-  "cdmw/core/prefab_corpus_loading.py": {
-    "report": 10
-  },
-  "cdmw/core/prefab_corpus_probe_metrics.py": {
-    "raise": 4,
-    "report": 16
-  },
-  "cdmw/core/prefab_corpus_probe_values.py": {},
-  "cdmw/core/prefab_corpus_publication.py": {},
-  "cdmw/core/prefab_corpus_report.py": {
-    "diagnostic_field": 1,
-    "finding": 12
-  },
-  "cdmw/core/prefab_corpus_report_output_0.py": {},
-  "cdmw/core/prefab_corpus_report_output_1.py": {},
-  "cdmw/core/prefab_corpus_report_stages_0.py": {},
-  "cdmw/core/prefab_corpus_report_stages_1.py": {
-    "finding": 56
-  },
-  "cdmw/core/prefab_corpus_resize_impact_0.py": {},
-  "cdmw/core/prefab_corpus_resize_impact_1.py": {},
   "cdmw/core/prefab_json.py": {},
   "cdmw/core/prefab_json_apply.py": {
     "raise": 19
@@ -111701,9 +107253,6 @@ SOURCE_COVERAGE = {
     "raise": 23
   },
   "cdmw/core/prefab_recovery.py": {},
-  "cdmw/core/projectile_package.py": {
-    "raise": 16
-  },
   "cdmw/core/protected_roots.py": {
     "raise": 2,
     "report": 4,
@@ -111876,7 +107425,6 @@ SOURCE_COVERAGE = {
   "cdmw/core/weapon_swap_templates.py": {
     "raise": 3
   },
-  "cdmw/core/xml_text.py": {},
   "cdmw/domain/__init__.py": {},
   "cdmw/domain/archives/__init__.py": {},
   "cdmw/domain/archives/association_vocabulary.py": {},
@@ -111916,9 +107464,6 @@ SOURCE_COVERAGE = {
   "cdmw/domain/archives/item_sets.py": {},
   "cdmw/domain/archives/iteminfo_composition.py": {
     "raise": 14
-  },
-  "cdmw/domain/archives/lightweight_lookup.py": {
-    "raise": 2
   },
   "cdmw/domain/archives/mesh_contracts.py": {
     "diagnostic_field": 1
@@ -112156,7 +107701,6 @@ SOURCE_COVERAGE = {
   "cdmw/domain/new_item/effect_authoring.py": {
     "raise": 14
   },
-  "cdmw/domain/new_item/effects.py": {},
   "cdmw/domain/new_item/groups.py": {},
   "cdmw/domain/new_item/independent.py": {
     "raise": 3
@@ -112822,10 +108366,6 @@ SOURCE_COVERAGE = {
   "cdmw/modding/mesh_refit_reference.py": {
     "raise": 1
   },
-  "cdmw/modding/mesh_region_decompose.py": {
-    "diagnostic_field": 1,
-    "raise": 2
-  },
   "cdmw/modding/mesh_roundtrip.py": {
     "diagnostic_field": 2,
     "raise": 2,
@@ -112848,16 +108388,6 @@ SOURCE_COVERAGE = {
   "cdmw/modding/pac_cloth_collisions.py": {
     "raise": 29
   },
-  "cdmw/modding/pac_cloth_constraints.py": {
-    "diagnostic_field": 1,
-    "raise": 10
-  },
-  "cdmw/modding/pac_cloth_environment.py": {
-    "raise": 7
-  },
-  "cdmw/modding/pac_cloth_frames.py": {
-    "raise": 11
-  },
   "cdmw/modding/pac_cloth_guide_builder.py": {
     "code": 16,
     "diagnostic_field": 1,
@@ -112866,9 +108396,6 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/pac_cloth_guides.py": {
     "raise": 18
-  },
-  "cdmw/modding/pac_cloth_movement.py": {
-    "raise": 13
   },
   "cdmw/modding/pac_cloth_paint.py": {
     "raise": 12
@@ -112891,9 +108418,6 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 7
   },
-  "cdmw/modding/pac_cloth_state.py": {
-    "raise": 19
-  },
   "cdmw/modding/pac_jiggle.py": {
     "raise": 3
   },
@@ -112902,9 +108426,6 @@ SOURCE_COVERAGE = {
   },
   "cdmw/modding/pac_jiggle_rig.py": {
     "raise": 12
-  },
-  "cdmw/modding/pac_jiggle_runtime.py": {
-    "raise": 7
   },
   "cdmw/modding/pac_jiggle_samples.py": {
     "raise": 2
@@ -113034,11 +108555,6 @@ SOURCE_COVERAGE = {
   "cdmw/rendering/asset_fidelity_preflight.py": {},
   "cdmw/rendering/crimson_shader_registry.py": {},
   "cdmw/rendering/dotnet_preview_package_cache.py": {},
-  "cdmw/rendering/ingame_capture.py": {
-    "code": 29,
-    "failure": 20,
-    "report": 12
-  },
   "cdmw/rendering/material_category_contract.py": {},
   "cdmw/rendering/material_channels.py": {},
   "cdmw/rendering/material_combiner.py": {
@@ -113073,22 +108589,8 @@ SOURCE_COVERAGE = {
   "cdmw/rendering/native_preview_temp.py": {
     "raise": 1
   },
-  "cdmw/rendering/native_preview_texture_sources.py": {
-    "diagnostic_field": 2,
-    "report": 15
-  },
-  "cdmw/rendering/preview_comparison.py": {
-    "code": 1
-  },
   "cdmw/rendering/preview_tint_contract.py": {},
-  "cdmw/rendering/renderdoc_truth_pass.py": {
-    "raise": 1
-  },
   "cdmw/rendering/static_model_thumbnail.py": {},
-  "cdmw/rendering/test_run_sword_tuning.py": {
-    "code": 14,
-    "report": 1
-  },
   "cdmw/services/__init__.py": {},
   "cdmw/services/action_chart_edit_service.py": {
     "raise": 30
@@ -113345,7 +108847,6 @@ SOURCE_COVERAGE = {
     "raise": 18,
     "report": 1
   },
-  "cdmw/services/material_authority_build_artifacts.py": {},
   "cdmw/services/material_authority_resource_service.py": {
     "raise": 12
   },
@@ -113372,9 +108873,6 @@ SOURCE_COVERAGE = {
     "raise": 11
   },
   "cdmw/services/mesh_collision_volumes.py": {
-    "raise": 9
-  },
-  "cdmw/services/mesh_dotnet_experiment_output.py": {
     "raise": 9
   },
   "cdmw/services/mesh_dotnet_material_bindings.py": {},
@@ -114310,8 +109808,6 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1
   },
   "cdmw/ui/archive_browser/mesh_swap_support.py": {},
-  "cdmw/ui/archive_browser/mod_package_retrofit_dialog.py": {},
-  "cdmw/ui/archive_browser/mod_package_retrofit_view.py": {},
   "cdmw/ui/archive_browser/mod_ready_export.py": {
     "dialog": 1
   },
@@ -114894,7 +110390,6 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/archive_browser/static_replacement_source_part_selection_state.py": {},
   "cdmw/ui/archive_browser/static_replacement_source_part_transform_controls_state.py": {},
-  "cdmw/ui/archive_browser/static_replacement_source_parts_state.py": {},
   "cdmw/ui/archive_browser/static_replacement_source_tree_state.py": {},
   "cdmw/ui/archive_browser/static_replacement_sparse_history.py": {
     "raise": 1,
@@ -114920,7 +110415,6 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 1,
     "finding": 2
   },
-  "cdmw/ui/archive_browser/static_replacement_texture_table.py": {},
   "cdmw/ui/archive_browser/static_replacement_texture_table_items.py": {},
   "cdmw/ui/archive_browser/static_replacement_texture_uv.py": {},
   "cdmw/ui/archive_browser/static_replacement_transform_control_state.py": {},
@@ -114949,7 +110443,6 @@ SOURCE_COVERAGE = {
     "raise": 1
   },
   "cdmw/ui/archive_browser/workspace_layout.py": {},
-  "cdmw/ui/archive_browser_model.py": {},
   "cdmw/ui/archive_ignored_folders.py": {},
   "cdmw/ui/archive_performance_settings_io.py": {},
   "cdmw/ui/character_context_panel.py": {
@@ -115019,7 +110512,6 @@ SOURCE_COVERAGE = {
     "dialog": 3,
     "display": 2
   },
-  "cdmw/ui/item_icons_tab.py": {},
   "cdmw/ui/layout_item_wrappers.py": {},
   "cdmw/ui/layout_metrics.py": {},
   "cdmw/ui/layout_persistence.py": {},
@@ -115047,7 +110539,6 @@ SOURCE_COVERAGE = {
   "cdmw/ui/mesh_editor/archive_refit_flow.py": {
     "raise": 6
   },
-  "cdmw/ui/mesh_editor/body_region_atlas_panel.py": {},
   "cdmw/ui/mesh_editor/builder_host.py": {},
   "cdmw/ui/mesh_editor/character_context.py": {},
   "cdmw/ui/mesh_editor/cloth_collision_flow.py": {
@@ -115126,9 +110617,6 @@ SOURCE_COVERAGE = {
     "raise": 4,
     "report": 10
   },
-  "cdmw/ui/mesh_editor/native_topology_updates.py": {
-    "raise": 1
-  },
   "cdmw/ui/mesh_editor/process_io.py": {},
   "cdmw/ui/mesh_editor/refit_reference_preparation.py": {
     "report": 5
@@ -115145,7 +110633,6 @@ SOURCE_COVERAGE = {
   "cdmw/ui/mesh_editor/replacement_flow.py": {
     "raise": 5
   },
-  "cdmw/ui/mesh_editor/resident_mutation.py": {},
   "cdmw/ui/mesh_editor/resident_texture_update_queue.py": {
     "raise": 13,
     "report": 2,
@@ -115368,7 +110855,6 @@ SOURCE_COVERAGE = {
     "display": 1
   },
   "cdmw/ui/mesh_editor/workspace_views.py": {},
-  "cdmw/ui/mesh_editor_tab.py": {},
   "cdmw/ui/model_library/__init__.py": {},
   "cdmw/ui/model_library/actions.py": {},
   "cdmw/ui/model_library/catalogue.py": {},
@@ -115404,15 +110890,11 @@ SOURCE_COVERAGE = {
   },
   "cdmw/ui/model_library/texture_status.py": {},
   "cdmw/ui/model_library/view_state.py": {},
-  "cdmw/ui/model_library/workers.py": {},
-  "cdmw/ui/model_library_tab.py": {},
   "cdmw/ui/model_preview_gizmo_settings.py": {},
-  "cdmw/ui/model_preview_material_combiner.py": {},
   "cdmw/ui/model_preview_native.py": {},
   "cdmw/ui/model_preview_settings_dialog.py": {},
   "cdmw/ui/model_preview_settings_visibility.py": {},
   "cdmw/ui/native_preview_panel.py": {},
-  "cdmw/ui/native_preview_protocol.py": {},
   "cdmw/ui/native_tool_style.py": {},
   "cdmw/ui/native_window_clipping.py": {},
   "cdmw/ui/new_item/__init__.py": {
@@ -115761,7 +111243,6 @@ SOURCE_COVERAGE = {
     "signal": 6
   },
   "cdmw/ui/replace_assistant_tab.py": {},
-  "cdmw/ui/research_tab.py": {},
   "cdmw/ui/safe_upscale_wizard.py": {
     "diagnostic_field": 2
   },
@@ -115944,7 +111425,6 @@ SOURCE_COVERAGE = {
     "raise": 1,
     "signal": 3
   },
-  "cdmw/ui/text_search_tab.py": {},
   "cdmw/ui/texture_editor_tab.py": {},
   "cdmw/ui/texture_workflow/__init__.py": {},
   "cdmw/ui/texture_workflow/asset_authoring_panel.py": {
@@ -116137,7 +111617,6 @@ SOURCE_COVERAGE = {
   "cdmw/workers/attachment_loose_workers.py": {
     "diagnostic_field": 4
   },
-  "cdmw/workers/cancellation.py": {},
   "cdmw/workers/character_context_workers.py": {
     "diagnostic_field": 4,
     "finding": 2,
@@ -116202,7 +111681,6 @@ SOURCE_COVERAGE = {
     "raise": 39,
     "signal": 6
   },
-  "cdmw/workers/mesh_export_readback.py": {},
   "cdmw/workers/mesh_free_edit_output_worker.py": {
     "diagnostic_field": 1,
     "raise": 1,
@@ -116273,17 +111751,12 @@ SOURCE_COVERAGE = {
   "cdmw/workers/problem_report_workers.py": {
     "signal": 1
   },
-  "cdmw/workers/qt_worker_runner.py": {
-    "failure": 1,
-    "log": 1
-  },
   "cdmw/workers/recolor_variant_workers.py": {},
   "cdmw/workers/research_analysis_workers.py": {
     "diagnostic_field": 1,
     "raise": 3,
     "signal": 1
   },
-  "cdmw/workers/results.py": {},
   "cdmw/workers/runnable_signals.py": {},
   "cdmw/workers/source_mix_workers.py": {
     "raise": 1
@@ -116378,29 +111851,6 @@ SOURCE_COVERAGE = {
     "native_handoff": 48,
     "native_message": 47
   },
-  "native/cdmw_archive_core/include/cdmw_archive_core.h": {
-    "native_status": 5
-  },
-  "native/cdmw_archive_core/src/archive_core.cpp": {
-    "native_handoff": 1,
-    "native_message": 4
-  },
-  "native/cdmw_archive_core/src/archive_core_internal.hpp": {
-    "native_handoff": 7,
-    "native_message": 7
-  },
-  "native/cdmw_archive_core/src/archive_decode.cpp": {
-    "native_handoff": 15,
-    "native_message": 15
-  },
-  "native/cdmw_archive_core/src/pamt_index.cpp": {
-    "native_handoff": 26,
-    "native_message": 25
-  },
-  "native/cdmw_archive_core/src/partial_dds.cpp": {
-    "native_handoff": 21,
-    "native_message": 25
-  },
   "native/cdmw_full_archive_core/include/cdmw_full_archive_core.h": {
     "native_status": 5
   },
@@ -116423,86 +111873,6 @@ SOURCE_COVERAGE = {
   "native/cdmw_full_archive_core/src/partial_dds.cpp": {
     "native_handoff": 21,
     "native_message": 25
-  },
-  "native/cdmw_item_composer/include/cdmw_composer/composer.hpp": {},
-  "native/cdmw_item_composer/src/archive_reader.cpp": {
-    "native_handoff": 23,
-    "native_message": 23
-  },
-  "native/cdmw_item_composer/src/bone_offset_table.cpp": {
-    "native_handoff": 1,
-    "native_message": 19
-  },
-  "native/cdmw_item_composer/src/change_set.cpp": {
-    "native_handoff": 6,
-    "native_message": 6
-  },
-  "native/cdmw_item_composer/src/checksum.cpp": {},
-  "native/cdmw_item_composer/src/composer_internal.hpp": {
-    "native_handoff": 1,
-    "native_message": 1
-  },
-  "native/cdmw_item_composer/src/composition.cpp": {
-    "native_handoff": 2,
-    "native_message": 2
-  },
-  "native/cdmw_item_composer/src/icon_registry.cpp": {
-    "native_handoff": 2,
-    "native_message": 7
-  },
-  "native/cdmw_item_composer/src/inflate.cpp": {
-    "native_handoff": 5,
-    "native_message": 1
-  },
-  "native/cdmw_item_composer/src/itemgroupinfo.cpp": {
-    "native_handoff": 8,
-    "native_message": 7
-  },
-  "native/cdmw_item_composer/src/lz4_block.cpp": {
-    "native_handoff": 2,
-    "native_message": 3
-  },
-  "native/cdmw_item_composer/src/overlay_archive.cpp": {
-    "native_handoff": 7,
-    "native_message": 7
-  },
-  "native/cdmw_item_composer/src/overlay_merge.cpp": {
-    "native_handoff": 15,
-    "native_message": 12
-  },
-  "native/cdmw_item_composer/src/pabgh_table.cpp": {
-    "native_handoff": 2,
-    "native_message": 2
-  },
-  "native/cdmw_item_composer/src/paloc.cpp": {
-    "native_handoff": 16,
-    "native_message": 16
-  },
-  "native/cdmw_item_composer/src/papgt.cpp": {
-    "native_handoff": 16,
-    "native_message": 16
-  },
-  "native/cdmw_item_composer/src/pappt.cpp": {
-    "native_handoff": 15,
-    "native_message": 18
-  },
-  "native/cdmw_item_composer/src/pathc.cpp": {
-    "native_handoff": 6,
-    "native_message": 6
-  },
-  "native/cdmw_item_composer/src/sha256.cpp": {},
-  "native/cdmw_item_composer/src/storeinfo.cpp": {
-    "native_handoff": 1,
-    "native_message": 1
-  },
-  "native/cdmw_item_composer/src/support.cpp": {},
-  "native/cdmw_item_composer/src/zip_reader.cpp": {
-    "native_handoff": 6,
-    "native_message": 13
-  },
-  "native/cdmw_item_composer/tools/compose_cli.cpp": {
-    "native_handoff": 9,
-    "native_message": 9
   },
   "native/cdmw_mesh_core/src/main.cpp": {},
   "native/cdmw_mesh_core/src/mesh_core.hpp": {},
@@ -116836,8 +112206,6 @@ SOURCE_COVERAGE = {
   "native/cdmw_preview_core/src/owners/protocol_types.cpp": {},
   "native/cdmw_preview_core/src/preview_core.hpp": {},
   "native/cdmw_preview_core/src/preview_core_internal.hpp": {},
-  "native/cdmw_qt_rhi/rhitriangle.cpp": {},
-  "native/cdmw_qt_rhi/rhitriangle.h": {},
   "native/common/long_path.hpp": {},
   "native/common/native_diagnostics.h": {},
   "native/common/pamt_compact.hpp": {
@@ -116849,55 +112217,8 @@ SOURCE_COVERAGE = {
     "native_message": 9
   },
   "tools/__init__.py": {},
-  "tools/analyze_renderdoc_capture_xml.py": {
-    "raise": 1
-  },
-  "tools/audit_crimson_material_profiles.py": {
-    "diagnostic_field": 2,
-    "raise": 1
-  },
-  "tools/audit_crimson_shader_corpus.py": {
-    "diagnostic_field": 1,
-    "raise": 1
-  },
-  "tools/audit_external_model_catalogue.py": {
-    "raise": 2
-  },
-  "tools/audit_pac_xml_material_authority.py": {
-    "diagnostic_field": 5,
-    "finding": 1,
-    "raise": 3,
-    "report": 2
-  },
-  "tools/audit_texture_relationships.py": {
-    "diagnostic_field": 1,
-    "raise": 1
-  },
-  "tools/build_mesh_material_profile_corpus.py": {
-    "raise": 5
-  },
-  "tools/calibrate_crimson_startup.py": {
-    "code": 5,
-    "failure": 11,
-    "raise": 1,
-    "report": 2
-  },
-  "tools/capture_crimson_renderdoc_frame.py": {
-    "finding": 3,
-    "raise": 1
-  },
-  "tools/check_external_model_audit.py": {
-    "raise": 1
-  },
   "tools/check_material_authority_report.py": {
     "raise": 1
-  },
-  "tools/compare_preview_screenshots.py": {
-    "raise": 1
-  },
-  "tools/correlate_renderdoc_dds_paths.py": {
-    "diagnostic_field": 1,
-    "raise": 2
   },
   "tools/dotnet_archive_backend/src/Cdmw.Archive.Content/ArchiveContentAnalyzer.cs": {
     "native_handoff": 1
@@ -116926,12 +112247,12 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/OperationContracts.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
+    "native_message": 1
+  },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
     "native_handoff": 18,
     "native_message": 12
-  },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
-    "native_message": 1
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCatalogInventory.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCharacterCatalog.cs": {
@@ -117027,11 +112348,11 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePbdMaterialReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePrefabModels.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchivePreviewReferenceScanner.cs": {},
+  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.cs": {
     "native_handoff": 1,
     "native_message": 1
   },
-  "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveQueryService.Filter.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveRoleDisplay.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveSession.cs": {
     "native_handoff": 3,
@@ -117077,48 +112398,12 @@ SOURCE_COVERAGE = {
     "log": 1,
     "raise": 1
   },
-  "tools/export_renderdoc_candidate_truth.py": {
-    "raise": 3
-  },
-  "tools/extract_crimson_shader_corpus.py": {
-    "diagnostic_field": 1
-  },
-  "tools/extract_renderdoc_shader_blobs.py": {
-    "diagnostic_field": 1,
-    "raise": 1
-  },
   "tools/format_explorer/__init__.py": {},
   "tools/format_explorer/catalogue.py": {},
   "tools/format_explorer/tab.py": {
     "display": 1
   },
   "tools/format_explorer/workflows.py": {},
-  "tools/headless_feature_stress.py": {
-    "raise": 2
-  },
-  "tools/import_renderdoc_truth_pass.py": {
-    "raise": 1
-  },
-  "tools/locate_renderdoc_dispatch_truth_candidates.py": {
-    "raise": 1
-  },
-  "tools/locate_renderdoc_draw_truth_candidates.py": {
-    "raise": 1
-  },
-  "tools/match_item_icon_reference.py": {
-    "raise": 8
-  },
-  "tools/mesh_editor_visual_audit_manifest.py": {
-    "raise": 1
-  },
-  "tools/mesh_editor_visual_audit_review.py": {
-    "raise": 1
-  },
-  "tools/mesh_pipeline.py": {
-    "code": 1,
-    "raise": 2,
-    "validation": 1
-  },
   "tools/new_item_corpus.py": {
     "raise": 3
   },
@@ -117440,41 +112725,11 @@ SOURCE_COVERAGE = {
   "tools/placement_studio/xmldoc.py": {
     "raise": 6
   },
-  "tools/process_renderdoc_capture_reports.py": {
-    "finding": 2,
-    "raise": 2
-  },
-  "tools/refit_bulk_inventory.py": {
-    "raise": 1
-  },
-  "tools/refit_bulk_pilot.py": {
-    "diagnostic_field": 5,
-    "diagnostic_text": 1,
-    "finding": 1,
-    "log": 1,
-    "raise": 8
-  },
   "tools/refit_reference_poses.py": {
     "diagnostic_field": 1
   },
-  "tools/renderdoc_xml_common.py": {},
-  "tools/report_crimson_normal_y_policy.py": {
-    "diagnostic_field": 1,
-    "raise": 1
-  },
-  "tools/report_crimson_shader_long_run_status.py": {
-    "raise": 1
-  },
   "tools/report_format_decode_progress.py": {
     "raise": 13
-  },
-  "tools/report_prefab_json_import_corpus.py": {
-    "log": 5,
-    "raise": 6
-  },
-  "tools/run_crimson_renderdoc_hotkey_capture.py": {
-    "code": 8,
-    "raise": 2
   },
   "tools/rust_mesh_lab/apps/cdmw_asset_probe/src/headless.rs": {
     "native_handoff": 1,
@@ -117811,9 +113066,6 @@ SOURCE_COVERAGE = {
     "raise": 7,
     "report": 2
   },
-  "tools/summarize_renderdoc_shader_bindings.py": {
-    "raise": 1
-  },
   "tools/translation_studio/__init__.py": {},
   "tools/translation_studio/ai_job.py": {
     "diagnostic_field": 3,
@@ -117847,17 +113099,5 @@ SOURCE_COVERAGE = {
     "raise": 1,
     "validation": 2
   },
-  "tools/translation_studio/table_model.py": {},
-  "tools/trigger_renderdoc_capture_api.py": {
-    "finding": 1,
-    "raise": 1
-  },
-  "tools/verify_fbx_rig_in_blender.py": {
-    "failure": 14,
-    "raise": 1,
-    "report": 2
-  },
-  "tools/weapon_placement_studio_ctf_smoke.py": {
-    "raise": 1
-  }
+  "tools/translation_studio/table_model.py": {}
 }

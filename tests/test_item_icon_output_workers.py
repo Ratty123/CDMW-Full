@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.core import item_icon as item_icon_core
 from cdmw.core.item_icon import ItemIconLibraryRecord, patch_existing_loose_mod_with_item_icon
 from cdmw.models import RunCancelled
-from cdmw.ui.item_icons_tab import ItemIconLibraryTab
+from cdmw.ui.item_icons.tab import ItemIconLibraryTab
 
 
 def _app() -> QApplication:

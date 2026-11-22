@@ -648,8 +648,6 @@ class ModPackageRetrofitTests(unittest.TestCase):
         source = "\n".join(
             (
                 Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"),
-                Path("cdmw/ui/archive_browser/mod_package_retrofit_dialog.py").read_text(encoding="utf-8"),
-                Path("cdmw/ui/archive_browser/mod_package_retrofit_view.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/tools/mod_package_retrofit.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/tools/mod_package_retrofit_widget.py").read_text(encoding="utf-8"),
                 Path("cdmw/ui/tools/mod_package_retrofit_view.py").read_text(encoding="utf-8"),

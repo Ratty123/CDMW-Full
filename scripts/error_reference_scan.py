@@ -18,8 +18,8 @@ NATIVE_ROOTS = ("native", "tools/rust_mesh_lab", "tools/dotnet_archive_backend/s
 SKIP_DIRS = frozenset({
     ".git", ".work", "__pycache__", "third_party", "vendor", "target",
     "build", "bin", "obj", "tests", "test", "examples", "research",
-    "mesh_harness", "headless_stress", "compact_shell_visual", "problem_report_receiver",
-    "qtquick3d_viewport_spike", "node_modules",
+    "mesh_harness", "problem_report_receiver",
+    "node_modules",
 })
 EXCLUDED_FILES = frozenset({
     "cdmw/ui/shell/error_reference.py", "cdmw/ui/shell/error_reference_data.py",

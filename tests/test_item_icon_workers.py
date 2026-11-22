@@ -21,7 +21,7 @@ from cdmw.core.item_icon import (
     save_item_icon_library_index,
 )
 from cdmw.models import RunCancelled
-from cdmw.ui.item_icons_tab import ItemIconLibraryTab
+from cdmw.ui.item_icons.tab import ItemIconLibraryTab
 
 
 def test_shell_icon_targets_include_paged_archive_selection(tmp_path: Path) -> None:

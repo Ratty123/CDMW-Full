@@ -287,7 +287,6 @@ def classify(results: Mapping[str, dict], baseline: Mapping[str, object]) -> lis
 #: Skips caused by this machine or checkout, not by the game: a missing local build or input.
 #: They are not new, but the report lists them as unguarded on this run.
 ENVIRONMENT_SKIPS = (
-    (re.compile(r"native item composer", re.I), "build the native item composer to run it"),
     (re.compile(r"extracted vanilla motion tree", re.I), "needs the extracted motion tree"),
     (re.compile(r"CDMW_JOURNEY_BASE_PROFILE|no game profile", re.I), "needs a journey profile and the app"),
     (re.compile(r"external model", re.I), "needs the external test model"),

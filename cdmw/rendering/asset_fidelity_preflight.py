@@ -462,7 +462,7 @@ def shader_truth_capture_backend_report() -> Dict[str, object]:
                     "status": "bundled" if dxcompiler_path else "not_detected",
                     "path": dxcompiler_path,
                     "backend": "dxcompiler.dll",
-                    "notes": "tools/extract_renderdoc_shader_blobs.py can call RenderDoc-bundled dxcompiler.dll headlessly on Windows",
+                    "notes": "RenderDoc-bundled dxcompiler.dll can disassemble captured shaders headlessly on Windows",
                 },
                 "crimson_desert_notes": [
                     "AMD path needs AMD.ags.AllowUnknownExtensions=true for pre-launch D3D12 capture to pass E/load",

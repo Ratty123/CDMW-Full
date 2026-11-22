@@ -8,7 +8,6 @@ one outfit to one character.
 The file closes elements with `</>`, so it is not XML that expat accepts. This reader
 handles the subset the shipped file uses: elements, attributes in quotes, comments and
 character data. Everything outside the edited entries stays byte-identical.
-native/cdmw_item_composer/src/bone_offset_table.cpp mirrors it for composition.
 """
 from __future__ import annotations
 

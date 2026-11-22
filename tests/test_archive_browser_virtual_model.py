@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from cdmw.models import ArchiveEntry, ArchivePerformanceSettings, clamp_archive_performance_settings
 from cdmw.ui.archive_browser.mesh_swap_support import ArchiveMeshSwapSupportMixin
 from cdmw.ui.archive_browser.controller import ArchiveBrowserRowPayloadMixin
-from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
+from cdmw.ui.archive_browser.model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.wrapping_layout import WrappingLayout
 from PySide6.QtCore import QSettings, Qt
