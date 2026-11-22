@@ -266,7 +266,8 @@ class SpeedPrefabsWorkspace(QWidget):
         corner_row.setSpacing(6)
         badge = QLabel("Experimental")
         badge.setObjectName("WarningBadge")
-        badge.setToolTip("Writes a DMM mod or item package without modifying game archives.")
+        badge.setToolTip("Chart speed edits were seen working in game through Crimson Live Edit. Prefab and game "
+                         "table speed edits have not been tested in game. Check the result in game before sharing.")
         corner_row.addWidget(badge)
         self.tabs.setCornerWidget(corner, Qt.Corner.TopRightCorner)
         layout.addWidget(self.tabs, 1)
@@ -476,8 +477,9 @@ class SpeedPrefabsWorkspace(QWidget):
         cmd_layout.setSpacing(8)
         self.start_combo = QComboBox()
         self.start_combo.setObjectName("speedStartCombo")
-        self.start_combo.setToolTip("Starting points put factors into the sliders and leave the others as they are. "
-                                    "A speed mod you made shows that mod's factors, so you can change them and export again.")
+        self.start_combo.setToolTip("Starting points put factors into the sliders and leave the others as they are; "
+                                    "the numbers are not tested in game. A speed mod you made shows that mod's "
+                                    "factors, so you can change them and export again.")
         self.start_combo.activated.connect(self._start_chosen)
         self._fill_start_combo()
         self.scope_label = QLabel("Apply to:")
@@ -860,7 +862,8 @@ class SpeedPrefabsWorkspace(QWidget):
         left = QFrame()
         left.setObjectName("speedPrefabsCard")
         left.setProperty("surfaceCard", True)
-        left.setToolTip("Speeds of scene cameras, spinning and wind-driven objects and clouds.")
+        left.setToolTip("Speeds of scene cameras, spinning and wind-driven objects and clouds. Not the player's "
+                        "moves, and not effects. Prefab speed edits have not been tested in game.")
         layout = QVBoxLayout(left)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
@@ -933,7 +936,7 @@ class SpeedPrefabsWorkspace(QWidget):
             button = QPushButton(label)
             button.setObjectName(f"speedTableButton_{table}")
             button.setCheckable(True)
-            button.setToolTip(detail)
+            button.setToolTip(detail + " Units are not known, and these edits have not been tested in game.")
             button.setEnabled(self._open_game_table is not None)
             button.clicked.connect(lambda _checked=False, name=table: self.open_table(name))
             choose.addWidget(button)
@@ -1476,7 +1479,7 @@ class SpeedPrefabsWorkspace(QWidget):
                 else "No listed prefab holds a speed value that can be scaled." if not self._prefab_scalable
                 else "Set a factor other than 1x first." if not changes
                 else "Scales every speed value of the listed prefabs that is fully read and saves them as one "
-                     "item package.")
+                     "item package. Prefab speed edits have not been tested in game.")
 
     def _export_clicked(self) -> None:
         if self.scope() == "listed":

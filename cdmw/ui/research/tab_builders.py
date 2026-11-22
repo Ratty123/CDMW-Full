@@ -450,7 +450,9 @@ def build_ui_constraints_page(self) -> QWidget:
     self.ui_constraint_refresh_button = QPushButton("Scan UI Rect References")
     self.ui_constraint_refresh_button.setProperty("primaryAction", True)
     self.ui_constraint_refresh_button.setToolTip(
-        "Scan archive UI XML for GetRect boxes that fix a UI texture's on-screen size."
+        "UI textures whose on-screen size is fixed by a GetRect box in the game's UI XML. "
+        "Upscaling such a texture alone does not make it bigger in game while the XML keeps the same box. "
+        "The scan reads archive XML, so it runs only when you click Scan."
     )
     self.ui_constraint_status_label = QLabel(ui_constraint_initial_status_text())
     self.ui_constraint_status_label.setWordWrap(True)
