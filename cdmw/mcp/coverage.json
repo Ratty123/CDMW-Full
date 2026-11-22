@@ -1699,6 +1699,20 @@
       "tool": "app.dmm_mounted_mods"
     },
     {
+      "id": "app.dmm_added_files",
+      "area": "Browse Archives",
+      "what": "Files DMM adds: find the files DMM's mounted mods add that the game lacks, list them, open a mesh in the Mesh Editor (experimental)",
+      "class": "edit",
+      "tool": "app.dmm_added_files"
+    },
+    {
+      "id": "app.dmm_added_files_copy",
+      "area": "Browse Archives",
+      "what": "Files DMM adds: copy files to a folder under their game paths (experimental)",
+      "class": "output",
+      "tool": "app.dmm_added_files_copy"
+    },
+    {
       "id": "app.workspace_init",
       "area": "Settings",
       "what": "Setup: Init Workspace in a chosen folder",

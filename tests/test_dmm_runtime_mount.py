@@ -199,3 +199,124 @@ def test_settings_group_and_ai_tool(tmp_path, monkeypatch):
     report = tool_handler(Call())
     assert report["experimental"] is True and report["state"] == "serving" and report["matching"] == 1
     assert report["served"][0]["game_path"] == MESH and report["served"][0]["shown"] is True
+
+
+def test_export_writes_the_files_dmm_serves(tmp_path, monkeypatch):
+    import json
+
+    from cdmw.domain.archives.catalogue_operations import (
+        ArchiveExportItem, ArchiveExportRequest, ArchiveExportResult, ArchiveExportSelectionKind)
+
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    out = tmp_path / "export"
+    table = "gamedata/binary__/client/bin/iteminfo.pabgb"
+    for path in (MESH, table, "character/model/vanilla.pac"):
+        _write(out / path, b"vanilla")
+    manifest = out / "cdmw-export-manifest.json"
+    manifest.write_text(json.dumps({"schema": "cdmw_full_archive_export_v2", "entries": [
+        {"path": path, "output_path": path, "original_size": 7} for path in (MESH, table, "character/model/vanilla.pac")]}),
+        encoding="utf-8")
+    payload = ArchiveExportRequest("session", ArchiveExportSelectionKind.ENTRY_IDS, str(out), entry_ids=(1, 2, 3))
+    request = _CatalogueRequest(ArchiveBackendOperation.EXPORT, payload, 1, lambda value: value,
+                                session_id="session", package_root=str(game))
+    # A batch only collects items: its files are still in the export's staging folder.
+    batch = ArchiveExportResult("session", 3, 0, 0, 0, False, None,
+                                (ArchiveExportItem(MESH, str(out / MESH), "exported"),), False)
+    assert ArchiveCatalogueService._with_dmm_mounted_files(request, batch, final=False) is batch
+    assert (out / MESH).read_bytes() == b"vanilla"
+    result = ArchiveExportResult("session", 3, 3, 0, 0, False, str(manifest),
+                                 (ArchiveExportItem(MESH, str(out / MESH), "exported"),), False)
+    noted = ArchiveCatalogueService._with_dmm_mounted_files(request, result)
+    assert (out / MESH).read_bytes() == b"modded mesh"
+    assert (out / table).read_bytes() == b"vanilla" and (out / "character/model/vanilla.pac").read_bytes() == b"vanilla"
+    assert noted.items[0].message == "DMM mod: Sword_1.0_zip/Sword Mod"
+    rows = {row["path"]: row for row in json.loads(manifest.read_text(encoding="utf-8"))["entries"]}
+    assert rows[MESH]["dmm_mod"] == "Sword_1.0_zip/Sword Mod" and rows[MESH]["dmm_size"] == 11
+    assert "dmm_mod" not in rows[table]
+
+
+def test_export_without_a_manifest_uses_the_streamed_items(tmp_path):
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    out = tmp_path / "export"
+    _write(out / "x" / MESH, b"vanilla")
+    files, short = dmm.exported_files(out, None, [(MESH, str(out / "x" / MESH), "renamed"),
+                                                  (MESH, str(out / "y.pac"), "skipped")], True)
+    assert files == [(MESH, out / "x" / MESH)] and short == ""
+    assert dmm.exported_files(out, None, [], False)[1]
+    swaps = dmm.apply_to_export(game, out, files, None, overlay)
+    assert len(swaps) == 1 and (out / "x" / MESH).read_bytes() == b"modded mesh"
+    # Never outside the export folder.
+    outside = _write(tmp_path / "outside" / "a.pac", b"keep")
+    assert dmm.apply_to_export(game, out, [(MESH, outside)], None, overlay) == []
+    assert outside.read_bytes() == b"keep"
+
+
+def test_previews_find_files_a_dmm_mod_adds(tmp_path):
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+
+    game = _game(tmp_path)
+    store = tmp_path / "DMM" / "mods" / "Blade"
+    xml = "character/model/1_pc/1_phm/weapon/cd_phm_01_sword_9000.pac_xml"
+    dds = "character/texture/cd_phm_01_sword_9000_d.dds"
+    unrelated = "character/texture/cd_other_9001_d.dds"
+    _write(store / MESH, b"pac names cd_phm_01_sword_9000.pac_xml")
+    _write(store / xml, b'<Texture Path="Character/Texture/CD_PHM_01_SWORD_9000_D.dds"/>')
+    _write(store / dds, b"DDS new texture")
+    _write(store / unrelated, b"DDS unrelated")
+    _manifest(game, [f"file\t{path}\t{store / path}" for path in (MESH, xml, dds, unrelated)])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    served = overlay.prepare(game, MESH)
+    selected = ArchiveEntry(MESH, Path("0009/0.pamt"), Path("0009/0.paz"), 0, 1, 1, 0, 0, prepared_path=served.path,
+                            prepared_size=served.size, prepared_sha256=served.sha256, prepared_note="DMM mod: Blade")
+    vanilla = ArchiveEntry("character/model/x.pac", Path("0009/0.pamt"), Path("0009/0.paz"), 9, 1, 1, 0, 0,
+                           prepared_path=_write(tmp_path / "v.pac", b"cd_other_9001_d.dds"), prepared_size=19)
+    added = dmm.added_dependency_entries(game, [selected, vanilla], overlay=overlay)
+    assert [entry.path for entry in added] == [xml, dds]
+    assert added[1].prepared_path.read_bytes() == b"DDS new texture" and "DMM mod: Blade" in added[1].prepared_note
+    snapshot = ArchivePreviewDependencySet("s", 1, (selected,), {MESH: (selected,)}, {"cd_phm_01_sword_0109.pac": (selected,)},
+                                           1, False)
+    grown = snapshot.with_added_entries(tuple(added))
+    assert grown.entries_by_normalized_path[dds] == (added[1],) and grown.total_candidates == 3
+    overlay.set_enabled(False)
+    assert dmm.added_dependency_entries(game, [selected], overlay=overlay) == []
+
+
+def test_files_dmm_adds_list(tmp_path, monkeypatch):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup, added_files
+
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    mount = dmm.read_runtime_mount(game)
+    rows = added_files(dict(mount.files), {"ui/xml/gamemain/play/hudview2.css", "ui/xml/texture/cd_ink_bg_00.xml"})
+    assert [row.game_path for row in rows] == [MESH]  # the table stays the game's and is never listed
+
+    class Session:
+        session_id = "s"
+        package_root = str(game)
+
+    class Bridge:
+        current_session = None
+
+    class Archive:
+        archive_remote_bridge = Bridge()
+        shell = None
+
+    group = DmmAddedFilesGroup(Archive())
+    assert group.find() is False and "Load the game archives" in group.status_label.text()
+    Archive.archive_remote_bridge.current_session = Session()
+    group._show_rows(rows, "")
+    assert group.select_paths([MESH.upper()]) == [MESH]
+    assert group.open_button.isEnabled() and group.copy_button.isEnabled()
+    written = group.copy_selected(tmp_path / "out")
+    assert Path(written[0]).read_bytes() == b"modded mesh" and Path(written[0]).as_posix().endswith(MESH)
+    with pytest.raises(ValueError):
+        group.copy_selected(game / "mods-here")

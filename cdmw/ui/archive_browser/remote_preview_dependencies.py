@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from stat import S_ISREG
 from typing import Mapping
@@ -115,6 +115,24 @@ class ArchivePreviewDependencySet:
             total_candidates=max(0, int(total_candidates)),
             truncated=bool(truncated),
             secondary_index_pending=bool(secondary_index_pending),
+        )
+
+
+    def with_added_entries(self, added: tuple[ArchiveEntry, ...]) -> "ArchivePreviewDependencySet":
+        """This set plus files found elsewhere, such as files a DMM mod adds (experimental)."""
+        if not added:
+            return self
+        paths = {key: list(value) for key, value in self.entries_by_normalized_path.items()}
+        basenames = {key: list(value) for key, value in self.entries_by_basename.items()}
+        for entry in added:
+            paths.setdefault(_normalized(entry.path), []).append(entry)
+            basenames.setdefault(entry.basename.strip().casefold(), []).append(entry)
+        return replace(
+            self,
+            entries=(*self.entries, *added),
+            entries_by_normalized_path={key: tuple(value) for key, value in paths.items()},
+            entries_by_basename={key: tuple(value) for key, value in basenames.items()},
+            total_candidates=self.total_candidates + len(added),
         )
 
 
@@ -442,6 +460,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             prepared=pending.prepared,
             secondary_index_pending=pending.secondary_index_pending,
         )
+        snapshot = self._with_dmm_added_files(snapshot)
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
         self._snapshot_reuse_key = (
@@ -464,6 +483,22 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._stamp_off_thread(snapshot, record)
         self._remember_snapshot(snapshot)
         self.ready.emit(pending.ui_request_id, snapshot)
+
+    def _with_dmm_added_files(self, snapshot: ArchivePreviewDependencySet) -> ArchivePreviewDependencySet:
+        """Add the files DMM serves that this set's DMM files name but the set lacks (experimental)."""
+        session_lookup = getattr(self._service, "session", None)
+        session = session_lookup(snapshot.session_id) if callable(session_lookup) else None
+        game_root = str(getattr(session, "package_root", "") or "")
+        if not game_root or len(snapshot.entries) >= MAX_ARCHIVE_PREVIEW_ENTRIES:
+            return snapshot
+        from cdmw.services.dmm_runtime_mount import added_dependency_entries
+
+        try:
+            added = added_dependency_entries(game_root, snapshot.entries)
+        except (OSError, ValueError):
+            return snapshot
+        room = MAX_ARCHIVE_PREVIEW_ENTRIES - len(snapshot.entries)
+        return snapshot.with_added_entries(tuple(added[:room]))
 
     @property
     def stamping(self) -> bool:

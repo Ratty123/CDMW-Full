@@ -24,6 +24,7 @@ DmmRuntime 1.3.1 only.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -31,7 +32,7 @@ import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Mapping
+from typing import Iterable, Mapping
 
 MANIFEST_RELATIVE_PATH = Path("bin64") / "dmm" / "manifest.tsv"
 DMM_BUILT_FILES_RELATIVE_PATH = Path("bin64") / "dmm" / "files"
@@ -406,3 +407,167 @@ def describe_mount(game_root: Path | str, overlay: DmmMountOverlay | None = None
         "files": len(mount.files) if mount is not None else 0,
         "mods": [{"mod": name, "files": count} for name, count in sorted(mods.items(), key=lambda item: item[0].casefold())],
     }
+
+
+@dataclass(frozen=True, slots=True)
+class DmmExportSwap:
+    game_path: str
+    output_path: Path
+    mod: str
+    size: int
+    sha256: str
+
+
+def _write_over(target: Path, source: Path) -> None:
+    handle, temporary_name = tempfile.mkstemp(prefix=".dmm-", dir=target.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(handle, "wb") as output, source.open("rb") as stream:
+            shutil.copyfileobj(stream, output, 1024 * 1024)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def exported_files(destination: Path, manifest_path: str | None,
+                   items: Iterable[tuple[str, str | None, str]], items_complete: bool) -> tuple[list[tuple[str, Path]], str]:
+    """(game path, written file) for every file an export wrote, and why the list may be short.
+
+    The export manifest lists every written file; without one the streamed items are
+    used, which the worker stops reporting after a few thousand.
+    """
+    destination = Path(destination)
+    if manifest_path:
+        try:
+            document = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+            rows = document.get("entries") if isinstance(document, dict) else None
+            if isinstance(rows, list):
+                files = [(str(row["path"]), destination / str(row["output_path"]))
+                         for row in rows if isinstance(row, dict) and row.get("path") and row.get("output_path")]
+                return files, ""
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    files = [(path, Path(output)) for path, output, status in items
+             if output and status in {"exported", "renamed"}]
+    return files, "" if items_complete else "The export listed only part of its files, so DMM's versions may not replace all of them."
+
+
+def apply_to_export(game_root: Path | str, destination: Path | str, files: Iterable[tuple[str, Path]],
+                    manifest_path: str | None = None,
+                    overlay: DmmMountOverlay | None = None) -> list[DmmExportSwap]:
+    """Write DMM's served file over each exported file DMM serves (experimental).
+
+    Only files inside ``destination`` are replaced. The export manifest then records,
+    for each replaced file, the DMM mod and the bytes now in the folder.
+    """
+    overlay = overlay or current_overlay()
+    if not overlay.enabled:
+        return []
+    root = Path(destination).resolve()
+    swaps: list[DmmExportSwap] = []
+    for game_path, output in files:
+        try:
+            prepared = overlay.prepare(game_root, game_path)
+            if prepared is None:
+                continue
+            target = Path(output).resolve()
+            if not target.is_relative_to(root) or not target.is_file() or target.is_symlink():
+                continue
+            _write_over(target, prepared.path)
+        except OSError:
+            continue
+        swaps.append(DmmExportSwap(game_path, target, prepared.mod, prepared.size, prepared.sha256))
+    if swaps and manifest_path:
+        _note_swaps_in_manifest(Path(manifest_path), swaps, root)
+    return swaps
+
+
+def _note_swaps_in_manifest(manifest: Path, swaps: list[DmmExportSwap], root: Path) -> None:
+    try:
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    rows = document.get("entries") if isinstance(document, dict) else None
+    if not isinstance(rows, list):
+        return
+    by_output = {swap.output_path.relative_to(root).as_posix().casefold(): swap for swap in swaps}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        swap = by_output.get(str(row.get("output_path", "")).replace("\\", "/").casefold())
+        if swap is not None:
+            row["dmm_mod"] = swap.mod
+            row["dmm_size"] = swap.size
+            row["dmm_sha256"] = swap.sha256
+    document["dmm_runtime_mount"] = {"note": "Files with dmm_mod are the files DMM serves the game, not the game's own.",
+                                     "replaced": len(swaps)}
+    temporary = manifest.with_name(manifest.name + ".dmm-tmp")
+    try:
+        temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(temporary, manifest)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+
+
+MAX_ADDED_DEPENDENCIES = 256
+_MAX_SCANNED_BYTES = 64 * 1024 * 1024
+
+
+def added_dependency_entries(game_root: Path | str, entries: Iterable[object], *,
+                             overlay: DmmMountOverlay | None = None) -> list[object]:
+    """Files DMM serves that ``entries`` lack, named by the DMM files in ``entries``.
+
+    Only a file DMM serves can name a file a mod adds, so only those are searched,
+    then the added files themselves, a few rounds deep. Each found file becomes a
+    prepared ``ArchiveEntry`` read from CDMW's copy (experimental).
+    """
+    from cdmw.models import ArchiveEntry
+
+    overlay = overlay or current_overlay()
+    mount, _error = overlay.mount(game_root)
+    if not overlay.enabled or mount is None or not mount.serving:
+        return []
+    entries = list(entries)
+    known = {normalized_game_path(getattr(entry, "path", "")) for entry in entries}
+    candidates = {key: served for key, served in mount.files.items()
+                  if key not in known and PurePosixPath(key).suffix not in KEEP_GAME_EXTENSIONS}
+    if not candidates:
+        return []
+    pending = [entry for entry in entries if "DMM mod:" in str(getattr(entry, "prepared_note", "") or "")]
+    added: list[object] = []
+    for _round in range(4):
+        if not pending or not candidates or len(added) >= MAX_ADDED_DEPENDENCIES:
+            break
+        texts = []
+        for entry in pending:
+            path = getattr(entry, "prepared_path", None)
+            try:
+                if path is not None and Path(path).stat().st_size <= _MAX_SCANNED_BYTES:
+                    texts.append(Path(path).read_bytes().lower())
+            except OSError:
+                continue
+        pending = []
+        for key, served in tuple(candidates.items()):
+            name = PurePosixPath(key).name.encode("utf-8", "ignore")
+            if not name or not any(name in text for text in texts):
+                continue
+            del candidates[key]
+            try:
+                prepared = overlay.prepare(game_root, served.game_path)
+            except OSError:
+                prepared = None
+            if prepared is None:
+                continue
+            entry = ArchiveEntry(path=served.game_path, pamt_path=mount.manifest_path, paz_file=prepared.path,
+                                 offset=0, comp_size=prepared.size, orig_size=prepared.size, flags=0, paz_index=0,
+                                 prepared_path=prepared.path, prepared_sha256=prepared.sha256,
+                                 prepared_note=f"DMM mod: {prepared.mod}",
+                                 prepared_size=prepared.size)
+            added.append(entry)
+            pending.append(entry)
+            if len(added) >= MAX_ADDED_DEPENDENCIES:
+                break
+    return added
