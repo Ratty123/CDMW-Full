@@ -55,6 +55,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         _app()
         self._temp_dir = tempfile.TemporaryDirectory()
         settings = create_settings(settings_file_path=Path(self._temp_dir.name) / "cdmw-test.cfg")
+        # A saved Classic Workspace choice opens Compact Workspace: Classic is retired.
         settings.setValue("ui/shell_variant", "legacy")
         context = AppContext(
             settings=settings,
@@ -86,12 +87,9 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         return created
 
     def test_shell_exposes_and_activates_all_primary_tools(self) -> None:
-        navigation = self.window.classic_navigation
-        self.assertIsNotNone(navigation)
-        self.assertEqual(
-            ["Assets", "Authoring", "Utilities"],
-            [navigation.groups.tabText(i) for i in range(navigation.groups.count())],
-        )
+        self.assertIsNone(getattr(self.window, "classic_navigation", None))
+        rail = self.window.compact_workspace.rail
+        self.assertEqual(["Assets", "Authoring", "Utilities"], list(rail.category_headers))
         expected_tools = {
             "archive_browser", "model_library", "item_icons", "new_item_studio",
             "mesh_editor", "saved_work", "placement_studio", "speed_prefabs", "textures", "mod_management",
@@ -110,21 +108,13 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         )
         self.window._handle_language_changed("de")
         self.assertEqual("de", self.window.ui_localizer.language_code)
-        self.assertEqual(
-            self.window.ui_localizer.translate("Assets"), navigation.groups.tabText(0)
-        )
         for key in sorted(expected_tools):
             widget = self.window.tab_registry.widgets[key]
             self.window._activate_tool_key(key)
             self.assertIs(self.window._current_navigation_widget(), widget, key)
             self.assertIsNotNone(self._wait_for_created_tool(widget), key)
             if key != "settings":
-                index = navigation.tools.currentIndex()
-                self.assertEqual(key, navigation.tools.tabData(index))
-                self.assertEqual(
-                    self.window.ui_localizer.translate(self.window.tab_registry.titles[key]),
-                    navigation.tools.tabText(index),
-                )
+                self.assertTrue(rail.tool_buttons[key].isChecked(), key)
 
     def test_new_user_opens_archive_browser_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
