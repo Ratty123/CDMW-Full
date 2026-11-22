@@ -5,6 +5,17 @@ from PySide6.QtGui import QAction, QKeyEvent
 from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 
+def hide_enclosing_popup(widget: QWidget) -> None:
+    """Close the Actions-menu panel ``widget`` sits in, before it opens another tool or a dialog.
+
+    The same group also sits in the controls pane, where its window is the main
+    window and nothing is hidden.
+    """
+    window = widget.window()
+    if isinstance(window, _ArchiveFiltersPopup) and window.isVisible():
+        window.hide()
+
+
 class _ArchiveFiltersPopup(QFrame):
     """Keep filter widgets in a popup without QMenu's widget-action handoff."""
 

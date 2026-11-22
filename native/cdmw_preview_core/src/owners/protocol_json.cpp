@@ -1,7 +1,8 @@
 constexpr int kNativePackageSchemaVersion = 8;
 constexpr int kNativeMaterialGraphVersion = 5;
 constexpr int kNativeMaterialSemanticsVersion = 10;
-constexpr int kNativeDdsExtractionVersion = 2;
+// v3: prepared DDS are keyed by their own bytes; v2 files could hold a prepared file.
+constexpr int kNativeDdsExtractionVersion = 3;
 
 std::string json_escape(const std::string& value) {
     std::string out;

@@ -384,3 +384,327 @@ def test_compact_workspace_opens_files_dmm_adds_and_edited_results_from_actions(
     edited_popup.hide()
     window.deleteLater()
     application.processEvents()
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def _qt():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+def _until(predicate, timeout=5.0) -> bool:
+    import time
+
+    application = _qt()
+    deadline = time.monotonic() + timeout
+    while not predicate() and time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.005)
+    return bool(predicate())
+
+
+@pytest.mark.parametrize("path", [
+    "gamedata/binary__/client/bin/iteminfo.staticinfobody",
+    "gamedata/binary__/client/bin/iteminfo.staticinfoheader",
+    "character/model/1_pc/1_phm/cd_phm_01.pappt",
+])
+def test_current_game_tables_stay_the_games_own(tmp_path, path):
+    from cdmw.ui.archive_browser.dmm_added_files import added_files
+
+    game = _game(tmp_path)
+    source = _write(tmp_path / "DMM" / "mods" / "Tables" / path, b"merged rows")
+    _manifest(game, [f"file\t{path}\t{source}"])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    assert overlay.prepare(game, path) is None
+    assert not overlay.serves_any(game, [path])
+    mount = dmm.read_runtime_mount(game)
+    assert added_files(dict(mount.files), set()) == []
+    exported = _write(tmp_path / "out" / path, b"game")
+    assert dmm.apply_to_export(game, tmp_path / "out", [(path, exported)], overlay=overlay) == []
+    assert exported.read_bytes() == b"game"
+
+
+def test_state_token_follows_toggles_remounts_and_game_updates(tmp_path):
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    heard = []
+    overlay.add_listener(lambda: heard.append(True))
+    first = overlay.state_token(game)
+    assert overlay.state_token() == first  # nothing changed
+    overlay.set_enabled(False)
+    assert overlay.state_token() != first and heard == [True]
+    overlay.set_enabled(True)
+    on = overlay.state_token()
+    # A new mount in DMM rewrites the manifest.
+    manifest = game / "bin64" / "dmm" / "manifest.tsv"
+    os.utime(manifest, ns=(manifest.stat().st_atime_ns, manifest.stat().st_mtime_ns + 5_000_000))
+    remounted = overlay.state_token()
+    assert remounted != on
+    # A game update changes meta/0.paver but not the manifest: the plugin then serves nothing.
+    (game / "meta" / "0.paver").write_bytes(PAVER[:-1] + b"\x00")
+    assert overlay.state_token() != remounted
+    assert overlay.prepare(game, MESH) is None and dmm.describe_mount(game, overlay)["state"] == "stale"
+    overlay.refresh(game)
+    assert heard == [True, True, True]
+
+
+def test_build_mod_baseline_never_records_dmm_bytes(tmp_path):
+    from cdmw.models import ArchiveEntry
+    from cdmw.services.mesh_archive_results import _source_dependency_note
+    from cdmw.workers.mesh_editor_workers import _game_original_reader
+
+    paz = _write(tmp_path / "0009" / "0.paz", b"....game mesh")
+    served = _write(tmp_path / "copies" / "ab" / "served.pac", b"modded mesh")
+    entry = ArchiveEntry(MESH, tmp_path / "0009" / "0.pamt", paz, 4, 9, 9, 0, 0, prepared_path=served,
+                         prepared_sha256=hashlib.sha256(b"modded mesh").hexdigest(), prepared_size=11,
+                         prepared_note="Raw,DMM mod: Sword Mod")
+    read = _game_original_reader(None)
+    assert read(entry) == b"game mesh"
+    # Carried into a later pass as a source dependency, it still says DMM serves it.
+    assert dmm.is_dmm_note(_source_dependency_note(entry.prepared_note))
+    assert not dmm.is_dmm_note(_source_dependency_note("Raw"))
+    game = _game(tmp_path)
+    mount = dmm.DmmRuntimeMount(game, game / "bin64" / "dmm" / "manifest.tsv", "", 0)
+    added = dmm.added_entry(mount, dmm.DmmServedFile(MESH, served, "Sword Mod"),
+                            dmm.PreparedDmmFile(served, 11, "a" * 64, "Sword Mod"))
+    assert dmm.is_dmm_added_entry(added) and not dmm.is_dmm_added_entry(entry)
+    with pytest.raises(FileNotFoundError):
+        read(added)  # the game has no original: it stays unknown
+    from dataclasses import replace
+
+    from cdmw.services.mesh_archive_results import EDITED_RESULT_NOTE
+
+    with pytest.raises(FileNotFoundError):
+        read(replace(added, prepared_note=EDITED_RESULT_NOTE))  # an edited result of it, a later pass
+
+
+def test_preview_disk_cache_is_keyed_by_the_prepared_bytes(tmp_path, monkeypatch):
+    from cdmw.core import archive_media_preview
+    from cdmw.models import ArchiveEntry
+
+    monkeypatch.setattr(archive_media_preview, "app_temp_cache_path",
+                        lambda *parts: tmp_path.joinpath("cache", *parts))
+    paz = _write(tmp_path / "0009" / "0.paz", b"GAME")
+    _write(tmp_path / "0009" / "0.pamt", b"pamt")
+    vanilla = ArchiveEntry("ui/x.txt", tmp_path / "0009" / "0.pamt", paz, 0, 4, 4, 0, 0)
+    served = _write(tmp_path / "served.txt", b"DMM!")
+    modded = ArchiveEntry("ui/x.txt", vanilla.pamt_path, paz, 0, 4, 4, 0, 0, prepared_path=served,
+                          prepared_sha256=hashlib.sha256(b"DMM!").hexdigest(), prepared_size=4,
+                          prepared_note="DMM mod: UI")
+    dmm_path, _note = archive_media_preview.ensure_archive_preview_source(modded)
+    game_path, _note = archive_media_preview.ensure_archive_preview_source(vanilla)
+    assert dmm_path.read_bytes() == b"DMM!" and game_path.read_bytes() == b"GAME"
+    assert dmm_path.parent != game_path.parent
+
+
+def test_catalogue_results_with_dmm_files_are_copied_off_the_ui_thread_in_order(tmp_path, monkeypatch):
+    import threading
+
+    from PySide6.QtCore import QObject, Signal
+
+    _qt()
+
+    class Client(QObject):
+        request_progress = Signal(str, object)
+        request_batch = Signal(str, object)
+        request_succeeded = Signal(str, object)
+        request_failed = Signal(str, object)
+        request_cancelled = Signal(str)
+        state_changed = Signal(str)
+        worker_crashed = Signal(str)
+        worker_ready = Signal()
+
+        def submit(self, *_args, **_kwargs):
+            return None
+
+        def cancel(self, _request_id):
+            return True
+
+        def shutdown(self):
+            return None
+
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    copied_on = []
+    original_copy = overlay._copy
+
+    def copy(*args):
+        copied_on.append(threading.current_thread())
+        return original_copy(*args)
+
+    monkeypatch.setattr(overlay, "_copy", copy)
+    client = Client()
+    service = ArchiveCatalogueService(client)
+    request = _CatalogueRequest(ArchiveBackendOperation.PREPARE_ENTRY, None, 1, lambda value: value,
+                                session_id="session", package_root=str(game))
+    published = []
+    batch = PrepareEntriesResult("session", (_item(MESH),), 1, 1, 3)
+    vanilla = PrepareEntriesResult("session", (_item("character/model/vanilla.pac", 8),), 2, 2, 3)
+    service._publish_with_dmm("r", request, batch, final=False, publish=published.append)
+    # Nothing DMM serves, but it waits behind the batch that is being copied.
+    service._publish_with_dmm("r", request, vanilla, final=True, publish=published.append)
+    assert published == []
+    assert _until(lambda: len(published) == 2)
+    assert published[0].items[0].note.endswith("DMM mod: Sword_1.0_zip/Sword Mod") and published[1] is vanilla
+    assert copied_on and copied_on[0] is not threading.main_thread()
+    # With nothing in flight, a result DMM serves nothing of is published at once.
+    service._publish_with_dmm("s", request, vanilla, final=True, publish=published.append)
+    assert published[-1] is vanilla
+    # A cancel drops what is still being copied.
+    service._publish_with_dmm("t", request, _item(MESH), final=True, publish=published.append)
+    service.cancel("t")
+    count = len(published)
+    assert _until(lambda: "t" not in service._dmm_inflight)
+    assert len(published) == count
+    # A request that keeps the game's own files is never swapped.
+    games_own = _CatalogueRequest(ArchiveBackendOperation.PREPARE_ENTRY, None, 1, lambda value: value,
+                                  session_id="session", package_root=str(game), dmm_overlay=False)
+    assert ArchiveCatalogueService._with_dmm_mounted_files(games_own, batch) is batch
+    service._publish_with_dmm("u", games_own, batch, final=False, publish=published.append)
+    assert published[-1] is batch
+    service.request_shutdown()
+
+
+def test_copies_are_pruned_without_walking_the_folder_each_time(tmp_path, monkeypatch):
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    old = _write(tmp_path / "copies" / "aa" / "old" / "cd_old.pac", b"x" * 64)  # an earlier version's named copy
+    os.utime(old, ns=(1, 1))
+    monkeypatch.setattr(dmm, "COPY_FOLDER_LIMIT_BYTES", 40)
+    walks = []
+    original = Path.rglob
+
+    def rglob(self, pattern):
+        walks.append(self)
+        return original(self, pattern)
+
+    monkeypatch.setattr(Path, "rglob", rglob)
+    prepared = overlay.prepare(game, MESH)
+    assert prepared.path.is_file() and not old.exists() and not old.parent.exists()
+    assert len(walks) == 1
+    monkeypatch.setattr(dmm, "COPY_FOLDER_LIMIT_BYTES", 1024)
+    overlay.prepare(game, "ui/xml/gamemain/play/hudview2.css")
+    assert len(walks) == 1  # counted once, then kept up to date
+
+
+def test_package_reuse_checks_the_bytes_it_was_built_from(tmp_path):
+    import json
+
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.mesh_editor.shell_bridge import _package_source_bytes_match
+
+    package = tmp_path / "entry" / "package"
+    package.mkdir(parents=True)
+    vanilla = ArchiveEntry(MESH, Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0, prepared_path=Path("v"),
+                           prepared_sha256="a" * 64, prepared_note="Raw")
+    served = ArchiveEntry(MESH, Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0, prepared_path=Path("d"),
+                          prepared_sha256="b" * 64, prepared_note="Raw,DMM mod: Sword Mod")
+
+    def load(path):
+        try:
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+        except OSError:
+            return None
+
+    assert _package_source_bytes_match(package, vanilla, load)
+    assert not _package_source_bytes_match(package, served, load)  # records nothing: not for a DMM file
+    (package.parent / "cache_entry.json").write_text(json.dumps({"entry_prepared_sha256": "a" * 64}), encoding="utf-8")
+    assert _package_source_bytes_match(package, vanilla, load)
+    assert not _package_source_bytes_match(package, served, load)
+
+
+def test_new_item_previews_the_games_own_files():
+    from PySide6.QtCore import QObject, Signal
+
+    from cdmw.ui.new_item.template_preview_dependencies import TemplatePreviewDependencies
+
+    _qt()
+
+    class Service(QObject):
+        batch_ready = Signal(str, str, object)
+        result_ready = Signal(str, str, object)
+        request_failed = Signal(str, object)
+        request_cancelled = Signal(str)
+        progress = Signal(str, object)
+        current_session = None
+
+    service = Service()
+    dependencies = TemplatePreviewDependencies(service)
+    assert dependencies._provider._dmm_overlay is False
+
+
+def test_files_dmm_adds_open_goes_through_the_archive_open(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QWidget
+
+    from cdmw.ui.archive_browser.command_strip import _ArchiveFiltersPopup
+    from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup, added_files
+
+    _qt()
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    calls = []
+
+    class Tab:
+        def open_archive_session(self, entry, *, archive_dependencies=None):
+            calls.append(("open", entry, archive_dependencies))
+
+        def open_mesh_file_session_async(self, *_args, **_kwargs):
+            raise AssertionError("a lone file open drops unsaved edits")
+
+    class Shell:
+        mesh_editor_tab = Tab()
+        answer = False
+
+        def _prepare_mesh_editor_archive_launch(self, entry):
+            calls.append(("ask", entry))
+            return self.answer
+
+        def _activate_tool_widget(self, _tab):
+            calls.append(("show",))
+
+        def set_status_message(self, message, error=False):
+            calls.append(("status", message))
+
+    class Session:
+        session_id = "s"
+        package_root = str(game)
+
+    class Bridge:
+        current_session = Session()
+
+    class Archive(QWidget):
+        archive_remote_bridge = Bridge()
+        shell = Shell()
+
+    archive = Archive()
+    button = QWidget(archive)
+    group = DmmAddedFilesGroup(archive)
+    popup = _ArchiveFiltersPopup(group, button)  # the Actions panel holds it in Compact Workspace
+    popup.show()
+    mount = dmm.read_runtime_mount(game)
+    group._show_rows(added_files(dict(mount.files), {"ui/xml/gamemain/play/hudview2.css",
+                                                      "ui/xml/texture/cd_ink_bg_00.xml"}), "")
+    group.select_paths([MESH])
+    assert group.open_selected() == MESH
+    assert not popup.isVisible()
+    # An unfinished edit the user keeps: nothing opens.
+    assert _until(lambda: any(call[0] == "ask" for call in calls))
+    assert not any(call[0] == "open" for call in calls)
+    Shell.answer = True
+    calls.clear()
+    group.open_selected()
+    assert _until(lambda: any(call[0] == "open" for call in calls))
+    _kind, entry, context = next(call for call in calls if call[0] == "open")
+    assert entry.path == MESH and dmm.is_dmm_added_entry(entry) and entry.prepared_path.read_bytes() == b"modded mesh"
+    assert context.selected_entry is entry and context.remote
+    # Turning the overlay off empties the list, which named what DMM served then.
+    overlay.set_enabled(False)
+    assert group.rows == []
+    popup.deleteLater()
+    archive.deleteLater()

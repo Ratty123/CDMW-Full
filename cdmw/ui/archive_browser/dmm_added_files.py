@@ -9,14 +9,16 @@ has, and lists the rest. They open from CDMW's own copy; DMM's files are only re
 from __future__ import annotations
 
 import shutil
+import threading
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,
-    QVBoxLayout,
+    QVBoxLayout, QWidget,
 )
 
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
@@ -32,6 +34,42 @@ class DmmAddedFile:
     game_path: str
     mod: str
     source: Path
+
+
+class _OpenRelay(QObject):
+    """Brings a prepared open back to the UI thread."""
+
+    done = Signal(int, object, object)
+
+
+def _prepare_open(game_root: str, row: DmmAddedFile):
+    """CDMW's copy of ``row`` as an archive entry, with the files DMM serves that it names.
+
+    Read off the UI thread: it copies DMM's file and reads it for names.
+    """
+    from cdmw.services.dmm_runtime_mount import added_dependency_entries, added_entry
+    from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+
+    overlay = current_overlay()
+    mount, error = overlay.mount(game_root)
+    served = overlay.served_file(game_root, row.game_path)
+    prepared = overlay.prepare(game_root, row.game_path) if served is not None else None
+    if mount is None or served is None or prepared is None:
+        raise ValueError(error or f"DMM no longer serves {row.game_path}. Press Find again.")
+    entry = added_entry(mount, served, prepared)
+    entries = (entry, *added_dependency_entries(game_root, (entry,), overlay=overlay))
+    paths: dict[str, list] = {}
+    basenames: dict[str, list] = {}
+    for item in entries:
+        paths.setdefault(normalized_game_path(item.path), []).append(item)
+        basenames.setdefault(item.basename.casefold(), []).append(item)
+    context = ArchiveWorkflowDependencyContext(
+        entry, entries,
+        MappingProxyType({key: tuple(value) for key, value in paths.items()}),
+        MappingProxyType({key: tuple(value) for key, value in basenames.items()}),
+        remote=True,
+    )
+    return entry, context
 
 
 def added_files(served: dict[str, DmmServedFile], found_paths: set[str]) -> list[DmmAddedFile]:
@@ -53,6 +91,9 @@ class DmmAddedFilesGroup(QGroupBox):
         #: The lookup helper finds the catalogue through ``owner.archive``.
         self.archive = archive
         self._lookup = None
+        self._open_generation = 0
+        self._open_relay = _OpenRelay(self)
+        self._open_relay.done.connect(self._open_prepared)
         self.rows: list[DmmAddedFile] = []
         layout = QVBoxLayout(self)
         self.status_label = QLabel(DMM_ADDED_FILES_EMPTY)
@@ -81,6 +122,22 @@ class DmmAddedFilesGroup(QGroupBox):
         self.copy_button.clicked.connect(self.copy_selected_dialog)
         self.show_button.clicked.connect(self.show_selected)
         self._sync_buttons()
+        overlay = current_overlay()
+        overlay.add_listener(self._overlay_changed)
+        self.destroyed.connect(lambda _object=None, overlay=overlay, listener=self._overlay_changed:
+                               overlay.remove_listener(listener))
+
+    def _overlay_changed(self) -> None:
+        """Turned on or off, or Check again: previews kept from before show other files."""
+
+        clear = getattr(self._archive, "_clear_archive_preview_cache", None)
+        if callable(clear):
+            clear()
+        clear_family = getattr(self._archive, "_clear_archive_asset_family_cache", None)
+        if callable(clear_family):
+            clear_family()
+        if self._lookup is None:
+            self._show_rows([], DMM_ADDED_FILES_EMPTY)
 
     # ------------------------------------------------------------ finding
 
@@ -170,31 +227,77 @@ class DmmAddedFilesGroup(QGroupBox):
             raise ValueError(f"DMM no longer serves {row.game_path}. Press Find again.")
         return prepared
 
+    def _show_dmm_status(self, message: str, *, error: bool = False) -> None:
+        """The status line, and the window's, which stays visible when the Actions panel closes."""
+
+        self.status_label.setText(message)
+        shell = getattr(self._archive, "shell", None)
+        status = getattr(shell, "set_status_message", None)
+        if callable(status):
+            try:
+                status(message, error=error)
+            except TypeError:
+                status(message)
+
     def open_selected(self) -> str:
+        """Open the selected mesh as an archive mesh, like Edited results; the game path when started.
+
+        The copy and the search for the files it names run on a worker. The open
+        then asks about an unfinished edit, or opens beside it, as every archive
+        open does.
+        """
         rows = self.selected_rows()
         if len(rows) != 1 or PurePosixPath(rows[0].game_path).suffix.casefold() not in ARCHIVE_MESH_EXTENSIONS:
             return ""
+        row = rows[0]
+        shell = getattr(self._archive, "shell", None)
+        if getattr(shell, "mesh_editor_tab", None) is None or not callable(
+                getattr(shell, "_prepare_mesh_editor_archive_launch", None)):
+            self._show_dmm_status("The Mesh Editor is unavailable.", error=True)
+            return ""
+        from cdmw.ui.archive_browser.command_strip import hide_enclosing_popup
+
+        hide_enclosing_popup(self)
+        game_root = self._game_root()
+        self._open_generation += 1
+        generation, relay = self._open_generation, self._open_relay
+
+        def run() -> None:
+            try:
+                outcome: object = _prepare_open(game_root, row)
+            except (OSError, ValueError, RuntimeError) as exc:
+                outcome = exc
+            try:
+                relay.done.emit(generation, row, outcome)
+            except RuntimeError:
+                pass  # the list was deleted meanwhile
+
+        threading.Thread(target=run, name="dmm-added-file-open", daemon=True).start()
+        self._show_dmm_status(f"Opening {row.game_path} from DMM's {row.mod} in the Mesh Editor.")
+        return row.game_path
+
+    def _open_prepared(self, generation: int, row: object, outcome: object) -> None:
+        if generation != self._open_generation:
+            return
+        if isinstance(outcome, BaseException):
+            self._show_dmm_status(str(outcome), error=True)
+            return
+        entry, context = outcome
         shell = getattr(self._archive, "shell", None)
         tab = getattr(shell, "mesh_editor_tab", None)
         try:
-            prepared = self._prepared(rows[0])
-            if tab is None:
-                raise ValueError("The Mesh Editor is unavailable.")
-            # The Mesh Editor reads a copy named as the game names the file.
-            named = prepared.path.with_name(PurePosixPath(rows[0].game_path).name)
-            named = prepared.path.parent / prepared.sha256 / named.name
-            named.parent.mkdir(parents=True, exist_ok=True)
-            if not named.is_file() or named.stat().st_size != prepared.size:
-                shutil.copyfile(prepared.path, named)
-            tab.open_mesh_file_session_async(named)
+            blocked = getattr(shell, "_mesh_editor_open_blocked", None)
+            if callable(blocked) and blocked():
+                return
+            # Finish, Discard or Keep editing for an unfinished edit; another file opens beside it.
+            if not shell._prepare_mesh_editor_archive_launch(entry):
+                return
+            tab.open_archive_session(entry, archive_dependencies=context)
             activate = getattr(shell, "_activate_tool_widget", None)
             if callable(activate):
                 activate(tab)
-        except (OSError, ValueError, RuntimeError) as exc:
-            self.status_label.setText(str(exc))
-            return ""
-        self.status_label.setText(f"Opening {rows[0].game_path} from DMM's {rows[0].mod} in the Mesh Editor.")
-        return str(named)
+        except (AttributeError, OSError, ValueError, RuntimeError) as exc:
+            self._show_dmm_status(str(exc), error=True)
 
     def copy_selected(self, folder: Path | str) -> list[str]:
         """Copy the selected files into ``folder`` under their game paths; never into the game folder."""
@@ -211,17 +314,22 @@ class DmmAddedFilesGroup(QGroupBox):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(prepared.path, target)
             written.append(str(target))
-        self.status_label.setText(f"Copied {len(written):,} file(s) to {target_root}.")
+        self._show_dmm_status(f"Copied {len(written):,} file(s) to {target_root}.")
         return written
 
     def copy_selected_dialog(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Copy DMM's files to a folder")
+        from cdmw.ui.archive_browser.command_strip import hide_enclosing_popup
+
+        # The folder dialog would close the Actions panel and its status line with it.
+        hide_enclosing_popup(self)
+        parent = self._archive if isinstance(self._archive, QWidget) else self.window()
+        folder = QFileDialog.getExistingDirectory(parent, "Copy DMM's files to a folder")
         if not folder:
             return
         try:
             self.copy_selected(folder)
         except (OSError, ValueError) as exc:
-            self.status_label.setText(str(exc))
+            self._show_dmm_status(str(exc), error=True)
 
     def show_selected(self) -> None:
         rows = self.selected_rows()

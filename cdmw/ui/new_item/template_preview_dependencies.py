@@ -40,7 +40,10 @@ class TemplatePreviewDependencies(QObject):
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self._service = service
-        self._provider = ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False)
+        # The game's own files, never the ones DMM serves: New Item authors and exports
+        # from the game's files, so its preview shows those too.
+        self._provider = ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False,
+                                                                dmm_overlay=False)
         self._provider.ready.connect(self._model_ready)
         self._provider.failed.connect(self._model_failed)
         service.batch_ready.connect(self._batch)

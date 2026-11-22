@@ -678,6 +678,8 @@ class ArchivePreviewNativeMixin:
             if native_attempt.succeeded and durable_cache_enabled and staging_entry_dir is not None:
                 metadata = {
                     "entry_path": str(getattr(self.entry, "path", "") or ""),
+                    # The bytes it was built from: DMM can serve another file for the path.
+                    "entry_prepared_sha256": str(getattr(self.entry, "prepared_sha256", "") or "").strip().lower(),
                     "companion_path": str(getattr(self.companion_entry, "path", "") or ""),
                     "cache_mode": cache_mode,
                     "render_settings": render_settings_to_native_preview_core_dict(self.render_settings),

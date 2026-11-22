@@ -159,6 +159,12 @@ class _StampRelay(QObject):
     done = Signal(int, object)
 
 
+class _DmmAddedRelay(QObject):
+    """Brings the files DMM adds, found on a worker, back to the UI thread."""
+
+    done = Signal(object, object, object)
+
+
 class ArchiveRemotePreviewDependencyProvider(QObject):
     """Resolve prepared dependency sets without retaining the global catalogue."""
 
@@ -166,10 +172,16 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
     failed = Signal(int, str)
     progress = Signal(int, str, int, int)
 
-    def __init__(self, service: object, parent: QObject | None = None, *, include_content_analysis: bool = True) -> None:
+    def __init__(self, service: object, parent: QObject | None = None, *, include_content_analysis: bool = True,
+                 dmm_overlay: bool = True) -> None:
         super().__init__(parent)
         self._service = service
         self._include_content_analysis = include_content_analysis
+        #: False keeps the game's own files even when DMM serves others (experimental overlay).
+        self._dmm_overlay = bool(dmm_overlay)
+        self._dmm_token: tuple[object, ...] | None = self._current_dmm_token()
+        self._dmm_relay = _DmmAddedRelay(self)
+        self._dmm_relay.done.connect(self._dmm_added_done)
         self._pending: _PendingPreviewDependencies | None = None
         self._snapshot: ArchivePreviewDependencySet | None = None
         self._snapshot_ui_request_id = -1
@@ -231,9 +243,29 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             return True
         return False
 
+    def _current_dmm_token(self) -> tuple[object, ...] | None:
+        if not self._dmm_overlay:
+            return None
+        from cdmw.services.dmm_runtime_mount import current_overlay
+
+        return current_overlay().state_token()
+
+    def _dmm_state_changed(self) -> bool:
+        """Whether DMM's overlay changed since the kept sets were prepared (toggle, mount, game update)."""
+
+        token = self._current_dmm_token()
+        if token == self._dmm_token:
+            return False
+        self._dmm_token = token
+        # The kept sets' copies keep their stamps, so a reuse check would pass: no reuse.
+        self._snapshot_reuse_key = None
+        self._snapshots_by_identity.clear()
+        return True
+
     def snapshot_for_entry(self, entry: ArchiveEntry) -> ArchivePreviewDependencySet | None:
         if not isinstance(entry, ArchiveEntry):
             return None
+        self._dmm_state_changed()  # kept sets hold what DMM served then; they are prepared again
         identity = entry.identity
         snapshot_key = identity
         snapshot = self._snapshots_by_identity.get(identity)
@@ -292,6 +324,8 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             pending.ui_request_id = int(ui_request_id)
             return True
         self.cancel(clear_snapshot=False)
+        if self._dmm_state_changed():
+            self.cancel(clear_snapshot=True)
         reuse_key = (selected, normalized_prefab_stems, bounded_scope_entry_ids, components)
         snapshot = self._snapshot
         if (
@@ -451,7 +485,6 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if set(pending.prepared) != expected_ids:
             self._fail_pending("The archive worker did not prepare every bounded preview dependency.")
             return
-        self._pending = None
         snapshot = ArchivePreviewDependencySet.from_dtos(
             pending.selected,
             tuple(pending.candidates.values()),
@@ -460,7 +493,13 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             prepared=pending.prepared,
             secondary_index_pending=pending.secondary_index_pending,
         )
-        snapshot = self._with_dmm_added_files(snapshot)
+        if self._find_dmm_added_files_off_thread(pending, snapshot):
+            return  # published by _dmm_added_done
+        self._pending = None
+        self._publish_snapshot(pending, snapshot)
+
+    def _publish_snapshot(self, pending: _PendingPreviewDependencies, snapshot: ArchivePreviewDependencySet) -> None:
+        self._dmm_token = self._current_dmm_token()
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
         self._snapshot_reuse_key = (
@@ -484,21 +523,55 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._remember_snapshot(snapshot)
         self.ready.emit(pending.ui_request_id, snapshot)
 
-    def _with_dmm_added_files(self, snapshot: ArchivePreviewDependencySet) -> ArchivePreviewDependencySet:
-        """Add the files DMM serves that this set's DMM files name but the set lacks (experimental)."""
+    def _find_dmm_added_files_off_thread(self, pending: _PendingPreviewDependencies,
+                                         snapshot: ArchivePreviewDependencySet) -> bool:
+        """Look for the files DMM adds that this set's DMM files name, on a worker (experimental).
+
+        True when the search started; the set is published when it ends, unless a
+        newer request or a cancel came first. The search reads and copies files, so
+        it never runs on the UI thread.
+        """
+        if not self._dmm_overlay or len(snapshot.entries) >= MAX_ARCHIVE_PREVIEW_ENTRIES:
+            return False
+        from cdmw.services.dmm_runtime_mount import current_overlay, is_dmm_note
+
+        overlay = current_overlay()
+        if not overlay.enabled or not any(is_dmm_note(entry.prepared_note) for entry in snapshot.entries):
+            return False
         session_lookup = getattr(self._service, "session", None)
         session = session_lookup(snapshot.session_id) if callable(session_lookup) else None
         game_root = str(getattr(session, "package_root", "") or "")
-        if not game_root or len(snapshot.entries) >= MAX_ARCHIVE_PREVIEW_ENTRIES:
-            return snapshot
+        if not game_root:
+            return False
+        pending.operation = "dmm_added_files"
+        relay = self._dmm_relay
+
+        def run() -> None:
+            added = self._dmm_added_files(game_root, snapshot)
+            try:
+                relay.done.emit(pending, snapshot, added)
+            except RuntimeError:
+                pass  # the provider was deleted meanwhile
+
+        threading.Thread(target=run, name="preview-dependency-dmm-added", daemon=True).start()
+        return True
+
+    @staticmethod
+    def _dmm_added_files(game_root: str, snapshot: ArchivePreviewDependencySet) -> tuple[ArchiveEntry, ...]:
         from cdmw.services.dmm_runtime_mount import added_dependency_entries
 
         try:
             added = added_dependency_entries(game_root, snapshot.entries)
         except (OSError, ValueError):
-            return snapshot
+            return ()
         room = MAX_ARCHIVE_PREVIEW_ENTRIES - len(snapshot.entries)
-        return snapshot.with_added_entries(tuple(added[:room]))
+        return tuple(added[:max(0, room)])
+
+    def _dmm_added_done(self, pending: object, snapshot: object, added: object) -> None:
+        if self._pending is not pending or getattr(pending, "operation", "") != "dmm_added_files":
+            return  # a newer request or a cancel came first
+        self._pending = None
+        self._publish_snapshot(pending, snapshot.with_added_entries(tuple(added or ())))
 
     @property
     def stamping(self) -> bool:
@@ -738,6 +811,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                     content_analysis_entry_id=pending.selected.entry_id if self._include_content_analysis else None,
                 ),
                 ui_generation=pending.ui_request_id,
+                **({} if self._dmm_overlay else {"dmm_overlay": False}),
             )
         except Exception as exc:
             self._fail_pending(str(exc))

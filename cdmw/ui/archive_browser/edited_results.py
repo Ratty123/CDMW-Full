@@ -74,4 +74,7 @@ class ArchiveEditedResultsMixin:
             return
         context = self._archive_edited_contexts.get(item.data(Qt.ItemDataRole.UserRole))
         if context is not None:
+            from cdmw.ui.archive_browser.command_strip import hide_enclosing_popup
+
+            hide_enclosing_popup(self.archive_edited_results_group)
             self.shell._launch_archive_mesh_editor_for_entry(context.selected_entry)

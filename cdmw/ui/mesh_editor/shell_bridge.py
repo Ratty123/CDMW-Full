@@ -84,6 +84,29 @@ def _interim_preview(result: object) -> bool:
     return str(getattr(result, "quality_tier", "") or "").strip().lower() in _INTERIM_PREVIEW_TIERS
 
 
+def _package_source_bytes_match(package: Path, entry, load_path_mapping) -> bool:
+    """Whether Browse's package was built from ``entry``'s bytes, as far as it records them.
+
+    DMM can serve another file for the same archive entry, and turning its overlay
+    on or off changes which one an entry holds. A package that records other
+    bytes is refused; one that records none is refused only for a file DMM serves.
+    """
+    from cdmw.services.dmm_runtime_mount import is_dmm_note
+
+    expected = str(getattr(entry, "prepared_sha256", "") or "").strip().lower()
+    metadata = load_path_mapping(Path(package).parent / "cache_entry.json")
+    recorded = metadata.get("entry_prepared_sha256") if isinstance(metadata, Mapping) else None
+    source = str(metadata.get("source_package", "") or "") if isinstance(metadata, Mapping) else ""
+    if recorded is None and source:
+        # A Rust preview package records the Preview Core package it was built from.
+        source_metadata = load_path_mapping(Path(source).parent / "cache_entry.json")
+        if isinstance(source_metadata, Mapping):
+            recorded = source_metadata.get("entry_prepared_sha256")
+    if isinstance(recorded, str) and recorded.strip():
+        return not expected or recorded.strip().lower() == expected
+    return not is_dmm_note(getattr(entry, "prepared_note", ""))
+
+
 def _exact_archive_identity_matches(declared_identity: object, entry, normalized_path, normalized_file_path) -> bool:
     identity = entry.identity
     expected_paz = normalized_file_path(entry.paz_file)
@@ -395,6 +418,8 @@ class MeshEditorShellBridgeMixin:
                 for dependency in dependencies
             )
 
+        if not _package_source_bytes_match(package, entry, load_path_mapping):
+            return False
         manifest_path = package / "manifest.json"
         if manifest_path.is_file():
             # Parsed once per unchanged manifest: the launch asks this several

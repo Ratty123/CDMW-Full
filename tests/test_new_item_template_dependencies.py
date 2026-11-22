@@ -164,6 +164,8 @@ def test_template_prepares_each_component_and_keeps_selected_prefab_first():
                                  ArchiveAssociationResult("session-a", selected.entry_id, (texture,), 1, False))
         requested = service.requests[-1][0]
         assert requested.entry_ids == (selected.entry_id, prefab.entry_id, texture.entry_id)
+        # New Item authors from the game's own files, so it previews those, never DMM's.
+        assert service.dmm_overlay is False
         service.result_ready.emit(f"prepare-{len(service.requests)}", "prepare_entry",
                                  PrepareEntriesResult("session-a", tuple(_prepared(dto) for dto in (selected, prefab, texture)), 3, 3, 120))
     assert ticket.done.is_set() and ticket.error is None
