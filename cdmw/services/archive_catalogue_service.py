@@ -655,6 +655,42 @@ class ArchiveCatalogueService(QObject):
             paz_index=entry.paz_index,
         )
 
+    @staticmethod
+    def _with_dmm_mounted_files(request: _CatalogueRequest, result: object) -> object:
+        """Prepared files replaced by the ones DMM serves the game for the same path (experimental).
+
+        DMM 5 serves its mods at run time and leaves the game's archives vanilla, so
+        a prepared entry is the game's own file unless DMM has mounted a mod for it.
+        Game tables stay the game's own; a file that cannot be copied stays the game's.
+        """
+        if not isinstance(result, (PrepareEntryResult, PrepareEntriesResult)) or not request.package_root:
+            return result
+        from cdmw.services.dmm_runtime_mount import current_overlay
+
+        overlay = current_overlay()
+        if not overlay.enabled:
+            return result
+
+        def swap(item: PrepareEntryResult) -> PrepareEntryResult:
+            try:
+                served = overlay.prepare(request.package_root, item.entry.identity.normalized_path)
+            except OSError:
+                served = None
+            if served is None:
+                return item
+            note = ",".join(part for part in (str(item.note or "").strip(), f"DMM mod: {served.mod}") if part)
+            return replace(item, prepared_path=str(served.path), size=served.size, sha256=served.sha256, note=note,
+                           content_analysis_json_path=None, content_analysis_text_path=None,
+                           content_analysis_version=None)
+
+        if isinstance(result, PrepareEntryResult):
+            return swap(result)
+        items = tuple(swap(item) for item in result.items)
+        if all(new is old for new, old in zip(items, result.items)):
+            return result
+        return replace(result, items=items, total_bytes=max(0, result.total_bytes + sum(
+            new.size - old.size for new, old in zip(items, result.items))))
+
     def _submit(
         self,
         operation: ArchiveBackendOperation,
@@ -762,6 +798,7 @@ class ArchiveCatalogueService(QObject):
             return
         if request.stall_deadline is not None:
             return
+        result = self._with_dmm_mounted_files(request, result)
         if request.last_batch != result:
             request.last_batch = result
             request.last_progress_at = self._clock()
@@ -839,6 +876,7 @@ class ArchiveCatalogueService(QObject):
             return
         if isinstance(result, ArchiveSessionHandle):
             self.session_published.emit(result)
+        result = self._with_dmm_mounted_files(request, result)
         self.result_ready.emit(request_id, request.operation.value, result)
 
     def _handle_failure(self, request_id: str, error: object) -> None:

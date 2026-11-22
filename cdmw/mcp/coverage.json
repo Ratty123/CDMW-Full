@@ -1692,6 +1692,13 @@
       "tool": "app.settings_set"
     },
     {
+      "id": "app.dmm_mounted_mods",
+      "area": "Settings",
+      "what": "Read which mods DMM serves the game at run time and whether CDMW shows them in place of the game's files (experimental; switch it with app.settings_set dmm/show_mounted_mods)",
+      "class": "read",
+      "tool": "app.dmm_mounted_mods"
+    },
+    {
       "id": "app.workspace_init",
       "area": "Settings",
       "what": "Setup: Init Workspace in a chosen folder",

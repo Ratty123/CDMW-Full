@@ -15,6 +15,7 @@ def typed_tools() -> list[Tool]:
     from cdmw.mcp.control_tools import control_tools
     from cdmw.mcp.decal_tools import decal_tools
     from cdmw.mcp.diagnostics_tools import diagnostics_tools
+    from cdmw.mcp.dmm_mount_tools import dmm_mount_tools
     from cdmw.mcp.game_table_tools import game_table_tools
     from cdmw.mcp.hkx_tools import hkx_tools
     from cdmw.mcp.item_icon_tools import item_icon_tools
@@ -49,4 +50,4 @@ def typed_tools() -> list[Tool]:
             *mesh_edit_tools(), *texture_tools(), *texture_replace_tools(), *texture_recolor_tools(), *texture_upscale_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(), *hkx_tools(), *sound_tools(), *action_chart_tools(), *skeleton_tools(), *prefab_tools(), *game_table_tools(), *decal_tools(),
             *local_file_tools(), *saved_work_tools(), *mod_management_tools(), *translation_tools(),
             *text_search_tools(), *model_library_tools(), *item_icon_tools(), *research_tools(), *settings_tools(), *setup_tools(),
-            *speed_tools(), *diagnostics_tools(), *turn_tools(), *npc_tools(), *character_finder_tools()]
+            *speed_tools(), *diagnostics_tools(), *dmm_mount_tools(), *turn_tools(), *npc_tools(), *character_finder_tools()]
