@@ -64,7 +64,7 @@ STATE_NAMES = (
     "standalone_rust_unpark_requested",
     "standalone_rust_prepare_service", "standalone_rust_prepare_session_id", "standalone_rust_prepare_thread",
     "standalone_rust_prepare_worker", "standalone_rust_process", "standalone_rust_process_error_reported",
-    "standalone_rust_helper_cancelled",
+    "standalone_rust_helper_cancelled", "standalone_rust_cancel_failure",
     "standalone_rust_camera", "standalone_rust_camera_supported", "standalone_rust_view_state",
     "standalone_rust_view_state_supported", "standalone_rust_host_output_commands_supported",
     "standalone_rust_view_look_supported",

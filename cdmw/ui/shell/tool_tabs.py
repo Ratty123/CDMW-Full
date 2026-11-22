@@ -765,6 +765,7 @@ class ShellToolTabsMixin:
         settings_tab.add_setup_paths_sections(self.textures.setup_section, self.textures.paths_section)
         settings_tab.add_archive_locations_section(self.archive.archive_locations_section)
         settings_tab.archive_ignored_folders_group.get_package_root = self.archive.archive_package_root_edit.text
+        settings_tab.dmm_mounted_mods_group.bind_game_folder(self.archive.archive_package_root_edit)
         settings_tab.appearance_change_started.connect(self._handle_appearance_change_started)
         settings_tab.appearance_changed.connect(self._handle_appearance_changed)
         settings_tab.language_changed.connect(self._handle_language_changed)

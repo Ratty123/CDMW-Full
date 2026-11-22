@@ -201,6 +201,36 @@ def test_settings_group_and_ai_tool(tmp_path, monkeypatch):
     assert report["served"][0]["game_path"] == MESH and report["served"][0]["shown"] is True
 
 
+
+def test_settings_group_follows_the_game_folder_field_and_the_saved_choice(tmp_path, monkeypatch):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication, QLineEdit
+
+    application = QApplication.instance() or QApplication([])
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    from cdmw.ui.dmm_mounted_mods_group import DmmMountedModsGroup
+
+    group = DmmMountedModsGroup(settings)
+    field = QLineEdit()
+    group.bind_game_folder(field)
+    assert "file(s) from" not in group.status_label.text()  # no game folder typed yet
+    field.setText(str(game))  # typed, not saved yet
+    group._refresh_timer.timeout.emit()
+    application.processEvents()
+    assert "4 file(s) from 3 mod(s)" in group.status_label.text()
+    settings.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, False)  # a profile import, say
+    group.reload()
+    assert not group.show_checkbox.isChecked() and not overlay.enabled
+    assert "turned off" in group.status_label.text()
+    settings.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, True)
+    group.reload()
+    assert group.show_checkbox.isChecked() and overlay.enabled
+
+
 def test_export_writes_the_files_dmm_serves(tmp_path, monkeypatch):
     import json
 

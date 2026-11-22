@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSignalBlocker, QTimer
 from PySide6.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from cdmw.services.dmm_runtime_mount import SHOW_MOUNTED_MODS_SETTING, current_overlay, describe_mount
+from cdmw.services.dmm_runtime_mount import (
+    SHOW_MOUNTED_MODS_SETTING, current_overlay, describe_mount, setting_enabled,
+)
 
 DMM_MOUNTED_MODS_TOOLTIP = (
     "DMM 5 leaves the game's archive folders vanilla and serves its mods to the game while it runs. "
@@ -41,6 +44,30 @@ class DmmMountedModsGroup(QGroupBox):
         layout.addWidget(hint)
         self.show_checkbox.toggled.connect(self._toggled)
         self.refresh_button.clicked.connect(self.refresh)
+        # Typing a game folder reads DMM's list once the typing pauses, not once per key.
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(300)
+        self._refresh_timer.timeout.connect(self.refresh)
+        self.refresh()
+
+    def bind_game_folder(self, field) -> None:
+        """Follow the game-folder field as it is edited, not only the folder last saved."""
+
+        self.get_package_root = field.text
+        field.textChanged.connect(self._refresh_soon)
+        self.refresh()
+
+    def _refresh_soon(self, *_args) -> None:
+        self._refresh_timer.start()
+
+    def reload(self) -> None:
+        """Show the saved choice again (a profile import, for example); the overlay follows it."""
+
+        enabled = setting_enabled(self.settings)
+        current_overlay().set_enabled(enabled)
+        with QSignalBlocker(self.show_checkbox):
+            self.show_checkbox.setChecked(enabled)
         self.refresh()
 
     def _toggled(self, checked: bool) -> None:

@@ -273,8 +273,11 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
             "Rust Mesh Editor manifest fields do not match the packaged payload: "
             + ", ".join(mismatches)
         )
+    # These two sets mirror RUST_MESH_REQUIRED_CAPABILITIES and RUST_PREVIEW_REQUIRED_CAPABILITIES in
+    # cdmw/services/mesh_rust_contract.py, which the app refuses a helper without; a test keeps them equal.
     required_editor_capabilities = {
         "embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2",
+        "mesh_document_binary_v1", "empty_authoring_parts_v1",
     }
     editor_capabilities = manifest.get("capabilities")
     if (not isinstance(editor_capabilities, list)
@@ -298,6 +301,7 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "alignment_preview_v1",
         "static_replacement_mesh_input_v1",
         "effect_particle_preview_v1",
+        "translucent_material_preview_v1",
         "ui_theme_state_v1",
         "ui_localization_v1",
     }

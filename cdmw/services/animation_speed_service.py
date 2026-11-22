@@ -769,10 +769,27 @@ def export_speed_mod(
             version=version, keep_existing=True, shipped_entries=index.entry_for_path, read_shipped=read,
             on_log=on_log, stop_event=stop_event)
         changed += plan.changed_values
+    fresh = {plan.path.lower() for plan in written}
+    # Charts an earlier export of this set wrote that this one does not: linked charts no longer
+    # linked, and the set's own chart when these factors leave it as shipped. Left in the mod they
+    # would ship stale values that no manifest entry accounts for.
+    stale = {chart.lower() for chart, value in saved.items()
+             if isinstance(value, Mapping) and str(value.get("linked_to", "")).lower() == own.lower()
+             and chart.lower() not in fresh}
+    if own.lower() not in fresh and any(chart.lower() == own.lower() and _own_factors(value)
+                                        for chart, value in saved.items()):
+        stale.add(own.lower())
+    saved = {chart: value for chart, value in saved.items() if chart.lower() not in stale or chart.lower() == own.lower()}
     saved[own] = factors.to_data()
-    for plan in written[1:]:
-        saved[plan.path] = {"linked_to": own}
+    for plan in written:
+        # Every written chart but the set's own is linked to it, whether or not the own chart changed.
+        if plan.path.lower() != own.lower():
+            saved[plan.path] = {"linked_to": own}
     _mark(result.folder, saved)
+    if stale:
+        pruned = _rewrite_without(index, read, result.folder, title, stale, saved, author=author, version=version,
+                                  description=description, on_log=on_log)
+        return SpeedExportResult(pruned.folder, title, pruned.charts, changed, pruned.removed, kept=kept)
     return SpeedExportResult(result.folder, title, tuple(result.charts), changed, kept=kept)
 
 
@@ -792,10 +809,19 @@ def _remove_charts(index, read, folder: Path, title: str, paths: set[str], saved
                    author: str, version: str, description: str, on_log) -> SpeedExportResult:
     if not folder.is_dir() or not is_chart_mod(folder):
         return SpeedExportResult(None, title, (), 0)
-    mod = read_chart_mod(folder)
     drop = {path.lower() for path in paths}
     drop |= {chart.lower() for chart, value in saved.items()
              if isinstance(value, dict) and str(value.get("linked_to", "")).lower() in drop}
+    return _rewrite_without(index, read, folder, title, drop,
+                            {chart: value for chart, value in saved.items() if chart.lower() not in drop},
+                            author=author, version=version, description=description, on_log=on_log)
+
+
+def _rewrite_without(index, read, folder: Path, title: str, drop: set[str], marks: Mapping[str, dict], *,
+                     author: str, version: str, description: str, on_log) -> SpeedExportResult:
+    """Write the chart mod in `folder` again without the charts in `drop` (lower-case paths), marked with `marks`."""
+
+    mod = read_chart_mod(folder)
     others = {chart: data for chart, data in mod.charts.items() if chart.lower() not in drop}
     removed = tuple(sorted(chart for chart in mod.charts if chart.lower() in drop))
     if not removed:
@@ -813,7 +839,7 @@ def _remove_charts(index, read, folder: Path, title: str, paths: set[str], saved
             entry, read(entry), data, parent=folder.parent, title=title,
             description=description or mod.description, author=author or mod.author, version=version or mod.version,
             keep_existing=number > 0, shipped_entries=index.entry_for_path, read_shipped=read, on_log=on_log)
-    _mark(result.folder, {chart: value for chart, value in saved.items() if chart.lower() not in drop})
+    _mark(result.folder, dict(marks))
     return SpeedExportResult(result.folder, title, tuple(result.charts), 0, removed)
 
 

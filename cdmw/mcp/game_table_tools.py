@@ -327,6 +327,10 @@ def _write(call):
         dialog = _dialog(archive, tab=tab)
         if args.get("name"):
             dialog.mod_name.setText(str(args["name"]).strip())
+        if not dialog.write.isEnabled():
+            press(dialog.write)  # refuses with the button's own reason, before anything is remembered
+        # On the UI thread, after the folder and the dialog are checked: the dialog reads it to write there.
+        _remember_dmm_folder(args.get("dmm_folder"))
         press(dialog.write)
         return {**_state(archive, tab=tab), "dmm_mods_folder": str(mods) if mods is not None else ""}
 
@@ -336,16 +340,15 @@ def _write(call):
 def _mods_folder(call, given):
     """DMM's mods folder the dialog will write into.
 
-    A given dmm_folder is the only folder checked, and it is remembered as DMM's folder (as the dialog's own
-    chooser does when the user picks one), so the dialog writes where the tool says. Without one, the dialog's
-    own lookup applies: the remembered folder, then DMM's usual places.
+    A given dmm_folder is the only folder checked. Without one, the dialog's own lookup applies: the remembered
+    folder, then DMM's usual places. Nothing is remembered here: this runs on the tool's call thread, before the
+    output path and the page are checked; `_remember_dmm_folder` does that on the UI thread.
     """
 
     from PySide6.QtCore import QSettings
 
     from cdmw.services.settings_service import resolve_settings_file_path
     from cdmw.ui.new_item import dmm_send_ui
-    from cdmw.ui.widgets import request_settings_sync
 
     # The same settings file the dialog's own chooser reads.
     settings = QSettings(str(resolve_settings_file_path()), QSettings.Format.IniFormat)
@@ -362,10 +365,28 @@ def _mods_folder(call, given):
         mods = dmm_send_ui.dmm_mods_folder(install)
     except ValueError as exc:
         raise ToolError(NOT_FOUND, str(exc)) from None
-    if given:
-        settings.setValue(dmm_send_ui.DMM_FOLDER_SETTING, str(install))
-        request_settings_sync(settings)
     return mods
+
+
+def _remember_dmm_folder(given, settings=None):
+    """Remember a given DMM folder as DMM's, as the dialog's own chooser does when the user picks one.
+
+    UI thread only: the settings flush is a timer parented to the application. Called once the output path and
+    the page have been checked, so a refused call leaves the remembered folder as it was.
+    """
+
+    if not given:
+        return
+    from PySide6.QtCore import QSettings
+
+    from cdmw.services.dmm_send import DMM_FOLDER_SETTING
+    from cdmw.services.settings_service import resolve_settings_file_path
+    from cdmw.ui.widgets import request_settings_sync
+
+    if settings is None:
+        settings = QSettings(str(resolve_settings_file_path()), QSettings.Format.IniFormat)
+    settings.setValue(DMM_FOLDER_SETTING, str(Path(str(given))))
+    request_settings_sync(settings)
 
 
 def game_table_tools():

@@ -305,6 +305,30 @@ def test_a_linked_chart_that_is_a_set_of_its_own_keeps_its_own_factors(stored, t
     assert back.removed == (PATH,) and set(read_chart_mod(mods / "Fast").charts) == {BASIC}
 
 
+
+def test_a_linked_chart_stays_tracked_when_the_sets_own_chart_does_not_change(stored, tmp_path, accelerator):
+    index = _index(tmp_path, [stored(PATH, _with_rate(0.0)), stored(BASIC, chart_bytes())])
+    mods = tmp_path / "mods"
+    result = export_speed_mod(index, _read, PATH, FAST_ATTACKS, parent=mods, title="Fast", linked=[BASIC])
+    assert set(result.charts) == {BASIC}  # the set's own attack ships at zero, so only the linked chart changes
+    assert mod_speed_charts(mods / "Fast")[BASIC] == {"linked_to": PATH}
+    back = export_speed_mod(index, _read, PATH, SpeedFactors(), parent=mods, title="Fast", linked=[BASIC])
+    assert back.removed == (BASIC,) and back.folder is None and not (mods / "Fast").exists()
+
+
+def test_a_linked_chart_no_longer_linked_leaves_the_mod_on_the_next_export(stored, tmp_path, accelerator):
+    data = chart_bytes()
+    index = _index(tmp_path, [stored(PATH, data), stored(BASIC, data)])
+    mods = tmp_path / "mods"
+    export_speed_mod(index, _read, PATH, FAST_ATTACKS, parent=mods, title="Fast", linked=[BASIC])
+    assert set(read_chart_mod(mods / "Fast").charts) == {PATH, BASIC}
+    again = export_speed_mod(index, _read, PATH, SpeedFactors(kinds={"attack": 3.0}), parent=mods, title="Fast")
+    assert again.removed == (BASIC,) and set(again.charts) == {PATH}
+    assert set(read_chart_mod(mods / "Fast").charts) == {PATH}
+    assert set(mod_speed_charts(mods / "Fast")) == {PATH}
+    assert _rates(read_chart_mod(mods / "Fast").charts[PATH]) == [3.0]
+
+
 # --- one set of factors on many sets ------------------------------------------------
 
 JUMP_ONLY = SpeedFactors(kinds={"jump": 2.0})

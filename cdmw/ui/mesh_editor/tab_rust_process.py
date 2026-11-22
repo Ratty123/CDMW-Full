@@ -634,6 +634,8 @@ class MeshEditorRustProcessMixin:
             return  # The user closed the editor, or an older helper gave no detail.
         detail = reason[len(prefix):].strip() or "no detail"
         message = f"Mesh Editor stopped because it could not show CDMW's result: {detail}"
+        # The cancel this reason came with completes later; its plain "cancelled" status must not replace it.
+        self.standalone_rust_cancel_failure = message
         self._record_rust_helper_cancel(detail)
         host = getattr(self, "standalone_native_host_frame", None)
         show_error = getattr(host, "show_error", None)
@@ -1389,7 +1391,12 @@ class MeshEditorRustProcessMixin:
             if self.standalone_rust_process is not None:
                 self.standalone_rust_finish_timer.start(_RUST_FINISH_EXIT_TIMEOUT_MS)
         elif cancelled:
-            self._publish_rust_protocol_status("Mesh Editor cancelled; CDMW mesh unchanged.")
+            failure = str(getattr(self, "standalone_rust_cancel_failure", "") or "")
+            self.standalone_rust_cancel_failure = ""
+            if failure:
+                self._publish_rust_protocol_status(failure, error=True)
+            else:
+                self._publish_rust_protocol_status("Mesh Editor cancelled; CDMW mesh unchanged.")
             self._stop_rust_editor_process()
         else:
             hair_status = getattr(self, "hair_entry_status", None)
@@ -1961,6 +1968,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_failure_reported = False
         self.standalone_rust_process_error_reported = False
         self.standalone_rust_helper_cancelled = False
+        self.standalone_rust_cancel_failure = ""
         self.standalone_rust_finish_accepted = False
         # A new helper (after a crash or a park) says hello once and numbers its
         # requests from 1 again (section 8.7 A3 and A4).
