@@ -116,7 +116,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(8)
         root_layout.addWidget(splitter, stretch=1)
 
         roots_panel = build_roots_panel(self)
@@ -128,15 +127,15 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         preview_panel = build_preview_panel(self)
         splitter.addWidget(preview_panel)
 
-        roots_min, _roots_pref, _roots_max = responsive_sidebar_bounds(self, role="narrow")
-        preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
+        roots_min, roots_pref, _roots_max = responsive_sidebar_bounds(self, role="narrow")
+        preview_min, preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         roots_panel.setMinimumWidth(roots_min)
         roots_panel.setMaximumWidth(_roots_max)
         preview_panel.setMinimumWidth(preview_min)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 1)
-        splitter.setSizes([roots_min, 680, preview_min])
+        splitter.setSizes([max(roots_min, roots_pref, 210), 640, max(preview_min, preview_pref, 360)])
 
         self._refresh_roots_list()
         self._sync_sources_empty_state()

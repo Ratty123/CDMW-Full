@@ -71,7 +71,8 @@ class _RecolorPreviewLabel(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumHeight(220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setStyleSheet("QLabel { border: 1px solid palette(mid); background: palette(base); }")
+        self.setObjectName("PreviewLabel")
+        self.setProperty("surfaceCard", True)
 
     def set_placeholder(self, text: str = "") -> None:
         self._placeholder = text or self._placeholder
@@ -207,7 +208,6 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
             self.targets_tree = QTreeWidget()
             self.targets_tree.setObjectName("RecolorVariantTargetsTree")
             self.targets_tree.setHeaderLabels(["Target", "Kind", "Slot / Parameter", "Semantic", "State", "DDS"])
-            self.targets_tree.setAlternatingRowColors(True)
             self.targets_tree.setRootIsDecorated(False)
             self.targets_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
             self.targets_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -238,7 +238,6 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
         self.outputs_tree = QTreeWidget()
         self.outputs_tree.setObjectName("RecolorVariantOutputsTree")
         self.outputs_tree.setHeaderLabels(["Output folder", "Result", "Changed"])
-        self.outputs_tree.setAlternatingRowColors(True)
         self.outputs_tree.setRootIsDecorated(False)
         self.outputs_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.outputs_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -828,7 +827,10 @@ class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
     def _refresh_preview_summary(self) -> None:
         if self.analysis is None:
             self.preview_summary_label.setText("Preview a template to see the exact texture and material-color impact before building.")
+            if self.workspace is not None:
+                self.preview_summary_label.setVisible(False)
             return
+        self.preview_summary_label.setVisible(True)
         preview = preview_recolor_variant_template(self.analysis, self._template_from_controls())
         if preview.matched_target_ids:
             self.preview_summary_label.setText(

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -23,19 +24,54 @@ from cdmw.domain.library.item_icons import ITEM_ICON_DEFAULT_BACKGROUND_MODE, no
 from cdmw.ui.widgets import PreviewLabel, PreviewScrollArea
 
 
+class _PathHintLabel(QLabel):
+    """Word-wrapped hint label that breaks long paths cleanly at separators."""
+
+    def __init__(
+        self,
+        text: str = "",
+        *,
+        hide_when_empty: bool = False,
+        parent: QWidget | None = None,
+    ) -> None:
+        self._full_text = ""
+        self._hide_when_empty = bool(hide_when_empty)
+        super().__init__(parent)
+        self.setObjectName("HintLabel")
+        self.setWordWrap(True)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
+        self.setText(text)
+
+    def text(self) -> str:
+        return self._full_text
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt override
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        super().setText(self._full_text.replace("\\", "\\\u200b").replace("/", "/\u200b"))
+        if self._hide_when_empty:
+            self.setVisible(bool(self._full_text.strip()))
+
+
 def build_roots_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(0, 0, 6, 0)
     layout.setSpacing(6)
     roots_group = QGroupBox("Library Folders")
     roots_layout = QVBoxLayout(roots_group)
-    roots_layout.setContentsMargins(8, 8, 8, 8)
+    roots_layout.setContentsMargins(6, 6, 6, 6)
     roots_layout.setSpacing(6)
     tab.roots_list = QListWidget()
+    tab.roots_list.setMinimumHeight(48)
+    tab.roots_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    tab.roots_list.setTextElideMode(Qt.TextElideMode.ElideNone)
     tab.roots_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     roots_layout.addWidget(tab.roots_list, stretch=1)
     root_buttons = QGridLayout()
+    root_buttons.setContentsMargins(0, 0, 0, 0)
+    root_buttons.setSpacing(6)
     tab.add_root_button = QPushButton("Add")
     tab.remove_root_button = QPushButton("Remove")
     tab.rescan_button = QPushButton("Rescan")
@@ -45,9 +81,8 @@ def build_roots_panel(tab: object) -> QWidget:
     root_buttons.addWidget(tab.rescan_button, 1, 0)
     root_buttons.addWidget(tab.open_edited_folder_button, 1, 1)
     roots_layout.addLayout(root_buttons)
-    tab.roots_status_label = QLabel("")
-    tab.roots_status_label.setObjectName("HintLabel")
-    tab.roots_status_label.setWordWrap(True)
+    tab.roots_status_label = _PathHintLabel("")
+    tab.roots_status_label.setContentsMargins(0, 2, 0, 2)
     roots_layout.addWidget(tab.roots_status_label)
     layout.addWidget(roots_group, stretch=1)
 
@@ -66,7 +101,7 @@ ICON_SOURCES_NONE_FOUND_TEXT = "No icon images were found in your folders. Add a
 def build_library_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(6, 0, 6, 0)
     layout.setSpacing(6)
     # P11 step 6: with no icon sources, the filter and the list give their place to an
     # empty state that adds a folder (or rescans the folders already added).
@@ -95,15 +130,20 @@ def build_library_panel(tab: object) -> QWidget:
     tab.records_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     tab.records_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
     tab.records_tree.setSortingEnabled(True)
-    tab.records_tree.header().setStretchLastSection(True)
+    tab.records_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    tab.records_tree.setTextElideMode(Qt.TextElideMode.ElideNone)
+    tab.records_tree.header().setStretchLastSection(False)
+    tab.records_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
     tab.records_tree.header().resizeSection(0, 210)
     tab.records_tree.header().resizeSection(1, 80)
     tab.records_tree.header().resizeSection(2, 140)
     tab.records_tree.header().resizeSection(3, 80)
+    tab.records_tree.header().resizeSection(4, 240)
     sources_layout.addWidget(tab.records_tree, stretch=1)
     tab.library_status_label = QLabel("No icon sources loaded.")
     tab.library_status_label.setObjectName("HintLabel")
     tab.library_status_label.setWordWrap(True)
+    tab.library_status_label.setContentsMargins(4, 2, 4, 2)
     layout.addWidget(tab.library_status_label)
 
     tab.filter_edit.textChanged.connect(lambda _text="": tab._schedule_records_tree_population())
@@ -117,12 +157,12 @@ def build_library_panel(tab: object) -> QWidget:
 def build_preview_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = tab._item_icons_preview_layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(6)
+    layout.setContentsMargins(6, 0, 0, 0)
+    layout.setSpacing(8)
 
     source_group = tab.source_group = QGroupBox("Source")
     source_layout = tab._item_icons_source_layout = QVBoxLayout(source_group)
-    source_layout.setContentsMargins(8, 8, 8, 8)
+    source_layout.setContentsMargins(6, 6, 6, 6)
     source_layout.setSpacing(6)
     tab.source_preview_label = PreviewLabel("Select an icon source.")
     tab.source_preview_scroll = PreviewScrollArea()
@@ -131,43 +171,51 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.source_preview_scroll.setWidget(tab.source_preview_label)
     tab.source_preview_label.attach_scroll_area(tab.source_preview_scroll)
     source_layout.addWidget(tab.source_preview_scroll, stretch=1)
-    tab.source_meta_label = QLabel("")
-    tab.source_meta_label.setObjectName("HintLabel")
-    tab.source_meta_label.setWordWrap(True)
+    tab.source_meta_label = _PathHintLabel("", hide_when_empty=True)
     source_layout.addWidget(tab.source_meta_label)
 
     metadata_grid = tab._item_icons_metadata_grid = QGridLayout()
+    metadata_grid.setContentsMargins(0, 0, 0, 0)
+    metadata_grid.setHorizontalSpacing(6)
+    metadata_grid.setVerticalSpacing(6)
     tab.favorite_checkbox = QCheckBox("Favorite")
     tab.tags_edit = QLineEdit()
+    tab.tags_edit.setMinimumWidth(0)
     tab.tags_edit.setPlaceholderText("comma separated tags")
     tab.notes_edit = QPlainTextEdit()
-    tab.notes_edit.setMaximumHeight(72)
+    tab.notes_edit.setMinimumWidth(0)
+    tab.notes_edit.setMaximumHeight(52)
     tab.notes_edit.setPlaceholderText("Notes")
     tab.save_metadata_button = QPushButton("Save")
     tab.open_editor_button = QPushButton("Open")
     tab.delete_source_button = QPushButton("Delete")
     tab.delete_source_button.setEnabled(False)
-    metadata_grid.addWidget(tab.favorite_checkbox, 0, 0, 1, 2)
+    metadata_grid.addWidget(tab.favorite_checkbox, 0, 0, 1, 3)
     metadata_grid.addWidget(QLabel("Tags"), 1, 0)
-    metadata_grid.addWidget(tab.tags_edit, 1, 1)
+    metadata_grid.addWidget(tab.tags_edit, 1, 1, 1, 2)
     metadata_grid.addWidget(QLabel("Notes"), 2, 0)
-    metadata_grid.addWidget(tab.notes_edit, 2, 1)
+    metadata_grid.addWidget(tab.notes_edit, 2, 1, 1, 2)
     metadata_grid.addWidget(tab.save_metadata_button, 3, 0)
     metadata_grid.addWidget(tab.open_editor_button, 3, 1)
     metadata_grid.addWidget(tab.delete_source_button, 3, 2)
     metadata_grid.setColumnStretch(1, 1)
+    metadata_grid.setColumnStretch(2, 1)
     source_layout.addLayout(metadata_grid)
     layout.addWidget(source_group, stretch=1)
 
     target_group = tab.target_group = QGroupBox("Compatible Output")
     target_layout = tab._item_icons_target_layout = QVBoxLayout(target_group)
-    target_layout.setContentsMargins(8, 8, 8, 8)
+    target_layout.setContentsMargins(6, 6, 6, 6)
     target_layout.setSpacing(6)
     tab.target_filter_edit = QLineEdit()
+    tab.target_filter_edit.setMinimumWidth(0)
     tab.target_filter_edit.setPlaceholderText("Filter or paste an existing archive item icon path")
     target_layout.addWidget(tab.target_filter_edit)
     target_row = QHBoxLayout()
+    target_row.setContentsMargins(0, 0, 0, 0)
+    target_row.setSpacing(6)
     tab.target_combo = QComboBox()
+    tab.target_combo.setMinimumWidth(0)
     tab.target_combo.setProperty("_i18n_translate_combo_items", True)
     tab.target_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     tab.refresh_targets_button = QPushButton("Refresh")
@@ -177,13 +225,18 @@ def build_preview_panel(tab: object) -> QWidget:
     target_row.addWidget(tab.refresh_targets_button)
     target_layout.addLayout(target_row)
     target_button_row = QHBoxLayout()
+    target_button_row.setContentsMargins(0, 0, 0, 0)
+    target_button_row.setSpacing(6)
     target_button_row.addWidget(tab.use_archive_selection_button)
     target_button_row.addWidget(tab.open_target_archive_button)
     target_button_row.addStretch(1)
     target_layout.addLayout(target_button_row)
     background_row = QHBoxLayout()
+    background_row.setContentsMargins(0, 0, 0, 0)
+    background_row.setSpacing(6)
     background_row.addWidget(QLabel("Background"))
     tab.background_mode_combo = QComboBox()
+    tab.background_mode_combo.setMinimumWidth(0)
     tab.background_mode_combo.addItem("Auto transparent", "auto_transparent")
     tab.background_mode_combo.addItem("Keep source", "keep_source")
     tab.background_mode_combo.addItem("Target underlay", "target_underlay")
@@ -195,9 +248,7 @@ def build_preview_panel(tab: object) -> QWidget:
         tab.background_mode_combo.setCurrentIndex(saved_index)
     background_row.addWidget(tab.background_mode_combo, stretch=1)
     target_layout.addLayout(background_row)
-    tab.target_match_label = QLabel("")
-    tab.target_match_label.setObjectName("HintLabel")
-    tab.target_match_label.setWordWrap(True)
+    tab.target_match_label = _PathHintLabel("")
     target_layout.addWidget(tab.target_match_label)
     tab.final_preview_label = PreviewLabel("Select a source and target icon.")
     tab.final_preview_scroll = PreviewScrollArea()
@@ -206,11 +257,11 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.final_preview_scroll.setWidget(tab.final_preview_label)
     tab.final_preview_label.attach_scroll_area(tab.final_preview_scroll)
     target_layout.addWidget(tab.final_preview_scroll, stretch=1)
-    tab.target_meta_label = QLabel("")
-    tab.target_meta_label.setObjectName("HintLabel")
-    tab.target_meta_label.setWordWrap(True)
+    tab.target_meta_label = _PathHintLabel("", hide_when_empty=True)
     target_layout.addWidget(tab.target_meta_label)
     export_row = QHBoxLayout()
+    export_row.setContentsMargins(0, 0, 0, 0)
+    export_row.setSpacing(6)
     tab.preview_final_button = QPushButton("Preview")
     tab.export_generated_button = QPushButton("Export")
     tab.add_to_loose_mod_button = QPushButton("Add")
@@ -233,18 +284,6 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.preview_final_button.clicked.connect(lambda _checked=False: tab.update_final_preview(show_errors=True))
     tab.export_generated_button.clicked.connect(tab.export_generated_icon)
     tab.add_to_loose_mod_button.clicked.connect(tab.add_to_existing_loose_mod)
-    tab._item_icons_preview_layout.setContentsMargins(0, 0, 0, 0)
-    tab._item_icons_preview_layout.setSpacing(4)
-    for group, group_layout in (
-        (tab.source_group, tab._item_icons_source_layout),
-        (tab.target_group, tab._item_icons_target_layout),
-    ):
-        group.setFlat(True)
-        group.setProperty("compactFlatSection", True)
-        group_layout.setContentsMargins(4, 4, 4, 4)
-        group_layout.setSpacing(4)
-
-    tab.notes_edit.setMaximumHeight(48)
 
     for preview, scroll in (
         (tab.source_preview_label, tab.source_preview_scroll),

@@ -162,15 +162,14 @@ class ModelLibraryTab(
         self._updating_column_filters = False
 
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(6, 6, 6, 6)
-        root_layout.setSpacing(6)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(8)
         root_layout.addWidget(build_command_strip(self))
         root_layout.addWidget(build_filters_strip(self))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setObjectName("ModelLibraryWorkspaceSplitter")
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(8)
         root_layout.addWidget(splitter, stretch=1)
         root_layout.addWidget(build_task_row(self))
 
@@ -180,7 +179,6 @@ class ModelLibraryTab(
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
         content_splitter.setObjectName("ModelLibraryContentSplitter")
         content_splitter.setChildrenCollapsible(False)
-        content_splitter.setHandleWidth(8)
         splitter.addWidget(controls_panel)
         splitter.addWidget(content_splitter)
         content_splitter.addWidget(results_panel)
@@ -194,14 +192,14 @@ class ModelLibraryTab(
 
         controls_panel.setMinimumWidth(SOURCES_LANE_MIN_WIDTH)
         controls_panel.setMaximumWidth(SOURCES_LANE_MAX_WIDTH)
-        results_panel.setMinimumWidth(300)
-        preview_panel.setMinimumWidth(280)
+        results_panel.setMinimumWidth(290)
+        preview_panel.setMinimumWidth(296)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([280, 900])
+        splitter.setSizes([280, 940])
         content_splitter.setStretchFactor(0, 3)
         content_splitter.setStretchFactor(1, 2)
-        content_splitter.setSizes([540, 360])
+        content_splitter.setSizes([560, 380])
 
         finish_model_library_layout(self)
         self._load_settings()

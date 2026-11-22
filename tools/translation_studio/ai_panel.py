@@ -74,10 +74,13 @@ class ProviderSettingsDialog(QDialog):
 
     def _build(self) -> None:
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(12, 12, 12, 12)
+        outer.setSpacing(8)
         blurb = QLabel(
             "Bring your own API key. Nothing is sent anywhere until you start a "
             "translation, and the key is stored only on this machine."
         )
+        blurb.setObjectName("HintLabel")
         blurb.setWordWrap(True)
         outer.addWidget(blurb)
 
@@ -111,6 +114,7 @@ class ProviderSettingsDialog(QDialog):
         outer.addLayout(form)
 
         self.note = QLabel("")
+        self.note.setObjectName("HintLabel")
         self.note.setWordWrap(True)
         outer.addWidget(self.note)
 
@@ -378,6 +382,8 @@ class TranslateDialog(QDialog):
 
     def _build(self) -> None:
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(12, 12, 12, 12)
+        outer.setSpacing(8)
 
         scope_box = QGroupBox("What to translate")
         scope_layout = QVBoxLayout(scope_box)
@@ -416,6 +422,7 @@ class TranslateDialog(QDialog):
             f"The mod replaces the <b>{self._working_language}</b> table, so set the game to "
             f"that language to see the result — whatever you translate into."
         )
+        slot.setObjectName("HintLabel")
         slot.setWordWrap(True)
         outer.addWidget(slot)
 
@@ -430,7 +437,9 @@ class TranslateDialog(QDialog):
         outer.addWidget(self.log, 1)
 
         row = QHBoxLayout()
+        row.setSpacing(8)
         self.start_button = QPushButton("Start")
+        self.start_button.setProperty("primaryAction", True)
         self.start_button.clicked.connect(self._on_start)
         row.addWidget(self.start_button)
         self.stop_button = QPushButton("Stop")

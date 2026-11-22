@@ -11,14 +11,30 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QGroupBox, QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from cdmw.core.static_table_records import TableFieldEdit
 from cdmw.services.active_ui_translation import translate_active_ui_text
+from cdmw.ui.table_coherence import fit_resizable_columns
 
 ROW_LIMIT = 500
 _KEY_ROLE = Qt.UserRole
+
+
+class _CardFrame(QFrame):
+    """Titleless surface card preserving `.title()`/`.setTitle()` for host updates and tests."""
+
+    def __init__(self, title: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setProperty("surfaceCard", True)
+        self._title = title
+
+    def setTitle(self, title: str) -> None:
+        self._title = str(title)
+
+    def title(self) -> str:
+        return self._title
 
 
 #: Speed Tuning's tables (experimental); offered in Edit Game Table Values, not in Create New Item.
@@ -143,23 +159,31 @@ class GameTablesEditor(QWidget):
         layout.addWidget(intro)
         self.intro = intro
 
-        top = QHBoxLayout()
+        self.top_bar = QWidget()
+        top = QHBoxLayout(self.top_bar)
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(6)
+        self.table_choice_bar = QWidget(self.top_bar)
+        choice_row = QHBoxLayout(self.table_choice_bar)
+        choice_row.setContentsMargins(0, 0, 0, 0)
+        choice_row.setSpacing(6)
         self.table_label = QLabel("Table:")
-        top.addWidget(self.table_label)
+        choice_row.addWidget(self.table_label)
         self.table = QComboBox()
         for kind, label in sorted(table_names(include_speed=include_speed).items(), key=lambda item: item[1].casefold()):
             self.table.addItem(label, kind)
-        top.addWidget(self.table, 1)
+        choice_row.addWidget(self.table, 1)
         self.load = QPushButton("Load table")
         self.load.setToolTip("Read the selected table from the game's archives.")
         self.load.clicked.connect(self._request_load)
-        top.addWidget(self.load)
+        choice_row.addWidget(self.load)
+        top.addWidget(self.table_choice_bar, 1)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter rows by name or key")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._fill_rows)
         top.addWidget(self.search, 1)
-        layout.addLayout(top)
+        layout.addWidget(self.top_bar)
         self.busy = QProgressBar()
         self.busy.setRange(0, 0)
         self.busy.setTextVisible(False)
@@ -170,8 +194,6 @@ class GameTablesEditor(QWidget):
         self.rows = QTableWidget(0, 3)
         self.rows.setHorizontalHeaderLabels(["Key", "Name", "Copy"])
         self._configure(self.rows)
-        self.rows.horizontalHeader().setStretchLastSection(False)
-        self.rows.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.rows.itemSelectionChanged.connect(self._fill_values)
         self.values = QTableWidget(0, 4)
         self.values.setHorizontalHeaderLabels(["Value", "Current", "In this mod", "About"])
@@ -200,25 +222,25 @@ class GameTablesEditor(QWidget):
         self.remove = QPushButton("Remove selected change")
         self.remove.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove)
+        self.pending_count_label = QLabel("")
+        self.pending_count_label.setObjectName("HintLabel")
+        self.pending_count_label.setVisible(False)
+        buttons.addWidget(self.pending_count_label)
         buttons.addStretch(1)
         self.pending_layout = None
         if side_by_side:
             # Rows on the left, the selected row's values and this mod's changes on the right,
-            # each in its own frame, so a wide tab shows all three without scrolling.
+            # each in a clean flush surface card without redundant section banners.
             for table in (self.rows, self.values, self.pending):
                 table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 table.verticalHeader().setDefaultSectionSize(28)
             splitter = QSplitter(Qt.Orientation.Horizontal)
             splitter.setChildrenCollapsible(False)
-            splitter.setHandleWidth(8)
-            splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
-            # The app draws group boxes without a frame: these margins put each box's contents
-            # straight under its heading, as on the other pages of Speed & Prefabs.
-            box_margins = (6, 6, 6, 4)
-            rows_box = QGroupBox("Rows")
+            box_margins = (8, 8, 8, 8)
+            rows_box = _CardFrame()
             rows_layout = QVBoxLayout(rows_box)
             rows_layout.setContentsMargins(*box_margins)
-            rows_layout.setSpacing(8)
+            rows_layout.setSpacing(6)
             top.removeWidget(self.search)
             rows_layout.addWidget(self.search)
             rows_layout.addWidget(self.rows, 1)
@@ -228,29 +250,28 @@ class GameTablesEditor(QWidget):
             rows_layout.addWidget(self.message)
             self.rows_layout = rows_layout
             splitter.addWidget(rows_box)
-            right = QWidget()
-            column = QVBoxLayout(right)
-            column.setContentsMargins(0, 0, 0, 0)
-            column.setSpacing(8)
-            values_box = QGroupBox("Values of the selected row")
+            right_splitter = QSplitter(Qt.Orientation.Vertical)
+            right_splitter.setChildrenCollapsible(False)
+            values_box = _CardFrame()
             values_layout = QVBoxLayout(values_box)
             values_layout.setContentsMargins(*box_margins)
-            values_layout.setSpacing(8)
+            values_layout.setSpacing(6)
             values_layout.addWidget(self.values, 1)
             values_layout.addLayout(edit)
-            column.addWidget(values_box, 3)
-            pending_box = QGroupBox("Changes in this mod")
+            right_splitter.addWidget(values_box)
+            pending_box = _CardFrame("Changes in this mod")
             self.pending_layout = QVBoxLayout(pending_box)
             self.pending_layout.setContentsMargins(*box_margins)
-            self.pending_layout.setSpacing(8)
+            self.pending_layout.setSpacing(6)
             pending_title.setVisible(False)
             self.pending_box = pending_box
             # Many changes can come at once here (one factor on every matching row), so several can go at once.
             self.pending.setSelectionMode(QAbstractItemView.ExtendedSelection)
             self.pending_layout.addWidget(self.pending, 1)
             self.pending_layout.addLayout(buttons)
-            column.addWidget(pending_box, 2)
-            splitter.addWidget(right)
+            right_splitter.addWidget(pending_box)
+            right_splitter.setSizes([200, 260])
+            splitter.addWidget(right_splitter)
             splitter.setStretchFactor(0, 2)
             splitter.setStretchFactor(1, 3)
             layout.addWidget(splitter, 1)
@@ -274,17 +295,21 @@ class GameTablesEditor(QWidget):
         table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.verticalHeader().setVisible(False)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        table.setTextElideMode(Qt.ElideNone)
         header = table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setStretchLastSection(True)
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(False)
 
     # --- host interface -------------------------------------------------------------
 
     def set_table_choice_visible(self, visible: bool) -> None:
         """Hide the table list and Load button when the host picks the table (Speed & Prefabs)."""
 
-        for widget in (self.table_label, self.table, self.load):
+        for widget in (self.table_choice_bar, self.table_label, self.table, self.load):
             widget.setVisible(visible)
+        if self.search.parentWidget() is not self.top_bar:
+            self.top_bar.setVisible(visible)
 
     def current_table(self) -> str:
         return str(self.table.currentData() or "")
@@ -399,6 +424,7 @@ class GameTablesEditor(QWidget):
         if len(matches) > len(shown):
             self.message.setText(f"Showing the first {len(shown):,} of {len(matches):,} matching rows; "
                                  "type more of a name to narrow them.")
+        fit_resizable_columns(self.rows)
         self._fill_values()
         self.rows_changed.emit(len(matches))
 
@@ -438,6 +464,7 @@ class GameTablesEditor(QWidget):
         if kept is not None:
             self.values.selectRow(kept)
         self.values.blockSignals(False)
+        fit_resizable_columns(self.values)
         self._update_controls()
 
     def _selected_value(self):
@@ -509,6 +536,9 @@ class GameTablesEditor(QWidget):
             self.pending.setItem(position, 3, QTableWidgetItem(str(edit.value)))
         if self.pending_box is not None:
             self.pending_box.setTitle(f"Changes in this mod ({len(edits):,})" if edits else "Changes in this mod")
+        self.pending_count_label.setText(f"{len(edits):,} change(s)" if edits else "")
+        self.pending_count_label.setVisible(bool(edits))
+        fit_resizable_columns(self.pending)
         self._update_controls()
 
     def _owner(self, edit) -> str:

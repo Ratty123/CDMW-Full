@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QFrame,
     QGridLayout,
-    QGroupBox,
     QHeaderView,
     QHBoxLayout,
     QLabel,
@@ -28,29 +28,32 @@ from cdmw.domain.research.classification import (
 )
 from cdmw.ui.research.analysis_state import ANALYSIS_CONTEXT_HELP_TEXT
 from cdmw.ui.research.help_widgets import (
-    add_flat_section_help as _add_flat_section_help,
     add_titled_help_header as _add_titled_help_header,
-    intro_label,
     make_research_help_button as _make_help_button,
 )
 from cdmw.ui.research.layout_state import (
     research_analysis_splitter_default_sizes,
-    research_archive_picker_splitter_default_sizes,
     research_groups_splitter_default_sizes,
-    research_notes_splitter_default_sizes,
     research_reference_splitter_default_sizes,
     research_unknown_splitter_default_sizes,
 )
-from cdmw.ui.research.models import archive_picker_item_kind as _archive_picker_item_kind
 from cdmw.ui.research.reference_payload_state import ui_constraint_initial_status_text
 from cdmw.ui.research.tree_helpers import make_research_tree_columns_persistent
 from cdmw.ui.widgets import (
-    ArchiveDetailsEditor,
     EmptyStateTreeWidget,
-    FlatSectionPanel,
     PreviewLabel,
     PreviewScrollArea,
 )
+
+
+def _surface_card(margins: tuple[int, int, int, int] = (8, 8, 8, 8), spacing: int = 6) -> tuple[QFrame, QVBoxLayout]:
+    card = QFrame()
+    card.setProperty("surfaceCard", True)
+    layout = QVBoxLayout(card)
+    layout.setContentsMargins(*margins)
+    layout.setSpacing(spacing)
+    return card, layout
+
 
 def _page(margins: tuple[int, int, int, int] = (0, 8, 10, 0)) -> tuple[QWidget, QVBoxLayout]:
     page = QWidget()
@@ -62,11 +65,6 @@ def _page(margins: tuple[int, int, int, int] = (0, 8, 10, 0)) -> tuple[QWidget, 
 
 def build_texture_sets_page(self) -> QWidget:
     tab, groups_layout = _page()
-    intro_label(
-        "Related textures grouped into sets, and the type Research gave each texture. "
-        "Select a set to extract its textures and sidecar files together.",
-        groups_layout,
-    )
 
     group_buttons_row = QHBoxLayout()
     group_buttons_row.setSpacing(8)
@@ -84,10 +82,7 @@ def build_texture_sets_page(self) -> QWidget:
     groups_splitter.setChildrenCollapsible(False)
     groups_layout.addWidget(groups_splitter, stretch=1)
 
-    group_group = QGroupBox("")
-    group_layout = QVBoxLayout(group_group)
-    group_layout.setContentsMargins(10, 8, 10, 10)
-    group_layout.setSpacing(6)
+    group_group, group_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     _add_titled_help_header(
         group_layout,
         "Texture Set Grouper",
@@ -97,7 +92,7 @@ def build_texture_sets_page(self) -> QWidget:
         "Refresh Research",
         "Texture sets will appear here after the archive view has been analyzed.",
     )
-    self.texture_group_tree.setAlternatingRowColors(True)
+    self.texture_group_tree.setAlternatingRowColors(False)
     self.texture_group_tree.setSelectionMode(QAbstractItemView.SingleSelection)
     self.texture_group_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
     self.texture_group_tree.setHeaderLabels(["Group", "Members", "Kinds", "Packages"])
@@ -106,10 +101,7 @@ def build_texture_sets_page(self) -> QWidget:
     group_layout.addWidget(self.texture_group_tree, stretch=1)
     groups_splitter.addWidget(group_group)
 
-    classifier_group = QGroupBox("")
-    classifier_layout = QVBoxLayout(classifier_group)
-    classifier_layout.setContentsMargins(10, 8, 10, 10)
-    classifier_layout.setSpacing(6)
+    classifier_group, classifier_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     _add_titled_help_header(
         classifier_layout,
         "Texture-Type Classifier",
@@ -120,7 +112,7 @@ def build_texture_sets_page(self) -> QWidget:
         "Run Refresh Research to classify visible DDS files and review confidence by package.",
     )
     self.classifier_tree.setRootIsDecorated(False)
-    self.classifier_tree.setAlternatingRowColors(True)
+    self.classifier_tree.setAlternatingRowColors(False)
     self.classifier_tree.setUniformRowHeights(True)
     self.classifier_tree.setHeaderLabels(["File", "Type", "Confidence", "Package", "Reason"])
     self.classifier_tree.header().resizeSection(0, 340)
@@ -137,12 +129,6 @@ def build_texture_sets_page(self) -> QWidget:
 
 def build_classification_review_page(self) -> QWidget:
     unknown_tab, unknown_layout = _page()
-    intro_label(
-        "Textures Research could not classify with confidence. Select one, check the preview, "
-        "choose the right label and save it. Saved labels stay on this PC and are reused by later "
-        "scans and texture policies.",
-        unknown_layout,
-    )
 
     self.unknown_resolver_status_label = QLabel(
         "Refresh Research to build the current classification review list."
@@ -185,7 +171,7 @@ def build_classification_review_page(self) -> QWidget:
         "Unclassified texture families will appear here when the current archive view contains unresolved DDS files.",
     )
     self.unknown_group_tree.setRootIsDecorated(False)
-    self.unknown_group_tree.setAlternatingRowColors(True)
+    self.unknown_group_tree.setAlternatingRowColors(False)
     self.unknown_group_tree.setUniformRowHeights(True)
     self.unknown_group_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
     self.unknown_group_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -210,11 +196,11 @@ def build_classification_review_page(self) -> QWidget:
     selection_row.addWidget(selection_hint, stretch=1)
     unknown_left_layout.addLayout(selection_row)
 
-    unknown_members_group = QGroupBox("Family Members")
+    unknown_members_group, unknown_members_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     self.unknown_members_group = unknown_members_group
-    unknown_members_layout = QVBoxLayout(unknown_members_group)
-    unknown_members_layout.setContentsMargins(10, 12, 10, 10)
-    unknown_members_layout.setSpacing(8)
+    members_title = QLabel("Family Members")
+    members_title.setObjectName("FlatSectionTitle")
+    unknown_members_layout.addWidget(members_title)
     self.unknown_members_hint_label = QLabel(
         "Shown only when the selected family has multiple texture files."
     )
@@ -226,7 +212,7 @@ def build_classification_review_page(self) -> QWidget:
         "Files in the selected unknown group will appear here.",
     )
     self.unknown_member_tree.setRootIsDecorated(False)
-    self.unknown_member_tree.setAlternatingRowColors(True)
+    self.unknown_member_tree.setAlternatingRowColors(False)
     self.unknown_member_tree.setSelectionMode(QAbstractItemView.SingleSelection)
     self.unknown_member_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
     self.unknown_member_tree.setHeaderLabels(["File", "Current", "Local", "Role", "Package", "Reason"])
@@ -239,11 +225,14 @@ def build_classification_review_page(self) -> QWidget:
     unknown_members_layout.addWidget(self.unknown_member_tree, stretch=1)
     unknown_left_layout.addWidget(unknown_members_group)
 
-    label_group = QGroupBox("Save A Label")
-    label_grid = QGridLayout(label_group)
-    label_grid.setContentsMargins(10, 12, 10, 10)
+    label_group, label_outer = _surface_card(margins=(8, 8, 8, 8), spacing=6)
+    label_title = QLabel("Save A Label")
+    label_title.setObjectName("FlatSectionTitle")
+    label_outer.addWidget(label_title)
+    label_grid = QGridLayout()
+    label_grid.setContentsMargins(0, 0, 0, 0)
     label_grid.setHorizontalSpacing(8)
-    label_grid.setVerticalSpacing(8)
+    label_grid.setVerticalSpacing(6)
     self.unknown_label_combo = QComboBox()
     for choice_key, texture_type, semantic_subtype in unknown_resolver_label_choices():
         self.unknown_label_combo.addItem(
@@ -293,16 +282,15 @@ def build_classification_review_page(self) -> QWidget:
     label_grid.addWidget(self.unknown_clear_group_button, 2, 3)
     for column in (1, 2, 3):
         label_grid.setColumnStretch(column, 1)
+    label_outer.addLayout(label_grid)
     unknown_left_layout.addWidget(label_group)
     unknown_splitter.addWidget(unknown_left_panel)
 
-    unknown_preview_group = QGroupBox("Selected Preview")
-    unknown_preview_layout = QVBoxLayout(unknown_preview_group)
-    unknown_preview_layout.setContentsMargins(10, 12, 10, 10)
-    unknown_preview_layout.setSpacing(8)
+    unknown_preview_group, unknown_preview_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     unknown_preview_title_row = QHBoxLayout()
-    unknown_preview_title_row.setSpacing(8)
+    unknown_preview_title_row.setSpacing(6)
     self.unknown_preview_title_label = QLabel("Select a review item")
+    self.unknown_preview_title_label.setObjectName("FlatSectionTitle")
     self.unknown_preview_title_label.setWordWrap(True)
     (
         self.unknown_preview_zoom_out_button,
@@ -343,20 +331,20 @@ def build_classification_review_page(self) -> QWidget:
     self.unknown_preview_stack.addWidget(self.unknown_preview_scroll)
     self.unknown_preview_stack.addWidget(self.unknown_preview_info_edit)
     unknown_preview_layout.addWidget(self.unknown_preview_stack, stretch=1)
-    unknown_preview_group.setMinimumWidth(400)
+    unknown_preview_group.setMinimumWidth(320)
     unknown_splitter.addWidget(unknown_preview_group)
 
-    unknown_details_group = QGroupBox("Details")
-    unknown_details_layout = QVBoxLayout(unknown_details_group)
-    unknown_details_layout.setContentsMargins(10, 12, 10, 10)
-    unknown_details_layout.setSpacing(8)
+    unknown_details_group, unknown_details_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
+    details_title = QLabel("Details")
+    details_title.setObjectName("FlatSectionTitle")
+    unknown_details_layout.addWidget(details_title)
     self.unknown_detail_edit = QPlainTextEdit()
     self.unknown_detail_edit.setReadOnly(True)
     self.unknown_detail_edit.setPlaceholderText(
         "Select a DDS review item to inspect suggestions, sidecars, DDS facts, and approval guidance."
     )
     unknown_details_layout.addWidget(self.unknown_detail_edit, stretch=1)
-    unknown_details_group.setMinimumWidth(300)
+    unknown_details_group.setMinimumWidth(240)
     unknown_splitter.addWidget(unknown_details_group)
     unknown_splitter.setSizes(research_unknown_splitter_default_sizes())
     self.classification_review_tab = unknown_tab
@@ -365,12 +353,6 @@ def build_classification_review_page(self) -> QWidget:
 
 def build_references_page(self) -> QWidget:
     reference_tab, reference_layout = _page()
-    intro_label(
-        "Find the materials, sidecars and XML files that point at a texture, or the textures a "
-        "material uses. Pick a file in Archive Files on the right (double-click works too) or type "
-        "its archive path, then click Resolve.",
-        reference_layout,
-    )
 
     target_input_row = QHBoxLayout()
     target_input_row.setSpacing(8)
@@ -382,6 +364,7 @@ def build_references_page(self) -> QWidget:
     self.reference_use_archive_button = QPushButton("Use Selected File")
     self.reference_resolve_button = QPushButton("Resolve")
     self.reference_resolve_button.setDefault(True)
+    self.reference_resolve_button.setProperty("primaryAction", True)
     target_input_row.addWidget(self.reference_target_edit, stretch=1)
     target_input_row.addWidget(self.reference_use_archive_button)
     target_input_row.addWidget(self.reference_resolve_button)
@@ -415,16 +398,16 @@ def build_references_page(self) -> QWidget:
     reference_splitter.setChildrenCollapsible(False)
     reference_layout.addWidget(reference_splitter, stretch=1)
 
-    reference_group = QGroupBox("Reference Results")
-    reference_group_layout = QVBoxLayout(reference_group)
-    reference_group_layout.setContentsMargins(10, 12, 10, 10)
-    reference_group_layout.setSpacing(8)
+    reference_group, reference_group_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
+    ref_title = QLabel("Reference Results")
+    ref_title.setObjectName("FlatSectionTitle")
+    reference_group_layout.addWidget(ref_title)
     self.reference_tree = EmptyStateTreeWidget(
         "No material references",
         "Resolve references to list sidecar, skeleton, animation, and texture relationships.",
     )
     self.reference_tree.setRootIsDecorated(False)
-    self.reference_tree.setAlternatingRowColors(True)
+    self.reference_tree.setAlternatingRowColors(False)
     self.reference_tree.setUniformRowHeights(True)
     self.reference_tree.setHeaderLabels(["Source", "Related", "GetRect", "Constraint", "Matches", "Package"])
     self.reference_tree.header().resizeSection(0, 300)
@@ -436,16 +419,16 @@ def build_references_page(self) -> QWidget:
     reference_group_layout.addWidget(self.reference_tree)
     reference_splitter.addWidget(reference_group)
 
-    sidecar_group = QGroupBox("Archive-Side Sidecar Discovery")
-    sidecar_layout = QVBoxLayout(sidecar_group)
-    sidecar_layout.setContentsMargins(10, 12, 10, 10)
-    sidecar_layout.setSpacing(8)
+    sidecar_group, sidecar_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
+    sidecar_title = QLabel("Archive-Side Sidecar Discovery")
+    sidecar_title.setObjectName("FlatSectionTitle")
+    sidecar_layout.addWidget(sidecar_title)
     self.sidecar_tree = EmptyStateTreeWidget(
         "No sidecars discovered",
         "Sidecar discovery results will appear here after analysis.",
     )
     self.sidecar_tree.setRootIsDecorated(False)
-    self.sidecar_tree.setAlternatingRowColors(True)
+    self.sidecar_tree.setAlternatingRowColors(False)
     self.sidecar_tree.setUniformRowHeights(True)
     self.sidecar_tree.setHeaderLabels(["Related File", "Relation", "Confidence", "Package", "Reason"])
     self.sidecar_tree.header().resizeSection(0, 320)
@@ -462,15 +445,13 @@ def build_references_page(self) -> QWidget:
 
 def build_ui_constraints_page(self) -> QWidget:
     ui_constraints_tab, ui_constraints_layout = _page()
-    intro_label(
-        "UI textures whose on-screen size is fixed by a GetRect box in the game's UI XML. "
-        "Upscaling such a texture alone does not make it bigger in game while the XML keeps the same box. "
-        "The scan reads archive XML, so it runs only when you click Scan.",
-        ui_constraints_layout,
-    )
     ui_constraints_actions = QHBoxLayout()
     ui_constraints_actions.setSpacing(8)
     self.ui_constraint_refresh_button = QPushButton("Scan UI Rect References")
+    self.ui_constraint_refresh_button.setProperty("primaryAction", True)
+    self.ui_constraint_refresh_button.setToolTip(
+        "Scan archive UI XML for GetRect boxes that fix a UI texture's on-screen size."
+    )
     self.ui_constraint_status_label = QLabel(ui_constraint_initial_status_text())
     self.ui_constraint_status_label.setWordWrap(True)
     self.ui_constraint_status_label.setObjectName("HintLabel")
@@ -484,12 +465,13 @@ def build_ui_constraints_page(self) -> QWidget:
     ui_constraints_actions.addWidget(self.ui_constraint_status_label, stretch=1)
     ui_constraints_actions.addWidget(self.ui_constraint_progress)
     ui_constraints_layout.addLayout(ui_constraints_actions)
+    tree_card, tree_card_layout = _surface_card(margins=(0, 0, 0, 0), spacing=0)
     self.ui_constraint_tree = EmptyStateTreeWidget(
         "No UI constraints",
         "Click Scan UI Rect References to find UI textures whose displayed size is fixed by XML.",
     )
     self.ui_constraint_tree.setRootIsDecorated(False)
-    self.ui_constraint_tree.setAlternatingRowColors(True)
+    self.ui_constraint_tree.setAlternatingRowColors(False)
     self.ui_constraint_tree.setUniformRowHeights(True)
     self.ui_constraint_tree.setHeaderLabels(
         ["Texture", "Source XML", "DDS Size", "GetRect", "Constraint", "Package"]
@@ -500,30 +482,27 @@ def build_ui_constraints_page(self) -> QWidget:
     self.ui_constraint_tree.header().resizeSection(3, 90)
     self.ui_constraint_tree.header().resizeSection(4, 220)
     make_research_tree_columns_persistent(self.ui_constraint_tree, self.settings, "ui_constraint")
-    ui_constraints_layout.addWidget(self.ui_constraint_tree, stretch=1)
+    tree_card_layout.addWidget(self.ui_constraint_tree)
+    ui_constraints_layout.addWidget(tree_card, stretch=1)
     self.ui_constraints_tab = ui_constraints_tab
     return ui_constraints_tab
 
 
 def build_heatmap_page(self) -> QWidget:
     heatmap_tab, heatmap_layout = _page()
-    intro_label(
-        "Where textures concentrate in the current archive view, ranked by system area, folder and package. "
-        "Heat adds up textures, texture sets, normal maps, UI textures, sidecars and impostors. "
-        "Hover a row to see sample paths.",
-        heatmap_layout,
-    )
+    heatmap_card, heatmap_card_layout = _surface_card(margins=(0, 0, 0, 0), spacing=0)
     self.heatmap_tree = EmptyStateTreeWidget(
         "No usage heatmap",
         "Texture usage hotspots will appear here after Research refresh.",
     )
-    self.heatmap_tree.setAlternatingRowColors(True)
+    self.heatmap_tree.setAlternatingRowColors(False)
     self.heatmap_tree.setHeaderLabels(
         ["Label", "Heat", "Textures", "Sets", "Normals", "UI", "Sidecars", "Impostors"]
     )
     self.heatmap_tree.header().resizeSection(0, 360)
     make_research_tree_columns_persistent(self.heatmap_tree, self.settings, "heatmap")
-    heatmap_layout.addWidget(self.heatmap_tree, stretch=1)
+    heatmap_card_layout.addWidget(self.heatmap_tree)
+    heatmap_layout.addWidget(heatmap_card, stretch=1)
     self.heatmap_tab = heatmap_tab
     return heatmap_tab
 
@@ -545,18 +524,12 @@ def build_preview_zoom_controls() -> tuple[QPushButton, QPushButton, QPushButton
 
 def build_texture_tab(self) -> QWidget:
     tab, layout = _page()
-    intro_label(
-        "Checks your rebuilt textures in the Output root against the originals in the Original DDS root: "
-        "mip chains, normal maps and memory budget. Set both folders in the Textures tool, then click Refresh Research.",
-        layout,
-    )
     self.analysis_roots_label = QLabel("")
+    self.analysis_roots_label.setObjectName("HintLabel")
     self.analysis_roots_label.setWordWrap(True)
     self.analysis_roots_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
     layout.addWidget(self.analysis_roots_label)
 
-    export_row = QVBoxLayout()
-    export_row.setSpacing(6)
     export_buttons_row = QHBoxLayout()
     export_buttons_row.setSpacing(8)
     self.export_report_csv_button = QPushButton("Export Report CSV")
@@ -569,8 +542,7 @@ def build_texture_tab(self) -> QWidget:
     export_buttons_row.addWidget(self.export_report_json_button)
     export_buttons_row.addWidget(self.analysis_status_label, stretch=1)
     export_buttons_row.addWidget(self.analysis_context_help_button)
-    export_row.addLayout(export_buttons_row)
-    layout.addLayout(export_row)
+    layout.addLayout(export_buttons_row)
 
     self.analysis_context_label = QLabel(ANALYSIS_CONTEXT_HELP_TEXT)
     self.analysis_context_label.setWordWrap(True)
@@ -582,10 +554,7 @@ def build_texture_tab(self) -> QWidget:
     splitter.setChildrenCollapsible(False)
     layout.addWidget(splitter, stretch=1)
 
-    mip_group = QGroupBox("")
-    mip_layout = QVBoxLayout(mip_group)
-    mip_layout.setContentsMargins(10, 8, 10, 10)
-    mip_layout.setSpacing(6)
+    mip_group, mip_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     _add_titled_help_header(
         mip_layout,
         "Mip Analysis",
@@ -596,17 +565,14 @@ def build_texture_tab(self) -> QWidget:
         "Refresh Research with original and output roots available to compare mip behavior.",
     )
     self.mip_tree.setRootIsDecorated(False)
-    self.mip_tree.setAlternatingRowColors(True)
+    self.mip_tree.setAlternatingRowColors(False)
     self.mip_tree.setHeaderLabels(["Path", "Original", "Rebuilt", "Mips", "Warnings"])
     self.mip_tree.header().resizeSection(0, 320)
     make_research_tree_columns_persistent(self.mip_tree, self.settings, "mip")
     mip_layout.addWidget(self.mip_tree, stretch=1)
     splitter.addWidget(mip_group)
 
-    normal_group = QGroupBox("")
-    normal_layout = QVBoxLayout(normal_group)
-    normal_layout.setContentsMargins(10, 8, 10, 10)
-    normal_layout.setSpacing(6)
+    normal_group, normal_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     _add_titled_help_header(
         normal_layout,
         "Bulk Normal Validator",
@@ -618,17 +584,14 @@ def build_texture_tab(self) -> QWidget:
         "Normal validation results will appear here after Research refresh.",
     )
     self.normal_tree.setRootIsDecorated(False)
-    self.normal_tree.setAlternatingRowColors(True)
+    self.normal_tree.setAlternatingRowColors(False)
     self.normal_tree.setHeaderLabels(["Path", "Root", "Format", "Size", "Issues"])
     self.normal_tree.header().resizeSection(0, 340)
     make_research_tree_columns_persistent(self.normal_tree, self.settings, "normal")
     normal_layout.addWidget(self.normal_tree, stretch=1)
     splitter.addWidget(normal_group)
 
-    budget_group = QGroupBox("")
-    budget_layout = QVBoxLayout(budget_group)
-    budget_layout.setContentsMargins(10, 8, 10, 10)
-    budget_layout.setSpacing(6)
+    budget_group, budget_layout = _surface_card(margins=(8, 8, 8, 8), spacing=6)
     _add_titled_help_header(
         budget_layout,
         "Budget Analysis",
@@ -636,12 +599,13 @@ def build_texture_tab(self) -> QWidget:
         "Class, terrain-group, and profile sections are heuristic summaries and are labeled as such."
     )
     self.budget_tabs = QTabWidget()
+    self.budget_tabs.setDocumentMode(True)
     self.budget_file_tree = EmptyStateTreeWidget(
         "No texture budget data",
         "Per-file budget rows will appear here after visible textures are analyzed.",
     )
     self.budget_file_tree.setRootIsDecorated(False)
-    self.budget_file_tree.setAlternatingRowColors(True)
+    self.budget_file_tree.setAlternatingRowColors(False)
     self.budget_file_tree.setUniformRowHeights(True)
     self.budget_file_tree.setHeaderLabels(["Path", "Delta", "Ratio", "Size", "Type", "Risk"])
     self.budget_file_tree.header().resizeSection(0, 340)
@@ -649,14 +613,14 @@ def build_texture_tab(self) -> QWidget:
     self.budget_tabs.addTab(self.budget_file_tree, "Files")
     self.budget_class_tree = EmptyStateTreeWidget("No class summary", "Class-level budget totals will appear here.")
     self.budget_class_tree.setRootIsDecorated(False)
-    self.budget_class_tree.setAlternatingRowColors(True)
+    self.budget_class_tree.setAlternatingRowColors(False)
     self.budget_class_tree.setUniformRowHeights(True)
     self.budget_class_tree.setHeaderLabels(["Texture Type", "Affected", "Byte Delta", "Avg Risk", "Band"])
     make_research_tree_columns_persistent(self.budget_class_tree, self.settings, "budget_class")
     self.budget_tabs.addTab(self.budget_class_tree, "Class Risk")
     self.budget_group_tree = EmptyStateTreeWidget("No group summary", "Grouped texture budget totals will appear here.")
     self.budget_group_tree.setRootIsDecorated(False)
-    self.budget_group_tree.setAlternatingRowColors(True)
+    self.budget_group_tree.setAlternatingRowColors(False)
     self.budget_group_tree.setUniformRowHeights(True)
     self.budget_group_tree.setHeaderLabels(["Group", "Textures", "Byte Delta", "Avg Ratio", "Risk", "Band"])
     self.budget_group_tree.header().resizeSection(0, 300)
@@ -664,7 +628,7 @@ def build_texture_tab(self) -> QWidget:
     self.budget_tabs.addTab(self.budget_group_tree, "Terrain-Like Groups")
     self.budget_profile_tree = EmptyStateTreeWidget("No profile summary", "Profile budget totals will appear here.")
     self.budget_profile_tree.setRootIsDecorated(False)
-    self.budget_profile_tree.setAlternatingRowColors(True)
+    self.budget_profile_tree.setAlternatingRowColors(False)
     self.budget_profile_tree.setUniformRowHeights(True)
     self.budget_profile_tree.setHeaderLabels(["Profile", "Total Delta", "Total Ratio", "Changed", "Upscaled"])
     make_research_tree_columns_persistent(self.budget_profile_tree, self.settings, "budget_profile")

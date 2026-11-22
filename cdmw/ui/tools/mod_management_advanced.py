@@ -10,11 +10,13 @@ class ModManagementPages(QTabWidget):
     def __init__(self, mods, repackage, merge, updates, parent=None):
         super().__init__(parent)
         self.setObjectName('mod_management_pages')
+        self.setDocumentMode(True)
         # Without the mod folder tools only Mods is a tab; the other owners stay
         # parented here, hidden, for their existing callers.
         self._folder_tools = constants.MOD_FOLDER_TOOLS_ENABLED
         self.addTab(mods, 'Mods')
         self.task = QTabWidget()
+        self.task.setDocumentMode(True)
         self.task.setObjectName('mod_management_package_task')
         for page, title, help_text in (
             (repackage, self.tr('Convert'), self.tr('Convert for a mod manager')),
@@ -28,6 +30,7 @@ class ModManagementPages(QTabWidget):
         if self._folder_tools:
             self.addTab(self.task, 'Prepare packages')
         else:
+            self.tabBar().setVisible(False)
             self.task.setParent(self)
             self.task.hide()
 

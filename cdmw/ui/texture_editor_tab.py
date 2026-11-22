@@ -384,33 +384,9 @@ class TextureEditorTab(
 
         self.setStyleSheet(
             """
-            QGroupBox {
-                border-radius: 0px;
-                margin-top: 10px;
-                padding-top: 10px;
-                font-weight: 600;
-            }
-            QLineEdit, QComboBox, QTextBrowser, QListWidget {
-                border-radius: 0px;
-            }
-            QFrame#EditorSectionBody {
-                border-radius: 0px;
-            }
-            QFrame#EditorActionPane {
-                border-radius: 0px;
-            }
-            QWidget#EditorLeftSidebar, QWidget#EditorInspectorSidebar {
-                border-radius: 0px;
-            }
-            QWidget#EditorCanvasPane {
-                border-radius: 0px;
-            }
             QScrollArea#EditorSidebarScroll {
                 border: none;
                 background: transparent;
-            }
-            QSplitter::handle {
-                background-color: transparent;
             }
             """
         )
@@ -477,26 +453,26 @@ class TextureEditorTab(
 
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
-        self.main_splitter.setHandleWidth(10)
         root_layout.addWidget(self.main_splitter, stretch=1)
 
         self.tool_panel = QWidget()
         self.tool_panel.setObjectName("EditorLeftSidebar")
         editor_tool_min, _editor_tool_pref, editor_tool_max = self._texture_editor_tool_sidebar_bounds()
-        self.tool_panel.setMinimumWidth(editor_tool_min)
-        self.tool_panel.setMaximumWidth(editor_tool_max)
+        if not self.workspace_embedded:
+            self.tool_panel.setMinimumWidth(editor_tool_min)
+            self.tool_panel.setMaximumWidth(editor_tool_max)
         tool_layout = QVBoxLayout(self.tool_panel)
-        tool_layout.setContentsMargins(12, 12, 12, 12)
-        tool_layout.setSpacing(8)
+        if self.workspace_embedded:
+            tool_layout.setContentsMargins(0, 4, 4, 4)
+        else:
+            tool_layout.setContentsMargins(10, 10, 10, 10)
+        tool_layout.setSpacing(6)
         left_actions_body = QFrame()
         left_actions_body.setObjectName("EditorActionPane")
         left_actions_layout = QVBoxLayout(left_actions_body)
-        left_actions_layout.setContentsMargins(8, 8, 8, 8)
+        left_actions_layout.setContentsMargins(0, 0, 0, 0)
         left_actions_layout.setSpacing(6)
-        self.actions_menu_button = QToolButton()
-        self.actions_menu_button.setText("Actions")
-        self.actions_menu_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.actions_menu_button.setPopupMode(QToolButton.InstantPopup)
+        self.actions_menu_button = QPushButton("Actions")
         self.actions_menu_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.actions_menu_button.setObjectName("EditorPanelButton")
         self.actions_menu = QMenu(self.actions_menu_button)
@@ -562,8 +538,8 @@ class TextureEditorTab(
         tool_group = QGroupBox("Tools")
         tool_group.setObjectName("EditorToolGroup")
         tool_group_layout = QGridLayout(tool_group)
-        tool_group_layout.setContentsMargins(8, 12, 8, 8)
-        tool_group_layout.setSpacing(4)
+        tool_group_layout.setContentsMargins(4, 8, 4, 6)
+        tool_group_layout.setSpacing(2)
         for index, button in enumerate(self.tool_buttons.values()):
             tool_group_layout.addWidget(button, index // 2, index % 2)
         tool_group_layout.setRowStretch((len(self.tool_buttons) + 1) // 2, 1)
@@ -573,8 +549,9 @@ class TextureEditorTab(
         self.left_scroll.setObjectName("EditorSidebarScroll")
         self.left_scroll.setWidgetResizable(True)
         self.left_scroll.setFrameShape(QFrame.NoFrame)
-        self.left_scroll.setMinimumWidth(editor_tool_min)
-        self.left_scroll.setMaximumWidth(editor_tool_max)
+        if not self.workspace_embedded:
+            self.left_scroll.setMinimumWidth(editor_tool_min)
+            self.left_scroll.setMaximumWidth(editor_tool_max)
         self.left_scroll.setSizePolicy(QSizePolicy.Expanding if self.workspace_embedded else QSizePolicy.Fixed, QSizePolicy.Expanding)
         self.left_scroll.setWidget(self.tool_panel)
         if not self.workspace_embedded:
@@ -733,7 +710,7 @@ class TextureEditorTab(
         right_layout.setContentsMargins(12, 12, 12, 12)
         right_layout.setSpacing(10)
         settings_title = QLabel("Settings")
-        settings_title.setStyleSheet("font-weight: 600;")
+        settings_title.setObjectName("SectionTitle")
         right_layout.addWidget(settings_title)
         self.metadata_browser = QTextBrowser()
         self.metadata_browser.setOpenExternalLinks(False)

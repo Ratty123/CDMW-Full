@@ -31,6 +31,7 @@ class TextSearchPreviewMixin:
         self.preview_title_label.setText(result.relative_path)
         self.preview_meta_label.setText("Loading preview...")
         self.preview_detail_label.setText("Preparing preview...")
+        self.preview_detail_label.setVisible(True)
         self.preview_text_edit.setPlainText("")
         self.preview_text_edit.set_match_selections([])
         self.preview_search_spans = []
@@ -128,6 +129,7 @@ class TextSearchPreviewMixin:
                 if part
             )
         self.preview_detail_label.setText(preview_detail_text)
+        self.preview_detail_label.setVisible(bool(preview_detail_text.strip()))
         self.preview_text_edit.set_language_for_extension(syntax_extension)
         self._apply_preview_content(preview)
 
@@ -138,6 +140,7 @@ class TextSearchPreviewMixin:
         self.preview_title_label.setText(result.relative_path if result is not None else "Preview failed.")
         self.preview_meta_label.setText("Preview failed.")
         self.preview_detail_label.setText(message)
+        self.preview_detail_label.setVisible(bool(str(message).strip()))
         self.preview_text_edit.setPlainText("")
         self.preview_text_edit.set_match_selections([])
         self.preview_search_spans = []

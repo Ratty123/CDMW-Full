@@ -82,6 +82,27 @@ class _ElidedLabel(QLabel):
             self._render_text()
 
 
+class _PathHintLabel(QLabel):
+    """Word-wrapped hint label that breaks long paths cleanly at separators."""
+
+    def __init__(self, text: str = "", parent: Optional[QWidget] = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+        self.setObjectName("HintLabel")
+        self.setWordWrap(True)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setText(text)
+
+    def text(self) -> str:
+        return self._full_text
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt override
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        super().setText(self._full_text.replace("\\", "\\\u200b").replace("/", "/\u200b"))
+
+
 class ModelLibraryColumnFilterRow(QWidget):
     """Column filter boxes placed directly above the columns they filter."""
 
@@ -177,9 +198,9 @@ def build_command_strip(tab: object) -> QWidget:
     strip = tab._model_library_command_strip = QFrame()
     strip.setObjectName("ModelLibraryCommandStrip")
     strip.setFrameShape(QFrame.Shape.NoFrame)
-    strip.setProperty("compactStructural", True)
+    strip.setProperty("commandBar", True)
     layout = QHBoxLayout(strip)
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(8, 6, 8, 6)
     layout.setSpacing(6)
 
     tab._updating_results_query = False
@@ -252,9 +273,9 @@ def build_filters_strip(tab: object) -> QWidget:
     strip = tab.filters_strip = QFrame()
     strip.setObjectName("ModelLibraryFiltersStrip")
     strip.setFrameShape(QFrame.Shape.NoFrame)
-    strip.setProperty("compactStructural", True)
+    strip.setProperty("surfaceCard", True)
     layout = QHBoxLayout(strip)
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(8, 6, 8, 6)
     layout.setSpacing(12)
 
     mirror_fields = tab._mirror_filter_fields = QWidget()
@@ -322,39 +343,49 @@ def build_controls_panel(tab: object) -> QWidget:
     panel.setMinimumWidth(0)
     panel.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
     layout = tab._model_library_controls_layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 4, 0)
+    layout.setContentsMargins(0, 0, 6, 0)
     layout.setSpacing(8)
 
     mirror_group = tab.mirror_group = QGroupBox("Mirror Catalogue")
     mirror_layout = QVBoxLayout(mirror_group)
-    mirror_layout.setContentsMargins(0, 4, 0, 0)
-    mirror_layout.setSpacing(4)
+    mirror_layout.setContentsMargins(4, 6, 4, 4)
+    mirror_layout.setSpacing(6)
     tab.mirror_url_edit = QLineEdit()
+    tab.mirror_url_edit.setMinimumWidth(0)
     tab.mirror_url_edit.setPlaceholderText(DEFAULT_MODEL_MIRROR_URL)
     mirror_layout.addWidget(_field_label("Mirror URL"))
     mirror_layout.addWidget(tab.mirror_url_edit)
     tab.catalogue_dir_edit = QLineEdit()
+    tab.catalogue_dir_edit.setMinimumWidth(0)
     tab.catalogue_dir_edit.setPlaceholderText("Local catalogue folder")
     tab.browse_catalogue_dir_button = _fixed_button("Browse")
     catalogue_row = QHBoxLayout()
-    catalogue_row.setSpacing(4)
+    catalogue_row.setContentsMargins(0, 0, 0, 0)
+    catalogue_row.setSpacing(6)
     catalogue_row.addWidget(tab.catalogue_dir_edit, stretch=1)
     catalogue_row.addWidget(tab.browse_catalogue_dir_button)
     mirror_layout.addWidget(_field_label("Catalogue"))
     mirror_layout.addLayout(catalogue_row)
 
     tab.max_shards_spin = QSpinBox()
+    tab.max_shards_spin.setMinimumWidth(0)
+    tab.max_shards_spin.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
     tab.max_shards_spin.setRange(0, 100_000)
     tab.max_shards_spin.setSpecialValueText("All")
     tab.max_shards_spin.setValue(int(tab.settings.value("model_library/max_shards", 1000) or 1000))
     tab.max_shards_spin.setKeyboardTracking(False)
     tab.result_limit_spin = QSpinBox()
+    tab.result_limit_spin.setMinimumWidth(0)
+    tab.result_limit_spin.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
     tab.result_limit_spin.setRange(1, 5000)
     tab.result_limit_spin.setValue(int(tab.settings.value("model_library/result_limit", 100) or 100))
     tab.result_limit_spin.setKeyboardTracking(False)
     limits_grid = QGridLayout()
+    limits_grid.setContentsMargins(0, 0, 0, 0)
     limits_grid.setHorizontalSpacing(6)
-    limits_grid.setVerticalSpacing(2)
+    limits_grid.setVerticalSpacing(4)
+    limits_grid.setColumnStretch(0, 1)
+    limits_grid.setColumnStretch(1, 1)
     limits_grid.addWidget(_field_label("Index pages"), 0, 0)
     limits_grid.addWidget(_field_label("Results"), 0, 1)
     limits_grid.addWidget(tab.max_shards_spin, 1, 0)
@@ -372,10 +403,14 @@ def build_controls_panel(tab: object) -> QWidget:
     if not selected_preferred_files:
         selected_preferred_files = {"gltf"}
     preferred_grid = QGridLayout()
-    preferred_grid.setHorizontalSpacing(8)
-    preferred_grid.setVerticalSpacing(2)
+    preferred_grid.setContentsMargins(0, 0, 0, 0)
+    preferred_grid.setHorizontalSpacing(6)
+    preferred_grid.setVerticalSpacing(4)
+    preferred_grid.setColumnStretch(0, 1)
+    preferred_grid.setColumnStretch(1, 1)
     for option_index, (format_key, label, tooltip) in enumerate(preferred_file_options):
         checkbox = QCheckBox(label)
+        checkbox.setMinimumWidth(0)
         if tooltip:
             checkbox.setToolTip(tooltip)
         checkbox.setChecked(format_key in selected_preferred_files)
@@ -392,26 +427,24 @@ def build_controls_panel(tab: object) -> QWidget:
         "Rebuilds the local metadata database with only records matching the Search, License, Creator, Exclude creators, and Format fields. "
         "Catalogue pages still need to be read, but cached shard files are reused."
     )
-    mirror_layout.addSpacing(4)
+    mirror_layout.addSpacing(2)
     mirror_layout.addWidget(tab.build_index_button)
     mirror_layout.addWidget(tab.index_current_search_checkbox)
-    tab.catalogue_status_label = QLabel("")
-    tab.catalogue_status_label.setObjectName("HintLabel")
-    tab.catalogue_status_label.setWordWrap(True)
-    tab.catalogue_status_label.setMinimumWidth(0)
-    tab.catalogue_status_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    tab.catalogue_status_label = _PathHintLabel("")
     mirror_layout.addWidget(tab.catalogue_status_label)
     layout.addWidget(mirror_group)
 
     local_group = tab.local_group = QGroupBox("Local Folders")
     local_layout = QVBoxLayout(local_group)
-    local_layout.setContentsMargins(0, 4, 0, 0)
-    local_layout.setSpacing(4)
+    local_layout.setContentsMargins(4, 6, 4, 4)
+    local_layout.setSpacing(6)
     tab.local_path_edit = QLineEdit()
+    tab.local_path_edit.setMinimumWidth(0)
     tab.local_path_edit.setPlaceholderText("Folder containing local models")
     tab.browse_local_button = _fixed_button("Browse")
     path_row = QHBoxLayout()
-    path_row.setSpacing(4)
+    path_row.setContentsMargins(0, 0, 0, 0)
+    path_row.setSpacing(6)
     path_row.addWidget(tab.local_path_edit, stretch=1)
     path_row.addWidget(tab.browse_local_button)
     local_layout.addLayout(path_row)
@@ -464,8 +497,8 @@ def build_controls_panel(tab: object) -> QWidget:
 def build_results_panel(tab: object) -> QWidget:
     panel = QWidget()
     layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(4)
+    layout.setContentsMargins(6, 0, 6, 0)
+    layout.setSpacing(6)
 
     tab.results_tree = QTreeWidget()
     tab.results_tree.setColumnCount(10)
@@ -546,13 +579,14 @@ def build_preview_panel(tab: object) -> QWidget:
 
     panel = QWidget()
     layout = tab._model_library_preview_layout = QVBoxLayout(panel)
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(6, 0, 0, 0)
     layout.setSpacing(6)
 
     tab.details_edit = QLineEdit()
     tab.details_edit.setObjectName("ModelLibrarySelectionTitle")
     tab.details_edit.setReadOnly(True)
     tab.details_edit.setFrame(False)
+    tab.details_edit.setMinimumWidth(0)
     tab.details_edit.setPlaceholderText("Select a local file or mirror result.")
     tab.details_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     layout.addWidget(tab.details_edit)
@@ -561,7 +595,7 @@ def build_preview_panel(tab: object) -> QWidget:
     preview_group.setProperty("compactStructural", True)
     preview_layout = QVBoxLayout(preview_group)
     preview_layout.setContentsMargins(0, 0, 0, 0)
-    preview_layout.setSpacing(4)
+    preview_layout.setSpacing(6)
     # The inline preview is drawn by the resident Rust Preview host, so these are
     # preparation settings only: no preview widget owns them.
     inline_render_settings = ModelPreviewRenderSettings()
@@ -577,6 +611,11 @@ def build_preview_panel(tab: object) -> QWidget:
     inline_render_settings.use_textures_by_default = True
     inline_render_settings.high_quality_by_default = True
     tab.inline_preview_render_settings = clamp_model_preview_render_settings(inline_render_settings)
+    preview_card = QFrame()
+    preview_card.setProperty("surfaceCard", True)
+    preview_card_layout = QVBoxLayout(preview_card)
+    preview_card_layout.setContentsMargins(4, 4, 4, 4)
+    preview_card_layout.setSpacing(0)
     tab.inline_preview_stack = QStackedWidget()
     tab.inline_d3d11_preview_host = None
     tab.inline_preview_placeholder = QLabel(
@@ -588,11 +627,12 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.inline_preview_placeholder.setMinimumHeight(180)
     tab.inline_preview_stack.addWidget(tab.inline_preview_placeholder)
     tab.inline_preview_stack.setCurrentWidget(tab.inline_preview_placeholder)
-    preview_layout.addWidget(tab.inline_preview_stack, stretch=1)
+    preview_card_layout.addWidget(tab.inline_preview_stack, stretch=1)
+    preview_layout.addWidget(preview_card, stretch=1)
 
     preview_controls = QHBoxLayout()
     preview_controls.setContentsMargins(0, 0, 0, 0)
-    preview_controls.setSpacing(8)
+    preview_controls.setSpacing(6)
     tab.auto_preview_checkbox = QCheckBox("Auto-preview")
     tab.auto_preview_checkbox.setToolTip(
         "Automatically previews local selections in the Model Library preview panel."
@@ -646,7 +686,7 @@ def build_preview_panel(tab: object) -> QWidget:
     selection_group = tab.selection_group = QGroupBox("Details")
     selection_group.setObjectName("ModelLibrarySelectionGroup")
     selection_layout = QVBoxLayout(selection_group)
-    selection_layout.setContentsMargins(0, 4, 0, 0)
+    selection_layout.setContentsMargins(4, 6, 4, 4)
     selection_layout.setSpacing(4)
     tab.details_text = QPlainTextEdit()
     tab.details_text.setObjectName("ModelLibraryDetailsText")

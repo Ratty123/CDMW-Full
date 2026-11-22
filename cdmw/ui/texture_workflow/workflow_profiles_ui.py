@@ -58,7 +58,7 @@ class TextureWorkflowProfilesUiMixin:
         self._workflow_match_refresh_timer.setInterval(300)
         self._workflow_match_refresh_timer.timeout.connect(self._refresh_workflow_matched_files_view)
         self.filters_section = CollapsibleSection(
-            "Workflow Profiles, Rules & Matches",
+            "Workflow Profiles, Rules && Matches",
             body_builder=lambda body_layout: TextureWorkflowProfilesUiMixin._build_workflow_profiles_body(self, body_layout),
         )
         self.filters_section.set_expanded(expanded)
@@ -137,7 +137,6 @@ class TextureWorkflowProfilesUiMixin:
             "Add a profile to define reusable DDS output and upscale settings.",
         )
         self.workflow_profiles_tree.setRootIsDecorated(False)
-        self.workflow_profiles_tree.setAlternatingRowColors(True)
         self.workflow_profiles_tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.workflow_profiles_tree.setHeaderLabels(["Name", "Action", "DDS Output", "NCNN"])
         self.workflow_profiles_tree.header().setStretchLastSection(False)
@@ -278,7 +277,6 @@ class TextureWorkflowProfilesUiMixin:
             "Add rules to assign workflow profiles by path, package, size, or role.",
         )
         self.workflow_rules_tree.setRootIsDecorated(False)
-        self.workflow_rules_tree.setAlternatingRowColors(True)
         self.workflow_rules_tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.workflow_rules_tree.setHeaderLabels(
             ["On", "Match", "Pattern", "Workflow", "Semantic", "Planner", "Color", "Alpha", "Path"]
@@ -424,7 +422,6 @@ class TextureWorkflowProfilesUiMixin:
             "Scan or refresh workflow matching to see which DDS files use each profile.",
         )
         self.workflow_matched_files_tree.setRootIsDecorated(False)
-        self.workflow_matched_files_tree.setAlternatingRowColors(True)
         self.workflow_matched_files_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.workflow_matched_files_tree.setHeaderLabels(
             ["Path", "Semantic", "Rule", "Workflow", "DDS Output", "NCNN", "Action"]

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -91,22 +92,26 @@ class TaskPanelMixin:
     def _build_header(self) -> QWidget:
         """What is being worked on, the undo pair, and the way to Your mod."""
 
-        header = QWidget()
+        header = QFrame()
+        header.setObjectName("PlacementHeaderBar")
+        header.setProperty("commandBar", True)
         row = QHBoxLayout(header)
-        row.setContentsMargins(8, 6, 8, 6)
-        row.setSpacing(6)
-        for label, box, width in (("Character", self._model_box, 200),
-                                  ("Weapon", self._weapon_box, 300),
-                                  ("Slot", self._part_box, 260)):
+        row.setContentsMargins(10, 6, 10, 6)
+        row.setSpacing(8)
+        for label, box, min_width, max_width in (
+            ("Character", self._model_box, 140, 210),
+            ("Weapon", self._weapon_box, 180, 340),
+            ("Slot", self._part_box, 170, 280),
+        ):
             row.addWidget(kit.caption(label))
-            box.setMinimumWidth(140)
-            box.setMaximumWidth(width)
+            box.setMinimumWidth(min_width)
+            box.setMaximumWidth(max_width)
             row.addWidget(box, 1)
-            row.addSpacing(6)
+            row.addSpacing(4)
         row.addStretch(1)
         row.addWidget(self._undo_button)
         row.addWidget(self._redo_button)
-        row.addSpacing(6)
+        row.addSpacing(4)
         self._mod_summary_button = kit.primary("Your mod: no changes",
                                                "Every change you have made, and saving them as a mod.")
         self._mod_summary_button.clicked.connect(self._open_mod_tab)

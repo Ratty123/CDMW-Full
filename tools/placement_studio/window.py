@@ -347,7 +347,6 @@ class PlacementStudioWindow(
         self._tree = QTreeWidget()
         self._tree.setHeaderLabels(["Attach point / Slot", "Detail"])
         self._tree.setColumnWidth(0, 300)
-        self._tree.setAlternatingRowColors(True)
         self._tree.currentItemChanged.connect(self._on_tree_selection)
 
         self._viewport = SkeletonViewport()
@@ -436,21 +435,21 @@ class PlacementStudioWindow(
 
         # Minimum widths, not just initial sizes: without them the panes collapsed into
         # unreadable slivers whenever the window was resized.
-        centre.setMinimumWidth(480)
-        self._lower.setMinimumWidth(420)
+        centre.setMinimumWidth(460)
+        self._lower.setMinimumWidth(500)
 
         body = QSplitter(Qt.Horizontal)
         body.addWidget(centre)
         body.addWidget(self._lower)
         body.setChildrenCollapsible(False)
-        body.setSizes([1000, 460])
+        body.setSizes([680, 520])
         body.setStretchFactor(0, 1)
         body.setStretchFactor(1, 0)
 
         central = QWidget()
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(10, 10, 10, 6)
+        layout.setSpacing(8)
         layout.addWidget(header)
         layout.addWidget(body, 1)
         self.setCentralWidget(central)

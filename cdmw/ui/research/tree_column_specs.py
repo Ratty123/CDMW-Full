@@ -21,9 +21,9 @@ class ResearchTreeColumnSpec:
 
 
 _RESEARCH_TREE_COLUMN_SPECS = (
-    ResearchTreeColumnSpec("archive_picker_tree", "archive_picker", 0, MappingProxyType({0: 260, 1: 90, 2: 110})),
-    ResearchTreeColumnSpec("texture_group_tree", "texture_group", 0, MappingProxyType({0: 280, 1: 86, 2: 150, 3: 120})),
-    ResearchTreeColumnSpec("classifier_tree", "classifier", 0, MappingProxyType({0: 280, 1: 110, 2: 90, 3: 120, 4: 220})),
+    ResearchTreeColumnSpec("archive_picker_tree", "archive_picker", 0, MappingProxyType({0: 150, 1: 52, 2: 64})),
+    ResearchTreeColumnSpec("texture_group_tree", "texture_group", 0, MappingProxyType({0: 140, 1: 68, 2: 78, 3: 78})),
+    ResearchTreeColumnSpec("classifier_tree", "classifier", 0, MappingProxyType({0: 150, 1: 72, 2: 76, 3: 76, 4: 80})),
     ResearchTreeColumnSpec("unknown_group_tree", "unknown_group", 0, MappingProxyType({0: 280, 1: 180, 2: 120, 3: 120})),
     ResearchTreeColumnSpec("unknown_member_tree", "unknown_member", 0, MappingProxyType({0: 260, 1: 90, 2: 110, 3: 90, 4: 110, 5: 220})),
     ResearchTreeColumnSpec("reference_tree", "reference", 0, MappingProxyType({0: 260, 1: 220, 2: 90, 3: 180, 4: 80, 5: 110})),

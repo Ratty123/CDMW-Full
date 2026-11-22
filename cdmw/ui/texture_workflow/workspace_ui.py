@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog,
+    QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QStackedWidget, QStyle,
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -92,9 +92,14 @@ class TextureJobUiMixin:
         self.job.mode = normalize_texture_mode(self.shell.settings.value(TEXTURE_MODE_SETTING, "edit"))
         self.setObjectName("TexturesWorkspace")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(6)
-        toolbar = WrappingLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+        cmd_bar = QFrame(self)
+        cmd_bar.setObjectName("TexturesCommandBar")
+        cmd_bar.setProperty("commandBar", True)
+        toolbar = WrappingLayout(cmd_bar)
+        toolbar.setContentsMargins(10, 6, 10, 6)
+        toolbar.setSpacing(6)
         self.mode_buttons = {}
         self.mode_button_group = QButtonGroup(self)
         self.mode_button_group.setExclusive(True)
@@ -106,6 +111,11 @@ class TextureJobUiMixin:
             self.mode_button_group.addButton(button)
             self.mode_buttons[key] = button
             toolbar.addWidget(button)
+        mode_sep = QFrame(cmd_bar)
+        mode_sep.setFrameShape(QFrame.VLine)
+        mode_sep.setFrameShadow(QFrame.Plain)
+        mode_sep.setFixedWidth(1)
+        toolbar.addWidget(mode_sep)
         self.add_texture_button = QPushButton("Add Textures")
         self.add_texture_button.clicked.connect(self._choose_texture_sources)
         self.add_mod_button = QPushButton("Add Mod")
@@ -119,7 +129,7 @@ class TextureJobUiMixin:
         self.independent_package_button.setToolTip("Create or update a portable replacement for one existing game texture.")
         self.independent_package_button.clicked.connect(self._open_independent_texture_package)
         toolbar.addWidget(self.independent_package_button)
-        layout.addLayout(toolbar)
+        layout.addWidget(cmd_bar)
 
         self.job_splitter = QSplitter(Qt.Horizontal)
         self.job_splitter.setChildrenCollapsible(False)
