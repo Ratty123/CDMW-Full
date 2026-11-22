@@ -171,6 +171,16 @@ def _resizable_collection(
         raise PrefabEditError(
             f"{collection.member_name} is an indexed list (socket list); resizing it is not supported"
         )
+    if collection.preamble_keys or collection.preamble_with_ids:
+        # The preamble before the first element lists keys (and with withIds,
+        # an index per key, and an index in every element). What they key is
+        # not known, so a splice would leave their count and indexes stale
+        # while the read-back still passes.
+        raise PrefabEditError(
+            f"{collection.member_name} lists {collection.preamble_keys} preamble key(s)"
+            + (" with element indexes" if collection.preamble_with_ids else "")
+            + "; resizing it is not supported"
+        )
     return collection
 
 

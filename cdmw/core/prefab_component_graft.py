@@ -48,6 +48,8 @@ from dataclasses import dataclass
 from typing import Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.prefab_binary import (
+    _HEADER_WIDTHS,
+    _MAX_MASK_BYTES,
     PrefabBinaryError,
     PrefabDocument,
     PrefabType,
@@ -57,7 +59,6 @@ from cdmw.core.prefab_binary import (
 )
 from cdmw.core.prefab_binary_edit import PrefabEditError
 
-_HEADER_WIDTHS = (1, 2, 3, 4)
 _LENGTH_FIELD_SCAN = 64
 _TRANSFORM_SIZE = 40
 
@@ -108,18 +109,45 @@ def _type_count_offset(document: PrefabDocument) -> int:
     return (14 if document.version == 4 else 6) + 4
 
 
-def _element_header_start(data: bytes, base: int, at: int, limit: int) -> int:
+def _header_states_its_type(data: bytes, start: int, width: int, types: Sequence[PrefabType]) -> bool:
+    """Is ``width`` at ``start`` a header width the decoder would believe?
+
+    The header is ``u16 width, mask (width bytes), u16 typeIndex, u8 override``.
+    As in :mod:`cdmw.core.prefab_binary`, a width of 0 is a memberless type
+    and a width of 5 or more (6 for a 43-member SplineDecalComponent, 13 for
+    ScenePostProcessing) is believed only when the stated type needs exactly
+    that many mask bytes. Every width must also state a declared type whose
+    members cover the mask, which a length field read as a header rarely does:
+    ``65 04 00 00 01 00 07 03`` reads as width 4 three bytes before the real
+    width-1 header, and both end at the same owner field.
+    """
+
+    if not 0 <= width <= _MAX_MASK_BYTES or start + 2 + width + 3 > len(data):
+        return False
+    type_index = struct.unpack_from("<H", data, start + 2 + width)[0]
+    if not 0 <= type_index < len(types):
+        return False
+    members = len(types[type_index].members)
+    if width not in _HEADER_WIDTHS and (members + 7) // 8 != width:
+        return False
+    mask = int.from_bytes(data[start + 2 : start + 2 + width], "little")
+    return mask.bit_length() <= members
+
+
+def _element_header_start(data: bytes, types: Sequence[PrefabType], at: int, limit: int) -> int:
     """The first offset at or after `at` that starts an element header followed by a
     self-relative pointer record."""
 
     for probe in range(at, min(limit, len(data) - 24)):
         width = struct.unpack_from("<H", data, probe)[0]
-        if width not in _HEADER_WIDTHS:
+        if width > _MAX_MASK_BYTES:
             continue
         owner_at = probe + 2 + width + 3
-        if owner_at + 12 > len(data):
+        if owner_at + 12 > len(data) or data[owner_at - 1] not in (0, 1):
             continue
-        if struct.unpack_from("<I", data, owner_at + 8)[0] == owner_at + 12:
+        if struct.unpack_from("<I", data, owner_at + 8)[0] != owner_at + 12:
+            continue
+        if _header_states_its_type(data, probe, width, types):
             return probe
     raise PrefabEditError(f"no element header at or after 0x{at:x}")
 
@@ -147,7 +175,7 @@ def element_bounds(data: bytes, document: PrefabDocument, collection_index: int,
 
     collection = document.collections[collection_index]
     span_start, walk_end = collection.elements[element_index]
-    header = _element_header_start(data, document.blob_offset, span_start, walk_end)
+    header = _element_header_start(data, document.types, span_start, walk_end)
     site = next((p.site for p in document.pointers if p.site >= header), None)
     if site is None or site >= walk_end:
         raise PrefabEditError(f"element at 0x{header:x} has no name record")
@@ -161,18 +189,22 @@ def _u16(data: bytes, at: int) -> int:
     return struct.unpack_from("<H", data, at)[0]
 
 
-def _pointer_header_index_offset(data: bytes, site: int) -> Optional[int]:
+def _pointer_header_index_offset(data: bytes, site: int, types: Sequence[PrefabType]) -> Optional[int]:
     """Offset of the u16 type index in the header that precedes the pointer record at `site`.
 
     The header ends ``u16 typeIndex, u8 override``. Only a header with override 0
     is taken: an overridden object is a delta over a nested prefab, not a whole
-    object to copy.
+    object to copy. Widths 0 to 13 occur (see :func:`_header_states_its_type`).
     """
 
     owner_at = site - 8
-    for width in _HEADER_WIDTHS:
+    if owner_at < 1 or data[owner_at - 1] != 0:
+        return None
+    for width in range(_MAX_MASK_BYTES + 1):
         start = owner_at - (2 + width + 3)
-        if start >= 0 and struct.unpack_from("<H", data, start)[0] == width and data[owner_at - 1] == 0:
+        if start < 0:
+            break
+        if struct.unpack_from("<H", data, start)[0] == width and _header_states_its_type(data, start, width, types):
             return owner_at - 3
     return None
 
@@ -278,7 +310,7 @@ def graft_prefab_component(
     donor_sites = [p.site for p in ddoc.pointers if d_start <= p.site < d_end]
     header_index_offsets = {}
     for site in donor_sites:
-        at = _pointer_header_index_offset(donor_data, site)
+        at = _pointer_header_index_offset(donor_data, site, ddoc.types)
         if at is None:
             raise PrefabEditError(f"the donor pointer at 0x{site:x} has no readable header; refusing to remap its type")
         header_index_offsets[site] = at

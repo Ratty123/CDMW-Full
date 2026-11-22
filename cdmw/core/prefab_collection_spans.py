@@ -42,6 +42,12 @@ class PrefabCollection:
     count: int
     #: Absolute ``(start, end)`` per element, in file order.
     elements: tuple[tuple[int, int], ...] = ()
+    #: Keys the object-list preamble lists before the first element (``n`` in
+    #: ``u8 withIds, u32, u32, u32 n``), 0 when it lists none or has none.
+    preamble_keys: int = 0
+    #: The preamble's ``withIds``: each key carries a u32 index, and each
+    #: element a u32 index after its owner field.
+    preamble_with_ids: bool = False
 
     @property
     def count_offset(self) -> int:

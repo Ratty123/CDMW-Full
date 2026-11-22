@@ -584,3 +584,38 @@ def test_settings_are_read_without_secrets(mcp, settings) -> None:
     assert rows["appearance/theme"] == "graphite" and rows["model_library/api_token"] == "[removed]"
     only = mcp.ok("app_settings_get", {"prefix": "appearance/"})["settings"]
     assert [row["key"] for row in only] == ["appearance/theme"]
+
+
+def test_a_popup_panel_without_a_title_is_listed_and_its_controls_are_reached(mcp, window, app) -> None:
+    """Browse Archives' Edited Results..., Files DMM Adds and More Filters open as titleless
+    Qt.Popup panels; app_state, app_ui and app_ui_act skipped them (2026-11-22)."""
+
+    from PySide6.QtWidgets import QGroupBox, QToolButton
+
+    from cdmw.ui.archive_browser.command_strip import _ArchiveFiltersPopup
+
+    group = QGroupBox("Edited Results...")
+    inner = QVBoxLayout(group)
+    only_edited = QCheckBox("Only edited files")
+    only_edited.toggled.connect(lambda on: window.seen.append(("edited", on)))
+    inner.addWidget(only_edited)
+    button = QToolButton(window.centralWidget())
+    button.setText("Actions")
+    window.centralWidget().layout().addWidget(button)
+    popup = _ArchiveFiltersPopup(group, button, "ProbeEditedResultsPopup")
+    try:
+        popup.toggle()
+        app.processEvents()
+        assert popup.isVisible()
+
+        listed = {row["title"]: row for row in mcp.ok("app_state")["windows"]}
+        assert listed["Edited Results..."]["class"] == "_ArchiveFiltersPopup"
+        assert "Only edited files" in _controls(mcp), "the open panel is what app_ui shows"
+        assert "Only edited files" in _controls(mcp, widget=mcp.ok("app_state")["window"]), \
+            "and the page it was opened from lists it too"
+        mcp.ok("app_ui_act", {"text": "Only edited files", "action": "check"})
+        assert ("edited", True) in window.seen
+    finally:
+        popup.hide()
+        popup.deleteLater()
+        app.processEvents()

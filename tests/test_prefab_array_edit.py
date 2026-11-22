@@ -330,3 +330,20 @@ def test_a_resize_that_leaves_an_enclosing_length_stale_is_refused(monkeypatch: 
     # closes with one field fewer; both are refusals.
     with pytest.raises(PrefabEditError, match="no longer reads all the way|pointee length field"):
         duplicate_prefab_element(build_nested_groups(), 1, 0)
+
+
+def test_a_collection_whose_preamble_lists_keys_is_not_resized() -> None:
+    """The keys (and with withIds, their indexes) describe the elements; a splice would leave
+    their count stale while the read-back still passed (2026-11-22)."""
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups(("Alpha", "Beta"), leaf_keys=2)
+    document = decode_prefab_binary(data)
+    assert document.walk_complete, document.walk_note
+    assert document.collections[1].preamble_keys == 2
+    assert document.collections[0].preamble_keys == 0
+    for edit in (duplicate_prefab_element, remove_prefab_element):
+        with pytest.raises(PrefabEditError, match="2 preamble key"):
+            edit(data, 1, 0)
+    # The keyless holder list around it is still resizable.
+    assert duplicate_prefab_element(data, 0, 0).count_after == 2

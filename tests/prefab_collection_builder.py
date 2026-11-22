@@ -149,20 +149,25 @@ class GroupBlob:
         self.out += struct.pack("<I", len(self.out) - name_start)
         return self.base + start, self.base + len(self.out)
 
-    def collection(self, writers) -> None:
+    def collection(self, writers, keys: int = 0) -> None:
         self.out += b"\x00" + struct.pack("<I", len(writers))
-        self.out += b"\x00" * 13  # the preamble: no ids, no keys
+        # The preamble: withIds 0, two u32s, then the key count and the keys.
+        self.out += b"\x00" * 9 + struct.pack("<I", keys)
+        self.out += b"".join(struct.pack("<Q", 0x1000 + key) for key in range(keys))
         for write in writers:
             write(self)
 
 
-def build_nested_groups(leaves=("Alpha", "Beta"), *, nested_type: str = "Holder", holder_mask: int = 0b011) -> bytes:
+def build_nested_groups(
+    leaves=("Alpha", "Beta"), *, nested_type: str = "Holder", holder_mask: int = 0b011, leaf_keys: int = 0
+) -> bytes:
     """A root ``_childSceneObjects`` holding one object that holds ``leaves``.
 
     The holder declares ``_label``, ``_components`` and an unselected
     ``_tags`` list, written as the byte 01 after the nested collection.
     ``holder_mask`` 0b001 leaves ``_components`` unselected too: a nested
     prefab instance (``nested_type`` starting ``/``) still writes it in full.
+    ``leaf_keys`` lists that many keys in the leaf collection's preamble.
     """
     types = bytearray()
     types += text("SceneObject") + struct.pack("<H", 1)
@@ -187,7 +192,7 @@ def build_nested_groups(leaves=("Alpha", "Beta"), *, nested_type: str = "Holder"
 
     def holder(b: GroupBlob) -> None:
         b.out += text("holder")
-        b.collection([leaf(label) for label in leaves])
+        b.collection([leaf(label) for label in leaves], leaf_keys)
         b.out += b"\x01"  # the unselected _tags
 
     blob.collection([lambda b: b.element(1, holder_mask, "Holder", holder)])

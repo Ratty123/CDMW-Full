@@ -251,3 +251,59 @@ class VanillaGraftTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _types_with_member_counts(*counts: int):
+    from cdmw.core.prefab_binary import PrefabMember, PrefabType
+
+    return tuple(
+        PrefabType(f"Type{index}", tuple(PrefabMember(f"_m{n}", "u8", 0, 1, 0, 0) for n in range(count)), 0)
+        for index, count in enumerate(counts)
+    )
+
+
+def _header_then_pointer(prefix: bytes, width: int, mask: int, type_index: int) -> tuple[bytes, int]:
+    """``prefix``, an element header of ``width`` mask bytes, the owner, and a self-relative pointer."""
+
+    out = bytearray(prefix)
+    start = len(out)
+    out += struct.pack("<H", width) + mask.to_bytes(width, "little") + struct.pack("<H", type_index) + b"\x00"
+    out += b"\xff" * 8
+    out += struct.pack("<I", len(out) + 4)
+    out += bytes(32)
+    return bytes(out), start
+
+
+@pytest.mark.parametrize(("width", "members", "mask"), [(0, 0, 0), (6, 43, 1 << 42 | 1), (13, 103, 1 << 102)])
+def test_the_element_header_search_reads_zero_and_wide_masks(width: int, members: int, mask: int) -> None:
+    """A memberless type writes no mask bytes, a SplineDecalComponent six and ScenePostProcessing
+    thirteen; only widths 1 to 4 used to be searched for (2026-11-22)."""
+
+    from cdmw.core.prefab_component_graft import _element_header_start, _pointer_header_index_offset
+
+    types = _types_with_member_counts(1, members)
+    data, start = _header_then_pointer(b"\x11\x22\x33", width, mask, 1)
+    assert _element_header_start(data, types, 0, len(data)) == start
+    site = start + 2 + width + 3 + 8
+    assert _pointer_header_index_offset(data, site, types) == start + 2 + width
+
+
+def test_a_wide_width_whose_stated_type_does_not_need_it_is_not_a_header() -> None:
+    from cdmw.core.prefab_component_graft import _element_header_start
+
+    types = _types_with_member_counts(1, 3)  # three members need one mask byte, not six
+    data, _start = _header_then_pointer(b"", 6, 0b101, 1)
+    with pytest.raises(PrefabEditError, match="no element header"):
+        _element_header_start(data, types, 0, len(data))
+
+
+def test_a_length_field_read_as_a_width_4_header_gives_way_to_the_real_one() -> None:
+    """``65 04 00 00 01 00 07 03 00``: the previous element's closing length field reads as width 4
+    ending at the same owner as the real width-1 header three bytes on."""
+
+    from cdmw.core.prefab_component_graft import _element_header_start
+
+    types = _types_with_member_counts(1, 1, 1, 3)
+    data, start = _header_then_pointer(b"\x65\x04\x00\x00", 1, 0b111, 3)
+    assert data[:10] == bytes.fromhex("65040000010007030000")
+    assert _element_header_start(data, types, 0, len(data)) == start == 4

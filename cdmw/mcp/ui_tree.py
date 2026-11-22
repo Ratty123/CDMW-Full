@@ -98,6 +98,56 @@ def _clean(text: object) -> str:
     return display_label(" ".join(str(text or "").split()))[:TEXT_LIMIT]
 
 
+def is_panel_popup(widget) -> bool:
+    """Is ``widget`` a shown popup panel: a ``Qt.Popup`` window that is not a menu?
+
+    Browse Archives keeps Edited Results..., Files DMM Adds and More Filters in
+    such panels. They have no window title and are windows of their own, so a
+    walk that skips untitled windows or stops at window boundaries misses them.
+    A menu is read through its menu bar or button instead.
+    """
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMenu
+
+    try:
+        return (_valid(widget) and widget.isWindow() and widget.isVisible()
+                and widget.windowType() == Qt.WindowType.Popup and not isinstance(widget, QMenu))
+    except RuntimeError:
+        return False
+
+
+def panel_popups(under=None) -> list:
+    """The shown popup panels, or only those opened from a control under ``under``."""
+
+    from PySide6.QtWidgets import QApplication
+
+    found = []
+    for widget in QApplication.topLevelWidgets():
+        if not is_panel_popup(widget):
+            continue
+        if under is not None:
+            owner = widget.parentWidget()
+            while owner is not None and owner is not under:
+                owner = owner.parentWidget()
+            if owner is None:
+                continue
+        found.append(widget)
+    return found
+
+
+def window_title(window) -> str:
+    """A window's title; for an untitled popup panel, the title of the group it shows."""
+
+    from PySide6.QtWidgets import QGroupBox
+
+    title = str(window.windowTitle() or "")
+    if title or not is_panel_popup(window):
+        return title
+    group = window.findChild(QGroupBox)
+    return _clean(group.title()) if group is not None and group.title() else window.objectName()
+
+
 def kind_of(widget) -> str:
     from PySide6.QtWidgets import (QAbstractButton, QAbstractItemView, QAbstractSlider, QAbstractSpinBox,
                                    QCheckBox, QComboBox, QDialog, QGroupBox, QLabel, QLineEdit, QListView,
@@ -369,6 +419,11 @@ def describe_tree(root, *, query: str = "", kinds: tuple[str, ...] = (), include
                 add(child, depth)
 
     visit(root, 0)
+    # A popup panel opened from a control on this page is a window of its own, so the walk
+    # stops at it; its controls belong to the page while it is open.
+    if not is_panel_popup(root):
+        for popup in panel_popups(under=root):
+            add(popup, 0)
     if kinds:
         rows = [row for row in rows if row["kind"] in kinds]
     if words:

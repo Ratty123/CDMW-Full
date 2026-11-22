@@ -321,6 +321,20 @@ def _ensure_header_tracking(
     return user_resized
 
 
+def mark_user_sized_columns(header: QHeaderView, columns) -> None:
+    """Treat ``columns`` as sized by the user, so a fit keeps their widths.
+
+    A width restored from the saved layout is the user's, but it is applied
+    before the view is shown and before this module tracks the header, so
+    nothing would otherwise record it and the first fit on Show (or on a model
+    change) would replace it.
+    """
+
+    if not isinstance(header, QHeaderView) or not shiboken6.isValid(header):
+        return
+    _ensure_header_tracking(header).update(int(col) for col in columns)
+
+
 def _measure_text_width(metrics, text: str) -> int:
     if not text:
         return 0
@@ -409,7 +423,14 @@ def fit_resizable_columns(view: object, *, force: bool = False) -> None:
 
     needed: list[int] = []
     has_widget_col: list[bool] = []
+    hidden = [header.isSectionHidden(col) for col in range(col_count)]
     for col in range(col_count):
+        if hidden[col]:
+            # A hidden column takes no room, so it neither counts towards the
+            # width nor receives slack, and its size is left as it is.
+            needed.append(header.sectionSize(col))
+            has_widget_col.append(False)
+            continue
         if not force and col in user_resized:
             needed.append(max(_MIN_SECTION_SIZE, header.sectionSize(col)))
             has_widget_col.append(False)
@@ -454,12 +475,12 @@ def fit_resizable_columns(view: object, *, force: bool = False) -> None:
 
     viewport = view.viewport()
     viewport_w = viewport.width() if viewport is not None else 0
-    total_w = sum(needed)
+    total_w = sum(width for col, width in enumerate(needed) if not hidden[col])
     if viewport_w > 0 and total_w < viewport_w:
         slack = viewport_w - total_w
         candidates = [
             col for col in range(col_count)
-            if not has_widget_col[col] and (force or col not in user_resized)
+            if not hidden[col] and not has_widget_col[col] and (force or col not in user_resized)
         ]
         if candidates:
             primary = view.property("_cdmwPrimaryColumn")
@@ -472,7 +493,7 @@ def fit_resizable_columns(view: object, *, force: bool = False) -> None:
     header._cdmw_programmatic_resize = True
     try:
         for col, width in enumerate(needed):
-            if header.sectionSize(col) != width:
+            if not hidden[col] and header.sectionSize(col) != width:
                 header.resizeSection(col, width)
     finally:
         header._cdmw_programmatic_resize = False

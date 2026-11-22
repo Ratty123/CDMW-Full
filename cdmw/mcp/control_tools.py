@@ -77,16 +77,19 @@ def _tools_on_rail(shell) -> list[dict[str, object]]:
 def _open_windows(main) -> list[dict[str, object]]:
     from PySide6.QtWidgets import QApplication
 
-    from cdmw.mcp.ui_tree import widget_id
+    from cdmw.mcp.ui_tree import widget_id, window_title
 
     rows = []
     for widget in QApplication.topLevelWidgets():
         try:
-            if not widget.isVisible() or widget is main or not widget.windowTitle():
+            if not widget.isVisible() or widget is main:
                 continue
+            title = window_title(widget)
         except RuntimeError:
             continue
-        rows.append({"widget": widget_id(widget), "title": widget.windowTitle(), "class": type(widget).__name__,
+        if not title:
+            continue
+        rows.append({"widget": widget_id(widget), "title": title, "class": type(widget).__name__,
                      "modal": bool(widget.isModal())})
     return rows
 
@@ -216,11 +219,15 @@ def _root(call, name: str = "widget"):
 
     from PySide6.QtWidgets import QApplication
 
-    from cdmw.mcp.ui_tree import widget_by_id
+    from cdmw.mcp.ui_tree import is_panel_popup, widget_by_id
 
     wanted = str(call.arguments.get(name) or "")
     if wanted:
         return widget_by_id(wanted)
+    # An open popup panel (Browse Archives' Edited Results..., say) takes the input until it closes.
+    popup = QApplication.activePopupWidget()
+    if is_panel_popup(popup):
+        return popup
     modal = QApplication.activeModalWidget()
     if modal is not None:
         return modal
@@ -237,12 +244,12 @@ def _root(call, name: str = "widget"):
 
 
 def _ui(call) -> dict[str, object]:
-    from cdmw.mcp.ui_tree import MAX_ROWS, describe, describe_tree, kind_of, widget_id
+    from cdmw.mcp.ui_tree import MAX_ROWS, describe, describe_tree, kind_of, widget_id, window_title
 
     a = call.arguments
     root = _root(call)
     top = root.window()
-    result: dict[str, object] = {"window": {"widget": widget_id(top), "title": top.windowTitle(),
+    result: dict[str, object] = {"window": {"widget": widget_id(top), "title": window_title(top),
                                             "class": type(top).__name__}}
     if kind_of(root) in ("list", "table", "tree"):
         result["controls"] = [describe(root, offset=int(a.get("rows_from") or 0), limit=MAX_ROWS)]
@@ -285,12 +292,12 @@ def _ui_act_effect(call) -> str:
 
 
 def _ui_act_key(call) -> str:
-    from cdmw.mcp.ui_tree import describe
+    from cdmw.mcp.ui_tree import describe, window_title
 
     widget = _target(call)
     row = describe(widget, rows=False)
     # One control of one window: allowing "OK" in a dialog does not allow every OK button.
-    title = widget.window().windowTitle().split(" [AI connections on")[0]
+    title = window_title(widget.window()).split(" [AI connections on")[0]
     action = call.arguments["action"]
     entry = (f":{call.arguments['menu']}" if action == "menu" and call.arguments.get("menu") else
              f":{call.arguments.get('keys')}" if action == "key" else "")

@@ -1149,11 +1149,12 @@ def _read_member(
             if reference[0] != 0:
                 raise PrefabBinaryError(f"invalid motion object-list reference on {member.name}")
         indexed = bool(member.extra & _INDEXED_OBJECT_LIST) and not cursor.plain_counts
+        preamble_keys = 0
         if cursor.group_lists and not cursor.plain_counts:
             # Even an empty list has one when it was written with the kind
             # byte 00: a nested instance's _childSceneObjects holding no
             # children can still list 78 keys.
-            indexed = _read_list_preamble(cursor, member)
+            indexed, preamble_keys = _read_list_preamble(cursor, member)
         elif indexed and count:
             reference = cursor.take(13)
             if reference[0] != 1 or any(reference[5:]):
@@ -1197,12 +1198,14 @@ def _read_member(
             header_width=header_width,
             count=count,
             elements=tuple(spans),
+            preamble_keys=preamble_keys,
+            preamble_with_ids=indexed and cursor.group_lists and not cursor.plain_counts,
         )
         return
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
 
-def _read_list_preamble(cursor: _BlobCursor, member: PrefabMember) -> bool:
+def _read_list_preamble(cursor: _BlobCursor, member: PrefabMember) -> tuple[bool, int]:
     """Read the preamble between an object list's count and its first element.
 
     It is the one :mod:`cdmw.core.effect_binary` reads: ``u8 withIds, u32 a,
@@ -1211,7 +1214,8 @@ def _read_list_preamble(cursor: _BlobCursor, member: PrefabMember) -> bool:
     search used to step over, but a nested prefab instance's
     ``_childSceneObjects`` can list 69 keys (552 bytes, past the search) and a
     ``_socketList`` can carry keys and indexes. Returns whether the elements
-    carry a u32 index after their owner field, which ``withIds`` says.
+    carry a u32 index after their owner field, which ``withIds`` says, and
+    how many keys it lists.
     """
     at = cursor.pos
     # Revision 13 has no withIds byte: its preamble is the three u32s alone.
@@ -1227,7 +1231,7 @@ def _read_list_preamble(cursor: _BlobCursor, member: PrefabMember) -> bool:
     if keys > _MAX_PREAMBLE_KEYS:
         raise PrefabBinaryError(f"object-list preamble on {member.name} lists {keys} keys")
     cursor.take(keys * (12 if with_ids else 8))
-    return with_ids == 1
+    return with_ids == 1, keys
 
 
 #: Members serialised even when their mask bit is clear: a list kind with the
