@@ -23,8 +23,12 @@ from cdmw.services.dmm_send import dmm_mods_folder, find_dmm
 _MAX_CONFIG_BYTES = 16 * 1024 * 1024
 _GROUP_FOLDER = re.compile(r"\d{4}")
 _ARCHIVE_SUFFIXES = frozenset({".zip", ".7z", ".rar"})
+_CONTAINER_SUFFIXES = frozenset({".pamt", ".paz"})
+_PATCH_SUFFIXES = (".patch", ".merge")
 _METADATA_FILENAMES = frozenset({
     "mod.json",
+    "modinfo.json",
+    "dmm_pack.json",
     "manifest.json",
     "cdmw_operations.json",
     "operations.json",
@@ -91,6 +95,49 @@ def infer_dmm_install(saved_dmm_folder: str, mount: DmmRuntimeMount | None) -> P
     return None
 
 
+def _strip_patch_suffix(path: str) -> str:
+    prefix, sep, name = path.rpartition("/")
+    lowered = name.casefold()
+    for suffix in _PATCH_SUFFIXES:
+        if lowered.endswith(suffix):
+            base = name[: -len(suffix)]
+            if "." in base:
+                return f"{prefix}{sep}{base}" if sep else base
+    return path
+
+
+def _infer_raw_and_target_game_path(
+    rel_parts: tuple[str, ...],
+    known_roots: frozenset[str] = _DEFAULT_GAME_ROOTS,
+    known_root_files: frozenset[str] = _DEFAULT_ROOT_FILES,
+) -> tuple[str, str] | None:
+    if not rel_parts or any(part.startswith(".") for part in rel_parts):
+        return None
+    filename = rel_parts[-1].casefold()
+    if filename in _METADATA_FILENAMES or filename.startswith("readme."):
+        return None
+    if PurePosixPath(filename).suffix.casefold() in _CONTAINER_SUFFIXES:
+        return None
+    raw_path: str | None = None
+    for idx, part in enumerate(rel_parts[:-1]):
+        if _GROUP_FOLDER.fullmatch(part):
+            tail = rel_parts[idx + 1:]
+            if tail:
+                raw_path = "/".join(tail)
+            break
+    if raw_path is None:
+        prefix_limit = min(3, len(rel_parts) - 1)
+        for idx in range(prefix_limit):
+            if rel_parts[idx].casefold() in known_roots:
+                raw_path = "/".join(rel_parts[idx:])
+                break
+    if raw_path is None and len(rel_parts) == 1 and filename in known_root_files:
+        raw_path = rel_parts[0]
+    if not raw_path:
+        return None
+    return raw_path, _strip_patch_suffix(raw_path)
+
+
 def infer_game_path(
     rel_parts: tuple[str, ...],
     known_roots: frozenset[str] = _DEFAULT_GAME_ROOTS,
@@ -98,22 +145,8 @@ def infer_game_path(
 ) -> str | None:
     """Map a mod-relative path tuple to a normalized-case game path, or None if non-game."""
 
-    if not rel_parts or any(part.startswith(".") for part in rel_parts):
-        return None
-    filename = rel_parts[-1].casefold()
-    if filename in _METADATA_FILENAMES or filename.startswith("readme."):
-        return None
-    for idx, part in enumerate(rel_parts[:-1]):
-        if _GROUP_FOLDER.fullmatch(part):
-            tail = rel_parts[idx + 1:]
-            return "/".join(tail) if tail else None
-    prefix_limit = min(3, len(rel_parts) - 1)
-    for idx in range(prefix_limit):
-        if rel_parts[idx].casefold() in known_roots:
-            return "/".join(rel_parts[idx:])
-    if len(rel_parts) == 1 and filename in known_root_files:
-        return rel_parts[0]
-    return None
+    inferred = _infer_raw_and_target_game_path(rel_parts, known_roots, known_root_files)
+    return inferred[1] if inferred is not None else None
 
 
 def _resolve_mods_folder(install: Path, config: Mapping[str, object]) -> Path | None:
@@ -172,6 +205,20 @@ def _archive_cache_matches(install: Path, entry: str, mount: DmmRuntimeMount) ->
     return matches
 
 
+def _dir_has_container_archives(directory: Path) -> bool:
+    """Return True when a mod folder holds packed .pamt/.paz containers extracted to archive_cache."""
+
+    try:
+        for root, dirs, files in os.walk(directory, followlinks=False):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for filename in files:
+                if Path(filename).suffix.casefold() in _CONTAINER_SUFFIXES:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def _resolve_enabled_targets(
     install: Path,
     mods_folder: Path,
@@ -181,9 +228,24 @@ def _resolve_enabled_targets(
     """Return ``(entry_name, directory, is_under_mods_folder)`` tuples for enabled entries."""
 
     resolved_mods = mods_folder.resolve()
-    resolved_cache = (install / "archive_cache").resolve() if (install / "archive_cache").is_dir() else None
+    cache_root = install / "archive_cache"
+    resolved_cache = cache_root.resolve() if cache_root.is_dir() else None
     targets: list[tuple[str, Path, bool]] = []
     seen_dirs: set[str] = set()
+
+    def _add_cache_dir(entry_name: str, cache_dir: Path) -> None:
+        try:
+            if cache_dir.is_symlink() or not cache_dir.is_dir():
+                return
+            resolved = cache_dir.resolve()
+            if resolved_cache is not None and not resolved.is_relative_to(resolved_cache):
+                return
+        except OSError:
+            return
+        key = str(resolved).casefold()
+        if key not in seen_dirs:
+            seen_dirs.add(key)
+            targets.append((entry_name, cache_dir, False))
 
     for raw_entry in active_browser_mods:
         entry = str(raw_entry or "").strip().replace("\\", "/").strip("/")
@@ -204,6 +266,16 @@ def _resolve_enabled_targets(
                 if key not in seen_dirs:
                     seen_dirs.add(key)
                     targets.append((entry, candidate, True))
+                added_exact_cache = False
+                if resolved_cache is not None:
+                    exact_cache = cache_root.joinpath(*parts)
+                    if exact_cache.is_dir():
+                        _add_cache_dir(entry, exact_cache)
+                        added_exact_cache = True
+                if not added_exact_cache and _dir_has_container_archives(candidate):
+                    match_key = parts[0] if len(parts) == 1 else entry
+                    for cache_dir in _archive_cache_matches(install, match_key, mount):
+                        _add_cache_dir(entry, cache_dir)
                 continue
         except OSError:
             continue
@@ -211,16 +283,7 @@ def _resolve_enabled_targets(
         # Archive entries (.zip/.7z/.rar) or extracted archive cache folders.
         if Path(entry).suffix.casefold() in _ARCHIVE_SUFFIXES or not candidate.exists():
             for cache_dir in _archive_cache_matches(install, entry, mount):
-                try:
-                    resolved = cache_dir.resolve()
-                    if resolved_cache is not None and not resolved.is_relative_to(resolved_cache):
-                        continue
-                except OSError:
-                    continue
-                key = str(resolved).casefold()
-                if key not in seen_dirs:
-                    seen_dirs.add(key)
-                    targets.append((entry, cache_dir, False))
+                _add_cache_dir(entry, cache_dir)
     return targets
 
 
@@ -362,99 +425,117 @@ def scan_dmm_mount_overlaps(
     root_files_frozen = frozenset(known_root_files)
 
     targets = _resolve_enabled_targets(install, mods_folder, active_browser_mods, mount)
+    targets_by_entry: dict[str, list[tuple[Path, bool]]] = {}
+    for entry_name, target_dir, is_mods_dir in targets:
+        targets_by_entry.setdefault(entry_name, []).append((target_dir, is_mods_dir))
+
     merged_contributors: dict[str, list[DmmServedFile]] = {}
     walked_entries = 0
     truncated = False
     unmounted_enabled: list[str] = []
     enabled_mods_dirs: list[Path] = []
+    mounted_mod_folds = {served.mod.casefold() for served in mount.files.values()}
 
-    for entry_name, target_dir, is_mods_dir in targets:
+    for entry_name, entry_dirs in targets_by_entry.items():
         if stop_event is not None and stop_event.is_set():
             break
-        if is_mods_dir:
-            try:
-                enabled_mods_dirs.append(target_dir.resolve())
-            except OSError:
-                pass
         recognized_count = 0
         manifest_match_count = 0
         seen_labels_in_target: list[str] = []
-        target_resolved = target_dir.resolve()
 
-        for root, dirs, files in os.walk(target_dir, followlinks=False):
+        for target_dir, is_mods_dir in entry_dirs:
             if stop_event is not None and stop_event.is_set():
                 break
-            root_path = Path(root)
-            safe_dirs: list[str] = []
-            for d in dirs:
-                if d.startswith("."):
-                    continue
-                d_path = root_path / d
+            if is_mods_dir:
                 try:
-                    if d_path.is_symlink() or not d_path.resolve().is_relative_to(target_resolved):
-                        continue
+                    enabled_mods_dirs.append(target_dir.resolve())
                 except OSError:
-                    continue
-                safe_dirs.append(d)
-            dirs[:] = sorted(safe_dirs, key=str.casefold)
+                    pass
+            target_resolved = target_dir.resolve()
 
-            for filename in sorted(files, key=str.casefold):
+            for root, dirs, files in os.walk(target_dir, followlinks=False):
                 if stop_event is not None and stop_event.is_set():
                     break
-                walked_entries += 1
-                if walked_entries > max_walk_entries:
-                    truncated = True
-                    break
-                file_path = root_path / filename
-                try:
-                    if file_path.is_symlink() or not file_path.resolve().is_relative_to(target_resolved):
+                root_path = Path(root)
+                safe_dirs: list[str] = []
+                for d in dirs:
+                    if d.startswith("."):
                         continue
-                    rel_parts = file_path.relative_to(target_dir).parts
-                except (OSError, ValueError):
-                    continue
-                game_path = infer_game_path(rel_parts, roots_frozen, root_files_frozen)
-                if not game_path:
-                    continue
-                recognized_count += 1
-                key = normalized_game_path(game_path)
-                label = mod_label(str(file_path), game_path)
-                if label and label not in seen_labels_in_target:
-                    seen_labels_in_target.append(label)
-                folder = mod_root_from_source(file_path, game_path) or target_dir
-                mod_folders.setdefault(label, folder)
+                    d_path = root_path / d
+                    try:
+                        if d_path.is_symlink() or not d_path.resolve().is_relative_to(target_resolved):
+                            continue
+                    except OSError:
+                        continue
+                    safe_dirs.append(d)
+                dirs[:] = sorted(safe_dirs, key=str.casefold)
 
-                winner = mount.files.get(key)
-                if winner is None:
-                    continue
-                manifest_match_count += 1
-                served_candidate = DmmServedFile(winner.game_path, file_path, label)
-                if winner.mod == DMM_MERGED_LABEL:
-                    bucket = merged_contributors.setdefault(key, [])
-                    if all(
-                        (item.mod.casefold(), str(item.source).casefold())
-                        != (label.casefold(), str(file_path).casefold())
-                        for item in bucket
+                for filename in sorted(files, key=str.casefold):
+                    if stop_event is not None and stop_event.is_set():
+                        break
+                    walked_entries += 1
+                    if walked_entries > max_walk_entries:
+                        truncated = True
+                        break
+                    file_path = root_path / filename
+                    try:
+                        if file_path.is_symlink() or not file_path.resolve().is_relative_to(target_resolved):
+                            continue
+                        rel_parts = file_path.relative_to(target_dir).parts
+                    except (OSError, ValueError):
+                        continue
+                    inferred = _infer_raw_and_target_game_path(rel_parts, roots_frozen, root_files_frozen)
+                    if not inferred:
+                        continue
+                    raw_game_path, game_path = inferred
+                    recognized_count += 1
+                    key = normalized_game_path(game_path)
+                    label = mod_label(str(file_path), raw_game_path)
+                    if label and label not in seen_labels_in_target:
+                        seen_labels_in_target.append(label)
+                    folder = mod_root_from_source(file_path, raw_game_path) or target_dir
+                    mod_folders.setdefault(label, folder)
+
+                    winner = mount.files.get(key)
+                    if winner is None:
+                        continue
+                    manifest_match_count += 1
+                    served_candidate = DmmServedFile(winner.game_path, file_path, label)
+                    if winner.mod == DMM_MERGED_LABEL:
+                        bucket = merged_contributors.setdefault(key, [])
+                        if all(
+                            (item.mod.casefold(), str(item.source).casefold())
+                            != (label.casefold(), str(file_path).casefold())
+                            for item in bucket
+                        ):
+                            bucket.append(served_candidate)
+                    elif (
+                        str(file_path).casefold() != str(winner.source).casefold()
+                        and label.casefold() != winner.mod.casefold()
                     ):
-                        bucket.append(served_candidate)
-                elif (
-                    str(file_path).casefold() != str(winner.source).casefold()
-                    and label.casefold() != winner.mod.casefold()
-                ):
-                    bucket = overlaps.setdefault(key, [])
-                    if all(
-                        (item.mod.casefold(), str(item.source).casefold())
-                        != (label.casefold(), str(file_path).casefold())
-                        for item in bucket
-                    ):
-                        bucket.append(served_candidate)
-            if truncated or (stop_event is not None and stop_event.is_set()):
+                        bucket = overlaps.setdefault(key, [])
+                        if all(
+                            (item.mod.casefold(), str(item.source).casefold())
+                            != (label.casefold(), str(file_path).casefold())
+                            for item in bucket
+                        ):
+                            bucket.append(served_candidate)
+                if truncated or (stop_event is not None and stop_event.is_set()):
+                    break
+            if truncated:
                 break
 
+        entry_fold = entry_name.casefold()
+        entry_already_served = any(
+            mod_fold == entry_fold or mod_fold.startswith(entry_fold + "/")
+            for mod_fold in mounted_mod_folds
+        )
         if (
             mount.serving
             and active_browser_mods
             and recognized_count > 0
             and manifest_match_count == 0
+            and not entry_already_served
             and not truncated
             and not (stop_event is not None and stop_event.is_set())
         ):
