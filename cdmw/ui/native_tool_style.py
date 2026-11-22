@@ -343,6 +343,11 @@ _NATIVE_TOOL_QSS = """
         background: {accent_soft};
         border-color: {accent};
     }}
+    /* Create New Item's effect toolbar keeps its eight icon buttons on one row. */
+    QPushButton[effectToolbarButton="true"],
+    QPushButton[effectToolbarButton="true"]:checked {{
+        padding: 3px 5px;
+    }}
     QPushButton#EditorPrimaryButton,
     QPushButton[primaryAction="true"] {{
         color: {accent_text};
