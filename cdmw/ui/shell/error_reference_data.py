@@ -8266,7 +8266,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive cache maintenance failed: {exception}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": 79
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": 81
     }
   },
   {
@@ -8611,14 +8611,6 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/extraction.py": 491
-    }
-  },
-  {
-    "area": "archive",
-    "message": "Archive generation is outside the v2 cache family.",
-    "recovery": "stale",
-    "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 69
     }
   },
   {
@@ -9284,7 +9276,7 @@ MESSAGE_REFERENCE = [
     "message": "Atomic JSON destination has no parent directory.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 858
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 790
     }
   },
   {
@@ -11356,7 +11348,7 @@ MESSAGE_REFERENCE = [
     "message": "JSON file is empty: {path}",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 740
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 659
     }
   },
   {
@@ -14952,7 +14944,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive cache pointer does not name a generation of this cache.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 681
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 600
     }
   },
   {
@@ -15024,7 +15016,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation entry count is inconsistent.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 478
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 397
     }
   },
   {
@@ -15032,7 +15024,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation is incomplete.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 459
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 380
     }
   },
   {
@@ -15040,15 +15032,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive generation manifest does not match its source or pointer.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 471
-    }
-  },
-  {
-    "area": "archive",
-    "message": "The archive generation manifest is empty.",
-    "recovery": "stale",
-    "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 463
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 390
     }
   },
   {
@@ -15056,7 +15040,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive index names a source outside its package root: {text}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 530
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 449
     }
   },
   {
@@ -15064,7 +15048,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive index names a source through a link: {text}",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 536
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 455
     }
   },
   {
@@ -15817,7 +15801,7 @@ MESSAGE_REFERENCE = [
     "message": "The native index entry count does not match its generation manifest.",
     "recovery": "stale",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 226
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": 203
     }
   },
   {
@@ -112257,8 +112241,8 @@ SOURCE_COVERAGE = {
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/WorkerProtocol.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveAnimationReferences.cs": {},
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.cs": {
-    "native_handoff": 18,
-    "native_message": 12
+    "native_handoff": 17,
+    "native_message": 11
   },
   "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveCacheStore.Maintenance.cs": {
     "native_message": 1
