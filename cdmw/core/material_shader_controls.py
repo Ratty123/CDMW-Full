@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
 from cdmw.core.pac_xml_emission import append_emission_parameter
-from cdmw.core.pac_xml_standard_material import find_material_wrappers
+from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
 from cdmw.domain.mesh.shader_controls import (VEIL_LAYER_FIELDS, VEIL_PRE_PATCH_FIELDS, VEIL_LAYERS_KEY, VEIL_LAYER_TRANSFORMS,
                                              VEIL_REPEAT, VEIL_OFFSET, VEIL_ROTATION, veil_layer_inputs, veil_transform_bytes, NEW_ITEM_FAMILIES, EYE_COVER, EYE_COVER_TEXTURE_FIELDS,
                                              BLENDED_SHADERS, ShaderControls, family_for, validate_choices)
@@ -116,9 +116,10 @@ def control_material_sources(text, *, static=False):
                 textures[key] = child.get("_path", "") if child is not None else value
             else:
                 values[key] = value
-        if name.casefold() in result:
+        key = wrapper_key(name)
+        if key in result:
             raise ValueError(f"Ambiguous material binding: {name}")
-        result[name.casefold()] = (shader, values, textures)
+        result[key] = (shader, values, textures)
     return result
 
 
@@ -191,7 +192,7 @@ def equipment_shader_options(text):
         return result
     result = {}
     for wrapper in find_material_wrappers(text):
-        key = wrapper.submesh_name.casefold()
+        key = wrapper_key(wrapper.submesh_name)
         supported = []
         try:
             parameters = _parameter_rows(text[wrapper.start:wrapper.end])
@@ -468,6 +469,7 @@ def rewrite_texture_paths(text, paths):
     missing one is appended as the shader writer appends them. Returns the
     edited XML and the names found.
     """
+    paths = {wrapper_key(name): slots for name, slots in paths.items()}
     variants = material_variant_blocks(text)
     if variants:
         found = set()
@@ -480,7 +482,7 @@ def rewrite_texture_paths(text, paths):
         return text, found
     found, edits = set(), []
     for wrapper in find_material_wrappers(text):
-        key = wrapper.submesh_name.casefold()
+        key = wrapper_key(wrapper.submesh_name)
         if key not in paths:
             continue
         if key in found:
@@ -503,7 +505,9 @@ def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False,
     if len(text) > 16 * 1024 * 1024:
         raise ValueError("Material sidecar exceeds the supported size limit.")
     validate_choices(choices)
-    settings = {name.casefold(): controls for name, controls in choices}
+    settings = {wrapper_key(name): controls for name, controls in choices}
+    if texture_paths is not None:
+        texture_paths = {wrapper_key(name): slots for name, slots in texture_paths.items()}
     variants = () if static else material_variant_blocks(text)
     if variants:
         found = set()
@@ -527,7 +531,7 @@ def rewrite_shader_controls(text, choices, *, static=False, allow_missing=False,
         blocks = [(w.start, w.end, w.submesh_name, w.shader) for w in find_material_wrappers(text)]
     found, edits = set(), []
     for start, end, name, shader in blocks:
-        key = name.casefold()
+        key = wrapper_key(name)
         if key not in settings:
             continue
         if key in found:

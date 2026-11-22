@@ -8208,7 +8208,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid result.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 901
+      "cdmw/services/archive_catalogue_service.py": 1001
     }
   },
   {
@@ -8216,7 +8216,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive backend returned an invalid {kind} payload.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1248
+      "cdmw/services/archive_catalogue_service.py": 1349
     }
   },
   {
@@ -8344,7 +8344,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive catalogue is shutting down.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 739
+      "cdmw/services/archive_catalogue_service.py": 837
     }
   },
   {
@@ -8728,7 +8728,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive lookup query does not belong to the requested session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 399
+      "cdmw/services/archive_catalogue_service.py": 414
     }
   },
   {
@@ -8857,7 +8857,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive operation stopped making progress for five minutes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 214
+      "cdmw/services/archive_catalogue_service.py": 229
     }
   },
   {
@@ -8873,7 +8873,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive page does not match the requested query, range or session.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 881
+      "cdmw/services/archive_catalogue_service.py": 981
     }
   },
   {
@@ -8978,7 +8978,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive preview lookup failed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 595
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 668
     }
   },
   {
@@ -9002,7 +9002,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query could not be retried after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1124
+      "cdmw/services/archive_catalogue_service.py": 1225
     }
   },
   {
@@ -9026,7 +9026,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query operation cannot be safely reconstructed.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1117
+      "cdmw/services/archive_catalogue_service.py": 1218
     }
   },
   {
@@ -9034,7 +9034,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive query token is not available or has expired.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1267
+      "cdmw/services/archive_catalogue_service.py": 1368
     }
   },
   {
@@ -9106,7 +9106,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session could not be reopened after worker restart.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 993
+      "cdmw/services/archive_catalogue_service.py": 1094
     }
   },
   {
@@ -9114,7 +9114,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session fingerprint changed before the request was issued.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1260
+      "cdmw/services/archive_catalogue_service.py": 1361
     }
   },
   {
@@ -9122,7 +9122,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session is not available in the catalogue service.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1258
+      "cdmw/services/archive_catalogue_service.py": 1359
     }
   },
   {
@@ -9138,7 +9138,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive session reopen could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1028
+      "cdmw/services/archive_catalogue_service.py": 1129
     }
   },
   {
@@ -9170,7 +9170,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive sources changed while the worker was restarting; stale queries were not retried.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1044
+      "cdmw/services/archive_catalogue_service.py": 1145
     }
   },
   {
@@ -9178,7 +9178,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive sources contain conflicting versions of the same dependency.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 136
+      "cdmw/services/mesh_archive_results.py": 145
     }
   },
   {
@@ -9378,7 +9378,7 @@ MESSAGE_REFERENCE = [
     "message": "Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 510
+      "cdmw/services/archive_catalogue_service.py": 527
     }
   },
   {
@@ -9427,7 +9427,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_audio.py": 76,
-      "cdmw/core/archive_media_preview.py": 585
+      "cdmw/core/archive_media_preview.py": 600
     }
   },
   {
@@ -9772,7 +9772,7 @@ MESSAGE_REFERENCE = [
     "message": "Character preview preparation was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 603
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 676
     }
   },
   {
@@ -10416,7 +10416,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS metadata unavailable: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 368
+      "cdmw/core/archive_preview_result_builder.py": 373
     }
   },
   {
@@ -10440,7 +10440,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM has nothing mounted at run time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/dmm_added_files.py": 106
+      "cdmw/ui/archive_browser/dmm_added_files.py": 264
     }
   },
   {
@@ -10448,7 +10448,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM no longer serves {row.game_path}. Press Find again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/dmm_added_files.py": 170
+      "cdmw/ui/archive_browser/dmm_added_files.py": 143
     }
   },
   {
@@ -10504,7 +10504,7 @@ MESSAGE_REFERENCE = [
     "message": "Decoded preview failed: {exc}",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1740
+      "cdmw/core/archive_preview_result_builder.py": 1745
     }
   },
   {
@@ -10592,7 +10592,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited assets contain conflicting companion files.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 168
+      "cdmw/services/mesh_archive_results.py": 177
     }
   },
   {
@@ -10889,7 +10889,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish texture, material or hairstyle authoring through Build Mod before adding an archive result.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 118
+      "cdmw/services/mesh_archive_results.py": 127
     }
   },
   {
@@ -11345,7 +11345,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name indexing did not produce an available catalogue.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 886,
+      "cdmw/services/archive_catalogue_service.py": 986,
       "cdmw/ui/archive_browser/remote_finder_warmup.py": 507
     }
   },
@@ -11556,7 +11556,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file preview from: {resolved_path} This loose file type cannot be previewed as an image.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 509
+      "cdmw/core/archive_media_preview.py": 524
     }
   },
   {
@@ -11933,7 +11933,7 @@ MESSAGE_REFERENCE = [
     "message": "Model preview fallback",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1709
+      "cdmw/core/archive_preview_result_builder.py": 1714
     }
   },
   {
@@ -11973,7 +11973,7 @@ MESSAGE_REFERENCE = [
     "message": "NPC Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 543
+      "cdmw/services/archive_catalogue_service.py": 560
     }
   },
   {
@@ -11989,7 +11989,7 @@ MESSAGE_REFERENCE = [
     "message": "NPC catalogue was not published.",
     "recovery": "write",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogService.cs": 133
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNpcCatalogService.cs": 148
     }
   },
   {
@@ -12021,7 +12021,7 @@ MESSAGE_REFERENCE = [
     "message": "Native Rejected Texture Candidates: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/archive_preview_native.py": 1168
+      "cdmw/workers/archive_preview_native.py": 1170
     }
   },
   {
@@ -12045,7 +12045,7 @@ MESSAGE_REFERENCE = [
     "message": "Native archive operation failed.",
     "recovery": "internal",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/NativeArchiveCore.cs": 167
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/NativeArchiveCore.cs": 173
     }
   },
   {
@@ -13476,7 +13476,7 @@ MESSAGE_REFERENCE = [
     "message": "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 752
+      "cdmw/core/archive_media_preview.py": 767
     }
   },
   {
@@ -13726,7 +13726,7 @@ MESSAGE_REFERENCE = [
     "message": "Raw bytes",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1754
+      "cdmw/core/archive_preview_result_builder.py": 1759
     }
   },
   {
@@ -13798,7 +13798,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered page request has no query definition.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1134
+      "cdmw/services/archive_catalogue_service.py": 1235
     }
   },
   {
@@ -13806,7 +13806,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query could not be dispatched.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1191
+      "cdmw/services/archive_catalogue_service.py": 1292
     }
   },
   {
@@ -13814,7 +13814,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovered query target has an unsupported payload.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 1180
+      "cdmw/services/archive_catalogue_service.py": 1281
     }
   },
   {
@@ -13838,7 +13838,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery open did not return an archive session.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 858
+      "cdmw/services/archive_catalogue_service.py": 958
     }
   },
   {
@@ -13846,7 +13846,7 @@ MESSAGE_REFERENCE = [
     "message": "Recovery query did not return a query handle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 863
+      "cdmw/services/archive_catalogue_service.py": 963
     }
   },
   {
@@ -14006,7 +14006,7 @@ MESSAGE_REFERENCE = [
     "message": "Reopen every Refit source from Archive Browser to retain its dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 130
+      "cdmw/services/mesh_archive_results.py": 139
     }
   },
   {
@@ -14262,7 +14262,7 @@ MESSAGE_REFERENCE = [
     "message": "Showing raw stored bytes because the decoded preview path failed.",
     "recovery": "preview",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1754
+      "cdmw/core/archive_preview_result_builder.py": 1759
     }
   },
   {
@@ -14670,7 +14670,7 @@ MESSAGE_REFERENCE = [
     "message": "Structure children require an empty query token and package-root hierarchy mode.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 374
+      "cdmw/services/archive_catalogue_service.py": 389
     }
   },
   {
@@ -14934,7 +14934,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/dmm_added_files.py": 182
+      "cdmw/ui/archive_browser/dmm_added_files.py": 351
     }
   },
   {
@@ -14950,7 +14950,7 @@ MESSAGE_REFERENCE = [
     "message": "The action chart could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1258
+      "cdmw/core/archive_preview_result_builder.py": 1263
     }
   },
   {
@@ -15182,7 +15182,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker did not prepare every bounded preview dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 452
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 486
     }
   },
   {
@@ -15190,7 +15190,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker exited before this operation could start.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 761
+      "cdmw/services/archive_catalogue_service.py": 860
     }
   },
   {
@@ -15230,7 +15230,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned invalid prepared preview dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 417
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 451
     }
   },
   {
@@ -15238,7 +15238,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned preview candidates for the wrong entry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 414
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 448
     }
   },
   {
@@ -15439,7 +15439,7 @@ MESSAGE_REFERENCE = [
     "message": "The colour atlas could not be shown: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 706
+      "cdmw/core/archive_preview_result_builder.py": 711
     }
   },
   {
@@ -15479,7 +15479,7 @@ MESSAGE_REFERENCE = [
     "message": "The dependency context belongs to a different version of the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 149
+      "cdmw/services/mesh_archive_results.py": 158
     }
   },
   {
@@ -15543,7 +15543,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited mesh's materials belong to a different source.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 70
+      "cdmw/services/mesh_archive_results.py": 79
     }
   },
   {
@@ -15551,7 +15551,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited mesh's texture package is unavailable. Reopen its source to reload textures.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 56
+      "cdmw/services/mesh_archive_results.py": 65
     }
   },
   {
@@ -15559,7 +15559,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited result belongs to a different archive source.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 127
+      "cdmw/services/mesh_archive_results.py": 136
     }
   },
   {
@@ -15575,7 +15575,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited result exceeds the 1 GiB prepared-file limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 189
+      "cdmw/services/mesh_archive_results.py": 198
     }
   },
   {
@@ -15583,7 +15583,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited result exceeds the 8,192-entry dependency limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 172
+      "cdmw/services/mesh_archive_results.py": 181
     }
   },
   {
@@ -15647,7 +15647,7 @@ MESSAGE_REFERENCE = [
     "message": "The file could not be read as a font or cursor: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1258
+      "cdmw/core/archive_preview_result_builder.py": 1263
     }
   },
   {
@@ -15703,7 +15703,7 @@ MESSAGE_REFERENCE = [
     "message": "The impostor descriptor could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1258
+      "cdmw/core/archive_preview_result_builder.py": 1263
     }
   },
   {
@@ -15807,7 +15807,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed while preparing the archive result; validate it again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 209
+      "cdmw/services/mesh_archive_results.py": 219
     }
   },
   {
@@ -15967,7 +15967,7 @@ MESSAGE_REFERENCE = [
     "message": "The reflection object could not be decoded: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1258
+      "cdmw/core/archive_preview_result_builder.py": 1263
     }
   },
   {
@@ -16087,7 +16087,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader container could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1258
+      "cdmw/core/archive_preview_result_builder.py": 1263
     }
   },
   {
@@ -16119,7 +16119,7 @@ MESSAGE_REFERENCE = [
     "message": "The source dependency context does not contain its mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_archive_results.py": 146
+      "cdmw/services/mesh_archive_results.py": 155
     }
   },
   {
@@ -16169,7 +16169,7 @@ MESSAGE_REFERENCE = [
     "message": "This TGA image could not be decoded for preview: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 170
+      "cdmw/core/archive_preview_result_builder.py": 175
     }
   },
   {
@@ -16177,7 +16177,7 @@ MESSAGE_REFERENCE = [
     "message": "This archive DDS is stored as truncated type 1 data. The image shown here is a padded best-effort preview and may be corrupted, noisy, or incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 392
+      "cdmw/core/archive_preview_result_builder.py": 397
     }
   },
   {
@@ -16193,7 +16193,7 @@ MESSAGE_REFERENCE = [
     "message": "This archive operation was superseded.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 261
+      "cdmw/services/archive_catalogue_service.py": 276
     }
   },
   {
@@ -16202,7 +16202,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/ui/archive_browser/item_set_preview.py": 137,
-      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 278,
+      "cdmw/ui/archive_browser/remote_preview_dependencies.py": 310,
       "cdmw/ui/archive_browser/workers.py": 598
     }
   },
@@ -16291,7 +16291,7 @@ MESSAGE_REFERENCE = [
     "message": "Type 1 DDS: Unsupported Preview",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 392
+      "cdmw/core/archive_preview_result_builder.py": 397
     }
   },
   {
@@ -16707,7 +16707,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual PAT preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1473
+      "cdmw/core/archive_preview_result_builder.py": 1478
     }
   },
   {
@@ -16715,7 +16715,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual model preview failed to recover geometry: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1347
+      "cdmw/core/archive_preview_result_builder.py": 1352
     }
   },
   {
@@ -16723,7 +16723,7 @@ MESSAGE_REFERENCE = [
     "message": "Visual preview is not available for this model format yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_preview_result_builder.py": 1476
+      "cdmw/core/archive_preview_result_builder.py": 1481
     }
   },
   {
@@ -17236,7 +17236,7 @@ MESSAGE_REFERENCE = [
     "message": "compatibility_entry requires one bounded ArchiveEntryDto.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/archive_catalogue_service.py": 649
+      "cdmw/services/archive_catalogue_service.py": 673
     }
   },
   {
@@ -17737,6 +17737,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_model_preview.py": 208,
       "cdmw/core/archive_structured_preview.py": 201,
       "cdmw/ui/archive_browser/attachment_package.py": 447,
+      "cdmw/ui/archive_browser/dmm_added_files.py": 87,
       "cdmw/workers/archive_preview_native.py": 229
     }
   },
@@ -18347,7 +18348,7 @@ MESSAGE_REFERENCE = [
     "message": "pathc:missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/preview_cache.py": 188
+      "cdmw/ui/archive_browser/preview_cache.py": 196
     }
   },
   {
@@ -18446,10 +18447,10 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_accelerator.py": 94,
       "cdmw/core/archive_attachment_iteminfo.py": 38,
       "cdmw/core/archive_format.py": 244,
-      "cdmw/core/archive_media_preview.py": 698,
+      "cdmw/core/archive_media_preview.py": 713,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
-      "cdmw/core/archive_preview_result_builder.py": 1165,
+      "cdmw/core/archive_preview_result_builder.py": 1170,
       "cdmw/core/archive_preview_support.py": 377,
       "cdmw/core/archive_reverse_references.py": 216,
       "cdmw/core/archive_scan_cache.py": 608,
@@ -19431,7 +19432,7 @@ MESSAGE_REFERENCE = [
     "message": "{path_value}:missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/archive_browser/preview_cache.py": 399
+      "cdmw/ui/archive_browser/preview_cache.py": 416
     }
   },
   {
@@ -19503,7 +19504,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.game_path} is not a path inside the folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/archive_browser/dmm_added_files.py": 210
+      "cdmw/ui/archive_browser/dmm_added_files.py": 124
     }
   },
   {
@@ -19775,7 +19776,7 @@ MESSAGE_REFERENCE = [
     "message": "A byte outside the edited values changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 220
+      "cdmw/services/prefab_speed_service.py": 221
     }
   },
   {
@@ -20104,7 +20105,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not read {path}: {exc}",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1124
+      "cdmw/ui/speed_prefabs/workspace.py": 1128
     }
   },
   {
@@ -20320,7 +20321,7 @@ MESSAGE_REFERENCE = [
     "message": "Factors cannot be applied",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1426
+      "cdmw/ui/speed_prefabs/workspace.py": 1437
     }
   },
   {
@@ -20816,7 +20817,7 @@ MESSAGE_REFERENCE = [
     "message": "Not speed values of this prefab: {', '.join(map(str, missing))}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 254
+      "cdmw/services/prefab_speed_service.py": 255
     }
   },
   {
@@ -20864,7 +20865,7 @@ MESSAGE_REFERENCE = [
     "message": "Offset {edit.offset} is not a speed value this prefab holds.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 203
+      "cdmw/services/prefab_speed_service.py": 204
     }
   },
   {
@@ -22003,7 +22004,7 @@ MESSAGE_REFERENCE = [
     "message": "The edited prefab does not read back with the same speed values.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 224
+      "cdmw/services/prefab_speed_service.py": 225
     }
   },
   {
@@ -22035,7 +22036,7 @@ MESSAGE_REFERENCE = [
     "message": "The factor must be between {MIN_SCALE} and {MAX_SCALE}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 177
+      "cdmw/services/prefab_speed_service.py": 178
     }
   },
   {
@@ -22132,7 +22133,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab could not be read: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 192
+      "cdmw/services/prefab_speed_service.py": 193
     }
   },
   {
@@ -22164,7 +22165,7 @@ MESSAGE_REFERENCE = [
     "message": "The prefab search was cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 325
+      "cdmw/services/prefab_speed_service.py": 326
     }
   },
   {
@@ -22340,7 +22341,7 @@ MESSAGE_REFERENCE = [
     "message": "The value at {edit.offset} reads back as {stored}, not {wanted}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 232
+      "cdmw/services/prefab_speed_service.py": 233
     }
   },
   {
@@ -22388,7 +22389,7 @@ MESSAGE_REFERENCE = [
     "message": "These factors cannot be applied: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/speed_prefabs/workspace.py": 1425
+      "cdmw/ui/speed_prefabs/workspace.py": 1436
     }
   },
   {
@@ -22444,7 +22445,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab holds no speed value to scale.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 256
+      "cdmw/services/prefab_speed_service.py": 257
     }
   },
   {
@@ -22476,7 +22477,7 @@ MESSAGE_REFERENCE = [
     "message": "This prefab's values cannot be changed: {state}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 196
+      "cdmw/services/prefab_speed_service.py": 197
     }
   },
   {
@@ -25297,7 +25298,7 @@ MESSAGE_REFERENCE = [
     "message": "{value.member} would change size",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 212
+      "cdmw/services/prefab_speed_service.py": 213
     }
   },
   {
@@ -25305,7 +25306,7 @@ MESSAGE_REFERENCE = [
     "message": "{value.member}: the value is too large for this field.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 208
+      "cdmw/services/prefab_speed_service.py": 209
     }
   },
   {
@@ -25313,7 +25314,7 @@ MESSAGE_REFERENCE = [
     "message": "{what} must be finite numbers.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/prefab_speed_service.py": 171
+      "cdmw/services/prefab_speed_service.py": 172
     }
   },
   {
@@ -27749,7 +27750,7 @@ MESSAGE_REFERENCE = [
     "message": "Another mesh was opened while this model was being prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1179
+      "cdmw/ui/new_item/tab.py": 1198
     }
   },
   {
@@ -27797,7 +27798,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive read failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 436
+      "cdmw/ui/new_item/tab.py": 439
     }
   },
   {
@@ -28488,7 +28489,7 @@ MESSAGE_REFERENCE = [
     "message": "Effect indexing failed: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 300
+      "cdmw/ui/new_item/tab.py": 303
     }
   },
   {
@@ -28963,7 +28964,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid behavior value, range or record structure.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/new_item/item_behavior_editor.py": 132
+      "cdmw/ui/new_item/item_behavior_editor.py": 133
     }
   },
   {
@@ -29707,7 +29708,7 @@ MESSAGE_REFERENCE = [
     "message": "Material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/new_item_shader_controls.py": 71
+      "cdmw/services/new_item_shader_controls.py": 70
     }
   },
   {
@@ -29723,7 +29724,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor changes could not be used: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 1016
+      "cdmw/ui/new_item/controller_model_mixin.py": 1023
     }
   },
   {
@@ -30021,7 +30022,7 @@ MESSAGE_REFERENCE = [
     "message": "No deferred page {index}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 733
+      "cdmw/ui/new_item/tab.py": 736
     }
   },
   {
@@ -30520,7 +30521,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin weights could not be prepared: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 709
+      "cdmw/ui/new_item/controller_model_mixin.py": 716
     }
   },
   {
@@ -30913,7 +30914,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor revision could not be captured safely.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 940,
+      "cdmw/ui/new_item/controller_model_mixin.py": 947,
       "cdmw/ui/new_item/model_import.py": 989
     }
   },
@@ -31034,7 +31035,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue changed. Refresh the archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 152
+      "cdmw/ui/new_item/template_preview_dependencies.py": 155
     }
   },
   {
@@ -31042,7 +31043,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive catalogue is unavailable. Refresh the archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 69
+      "cdmw/ui/new_item/template_preview_dependencies.py": 72
     }
   },
   {
@@ -31050,7 +31051,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 402
+      "cdmw/ui/new_item/tab.py": 405
     }
   },
   {
@@ -31074,7 +31075,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive worker returned incomplete template dependencies.",
     "recovery": "format",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 116
+      "cdmw/ui/new_item/template_preview_dependencies.py": 119
     }
   },
   {
@@ -31082,7 +31083,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives could not be read for a new item. {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 448
+      "cdmw/ui/new_item/tab.py": 451
     }
   },
   {
@@ -31723,7 +31724,7 @@ MESSAGE_REFERENCE = [
     "message": "The placement could not be built: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/controller_model_mixin.py": 862
+      "cdmw/ui/new_item/controller_model_mixin.py": 869
     }
   },
   {
@@ -32045,7 +32046,7 @@ MESSAGE_REFERENCE = [
     "message": "The template archive source changed. Refresh the archives.",
     "recovery": "stale",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 129
+      "cdmw/ui/new_item/template_preview_dependencies.py": 132
     }
   },
   {
@@ -32061,7 +32062,7 @@ MESSAGE_REFERENCE = [
     "message": "The template exceeds the bounded preview component limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 79
+      "cdmw/ui/new_item/template_preview_dependencies.py": 82
     }
   },
   {
@@ -32069,7 +32070,7 @@ MESSAGE_REFERENCE = [
     "message": "The template exceeds the bounded preview dependency limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/new_item/template_preview_dependencies.py": 161
+      "cdmw/ui/new_item/template_preview_dependencies.py": 164
     }
   },
   {
@@ -34190,7 +34191,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1084
+      "cdmw/ui/new_item/tab.py": 1087
     }
   },
   {
@@ -34198,7 +34199,7 @@ MESSAGE_REFERENCE = [
     "message": "{launch.title} could not be continued: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/new_item/tab.py": 1074
+      "cdmw/ui/new_item/tab.py": 1077
     }
   },
   {
@@ -34222,7 +34223,7 @@ MESSAGE_REFERENCE = [
     "message": "{material}: could not encode the {role} texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_template_materials.py": 292
+      "cdmw/services/new_item_template_materials.py": 295
     }
   },
   {
@@ -34607,7 +34608,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.submesh_name}: cannot decode material texture {item.source_texture_path}.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/new_item_template_materials.py": 238
+      "cdmw/services/new_item_template_materials.py": 241
     }
   },
   {
@@ -34615,7 +34616,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.submesh_name}: cannot prepare {purpose}; missing texture {path}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/new_item_template_materials.py": 151
+      "cdmw/services/new_item_template_materials.py": 154
     }
   },
   {
@@ -34623,7 +34624,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.submesh_name}: the layered material could not produce a base colour texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_template_materials.py": 250
+      "cdmw/services/new_item_template_materials.py": 253
     }
   },
   {
@@ -34631,7 +34632,7 @@ MESSAGE_REFERENCE = [
     "message": "{row.submesh_name}: the layered surface maps could not be prepared; check the material's detail masks.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/new_item_template_materials.py": 252
+      "cdmw/services/new_item_template_materials.py": 255
     }
   },
   {
@@ -34780,14 +34781,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "items",
-    "message": "{target} already exists; choose another folder. CDMW does not replace it.",
-    "recovery": "conflict",
-    "sources": {
-      "cdmw/mcp/new_item_advanced.py": 333
-    }
-  },
-  {
-    "area": "items",
     "message": "{target}: source materials for the baked atlas are unavailable: {', '.join(missing)}",
     "recovery": "missing",
     "sources": {
@@ -34927,7 +34920,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous duplicate material parameter: {name}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 217
+      "cdmw/core/material_shader_controls.py": 218
     }
   },
   {
@@ -34935,7 +34928,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous material binding: {name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 120
+      "cdmw/core/material_shader_controls.py": 121
     }
   },
   {
@@ -34943,7 +34936,7 @@ MESSAGE_REFERENCE = [
     "message": "Ambiguous material binding: {wrapper.submesh_name}",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 487
+      "cdmw/core/material_shader_controls.py": 489
     }
   },
   {
@@ -35127,7 +35120,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the material shader.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 371
+      "cdmw/core/material_shader_controls.py": 372
     }
   },
   {
@@ -35135,7 +35128,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the material's parameter block.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 413
+      "cdmw/core/material_shader_controls.py": 414
     }
   },
   {
@@ -35143,7 +35136,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot identify the material's permutation block.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 457
+      "cdmw/core/material_shader_controls.py": 458
     }
   },
   {
@@ -35455,7 +35448,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS cache write failed:",
     "recovery": "write",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 68
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 93
     }
   },
   {
@@ -35463,7 +35456,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS candidate skipped:missing header:",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 56
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 81
     }
   },
   {
@@ -35495,7 +35488,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS read failed:",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 52
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 77
     }
   },
   {
@@ -35679,7 +35672,7 @@ MESSAGE_REFERENCE = [
     "message": "Dye roughness is inactive because the source hair dye alpha is zero. This edit will not enable dye or change its colour.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 176
+      "cdmw/core/material_shader_controls.py": 177
     }
   },
   {
@@ -35711,7 +35704,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires Create New Item texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 308
+      "cdmw/core/material_shader_controls.py": 309
     }
   },
   {
@@ -35719,7 +35712,7 @@ MESSAGE_REFERENCE = [
     "message": "EyeCover requires an explicit {name} binding; its game default uses a face texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 362
+      "cdmw/core/material_shader_controls.py": 363
     }
   },
   {
@@ -35855,7 +35848,7 @@ MESSAGE_REFERENCE = [
     "message": "Glow material bindings were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 305
+      "cdmw/core/pac_xml_standard_material.py": 311
     }
   },
   {
@@ -35863,7 +35856,7 @@ MESSAGE_REFERENCE = [
     "message": "Glow material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 274
+      "cdmw/core/pac_xml_standard_material.py": 280
     }
   },
   {
@@ -36192,7 +36185,7 @@ MESSAGE_REFERENCE = [
     "message": "Material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 504
+      "cdmw/core/material_shader_controls.py": 506
     }
   },
   {
@@ -36697,7 +36690,7 @@ MESSAGE_REFERENCE = [
     "message": "Painted cutouts require owned mask texture preparation.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 365
+      "cdmw/core/material_shader_controls.py": 366
     }
   },
   {
@@ -36993,7 +36986,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilding needs a source material with a base colour texture.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 417
+      "cdmw/core/material_shader_controls.py": 418
     }
   },
   {
@@ -37001,7 +36994,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilding the parameter layout is supported on equipment models only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 380
+      "cdmw/core/material_shader_controls.py": 381
     }
   },
   {
@@ -37169,7 +37162,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader material bindings were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 543
+      "cdmw/core/material_shader_controls.py": 547
     }
   },
   {
@@ -37553,7 +37546,7 @@ MESSAGE_REFERENCE = [
     "message": "Surface overrides must belong to selected translucent materials.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 319
+      "cdmw/core/pac_xml_standard_material.py": 325
     }
   },
   {
@@ -37753,7 +37746,7 @@ MESSAGE_REFERENCE = [
     "message": "The material has no editable parameter vector.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 348
+      "cdmw/core/pac_xml_standard_material.py": 354
     }
   },
   {
@@ -37793,7 +37786,7 @@ MESSAGE_REFERENCE = [
     "message": "The static material has no parameter block.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 241
+      "cdmw/core/material_shader_controls.py": 242
     }
   },
   {
@@ -37809,7 +37802,7 @@ MESSAGE_REFERENCE = [
     "message": "This shader has no known parameter layout to rebuild from.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 410
+      "cdmw/core/material_shader_controls.py": 411
     }
   },
   {
@@ -37825,7 +37818,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency material bindings were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 365
+      "cdmw/core/pac_xml_standard_material.py": 371
     }
   },
   {
@@ -37833,7 +37826,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency material sidecar exceeds the supported size limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 315
+      "cdmw/core/pac_xml_standard_material.py": 321
     }
   },
   {
@@ -37929,7 +37922,15 @@ MESSAGE_REFERENCE = [
     "message": "World-object and equipment shaders use different vertex pipelines.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 153
+      "cdmw/core/material_shader_controls.py": 154
+    }
+  },
+  {
+    "area": "materials",
+    "message": "a larger prepared DDS was not read from its own file",
+    "recovery": "internal",
+    "sources": {
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 193
     }
   },
   {
@@ -37937,7 +37938,23 @@ MESSAGE_REFERENCE = [
     "message": "a plain material needs a base colour texture",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 203
+      "cdmw/core/pac_xml_standard_material.py": 209
+    }
+  },
+  {
+    "area": "materials",
+    "message": "a prepared DDS was written to the cache",
+    "recovery": "internal",
+    "sources": {
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 195
+    }
+  },
+  {
+    "area": "materials",
+    "message": "a replaced DDS kept its old header",
+    "recovery": "format",
+    "sources": {
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 198
     }
   },
   {
@@ -38086,7 +38103,7 @@ MESSAGE_REFERENCE = [
     "message": "no material wrappers were found in the sidecar",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 377
+      "cdmw/core/pac_xml_standard_material.py": 383
     }
   },
   {
@@ -38099,10 +38116,26 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "materials",
+    "message": "prepared DDS header misread",
+    "recovery": "format",
+    "sources": {
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 196
+    }
+  },
+  {
+    "area": "materials",
+    "message": "prepared DDS shares a cache identity",
+    "recovery": "internal",
+    "sources": {
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 186
+    }
+  },
+  {
+    "area": "materials",
     "message": "rejected",
     "recovery": "input",
     "sources": {
-      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 841
+      "native/cdmw_preview_core/src/owners/material_resolution.cpp": 936
     }
   },
   {
@@ -38271,7 +38304,7 @@ MESSAGE_REFERENCE = [
     "message": "translucency needs thickness and extinction in 0..1",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 206
+      "cdmw/core/pac_xml_standard_material.py": 212
     }
   },
   {
@@ -38287,7 +38320,7 @@ MESSAGE_REFERENCE = [
     "message": "{family.label} requires {family.shader} or a compatible plain material with a base colour texture.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 171
+      "cdmw/core/material_shader_controls.py": 172
     }
   },
   {
@@ -38295,7 +38328,7 @@ MESSAGE_REFERENCE = [
     "message": "{field.label}: the owned texture override was not prepared.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 332
+      "cdmw/core/material_shader_controls.py": 333
     }
   },
   {
@@ -38319,7 +38352,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: source parameter type does not match the decoded shader.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 220
+      "cdmw/core/material_shader_controls.py": 221
     }
   },
   {
@@ -38327,7 +38360,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: the source texture binding is incomplete.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/material_shader_controls.py": 231
+      "cdmw/core/material_shader_controls.py": 232
     }
   },
   {
@@ -38463,7 +38496,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: this material has no base colour texture. Convert it to Plain PBR before using translucency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_standard_material.py": 329
+      "cdmw/core/pac_xml_standard_material.py": 335
     }
   },
   {
@@ -38680,7 +38713,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 308,
-      "cdmw/workers/mesh_editor_workers.py": 385
+      "cdmw/workers/mesh_editor_workers.py": 391
     }
   },
   {
@@ -38960,7 +38993,7 @@ MESSAGE_REFERENCE = [
     "message": "A texture-only mod needs edited textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 502
+      "cdmw/workers/mesh_editor_workers.py": 508
     }
   },
   {
@@ -39112,7 +39145,7 @@ MESSAGE_REFERENCE = [
     "message": "An archive result needs a workspace output folder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 534
+      "cdmw/workers/mesh_editor_workers.py": 540
     }
   },
   {
@@ -39193,7 +39226,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_emission.py": 30,
-      "cdmw/services/mesh_translucency.py": 23
+      "cdmw/services/mesh_translucency.py": 24
     }
   },
   {
@@ -39249,7 +39282,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 891
+      "cdmw/workers/mesh_editor_workers.py": 897
     }
   },
   {
@@ -39257,7 +39290,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 563
+      "cdmw/workers/mesh_editor_workers.py": 569
     }
   },
   {
@@ -39321,7 +39354,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 889
+      "cdmw/workers/mesh_editor_workers.py": 895
     }
   },
   {
@@ -40622,7 +40655,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no embedded Mesh Editor host.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 717
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 719
     }
   },
   {
@@ -41473,7 +41506,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose an edited GLB, FBX, or OBJ mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 193
+      "cdmw/workers/mesh_editor_workers.py": 199
     }
   },
   {
@@ -42425,7 +42458,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1273
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1275
     }
   },
   {
@@ -42473,7 +42506,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 959
+      "cdmw/workers/mesh_editor_workers.py": 965
     }
   },
   {
@@ -42481,7 +42514,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 985
+      "cdmw/workers/mesh_editor_workers.py": 991
     }
   },
   {
@@ -42489,7 +42522,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1012
+      "cdmw/workers/mesh_editor_workers.py": 1018
     }
   },
   {
@@ -43073,7 +43106,7 @@ MESSAGE_REFERENCE = [
     "message": "Edited textures are written only by Build Mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 497
+      "cdmw/workers/mesh_editor_workers.py": 503
     }
   },
   {
@@ -43547,7 +43580,7 @@ MESSAGE_REFERENCE = [
     "message": "Export Mesh File cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 385
+      "cdmw/workers/mesh_editor_workers.py": 391
     }
   },
   {
@@ -43556,7 +43589,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 308,
-      "cdmw/workers/mesh_editor_workers.py": 367
+      "cdmw/workers/mesh_editor_workers.py": 373
     }
   },
   {
@@ -43805,7 +43838,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_rust_authoring.py": 9897,
-      "cdmw/workers/mesh_editor_workers.py": 188
+      "cdmw/workers/mesh_editor_workers.py": 194
     }
   },
   {
@@ -43869,7 +43902,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 879
+      "cdmw/workers/mesh_editor_workers.py": 885
     }
   },
   {
@@ -45698,7 +45731,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 543
+      "cdmw/workers/mesh_editor_workers.py": 549
     }
   },
   {
@@ -46462,7 +46495,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement texture request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 422
+      "cdmw/services/mesh_shader_controls.py": 423
     }
   },
   {
@@ -46494,7 +46527,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid shader preset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 333
+      "cdmw/services/mesh_shader_controls.py": 334
     }
   },
   {
@@ -46502,7 +46535,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid shader-control reset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 358
+      "cdmw/services/mesh_shader_controls.py": 359
     }
   },
   {
@@ -46559,7 +46592,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid translucency reset request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 101
+      "cdmw/services/mesh_translucency.py": 103
     }
   },
   {
@@ -46891,7 +46924,7 @@ MESSAGE_REFERENCE = [
     "message": "JSON string contains NUL",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 121
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 122
     }
   },
   {
@@ -47355,7 +47388,7 @@ MESSAGE_REFERENCE = [
     "message": "Layers underneath apply only to Build Mod outputs.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 504
+      "cdmw/workers/mesh_editor_workers.py": 510
     }
   },
   {
@@ -47467,7 +47500,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 877
+      "cdmw/workers/mesh_editor_workers.py": 883
     }
   },
   {
@@ -47812,7 +47845,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1438
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1445
     }
   },
   {
@@ -47836,7 +47869,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor action is not available in the embedded builder yet: {text}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1769
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1794
     }
   },
   {
@@ -47876,7 +47909,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor became ready before hello.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1166
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1168
     }
   },
   {
@@ -47884,7 +47917,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1392,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1399,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 917
     }
   },
@@ -47901,7 +47934,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot open: {preflight_reason}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1277,
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1302,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 190
     }
   },
@@ -47910,7 +47943,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot reopen because the accepted session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 543
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 544
     }
   },
   {
@@ -47918,7 +47951,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cannot retry because the mesh session is closed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 532
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 533
     }
   },
   {
@@ -47951,7 +47984,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not bind the resolved preview textures: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 813,
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 814,
       "cdmw/workers/mesh_rust_editor_workers.py": 177
     }
   },
@@ -47968,7 +48001,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not prepare its shadow session: {message}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1093
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 1095
     }
   },
   {
@@ -47976,7 +48009,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1958
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1965
     }
   },
   {
@@ -47984,7 +48017,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not start because the selected mesh session changed.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 839
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 840
     }
   },
   {
@@ -47992,7 +48025,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1737
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1744
     }
   },
   {
@@ -48000,7 +48033,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1733
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1740
     }
   },
   {
@@ -48008,7 +48041,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor does not support the required embedded child-window contract.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 675
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 677
     }
   },
   {
@@ -48016,7 +48049,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor embedding failed: {reason or 'child window was rejected'}.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 721
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 723
     }
   },
   {
@@ -48065,7 +48098,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor has no valid target mesh.",
     "recovery": "empty",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1658
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1683
     }
   },
   {
@@ -48139,7 +48172,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor preparation was cancelled because the mesh session changed.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 913
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 914
     }
   },
   {
@@ -48147,7 +48180,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1763
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1770
     }
   },
   {
@@ -48171,7 +48204,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor provenance does not match the packaged renderer/backend contract.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 663
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 665
     }
   },
   {
@@ -48187,7 +48220,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1442
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1449
     }
   },
   {
@@ -48204,7 +48237,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor repeated its hello handshake.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 658
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 660
     }
   },
   {
@@ -48212,7 +48245,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1517
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1524
     }
   },
   {
@@ -48508,7 +48541,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable: {reason}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 805
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 806
     }
   },
   {
@@ -48532,7 +48565,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh archive-group packages are supported only for the DMM manager profile",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 482
+      "cdmw/workers/mesh_editor_workers.py": 488
     }
   },
   {
@@ -49133,7 +49166,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 882
+      "cdmw/workers/mesh_editor_workers.py": 888
     }
   },
   {
@@ -49390,7 +49423,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 520
+      "cdmw/workers/mesh_editor_workers.py": 526
     }
   },
   {
@@ -49895,7 +49928,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 553
+      "cdmw/workers/mesh_editor_workers.py": 559
     }
   },
   {
@@ -51296,7 +51329,7 @@ MESSAGE_REFERENCE = [
     "message": "No game skeleton is attached to this model, so there is no rig to export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 235
+      "cdmw/services/mesh_skinning_preflight.py": 261
     }
   },
   {
@@ -51872,7 +51905,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 664
+      "cdmw/workers/mesh_editor_workers.py": 670
     }
   },
   {
@@ -52395,7 +52428,7 @@ MESSAGE_REFERENCE = [
     "message": "PAC export requires a validated mesh snapshot.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 355
+      "cdmw/workers/mesh_editor_workers.py": 361
     }
   },
   {
@@ -54631,7 +54664,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child window could not be attached to CDMW",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 345
+      "cdmw/ui/mesh_editor/rust_host.py": 349
     }
   },
   {
@@ -54639,7 +54672,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview child-window validation failed: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/rust_host.py": 348
+      "cdmw/ui/mesh_editor/rust_host.py": 352
     }
   },
   {
@@ -55292,7 +55325,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt mesh asset is missing: {rebuilt_path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1693
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1718
     }
   },
   {
@@ -55709,7 +55742,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 910
+      "cdmw/workers/mesh_editor_workers.py": 916
     }
   },
   {
@@ -55717,7 +55750,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 611
+      "cdmw/workers/mesh_editor_workers.py": 617
     }
   },
   {
@@ -55773,7 +55806,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 595
+      "cdmw/workers/mesh_editor_workers.py": 601
     }
   },
   {
@@ -55805,7 +55838,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement textures are supported on equipment models only.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 69
+      "cdmw/services/mesh_shader_controls.py": 70
     }
   },
   {
@@ -56709,7 +56742,7 @@ MESSAGE_REFERENCE = [
     "message": "Restore shader controls before applying Translucency to this part.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 21
+      "cdmw/services/mesh_translucency.py": 22
     }
   },
   {
@@ -57101,7 +57134,7 @@ MESSAGE_REFERENCE = [
     "message": "Select all parts sharing this material and use the same shader controls.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 24
+      "cdmw/services/mesh_shader_controls.py": 25
     }
   },
   {
@@ -57109,7 +57142,7 @@ MESSAGE_REFERENCE = [
     "message": "Select all parts sharing this material and use the same translucency settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 27
+      "cdmw/services/mesh_translucency.py": 28
     }
   },
   {
@@ -57133,7 +57166,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one material part for shader controls.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 356
+      "cdmw/services/mesh_shader_controls.py": 357
     }
   },
   {
@@ -57141,7 +57174,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one material part for translucency.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 98
+      "cdmw/services/mesh_translucency.py": 100
     }
   },
   {
@@ -57406,7 +57439,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 470
+      "cdmw/services/mesh_shader_controls.py": 471
     }
   },
   {
@@ -57414,7 +57447,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader material sources are ambiguous.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 41
+      "cdmw/services/mesh_shader_controls.py": 42
     }
   },
   {
@@ -57878,7 +57911,7 @@ MESSAGE_REFERENCE = [
     "message": "Source material information is unavailable; shader experiments are disabled.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 110,
+      "cdmw/services/mesh_shader_controls.py": 111,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs": 103
     }
   },
@@ -58328,7 +58361,7 @@ MESSAGE_REFERENCE = [
     "message": "Surface overrides require translucency on the same part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 25
+      "cdmw/services/mesh_translucency.py": 26
     }
   },
   {
@@ -58499,7 +58532,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture loading failed; the untextured model remains available: {failure_reason}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/shell_bridge.py": 1043
+      "cdmw/ui/mesh_editor/shell_bridge.py": 1068
     }
   },
   {
@@ -58555,7 +58588,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture sides must be powers of two between 4 and 8192; this image is {width}x{height}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 400
+      "cdmw/services/mesh_shader_controls.py": 401
     }
   },
   {
@@ -58837,7 +58870,7 @@ MESSAGE_REFERENCE = [
     "message": "The attached skeleton does not resolve this model's bone palette, so its rig cannot be exported.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 239
+      "cdmw/services/mesh_skinning_preflight.py": 265
     }
   },
   {
@@ -59029,7 +59062,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture file does not exist.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 385
+      "cdmw/services/mesh_shader_controls.py": 386
     }
   },
   {
@@ -59037,7 +59070,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture file exceeds the 256 MiB limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 387
+      "cdmw/services/mesh_shader_controls.py": 388
     }
   },
   {
@@ -59045,7 +59078,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture is not a DDS or a readable image file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 397
+      "cdmw/services/mesh_shader_controls.py": 398
     }
   },
   {
@@ -59270,7 +59303,7 @@ MESSAGE_REFERENCE = [
     "message": "The image could not be encoded as DDS. Choose a DDS file instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 411
+      "cdmw/services/mesh_shader_controls.py": 412
     }
   },
   {
@@ -59278,7 +59311,7 @@ MESSAGE_REFERENCE = [
     "message": "The included item set files have no changes to write",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 663
+      "cdmw/workers/mesh_editor_workers.py": 669
     }
   },
   {
@@ -59318,7 +59351,7 @@ MESSAGE_REFERENCE = [
     "message": "The matching PAC XML is missing. Open this item from the archive to edit translucency.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 42
+      "cdmw/services/mesh_translucency.py": 44
     }
   },
   {
@@ -59326,7 +59359,7 @@ MESSAGE_REFERENCE = [
     "message": "The matching material sidecar is missing or incomplete for: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 83
+      "cdmw/services/mesh_shader_controls.py": 84
     }
   },
   {
@@ -59767,7 +59800,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader mask is unavailable: {path}. Reopen this mesh from Browse Archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 466
+      "cdmw/services/mesh_shader_controls.py": 467
     }
   },
   {
@@ -60203,7 +60236,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 308,
-      "cdmw/workers/mesh_editor_workers.py": 369
+      "cdmw/workers/mesh_editor_workers.py": 375
     }
   },
   {
@@ -60212,7 +60245,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/ui/mesh_editor/tab_reports.py": 308,
-      "cdmw/workers/mesh_editor_workers.py": 379
+      "cdmw/workers/mesh_editor_workers.py": 385
     }
   },
   {
@@ -60252,7 +60285,7 @@ MESSAGE_REFERENCE = [
     "message": "This hair draft requires an updated Hair-capable Rust helper.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 701
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 703
     }
   },
   {
@@ -60644,7 +60677,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency material sources are ambiguous.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 39
+      "cdmw/services/mesh_translucency.py": 41
     }
   },
   {
@@ -60652,7 +60685,7 @@ MESSAGE_REFERENCE = [
     "message": "Translucency requires a PAC and its material sidecar.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_translucency.py": 34
+      "cdmw/services/mesh_translucency.py": 36
     }
   },
   {
@@ -61056,7 +61089,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 739
+      "cdmw/workers/mesh_editor_workers.py": 745
     }
   },
   {
@@ -61232,7 +61265,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported mesh mod manager profile: {manager_profile}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 480
+      "cdmw/workers/mesh_editor_workers.py": 486
     }
   },
   {
@@ -63450,7 +63483,7 @@ MESSAGE_REFERENCE = [
     "message": "expected JSON string",
     "recovery": "input",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 95
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 96
     }
   },
   {
@@ -65043,7 +65076,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON Unicode escape",
     "recovery": "input",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 78
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 79
     }
   },
   {
@@ -65059,7 +65092,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON low surrogate",
     "recovery": "input",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 118
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 119
     }
   },
   {
@@ -65075,7 +65108,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid JSON string escape",
     "recovery": "input",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 125
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 126
     }
   },
   {
@@ -66414,7 +66447,7 @@ MESSAGE_REFERENCE = [
     "recovery": "conflict",
     "sources": {
       "cdmw/services/mesh_service_rebuild.py": 733,
-      "cdmw/workers/mesh_editor_workers.py": 383
+      "cdmw/workers/mesh_editor_workers.py": 389
     }
   },
   {
@@ -66537,7 +66570,7 @@ MESSAGE_REFERENCE = [
     "message": "missing JSON low surrogate",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 115
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 116
     }
   },
   {
@@ -69360,7 +69393,7 @@ MESSAGE_REFERENCE = [
     "message": "preview context component has an unsupported authority",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 555
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 556
     }
   },
   {
@@ -69368,7 +69401,7 @@ MESSAGE_REFERENCE = [
     "message": "preview context component has an unsupported slot",
     "recovery": "unsupported",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 552
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 553
     }
   },
   {
@@ -69376,7 +69409,7 @@ MESSAGE_REFERENCE = [
     "message": "preview context component is missing its archive entry",
     "recovery": "missing",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 549
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 550
     }
   },
   {
@@ -71408,7 +71441,7 @@ MESSAGE_REFERENCE = [
     "message": "the bundled editor was not found",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_editor.py": 328
+      "cdmw/ui/mesh_editor/tab_rust_editor.py": 329
     }
   },
   {
@@ -71760,7 +71793,7 @@ MESSAGE_REFERENCE = [
     "message": "truncated JSON Unicode escape",
     "recovery": "format",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 74
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 75
     }
   },
   {
@@ -71800,7 +71833,7 @@ MESSAGE_REFERENCE = [
     "message": "unescaped control character in JSON string",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 100
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 101
     }
   },
   {
@@ -71880,7 +71913,7 @@ MESSAGE_REFERENCE = [
     "message": "unpaired JSON low surrogate",
     "recovery": "internal",
     "sources": {
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 120
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 121
     }
   },
   {
@@ -72066,7 +72099,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "native/cdmw_mesh_core/src/owners/protocol_types_01.cpp": 191,
-      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 128
+      "native/cdmw_preview_core/src/owners/protocol_json.cpp": 129
     }
   },
   {
@@ -72243,7 +72276,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/mesh_editor/controller.py": 561,
-      "cdmw/workers/mesh_editor_workers.py": 246
+      "cdmw/workers/mesh_editor_workers.py": 252
     }
   },
   {
@@ -72331,7 +72364,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 770
+      "cdmw/workers/mesh_editor_workers.py": 776
     }
   },
   {
@@ -72347,7 +72380,7 @@ MESSAGE_REFERENCE = [
     "message": "{error} {absent}: added to {elsewhere}, but this model binds to {rig}. Add the same bones to this variant's skeleton with Add bones… in the Rig row.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 260
+      "cdmw/services/mesh_skinning_preflight.py": 286
     }
   },
   {
@@ -72355,7 +72388,7 @@ MESSAGE_REFERENCE = [
     "message": "{error} {absent}: not in {rig}. To weight to new bones, add them with Add bones… in the Rig row, then import again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_skinning_preflight.py": 263
+      "cdmw/services/mesh_skinning_preflight.py": 289
     }
   },
   {
@@ -72684,7 +72717,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/mesh/shader_controls.py": 426,
-      "cdmw/services/mesh_shader_controls.py": 28
+      "cdmw/services/mesh_shader_controls.py": 29
     }
   },
   {
@@ -72946,6 +72979,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "{target} already exists; choose another folder. CDMW does not replace it.",
+    "recovery": "conflict",
+    "sources": {
+      "cdmw/services/mesh_skinning_preflight.py": 246
+    }
+  },
+  {
+    "area": "mesh",
     "message": "{target} has no textures in the game's material, so it cannot take imported textures. Map {part} to another part, join it with one before exporting, or choose Keep Original Materials.",
     "recovery": "input",
     "sources": {
@@ -72965,7 +73006,7 @@ MESSAGE_REFERENCE = [
     "message": "{texture.entry.path} is already part of this mod; the edited texture cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 658
+      "cdmw/workers/mesh_editor_workers.py": 664
     }
   },
   {
@@ -73285,7 +73326,7 @@ MESSAGE_REFERENCE = [
     "message": "A part operation cannot be read back: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_mod_base.py": 205
+      "cdmw/services/dmm_mod_base.py": 207
     }
   },
   {
@@ -74330,7 +74371,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not know DMM's folder yet. Give dmm_folder: the folder that contains DMM.exe.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 359
+      "cdmw/mcp/game_table_tools.py": 362
     }
   },
   {
@@ -76026,7 +76067,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not write the list: {error}",
     "recovery": "write",
     "sources": {
-      "cdmw/ui/npc_finder/dialog.py": 762
+      "cdmw/ui/npc_finder/dialog.py": 768
     }
   },
   {
@@ -76482,7 +76523,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's runtime manifest cannot be read: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 258
+      "cdmw/services/dmm_runtime_mount.py": 351
     }
   },
   {
@@ -76490,7 +76531,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's runtime manifest has no build line.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 191
+      "cdmw/services/dmm_runtime_mount.py": 223
     }
   },
   {
@@ -76498,7 +76539,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's runtime manifest has no dmm-runtime line.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 189
+      "cdmw/services/dmm_runtime_mount.py": 221
     }
   },
   {
@@ -76506,7 +76547,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM's runtime manifest is version {version}; CDMW reads version {SUPPORTED_MANIFEST_VERSION}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 161
+      "cdmw/services/dmm_runtime_mount.py": 193
     }
   },
   {
@@ -78208,7 +78249,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid cutout mip payload size.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/transparency_masks.py": 281
+      "cdmw/services/transparency_masks.py": 282
     }
   },
   {
@@ -78713,7 +78754,7 @@ MESSAGE_REFERENCE = [
     "message": "Item group {row.name} already lists item {item}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_mod_base.py": 183
+      "cdmw/services/dmm_mod_base.py": 185
     }
   },
   {
@@ -79331,7 +79372,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} has no exe size.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 171
+      "cdmw/services/dmm_runtime_mount.py": 203
     }
   },
   {
@@ -79339,7 +79380,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} has no version number.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 159
+      "cdmw/services/dmm_runtime_mount.py": 191
     }
   },
   {
@@ -79347,7 +79388,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} is not a build line.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 166
+      "cdmw/services/dmm_runtime_mount.py": 198
     }
   },
   {
@@ -79355,7 +79396,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} is not a file line.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 177
+      "cdmw/services/dmm_runtime_mount.py": 209
     }
   },
   {
@@ -79363,7 +79404,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} is not the dmm-runtime version line.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 155
+      "cdmw/services/dmm_runtime_mount.py": 187
     }
   },
   {
@@ -79371,7 +79412,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} lists a file before the build line.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 175
+      "cdmw/services/dmm_runtime_mount.py": 207
     }
   },
   {
@@ -79379,7 +79420,7 @@ MESSAGE_REFERENCE = [
     "message": "Manifest line {number} names an invalid game path.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 181
+      "cdmw/services/dmm_runtime_mount.py": 213
     }
   },
   {
@@ -81342,7 +81383,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {name} has no prefab in this item export; refusing to copy another mod's registration.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_part_table.py": 33
+      "cdmw/services/dmm_part_table.py": 34
     }
   },
   {
@@ -81350,7 +81391,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {record.stem} has no prefab in this mod; refusing to register another mod's part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_mod_base.py": 208
+      "cdmw/services/dmm_mod_base.py": 210
     }
   },
   {
@@ -81687,7 +81728,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic are not available for this item's material shader.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 195
+      "cdmw/core/pac_xml_surface_layer.py": 186
     }
   },
   {
@@ -81695,7 +81736,7 @@ MESSAGE_REFERENCE = [
     "message": "Roughness and Metallic found no material texture to write.",
     "recovery": "write",
     "sources": {
-      "cdmw/core/pac_xml_surface_layer.py": 198
+      "cdmw/core/pac_xml_surface_layer.py": 189
     }
   },
   {
@@ -82361,7 +82402,7 @@ MESSAGE_REFERENCE = [
     "message": "Some paths are not in the Files DMM adds list. Use app_dmm_added_files find first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/dmm_mount_tools.py": 77
+      "cdmw/mcp/dmm_mount_tools.py": 79
     }
   },
   {
@@ -83322,7 +83363,7 @@ MESSAGE_REFERENCE = [
     "message": "The cutout encoder did not return BC7_UNORM.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/transparency_masks.py": 273
+      "cdmw/services/transparency_masks.py": 274
     }
   },
   {
@@ -83330,7 +83371,7 @@ MESSAGE_REFERENCE = [
     "message": "The cutout mask texture could not be encoded.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/transparency_masks.py": 270
+      "cdmw/services/transparency_masks.py": 271
     }
   },
   {
@@ -83906,7 +83947,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod's part operations cannot be read back: {exc}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_mod_base.py": 214
+      "cdmw/services/dmm_mod_base.py": 216
     }
   },
   {
@@ -83946,7 +83987,7 @@ MESSAGE_REFERENCE = [
     "message": "The mod's {OPERATIONS_FILE} has a part operation CDMW does not write.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_mod_base.py": 197
+      "cdmw/services/dmm_mod_base.py": 199
     }
   },
   {
@@ -84636,7 +84677,7 @@ MESSAGE_REFERENCE = [
     "message": "The whole-set factor works on one set at a time. Put it back to 1x to change several sets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 848
+      "cdmw/services/animation_speed_service.py": 874
     }
   },
   {
@@ -85348,7 +85389,7 @@ MESSAGE_REFERENCE = [
     "message": "Transparency mask materials were not found: {detail}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/transparency_masks.py": 130
+      "cdmw/services/transparency_masks.py": 131
     }
   },
   {
@@ -85580,7 +85621,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown starting point {key}. Starting points are {', '.join((preset.key for preset in SPEED_PRESETS))}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 1049
+      "cdmw/services/animation_speed_service.py": 1075
     }
   },
   {
@@ -89809,7 +89850,7 @@ MESSAGE_REFERENCE = [
     "message": "{chart} is not in the game archives.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/animation_speed_service.py": 811
+      "cdmw/services/animation_speed_service.py": 837
     }
   },
   {
@@ -90186,7 +90227,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/action_chart_edit_service.py": 973,
-      "cdmw/services/animation_speed_service.py": 1088
+      "cdmw/services/animation_speed_service.py": 1114
     }
   },
   {
@@ -90202,7 +90243,7 @@ MESSAGE_REFERENCE = [
     "message": "{given} is not DMM's folder (the one that contains DMM.exe).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/game_table_tools.py": 355
+      "cdmw/mcp/game_table_tools.py": 358
     }
   },
   {
@@ -90506,7 +90547,7 @@ MESSAGE_REFERENCE = [
     "message": "{manifest} is a link; DMM writes it as a file.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 139
+      "cdmw/services/dmm_runtime_mount.py": 171
     }
   },
   {
@@ -90514,7 +90555,7 @@ MESSAGE_REFERENCE = [
     "message": "{manifest} is unexpectedly large.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/dmm_runtime_mount.py": 141
+      "cdmw/services/dmm_runtime_mount.py": 173
     }
   },
   {
@@ -90834,7 +90875,7 @@ MESSAGE_REFERENCE = [
     "message": "{part.name}: the preview texture is unavailable for the painted transparency mask.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/transparency_masks.py": 164
+      "cdmw/services/transparency_masks.py": 165
     }
   },
   {
@@ -91843,7 +91884,7 @@ MESSAGE_REFERENCE = [
     "message": "{wrapper.submesh_name}: the base colour texture is unavailable for transparency painting.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/transparency_masks.py": 121
+      "cdmw/services/transparency_masks.py": 122
     }
   },
   {
@@ -101736,7 +101777,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid DDS preview dimensions",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/preview/texture_view.py": 287
+      "cdmw/ui/preview/texture_view.py": 302
     }
   },
   {
@@ -106053,6 +106094,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
     "cdmw/workers/mesh_dotnet_material_update_worker.py",
     "native/cdmw_preview_core/src/owners/material_graph_cache.cpp",
+    "native/cdmw_preview_core/src/owners/material_resolution.cpp",
     "tools/check_material_authority_report.py",
     "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/preview_core_material.rs"
   ],
@@ -108148,8 +108190,8 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/names.py": {},
   "cdmw/mcp/new_item_advanced.py": {
     "code": 9,
-    "raise": 25,
-    "report": 4
+    "raise": 24,
+    "report": 3
   },
   "cdmw/mcp/new_item_draft.py": {
     "raise": 2
@@ -109382,7 +109424,7 @@ SOURCE_COVERAGE = {
   "cdmw/services/mesh_skinning_preflight.py": {
     "diagnostic_field": 2,
     "failure": 3,
-    "raise": 18
+    "raise": 19
   },
   "cdmw/services/mesh_texture_sources.py": {
     "report": 1
@@ -109851,8 +109893,10 @@ SOURCE_COVERAGE = {
     "signal": 1
   },
   "cdmw/ui/archive_browser/dmm_added_files.py": {
-    "raise": 3,
-    "report": 3
+    "diagnostic_field": 2,
+    "display": 1,
+    "raise": 4,
+    "report": 4
   },
   "cdmw/ui/archive_browser/edit_in_place.py": {
     "display": 1,
@@ -111887,7 +111931,7 @@ SOURCE_COVERAGE = {
   "cdmw/workers/mesh_editor_export_support.py": {},
   "cdmw/workers/mesh_editor_workers.py": {
     "diagnostic_field": 6,
-    "raise": 39,
+    "raise": 40,
     "signal": 6
   },
   "cdmw/workers/mesh_free_edit_output_worker.py": {
@@ -112354,7 +112398,8 @@ SOURCE_COVERAGE = {
   },
   "native/cdmw_preview_core/src/owners/material_layer_support.cpp": {},
   "native/cdmw_preview_core/src/owners/material_resolution.cpp": {
-    "native_message": 4
+    "native_handoff": 6,
+    "native_message": 9
   },
   "native/cdmw_preview_core/src/owners/material_selection.cpp": {
     "native_message": 9

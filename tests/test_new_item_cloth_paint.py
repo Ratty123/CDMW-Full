@@ -572,6 +572,77 @@ def test_the_imported_model_stays_linked_to_its_own_mesh_editor_document():
     assert len(applied) == 1 and applied[0][1] is ours.standalone_controller
 
 
+def test_real_mesh_documents_view_tracks_linked_document_across_tab_switches():
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QWidget
+    from cdmw.ui.mesh_editor.documents import MeshDocumentsView
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+
+    app = QApplication.instance() or QApplication([])
+
+    class _DocWidget(QWidget):
+        def __init__(self, parent=None, *, finish_accepted=False):
+            super().__init__(parent)
+            self.standalone_controller = SimpleNamespace(active_session_id="")
+            self.standalone_native_host_frame = SimpleNamespace(set_return_action=lambda *args: None)
+            self.standalone_rust_authoring_session = object()
+            self.standalone_rust_finish_accepted = finish_accepted
+            self.standalone_pending_dotnet_topology_request = None
+            self._wait_for_dotnet_export_updates = None
+
+        def open_mesh_session(self, _mesh, *, session_id, **_kw):
+            self.standalone_controller = SimpleNamespace(active_session_id=session_id)
+            return SimpleNamespace(session_id=session_id)
+
+    view = MeshDocumentsView(lambda parent=None: _DocWidget(parent=parent))
+    try:
+        ours = view.documents[0]
+        other = view.add_document()
+        other.standalone_rust_finish_accepted = True
+        view.set_active(0)
+        shown = []
+        shell = SimpleNamespace(
+            mesh_editor_tab=SimpleNamespace(ensure_widget=lambda: view),
+            _activate_tool_widget=lambda _widget: shown.append(view.active),
+        )
+        source = SimpleNamespace(scene=SimpleNamespace(mesh=object()))
+        prepared = SimpleNamespace(
+            mesh=object(), view=SimpleNamespace(session_id="new-item-model:real-tabs"),
+            service=object(), adopted=False,
+        )
+        states, applied = [], []
+        fake = SimpleNamespace(
+            _window=SimpleNamespace(shell=shell), _model_part_editor_source=None,
+            _model_part_editor_controller=None, _model_part_editor_session_id="",
+            _model_part_editor_widget=None, _model_part_editor_documents=None,
+            model_panel=SimpleNamespace(set_part_editor_state=lambda active, message="": states.append(message)),
+            controller=SimpleNamespace(
+                model_import=source, busy=False, model_result=None, _active_variant=None,
+                start_model_editor_session=lambda ready, failed: ready(prepared),
+                start_model_part_edit_apply=lambda *args, **kw: applied.append(args) or True,
+            ),
+        )
+        fake._model_part_editor_is_open = lambda: NewItemStudioTab._model_part_editor_is_open(fake)
+        fake._activate_model_part_editor = lambda: NewItemStudioTab._activate_model_part_editor(fake)
+        fake._return_from_model_part_editor = lambda: None
+        NewItemStudioTab._open_model_part_editor(fake)
+        assert fake._model_part_editor_widget is ours and fake._model_part_editor_documents is view
+        view.set_active(1)
+        assert view.active is other
+        NewItemStudioTab._open_model_part_editor(fake)
+        assert view.active is ours and shown[-1] is ours
+        view.set_active(1)
+        NewItemStudioTab._use_model_part_editor_changes(fake)
+        assert applied == [] and "Finish and return to Create New Item" in states[-1]
+        ours.standalone_rust_finish_accepted = True
+        NewItemStudioTab._use_model_part_editor_changes(fake)
+        assert len(applied) == 1 and applied[0][1] is ours.standalone_controller
+    finally:
+        view.deleteLater()
+        app.processEvents()
+
+
 def test_return_shows_create_new_item_then_uses_the_changes():
     from cdmw.ui.new_item.tab import NewItemStudioTab
     events = []

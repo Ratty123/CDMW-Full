@@ -22,7 +22,7 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
     """Flatten supported layered equipment before the strict glass XML writer."""
     from cdmw.core.material_shader_controls import (BAKED_CONVERSION_SHADERS, equipment_glass_needs_bake, _parameter_rows,
                                                     validate_source, material_variant_blocks)
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
     from cdmw.domain.mesh.shader_controls import preview_factors
 
     variants = material_variant_blocks(text)
@@ -36,12 +36,12 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
             textures.update(baked)
             text = text[:match.start()] + block[:start] + edited + block[end:] + text[match.end():]
         return text, textures
-    settings = dict((name.casefold(), controls) for name, controls in choices)
+    settings = {wrapper_key(name): controls for name, controls in choices}
     selected, absorption = [], {}
     wrappers = find_material_wrappers(text)
-    counts = Counter(row.submesh_name.casefold() for row in wrappers)
+    counts = Counter(wrapper_key(row.submesh_name) for row in wrappers)
     for row in wrappers:
-        name = row.submesh_name.casefold()
+        name = wrapper_key(row.submesh_name)
         controls = settings.get(name)
         if controls is None:
             continue
@@ -78,16 +78,18 @@ def bake_equipment_glass(text, choices, model_path, read_texture, *, on_log=None
 def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
     from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
     from cdmw.core.material_shader_controls import edit_material_variants
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
+
+    settings = {wrapper_key(name): value for name, value in settings.items()}
 
     def bake(fragment):
         selected = [row for row in find_material_wrappers(fragment)
-                    if row.submesh_name.casefold() in settings and (
+                    if wrapper_key(row.submesh_name) in settings and (
                         not row.textures.get("_baseColorTexture")
                         or _is_placeholder_model_texture(row.textures["_baseColorTexture"]))]
-        counts = Counter(row.submesh_name.casefold() for row in selected)
+        counts = Counter(wrapper_key(row.submesh_name) for row in selected)
         for row in selected:
-            if counts[row.submesh_name.casefold()] > 1:
+            if counts[wrapper_key(row.submesh_name)] > 1:
                 raise NewItemPlanError(f"Ambiguous layered material binding: {row.submesh_name}")
         fragment, textures, notes = _bake_template_materials(snapshot, fragment, model_path, selected, settings,
             purpose="translucency", on_log=on_log, on_progress=on_progress, stop_event=stop_event)
@@ -101,10 +103,11 @@ def bake_template_translucency(snapshot, text, model_path, settings, *, on_log=N
 
 def bake_template_skin_glow(snapshot, text, model_path, settings, *, on_log=None, on_progress=None, stop_event=None):
     """Convert skin's diffuse/normal/surface inputs before using equipment emission."""
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
 
+    settings = {wrapper_key(name): value for name, value in settings.items()}
     selected = [row for row in find_material_wrappers(text)
-                if row.submesh_name.casefold() in settings
+                if wrapper_key(row.submesh_name) in settings
                 and row.shader in {"SkinnedMeshSkin", "SkinnedMeshSkin_Ver2"}]
     return _bake_template_materials(snapshot, text, model_path, selected, {}, purpose="glow",
         on_log=on_log, on_progress=on_progress, stop_event=stop_event)
@@ -114,7 +117,7 @@ def _bake_template_materials(snapshot, text, model_path, selected, settings, *, 
                               on_log=None, on_progress=None, stop_event=None):
     from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
     from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
-    from cdmw.core.pac_xml_standard_material import PlainMaterial, rewrite_materials
+    from cdmw.core.pac_xml_standard_material import PlainMaterial, rewrite_materials, wrapper_key
     from cdmw.core.texture_native import native_texture_backend_identity
     from cdmw.services.new_item_variants import xml_path
 
@@ -141,7 +144,7 @@ def _bake_template_materials(snapshot, text, model_path, selected, settings, *, 
 
             report("Reading source textures...")
             material_bindings = tuple(binding for binding in bindings
-                if binding.submesh_name.casefold() == row.submesh_name.casefold()
+                if wrapper_key(binding.submesh_name) == wrapper_key(row.submesh_name)
                 and not _is_placeholder_model_texture(binding.texture_path))
             fingerprints = []
             for path in dict.fromkeys(binding.texture_path for binding in material_bindings):
@@ -177,7 +180,7 @@ def _bake_template_materials(snapshot, text, model_path, selected, settings, *, 
             finally:
                 _BAKE_CACHE_LOCK.release()
             raise_if_cancelled(stop_event)
-            identity = hashlib.sha256(row.submesh_name.casefold().encode() + source_hash).hexdigest()[:12]
+            identity = hashlib.sha256(wrapper_key(row.submesh_name).encode() + source_hash).hexdigest()[:12]
             stem = str(PurePosixPath(model_path.replace("character/model/", "character/texture/")).with_suffix(""))
             paths = {}
             for role, data in maps.items():
@@ -190,7 +193,7 @@ def _bake_template_materials(snapshot, text, model_path, selected, settings, *, 
                 emissive_color=row.value("_emissiveColor") or "#FFFFFFFF",
                 emissive_intensity=float(row.value("_emissiveIntensity") or 1.0),
                 render_flag=int(row.value("_renderSettingFlag")) if row.value("_renderSettingFlag") else None,
-                translucency=settings.get(row.submesh_name.casefold()))
+                translucency=settings.get(wrapper_key(row.submesh_name)))
             notes.append(f"{row.submesh_name}: layered template colours and surface maps baked for {purpose} (up to 2048px); dye colours are fixed in the baked textures.")
             if purpose == "glow":
                 notes.append(f"{row.submesh_name}: skin glow uses an Emissive material; skin-specific subsurface lighting and dynamic skin effects are not retained.")

@@ -4,19 +4,19 @@ import time
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
-from cdmw.core.pac_xml_standard_material import find_material_wrappers
+from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.shader_controls import EYE_COVER, EYE_COVER_TEXTURE_FIELDS
 
 
 def prepare_eye_cover_textures(text, choices, model_path, read_texture, *, stop_event=None, on_log=None):
     """Return private bindings by material offset plus payloads, preserving source maps."""
-    settings = {name.casefold(): controls for name, controls in choices if controls.shader == EYE_COVER.shader}
+    settings = {wrapper_key(name): controls for name, controls in choices if controls.shader == EYE_COVER.shader}
     paths, files = {}, {}
     stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/", 1)
                             .replace("/model/", "/texture/", 1)).with_suffix(""))
     for wrapper in find_material_wrappers(text):
-        key = wrapper.submesh_name.casefold()
+        key = wrapper_key(wrapper.submesh_name)
         if key not in settings:
             continue
         raise_if_cancelled(stop_event)

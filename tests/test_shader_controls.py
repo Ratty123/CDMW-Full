@@ -95,3 +95,21 @@ def field(name, value, kind="Float"):
 
 def choice(shader="SkinnedMeshWing", **values):
     return ShaderControls(shader, tuple((name, (value,) if isinstance(value, (int, float)) else value) for name, value in values.items()))
+
+
+def test_stray_spaces_in_submesh_name_match_shader_control_and_texture_writers():
+    from cdmw.core.material_shader_controls import equipment_shader_options, rewrite_texture_paths
+
+    sidecar = (
+        '<SkinnedMeshPropertyCommon ReflectObjectXMLDataVersion="9"/><ModelPropertyList>'
+        '<ModelProperty Index="0" Version="Reflection"><SkinnedMeshProperty ReflectObjectXMLDataVersion="9">'
+        '<Vector Name="_subMeshResources" IdBase="10" isOverrided="true">'
+        + material(name=" wing_trim ")
+        + '</Vector></SkinnedMeshProperty></ModelProperty></ModelPropertyList>'
+    )
+    assert "wing_trim" in control_material_sources(sidecar)
+    assert "wing_trim" in equipment_shader_options(sidecar)
+    rebound, found_paths = rewrite_texture_paths(sidecar, {"wing_trim": {"_baseColorTexture": "texture/new.dds"}})
+    assert found_paths == {"wing_trim"} and "texture/new.dds" in rebound
+    edited, found = rewrite_shader_controls(rebound, (("wing_trim", choice()),))
+    assert found == {"wing_trim"} and "_materialName=\"SkinnedMeshWing\"" in edited

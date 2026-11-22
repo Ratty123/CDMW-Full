@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from xml.sax.saxutils import escape
 
-from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, find_material_wrappers
+from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, find_material_wrappers, wrapper_key
 
 # IDs and types retained from decoded shipped PAC_XML donors.
 ANIMATION_PARAMETERS = (
@@ -59,10 +59,10 @@ def rewrite_emission_animation(text, settings):
     """Write explicit zeros too, so choosing static cancels a donor's animation."""
     if len(text) > 16 * 1024 * 1024:
         raise PacXmlMaterialError("Glow material sidecar exceeds the supported size limit.")
-    settings = {name.casefold(): value for name, value in settings.items()}
+    settings = {wrapper_key(name): value for name, value in settings.items()}
     found, edits = set(), []
     for wrapper in find_material_wrappers(text):
-        name = wrapper.submesh_name.casefold()
+        name = wrapper_key(wrapper.submesh_name)
         if name not in settings:
             continue
         animation = settings[name]
@@ -93,10 +93,10 @@ def rewrite_rgb_emission(text, settings):
     Keep the intensity texture binding so restored monochrome glow and dependency
     discovery refer to the same resource. The zero base intensity prevents double glow.
     """
-    settings = {name.casefold(): value for name, value in settings.items()}
+    settings = {wrapper_key(name): value for name, value in settings.items()}
     edits, found = [], set()
     for wrapper in find_material_wrappers(text):
-        name = wrapper.submesh_name.casefold()
+        name = wrapper_key(wrapper.submesh_name)
         if name not in settings:
             continue
         rgb, color = settings[name]

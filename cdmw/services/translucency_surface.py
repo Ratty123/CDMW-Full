@@ -6,18 +6,18 @@ from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
 from cdmw.core.material_shader_controls import edit_material_variants
-from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, find_material_wrappers, rewrite_translucency
+from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, find_material_wrappers, rewrite_translucency, wrapper_key
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh.translucency import translucency_surface_values
 
 
 def apply_translucency_surface(text, settings, surfaces, model_path, read_texture, *, stop_event=None):
     """Return rewritten XML and generated maps. Only explicit channels are replaced."""
-    surfaces = {name.casefold(): translucency_surface_values(value) for name, value in surfaces.items()}
+    surfaces = {wrapper_key(name): translucency_surface_values(value) for name, value in surfaces.items()}
     surfaces = {name: value for name, value in surfaces.items() if value is not None}
     if not surfaces:
         return rewrite_translucency(text, settings), {}
-    settings = {name.casefold(): values for name, values in settings.items()}
+    settings = {wrapper_key(name): values for name, values in settings.items()}
     if surfaces.keys() - settings.keys():
         raise ValueError("Surface overrides require translucency on the same part.")
     files, found = {}, set()
@@ -29,7 +29,7 @@ def apply_translucency_surface(text, settings, surfaces, model_path, read_textur
         rows = find_material_wrappers(fragment)
         paths = {}
         for row in rows:
-            name = row.submesh_name.casefold()
+            name = wrapper_key(row.submesh_name)
             if name not in surfaces:
                 continue
             if name in paths:
@@ -44,7 +44,7 @@ def apply_translucency_surface(text, settings, surfaces, model_path, read_textur
             if path not in files:
                 files[path] = _encode_surface(payload, surfaces[name], part_name=row.submesh_name, stop_event=stop_event)
             paths[name] = path
-        present = {row.submesh_name.casefold() for row in rows}
+        present = {wrapper_key(row.submesh_name) for row in rows}
         found.update(present)
         return rewrite_translucency(fragment, {name: values for name, values in settings.items() if name in present},
                                     material_paths=paths), None

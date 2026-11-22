@@ -1256,12 +1256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1257,
+          "line": 1277,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1275,
+          "line": 1295,
           "sink": "set_part_editor_state"
         }
       ]
@@ -1306,12 +1306,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 772,
+          "line": 773,
           "sink": "_create_float_spin"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 780,
+          "line": 781,
           "sink": "_create_float_spin"
         }
       ]
@@ -1341,17 +1341,17 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 211,
+          "line": 212,
           "sink": "setSuffix"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 223,
+          "line": 224,
           "sink": "setSuffix"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 240,
+          "line": 241,
           "sink": "setSuffix"
         }
       ]
@@ -1381,12 +1381,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 663,
+          "line": 664,
           "sink": "_create_int_spin"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 673,
+          "line": 674,
           "sink": "_create_int_spin"
         }
       ]
@@ -3456,7 +3456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 404,
+          "line": 405,
           "sink": "addItem"
         }
       ]
@@ -3496,7 +3496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 407,
+          "line": 408,
           "sink": "addItem"
         }
       ]
@@ -3536,7 +3536,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1091,
+          "line": 1095,
           "sink": "setText"
         }
       ]
@@ -3721,7 +3721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 405,
+          "line": 406,
           "sink": "addItem"
         }
       ]
@@ -3741,7 +3741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 589,
+          "line": 590,
           "sink": "QGroupBox"
         }
       ]
@@ -3916,7 +3916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 406,
+          "line": 407,
           "sink": "addItem"
         }
       ]
@@ -4741,7 +4741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -5346,7 +5346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1174,
+          "line": 1183,
           "sink": "setToolTip"
         }
       ]
@@ -5931,7 +5931,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1340,
+          "line": 1349,
           "sink": "addItem"
         }
       ]
@@ -6201,7 +6201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1188,
+          "line": 1189,
           "sink": "_add_settings_page"
         },
         {
@@ -6856,7 +6856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 115,
+          "line": 117,
           "sink": "setText"
         },
         {
@@ -8491,17 +8491,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -8546,7 +8546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -9126,7 +9126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 739,
+          "line": 740,
           "sink": "QGroupBox"
         }
       ]
@@ -9856,7 +9856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 547,
+          "line": 548,
           "sink": "addItem"
         }
       ]
@@ -11171,7 +11171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 750,
+          "line": 751,
           "sink": "addRow"
         }
       ]
@@ -11961,7 +11961,7 @@
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 23,
+          "line": 24,
           "sink": "ValueError"
         }
       ]
@@ -12366,7 +12366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 692,
+          "line": 693,
           "sink": "addRow"
         }
       ]
@@ -12426,7 +12426,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/shell_idle.py",
-          "line": 46,
+          "line": 47,
           "sink": "on_error"
         }
       ]
@@ -12541,7 +12541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1142,
+          "line": 1152,
           "sink": "set_part_editor_state"
         },
         {
@@ -12586,7 +12586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1179,
+          "line": 1198,
           "sink": "failed"
         }
       ]
@@ -12701,12 +12701,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 162,
+          "line": 163,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1178,
+          "line": 1179,
           "sink": "_add_settings_page"
         },
         {
@@ -13076,7 +13076,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1059,
+          "line": 1063,
           "sink": "setText"
         }
       ]
@@ -13176,7 +13176,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 822,
+          "line": 825,
           "sink": "addButton"
         },
         {
@@ -13221,7 +13221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1264,
+          "line": 1266,
           "sink": "getOpenFileName"
         }
       ]
@@ -13556,7 +13556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 820,
+          "line": 823,
           "sink": "setWindowTitle"
         }
       ]
@@ -13851,7 +13851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1357,
+          "line": 1359,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -13896,7 +13896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13946,7 +13946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13956,7 +13956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -13996,7 +13996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -14286,7 +14286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 440,
+          "line": 441,
           "sink": "setToolTip"
         }
       ]
@@ -14381,7 +14381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 284,
+          "line": 285,
           "sink": "QLabel"
         }
       ]
@@ -14451,7 +14451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 388,
+          "line": 389,
           "sink": "_performance_group"
         }
       ]
@@ -16226,7 +16226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 436,
+          "line": 439,
           "sink": "_append_log"
         }
       ]
@@ -16846,7 +16846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 998,
+          "line": 999,
           "sink": "QGroupBox"
         }
       ]
@@ -18366,7 +18366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 403,
+          "line": 404,
           "sink": "addItem"
         }
       ]
@@ -18451,7 +18451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 466,
+          "line": 467,
           "sink": "addItem"
         }
       ]
@@ -18671,7 +18671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 275,
+          "line": 276,
           "sink": "QCheckBox"
         }
       ]
@@ -19146,7 +19146,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 561,
+          "line": 564,
           "sink": "QPushButton"
         },
         {
@@ -19706,7 +19706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 371,
+          "line": 372,
           "sink": "addItem"
         }
       ]
@@ -19716,7 +19716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 546,
+          "line": 547,
           "sink": "addItem"
         }
       ]
@@ -19726,7 +19726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 510,
+          "line": 511,
           "sink": "addItem"
         }
       ]
@@ -21501,7 +21501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 244,
+          "line": 245,
           "sink": "QCheckBox"
         }
       ]
@@ -23226,7 +23226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -24326,7 +24326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 829,
+          "line": 836,
           "sink": "log"
         }
       ]
@@ -24561,7 +24561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1002,
+          "line": 1003,
           "sink": "QLabel"
         }
       ]
@@ -25041,7 +25041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 327,
+          "line": 331,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -25126,7 +25126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 717,
+          "line": 719,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -25581,7 +25581,7 @@
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 755,
+          "line": 761,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -25891,7 +25891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 498,
+          "line": 499,
           "sink": "_add_performance_row"
         }
       ]
@@ -26956,7 +26956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 478,
+          "line": 479,
           "sink": "_stop_rust_editor_process"
         }
       ]
@@ -26966,12 +26966,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2139,
+          "line": 2147,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2159,
+          "line": 2167,
           "sink": "_set_rust_status"
         }
       ]
@@ -26981,7 +26981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1355,
+          "line": 1357,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -27106,7 +27106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1580,
+          "line": 1594,
           "sink": "setToolTip"
         }
       ]
@@ -27986,7 +27986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 822,
+          "line": 823,
           "sink": "addRow"
         }
       ]
@@ -27996,7 +27996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 815,
+          "line": 816,
           "sink": "addRow"
         }
       ]
@@ -28631,7 +28631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 940,
+          "line": 941,
           "sink": "QLabel"
         }
       ]
@@ -29341,7 +29341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 675,
+          "line": 676,
           "sink": "emit"
         },
         {
@@ -29826,7 +29826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 34,
+          "line": 37,
           "sink": "QPushButton"
         }
       ]
@@ -29911,7 +29911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -29936,7 +29936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 210,
+          "line": 213,
           "sink": "QPushButton"
         }
       ]
@@ -29966,7 +29966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         }
       ]
@@ -30091,17 +30091,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -30296,7 +30296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 670,
+          "line": 677,
           "sink": "progress"
         }
       ]
@@ -30366,7 +30366,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 158,
+          "line": 161,
           "sink": "report"
         }
       ]
@@ -30381,12 +30381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1435,
+          "line": 1446,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1436,
+          "line": 1447,
           "sink": "setText"
         }
       ]
@@ -30466,12 +30466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1435,
+          "line": 1446,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1436,
+          "line": 1447,
           "sink": "setText"
         }
       ]
@@ -30511,7 +30511,7 @@
       "origins": [
         {
           "path": "cdmw/services/animation_speed_service.py",
-          "line": 862,
+          "line": 888,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -30586,7 +30586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 171,
+          "line": 272,
           "sink": "setText"
         }
       ]
@@ -31081,7 +31081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1216,
+          "line": 1236,
           "sink": "set_part_editor_state"
         }
       ]
@@ -32661,7 +32661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 629,
+          "line": 635,
           "sink": "emit"
         }
       ]
@@ -36591,17 +36591,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -36631,7 +36631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1342,
+          "line": 1351,
           "sink": "addItem"
         }
       ]
@@ -36666,7 +36666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -37541,7 +37541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 264,
+          "line": 265,
           "sink": "setToolTip"
         }
       ]
@@ -37551,7 +37551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 261,
+          "line": 262,
           "sink": "setToolTip"
         }
       ]
@@ -37946,7 +37946,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 240,
+          "line": 243,
           "sink": "report"
         }
       ]
@@ -37976,7 +37976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 207,
+          "line": 208,
           "sink": "addItem"
         }
       ]
@@ -38076,7 +38076,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 205,
+          "line": 206,
           "sink": "addItem"
         }
       ]
@@ -38961,7 +38961,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 258,
+          "line": 261,
           "sink": "report"
         }
       ]
@@ -38971,7 +38971,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 260,
+          "line": 263,
           "sink": "report"
         }
       ]
@@ -38981,7 +38981,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 262,
+          "line": 265,
           "sink": "report"
         }
       ]
@@ -39201,7 +39201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 953,
+          "line": 954,
           "sink": "QCheckBox"
         }
       ]
@@ -39211,7 +39211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 954,
+          "line": 955,
           "sink": "QCheckBox"
         }
       ]
@@ -39896,7 +39896,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 563,
+          "line": 566,
           "sink": "QPushButton"
         },
         {
@@ -40061,7 +40061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1101,
+          "line": 1104,
           "sink": "_append_log"
         }
       ]
@@ -40071,7 +40071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1098,
+          "line": 1101,
           "sink": "_append_log"
         }
       ]
@@ -40126,7 +40126,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 729,
+          "line": 730,
           "sink": "addRow"
         }
       ]
@@ -40171,7 +40171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 252,
+          "line": 253,
           "sink": "setToolTip"
         }
       ]
@@ -40191,7 +40191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1173,
+          "line": 1174,
           "sink": "_add_settings_page"
         }
       ]
@@ -40211,7 +40211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 245,
+          "line": 246,
           "sink": "setToolTip"
         }
       ]
@@ -40221,7 +40221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 603,
+          "line": 604,
           "sink": "setToolTip"
         }
       ]
@@ -40371,7 +40371,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 884,
+          "line": 885,
           "sink": "setToolTip"
         }
       ]
@@ -40576,7 +40576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 317,
+          "line": 593,
+          "sink": "_show_dmm_status"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/dmm_added_files.py",
+          "line": 643,
           "sink": "_show_dmm_status"
         }
       ]
@@ -40696,7 +40701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 326,
+          "line": 608,
           "sink": "getExistingDirectory"
         }
       ]
@@ -41181,7 +41186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 114,
+          "line": 211,
           "sink": "QPushButton"
         }
       ]
@@ -41223,6 +41228,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/keyboard.rs",
           "line": 644,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Copying {value_0} file(s)...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/dmm_added_files.py",
+          "line": 621,
+          "sink": "_show_dmm_status"
         }
       ]
     },
@@ -42111,7 +42126,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1124,
+          "line": 1128,
           "sink": "setText"
         }
       ]
@@ -42351,7 +42366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 762,
+          "line": 768,
           "sink": "warning"
         }
       ]
@@ -42616,7 +42631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1043,
+          "line": 1046,
           "sink": "_append_log"
         }
       ]
@@ -42636,7 +42651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 243,
+          "line": 246,
           "sink": "_append_log"
         }
       ]
@@ -42646,7 +42661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 200,
+          "line": 203,
           "sink": "QLabel"
         }
       ]
@@ -42736,17 +42751,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -44201,7 +44216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 523,
+          "line": 524,
           "sink": "setToolTip"
         }
       ]
@@ -44281,7 +44296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 418,
+          "line": 419,
           "sink": "setToolTip"
         }
       ]
@@ -44316,12 +44331,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 408,
+          "line": 409,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 513,
+          "line": 514,
           "sink": "addItem"
         }
       ]
@@ -44956,7 +44971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1264,
+          "line": 1266,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -44971,7 +44986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1264,
+          "line": 1266,
           "sink": "getOpenFileName"
         },
         {
@@ -45171,7 +45186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 163,
+          "line": 264,
           "sink": "_show_rows"
         }
       ]
@@ -45201,12 +45216,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 58,
+          "line": 121,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 227,
+          "line": 143,
           "sink": "ValueError"
         }
       ]
@@ -45301,7 +45316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 195,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -45311,7 +45326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 167,
+          "line": 268,
           "sink": "_show_rows"
         }
       ]
@@ -45896,7 +45911,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 233,
+          "line": 236,
           "sink": "report"
         }
       ]
@@ -46901,7 +46916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 208,
+          "line": 209,
           "sink": "addRow"
         }
       ]
@@ -47866,7 +47881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 764,
+          "line": 765,
           "sink": "addRow"
         }
       ]
@@ -48116,7 +48131,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 635,
+          "line": 636,
           "sink": "QCheckBox"
         }
       ]
@@ -48141,7 +48156,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 633,
+          "line": 634,
           "sink": "QCheckBox"
         }
       ]
@@ -48161,7 +48176,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 634,
+          "line": 635,
           "sink": "QCheckBox"
         }
       ]
@@ -48196,7 +48211,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 642,
+          "line": 643,
           "sink": "QCheckBox"
         }
       ]
@@ -48231,7 +48246,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 641,
+          "line": 642,
           "sink": "QCheckBox"
         }
       ]
@@ -48451,7 +48466,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2002,
+          "line": 2010,
           "sink": "addButton"
         },
         {
@@ -48466,7 +48481,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 823,
+          "line": 826,
           "sink": "addButton"
         },
         {
@@ -48561,7 +48576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1700,
+          "line": 1714,
           "sink": "question"
         }
       ]
@@ -48796,7 +48811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -48806,7 +48821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -50796,7 +50811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 551,
+          "line": 552,
           "sink": "setToolTip"
         }
       ]
@@ -52896,7 +52911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 147,
+          "line": 149,
           "sink": "addAction"
         }
       ]
@@ -53261,7 +53276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1557,
+          "line": 1563,
           "sink": "set_status_message"
         }
       ]
@@ -53486,7 +53501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 300,
+          "line": 303,
           "sink": "_append_log"
         }
       ]
@@ -53901,7 +53916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 324,
+          "line": 328,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -54366,12 +54381,12 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 453,
+          "line": 454,
           "sink": "QCheckBox"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 494,
+          "line": 495,
           "sink": "QCheckBox"
         },
         {
@@ -54401,7 +54416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 390,
+          "line": 391,
           "sink": "QCheckBox"
         }
       ]
@@ -57726,7 +57741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 182,
+          "line": 183,
           "sink": "QPushButton"
         }
       ]
@@ -57826,7 +57841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         },
         {
@@ -57951,7 +57966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 991,
+          "line": 992,
           "sink": "QPushButton"
         },
         {
@@ -58291,7 +58306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 184,
+          "line": 185,
           "sink": "setToolTip"
         }
       ]
@@ -58596,7 +58611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 755,
+          "line": 761,
           "sink": "getSaveFileName"
         }
       ]
@@ -58706,7 +58721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 443,
+          "line": 444,
           "sink": "_add_performance_row"
         }
       ]
@@ -59711,7 +59726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 635,
+          "line": 641,
           "sink": "progress"
         }
       ]
@@ -60981,7 +60996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1426,
+          "line": 1437,
           "sink": "setText"
         }
       ]
@@ -61266,7 +61281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 372,
+          "line": 373,
           "sink": "addItem"
         }
       ]
@@ -61276,7 +61291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 958,
+          "line": 959,
           "sink": "setToolTip"
         }
       ]
@@ -61761,7 +61776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 150,
+          "line": 152,
           "sink": "addAction"
         }
       ]
@@ -61771,7 +61786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 86,
+          "line": 177,
           "sink": "setTitle"
         }
       ]
@@ -61781,7 +61796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 88,
+          "line": 179,
           "sink": "setToolTip"
         }
       ]
@@ -61861,7 +61876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 38,
+          "line": 41,
           "sink": "QLabel"
         }
       ]
@@ -62876,7 +62891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 111,
+          "line": 208,
           "sink": "QPushButton"
         },
         {
@@ -63446,7 +63461,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2001,
+          "line": 2009,
           "sink": "addButton"
         },
         {
@@ -63746,7 +63761,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 313,
+          "line": 314,
           "sink": "python-return:shader_controls_ui_state"
         }
       ]
@@ -63761,7 +63776,7 @@
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 76,
+          "line": 78,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -63896,7 +63911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1195,
+          "line": 1201,
           "sink": "set_status_message"
         }
       ]
@@ -65876,7 +65891,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 636,
+          "line": 637,
           "sink": "QCheckBox"
         }
       ]
@@ -67821,7 +67836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 367,
+          "line": 370,
           "sink": "tr"
         }
       ]
@@ -68066,7 +68081,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1160,
+          "line": 1161,
           "sink": "_add_settings_page"
         },
         {
@@ -68766,7 +68781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 214,
+          "line": 215,
           "sink": "setToolTip"
         }
       ]
@@ -68786,7 +68801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 203,
+          "line": 204,
           "sink": "addRow"
         }
       ]
@@ -68806,7 +68821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 217,
+          "line": 218,
           "sink": "addRow"
         }
       ]
@@ -69171,7 +69186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 189,
+          "line": 193,
           "sink": "setToolTip"
         }
       ]
@@ -72306,7 +72321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 808,
+          "line": 809,
           "sink": "addRow"
         }
       ]
@@ -72326,7 +72341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 871,
+          "line": 872,
           "sink": "addRow"
         }
       ]
@@ -72536,7 +72551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 238,
+          "line": 242,
           "sink": "setAccessibleName"
         },
         {
@@ -72571,7 +72586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1007,
+          "line": 1008,
           "sink": "QLabel"
         }
       ]
@@ -72711,7 +72726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 740,
+          "line": 747,
           "sink": "emit"
         }
       ]
@@ -72851,7 +72866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 731,
+          "line": 738,
           "sink": "log"
         }
       ]
@@ -72881,7 +72896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 511,
+          "line": 512,
           "sink": "addItem"
         }
       ]
@@ -72956,7 +72971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 689,
+          "line": 690,
           "sink": "setToolTip"
         }
       ]
@@ -73076,7 +73091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 255,
+          "line": 256,
           "sink": "addRow"
         }
       ]
@@ -73966,7 +73981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 516,
+          "line": 517,
           "sink": "setToolTip"
         }
       ]
@@ -74891,7 +74906,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 639,
+          "line": 640,
           "sink": "QCheckBox"
         }
       ]
@@ -74906,7 +74921,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 638,
+          "line": 639,
           "sink": "QCheckBox"
         }
       ]
@@ -74931,7 +74946,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 637,
+          "line": 638,
           "sink": "QCheckBox"
         }
       ]
@@ -74956,7 +74971,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 640,
+          "line": 641,
           "sink": "QCheckBox"
         }
       ]
@@ -75116,7 +75131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 486,
+          "line": 487,
           "sink": "_add_performance_row"
         }
       ]
@@ -75126,7 +75141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 380,
+          "line": 381,
           "sink": "_add_performance_row"
         }
       ]
@@ -75136,7 +75151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 554,
+          "line": 555,
           "sink": "_add_performance_row"
         }
       ]
@@ -75146,7 +75161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 394,
+          "line": 395,
           "sink": "_add_performance_row"
         }
       ]
@@ -75156,7 +75171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 536,
+          "line": 537,
           "sink": "_add_performance_row"
         }
       ]
@@ -75166,7 +75181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 566,
+          "line": 567,
           "sink": "_add_performance_row"
         }
       ]
@@ -75176,7 +75191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 431,
+          "line": 432,
           "sink": "_add_performance_row"
         }
       ]
@@ -75186,7 +75201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 443,
+          "line": 444,
           "sink": "_add_performance_row"
         }
       ]
@@ -75196,7 +75211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 457,
+          "line": 458,
           "sink": "_add_performance_row"
         }
       ]
@@ -75206,7 +75221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 498,
+          "line": 499,
           "sink": "_add_performance_row"
         }
       ]
@@ -75356,7 +75371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 183,
+          "line": 184,
           "sink": "QPushButton"
         }
       ]
@@ -75576,7 +75591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 992,
+          "line": 993,
           "sink": "QPushButton"
         },
         {
@@ -75726,7 +75741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1139,
+          "line": 1149,
           "sink": "set_part_editor_state"
         }
       ]
@@ -75746,7 +75761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 798,
+          "line": 805,
           "sink": "emit"
         }
       ]
@@ -75796,7 +75811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 187,
+          "line": 188,
           "sink": "setToolTip"
         }
       ]
@@ -77686,7 +77701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 955,
+          "line": 956,
           "sink": "QCheckBox"
         }
       ]
@@ -80026,7 +80041,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 281,
+          "line": 282,
           "sink": "ValueError"
         }
       ]
@@ -80641,7 +80656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 422,
+          "line": 423,
           "sink": "ValueError"
         }
       ]
@@ -80726,7 +80741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 333,
+          "line": 334,
           "sink": "ValueError"
         }
       ]
@@ -80736,7 +80751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 358,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -80866,7 +80881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 101,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -81096,7 +81111,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 714,
+          "line": 715,
           "sink": "QCheckBox"
         }
       ]
@@ -81131,7 +81146,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 715,
+          "line": 716,
           "sink": "QCheckBox"
         }
       ]
@@ -81146,7 +81161,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 723,
+          "line": 724,
           "sink": "QCheckBox"
         }
       ]
@@ -81161,7 +81176,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 724,
+          "line": 725,
           "sink": "QCheckBox"
         }
       ]
@@ -83521,12 +83536,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         }
       ]
@@ -84211,7 +84226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1183,
+          "line": 1184,
           "sink": "_add_settings_page"
         }
       ]
@@ -84741,7 +84756,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 193,
+          "line": 194,
           "sink": "addRow"
         },
         {
@@ -84866,7 +84881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 194,
+          "line": 195,
           "sink": "QLabel"
         }
       ]
@@ -85076,7 +85091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1160,
+          "line": 1161,
           "sink": "_add_settings_page"
         }
       ]
@@ -85091,12 +85106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1139,
+          "line": 1145,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1146,
+          "line": 1152,
           "sink": "set_status_message"
         }
       ]
@@ -85851,7 +85866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1188,
+          "line": 1189,
           "sink": "_add_settings_page"
         }
       ]
@@ -86836,7 +86851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 411,
+          "line": 414,
           "sink": "setText"
         }
       ]
@@ -86866,7 +86881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 229,
+          "line": 230,
           "sink": "addRow"
         }
       ]
@@ -87601,7 +87616,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 596,
+          "line": 597,
           "sink": "QCheckBox"
         },
         {
@@ -87696,7 +87711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 158,
+          "line": 259,
           "sink": "_show_rows"
         }
       ]
@@ -88931,7 +88946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 237,
+          "line": 238,
           "sink": "addRow"
         }
       ]
@@ -88941,7 +88956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 243,
+          "line": 244,
           "sink": "addRow"
         }
       ]
@@ -88951,7 +88966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 267,
+          "line": 268,
           "sink": "addRow"
         }
       ]
@@ -89496,7 +89511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 509,
+          "line": 510,
           "sink": "addItem"
         }
       ]
@@ -89516,7 +89531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 373,
+          "line": 374,
           "sink": "addItem"
         }
       ]
@@ -89546,7 +89561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 682,
+          "line": 683,
           "sink": "addRow"
         }
       ]
@@ -90046,7 +90061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 467,
+          "line": 468,
           "sink": "addItem"
         }
       ]
@@ -90066,7 +90081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 471,
+          "line": 472,
           "sink": "setToolTip"
         }
       ]
@@ -91526,7 +91541,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 71,
+          "line": 70,
           "sink": "ValueError"
         }
       ]
@@ -91676,7 +91691,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 138,
+          "line": 141,
           "sink": "on_log"
         }
       ]
@@ -91796,7 +91811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 512,
+          "line": 513,
           "sink": "addItem"
         }
       ]
@@ -91871,7 +91886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 669,
+          "line": 670,
           "sink": "setToolTip"
         }
       ]
@@ -92786,12 +92801,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2139,
+          "line": 2147,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2159,
+          "line": 2167,
           "sink": "_set_rust_status"
         }
       ]
@@ -92801,7 +92816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1438,
+          "line": 1445,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -92861,7 +92876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1996,
+          "line": 2004,
           "sink": "setWindowTitle"
         }
       ]
@@ -92986,7 +93001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1788,
+          "line": 1794,
           "sink": "set_status_message"
         }
       ]
@@ -93046,7 +93061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1786,
+          "line": 1792,
           "sink": "set_status_message"
         }
       ]
@@ -93091,7 +93106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1168,
+          "line": 1183,
           "sink": "set_part_editor_state"
         }
       ]
@@ -93101,7 +93116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1205,
+          "line": 1211,
           "sink": "question"
         }
       ]
@@ -93191,7 +93206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1166,
+          "line": 1168,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93201,7 +93216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1392,
+          "line": 1399,
           "sink": "_publish_rust_protocol_status"
         },
         {
@@ -93231,7 +93246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1296,
+          "line": 1302,
           "sink": "set_status_message"
         },
         {
@@ -93261,7 +93276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 543,
+          "line": 544,
           "sink": "_set_rust_status"
         }
       ]
@@ -93271,7 +93286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 532,
+          "line": 533,
           "sink": "_set_rust_status"
         }
       ]
@@ -93281,12 +93296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 1015,
+          "line": 1022,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 1016,
+          "line": 1023,
           "sink": "emit"
         }
       ]
@@ -93296,7 +93311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1173,
+          "line": 1175,
           "sink": "_set_rust_status"
         }
       ]
@@ -93316,7 +93331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1851,
+          "line": 1858,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -93326,7 +93341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1857,
+          "line": 1864,
           "sink": "show_error"
         }
       ]
@@ -93336,7 +93351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1831,
+          "line": 1838,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -93346,7 +93361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1412,
+          "line": 1419,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -93356,7 +93371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1084,
+          "line": 1086,
           "sink": "_set_rust_status"
         }
       ]
@@ -93366,7 +93381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 813,
+          "line": 814,
           "sink": "_set_rust_status"
         },
         {
@@ -93391,12 +93406,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1161,
+          "line": 1171,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1175,
+          "line": 1190,
           "sink": "set_part_editor_state"
         }
       ]
@@ -93406,7 +93421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1093,
+          "line": 1095,
           "sink": "_set_rust_status"
         }
       ]
@@ -93416,7 +93431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1958,
+          "line": 1965,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93426,7 +93441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 839,
+          "line": 840,
           "sink": "_set_rust_status"
         }
       ]
@@ -93436,7 +93451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1737,
+          "line": 1744,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93446,7 +93461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1733,
+          "line": 1740,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93456,7 +93471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 675,
+          "line": 677,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93466,7 +93481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 970,
+          "line": 971,
           "sink": "QLabel"
         }
       ]
@@ -93486,7 +93501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 721,
+          "line": 723,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -93516,17 +93531,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1648,
+          "line": 1655,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1744,
+          "line": 1751,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1825,
+          "line": 1832,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -93591,32 +93606,32 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1677,
+          "line": 1683,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1697,
+          "line": 1703,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1704,
+          "line": 1710,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1724,
+          "line": 1730,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1733,
+          "line": 1739,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1747,
+          "line": 1753,
           "sink": "set_status_message"
         }
       ]
@@ -93636,17 +93651,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1183,
+          "line": 1189,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1203,
+          "line": 1209,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1254,
+          "line": 1260,
           "sink": "set_status_message"
         }
       ]
@@ -93656,12 +93671,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 431,
+          "line": 432,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 786,
+          "line": 787,
           "sink": "_set_rust_status"
         }
       ]
@@ -93671,7 +93686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 602,
+          "line": 603,
           "sink": "_set_rust_status"
         }
       ]
@@ -93681,12 +93696,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1131,
+          "line": 1134,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1164,
+          "line": 1174,
+          "sink": "set_part_editor_state"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 1194,
           "sink": "set_part_editor_state"
         }
       ]
@@ -93696,7 +93716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1322,
+          "line": 1342,
           "sink": "set_part_editor_state"
         }
       ]
@@ -93706,7 +93726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 732,
+          "line": 734,
           "sink": "_set_rust_status"
         }
       ]
@@ -93716,17 +93736,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 369,
+          "line": 370,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 370,
+          "line": 371,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 379,
+          "line": 380,
           "sink": "setToolTip"
         }
       ]
@@ -93736,7 +93756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1221,
+          "line": 1223,
           "sink": "_set_rust_status"
         }
       ]
@@ -93746,7 +93766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1209,
+          "line": 1211,
           "sink": "_set_rust_status"
         }
       ]
@@ -93756,7 +93776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1215,
+          "line": 1217,
           "sink": "_set_rust_status"
         }
       ]
@@ -93766,7 +93786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1310,
+          "line": 1330,
           "sink": "set_part_editor_state"
         }
       ]
@@ -93941,12 +93961,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 913,
+          "line": 914,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 1106,
+          "line": 1108,
           "sink": "_set_rust_status"
         }
       ]
@@ -93986,7 +94006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1763,
+          "line": 1770,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -94016,7 +94036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 663,
+          "line": 665,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -94036,7 +94056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1442,
+          "line": 1449,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -94106,7 +94126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 658,
+          "line": 660,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -94216,12 +94236,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 641,
+          "line": 643,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 642,
+          "line": 644,
           "sink": "_set_rust_status"
         }
       ]
@@ -94296,7 +94316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1790,
+          "line": 1796,
           "sink": "set_status_message"
         }
       ]
@@ -94336,17 +94356,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 369,
+          "line": 370,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 370,
+          "line": 371,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 379,
+          "line": 380,
           "sink": "setToolTip"
         }
       ]
@@ -94356,17 +94376,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 369,
+          "line": 370,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 370,
+          "line": 371,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 379,
+          "line": 380,
           "sink": "setToolTip"
         }
       ]
@@ -94376,7 +94396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 805,
+          "line": 806,
           "sink": "_set_rust_status"
         }
       ]
@@ -94401,7 +94421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1200,
+          "line": 1202,
           "sink": "_set_rust_status"
         }
       ]
@@ -94666,7 +94686,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 276,
+          "line": 280,
           "sink": "tr"
         }
       ]
@@ -94676,7 +94696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 276,
+          "line": 280,
           "sink": "tr"
         }
       ]
@@ -97436,7 +97456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1383,
+          "line": 1392,
           "sink": "setText"
         }
       ]
@@ -98376,7 +98396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -98386,7 +98406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 894,
+          "line": 897,
           "sink": "note"
         }
       ]
@@ -98406,7 +98426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 892,
+          "line": 895,
           "sink": "note"
         }
       ]
@@ -98416,7 +98436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 890,
+          "line": 893,
           "sink": "note"
         }
       ]
@@ -98426,7 +98446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -98436,7 +98456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -98811,7 +98831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 20,
+          "line": 23,
           "sink": "setTitle"
         },
         {
@@ -98876,7 +98896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 171,
+          "line": 173,
           "sink": "setText"
         }
       ]
@@ -100476,17 +100496,17 @@
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 762,
+          "line": 768,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 831,
+          "line": 837,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 848,
+          "line": 856,
           "sink": "information"
         },
         {
@@ -100511,7 +100531,7 @@
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 831,
+          "line": 837,
           "sink": "information"
         }
       ]
@@ -101186,7 +101206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 883,
+          "line": 886,
           "sink": "note"
         }
       ]
@@ -101196,7 +101216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -101206,7 +101226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 881,
+          "line": 884,
           "sink": "note"
         }
       ]
@@ -101216,7 +101236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 881,
+          "line": 884,
           "sink": "note"
         }
       ]
@@ -101636,7 +101656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 394,
+          "line": 395,
           "sink": "_add_performance_row"
         }
       ]
@@ -102036,7 +102056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1089,
+          "line": 1093,
           "sink": "setText"
         }
       ]
@@ -102231,7 +102251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 477,
+          "line": 480,
           "sink": "_append_log"
         }
       ]
@@ -104066,7 +104086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 733,
+          "line": 736,
           "sink": "ValueError"
         }
       ]
@@ -104561,7 +104581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 235,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -104951,7 +104971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1477,
+          "line": 1491,
           "sink": "setToolTip"
         }
       ]
@@ -106691,7 +106711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1454,
+          "line": 1468,
           "sink": "setToolTip"
         }
       ]
@@ -107031,12 +107051,12 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1406,
+          "line": 1417,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1422,
+          "line": 1433,
           "sink": "setText"
         }
       ]
@@ -107886,7 +107906,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 206,
+          "line": 207,
           "sink": "addItem"
         },
         {
@@ -108006,7 +108026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 801,
+          "line": 802,
           "sink": "addRow"
         }
       ]
@@ -108016,7 +108036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 794,
+          "line": 795,
           "sink": "addRow"
         }
       ]
@@ -109551,7 +109571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 545,
+          "line": 546,
           "sink": "addItem"
         }
       ]
@@ -112191,7 +112211,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 113,
+          "line": 210,
           "sink": "QPushButton"
         },
         {
@@ -112681,7 +112701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 379,
+          "line": 380,
           "sink": "setToolTip"
         }
       ]
@@ -112751,17 +112771,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 929,
+          "line": 936,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1208,
+          "line": 1228,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1212,
+          "line": 1232,
           "sink": "set_part_editor_state"
         }
       ]
@@ -113061,7 +113081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 814,
+          "line": 817,
           "sink": "_append_log"
         }
       ]
@@ -113151,7 +113171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1663,
+          "line": 1669,
           "sink": "set_status_message"
         }
       ]
@@ -113271,7 +113291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1393,
+          "line": 1399,
           "sink": "set_status_message"
         }
       ]
@@ -113391,12 +113411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2086,
+          "line": 2094,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 2090,
+          "line": 2098,
           "sink": "_set_rust_status"
         }
       ]
@@ -113436,7 +113456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1560,
+          "line": 1566,
           "sink": "set_status_message"
         }
       ]
@@ -113446,7 +113466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 276,
+          "line": 372,
           "sink": "_show_dmm_status"
         }
       ]
@@ -113921,7 +113941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 454,
+          "line": 455,
           "sink": "setToolTip"
         }
       ]
@@ -114056,7 +114076,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 699,
+          "line": 700,
           "sink": "addRow"
         }
       ]
@@ -115161,7 +115181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -115171,7 +115191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -115216,7 +115236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 369,
+          "line": 370,
           "sink": "_performance_group"
         }
       ]
@@ -116316,7 +116336,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1735,
+          "line": 1741,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -117271,7 +117291,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 706,
+          "line": 707,
           "sink": "addRow"
         }
       ]
@@ -118931,7 +118951,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1168,
+          "line": 1169,
           "sink": "_add_settings_page"
         },
         {
@@ -119316,7 +119336,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1173,
+          "line": 1174,
           "sink": "_add_settings_page"
         },
         {
@@ -119351,7 +119371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 903,
+          "line": 906,
           "sink": "note"
         }
       ]
@@ -119361,7 +119381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 903,
+          "line": 906,
           "sink": "note"
         }
       ]
@@ -120736,7 +120756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 856,
+          "line": 863,
           "sink": "emit"
         }
       ]
@@ -121151,7 +121171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 916,
+          "line": 919,
           "sink": "note"
         }
       ]
@@ -121161,7 +121181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 914,
+          "line": 917,
           "sink": "note"
         }
       ]
@@ -122586,7 +122606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 276,
+          "line": 277,
           "sink": "QCheckBox"
         }
       ]
@@ -122866,7 +122886,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 199,
+          "line": 202,
           "sink": "on_log"
         }
       ]
@@ -123141,12 +123161,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 900,
+          "line": 907,
           "sink": "log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1173,
+          "line": 1188,
           "sink": "set_part_editor_state"
         }
       ]
@@ -123251,7 +123271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 898,
+          "line": 899,
           "sink": "_set_rust_status"
         }
       ]
@@ -123926,7 +123946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 821,
+          "line": 822,
           "sink": "pump_startup_splash"
         }
       ]
@@ -123996,7 +124016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 948,
+          "line": 955,
           "sink": "log"
         },
         {
@@ -124006,7 +124026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1235,
+          "line": 1255,
           "sink": "set_part_editor_state"
         }
       ]
@@ -124016,7 +124036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 454,
+          "line": 457,
           "sink": "_append_log"
         }
       ]
@@ -124026,17 +124046,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 251,
+          "line": 255,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 312,
+          "line": 316,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 855,
+          "line": 856,
           "sink": "show_loading"
         },
         {
@@ -124181,7 +124201,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1415,
+          "line": 1421,
           "sink": "set_status_message"
         }
       ]
@@ -124456,7 +124476,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 380,
+          "line": 381,
           "sink": "_add_performance_row"
         },
         {
@@ -124586,12 +124606,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 99,
+          "line": 196,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 140,
+          "line": 241,
           "sink": "_show_rows"
         }
       ]
@@ -124686,7 +124706,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1726,
+          "line": 1732,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -124786,7 +124806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 878,
+          "line": 879,
           "sink": "addRow"
         }
       ]
@@ -124806,7 +124826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 506,
+          "line": 507,
           "sink": "_performance_group"
         }
       ]
@@ -125356,7 +125376,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 594,
+          "line": 595,
           "sink": "QPushButton"
         },
         {
@@ -125606,7 +125626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 345,
+          "line": 349,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -125616,7 +125636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 340,
+          "line": 344,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -125626,7 +125646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 348,
+          "line": 352,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -125726,7 +125746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 644,
+          "line": 645,
           "sink": "QCheckBox"
         }
       ]
@@ -125791,7 +125811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 331,
+          "line": 335,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -125801,7 +125821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 554,
+          "line": 555,
           "sink": "_add_performance_row"
         }
       ]
@@ -125831,7 +125851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 906,
+          "line": 907,
           "sink": "addRow"
         }
       ]
@@ -125841,7 +125861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 899,
+          "line": 900,
           "sink": "addRow"
         }
       ]
@@ -126001,7 +126021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 566,
+          "line": 567,
           "sink": "_add_performance_row"
         }
       ]
@@ -126251,7 +126271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 779,
+          "line": 780,
           "sink": "addRow"
         }
       ]
@@ -126261,7 +126281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 787,
+          "line": 788,
           "sink": "addRow"
         }
       ]
@@ -126506,7 +126526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 892,
+          "line": 893,
           "sink": "addRow"
         }
       ]
@@ -126516,7 +126536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 771,
+          "line": 772,
           "sink": "addRow"
         }
       ]
@@ -126611,7 +126631,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 616,
+          "line": 617,
           "sink": "addRow"
         }
       ]
@@ -127236,7 +127256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 329,
+          "line": 333,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -127246,7 +127266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 336,
+          "line": 340,
           "sink": "python-return:attach_child_window"
         }
       ]
@@ -127301,7 +127321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 885,
+          "line": 886,
           "sink": "addRow"
         }
       ]
@@ -127571,7 +127591,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 620,
+          "line": 621,
           "sink": "addRow"
         }
       ]
@@ -127581,7 +127601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 672,
+          "line": 673,
           "sink": "addRow"
         }
       ]
@@ -127611,7 +127631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 920,
+          "line": 921,
           "sink": "addRow"
         }
       ]
@@ -127621,7 +127641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 913,
+          "line": 914,
           "sink": "addRow"
         }
       ]
@@ -127631,7 +127651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 927,
+          "line": 928,
           "sink": "addRow"
         }
       ]
@@ -127726,7 +127746,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 612,
+          "line": 613,
           "sink": "addRow"
         }
       ]
@@ -127961,7 +127981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 268,
+          "line": 269,
           "sink": "addRow"
         }
       ]
@@ -127971,7 +127991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 304,
+          "line": 307,
           "sink": "_append_log"
         },
         {
@@ -128126,7 +128146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1221,
+          "line": 1227,
           "sink": "show_empty_state"
         }
       ]
@@ -128181,7 +128201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 495,
+          "line": 496,
           "sink": "setToolTip"
         }
       ]
@@ -128416,7 +128436,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 987,
+          "line": 988,
           "sink": "QGroupBox"
         },
         {
@@ -130481,7 +130501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 652,
+          "line": 659,
           "sink": "emit"
         }
       ]
@@ -130556,7 +130576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 112,
+          "line": 209,
           "sink": "setToolTip"
         }
       ]
@@ -130566,7 +130586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 35,
+          "line": 38,
           "sink": "setToolTip"
         }
       ]
@@ -130666,7 +130686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 207,
+          "line": 210,
           "sink": "QPushButton"
         }
       ]
@@ -131236,7 +131256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 394,
+          "line": 397,
           "sink": "emit"
         }
       ]
@@ -131526,7 +131546,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 142,
+          "line": 145,
           "sink": "report"
         }
       ]
@@ -131691,7 +131711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1630,
+          "line": 1644,
           "sink": "setText"
         }
       ]
@@ -131871,7 +131891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 409,
+          "line": 412,
           "sink": "setText"
         }
       ]
@@ -132331,7 +132351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1405,
+          "line": 1412,
           "sink": "setText"
         }
       ]
@@ -132811,17 +132831,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -132851,7 +132871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 537,
+          "line": 538,
           "sink": "show_loading"
         }
       ]
@@ -132961,7 +132981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1714,
+          "line": 1720,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -133016,7 +133036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1712,
+          "line": 1718,
           "sink": "set_status_message"
         }
       ]
@@ -133651,7 +133671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 345,
+          "line": 346,
           "sink": "QLabel"
         }
       ]
@@ -133661,7 +133681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 391,
+          "line": 392,
           "sink": "setToolTip"
         }
       ]
@@ -133746,7 +133766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1353,
+          "line": 1355,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -135181,7 +135201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1010,
+          "line": 1011,
           "sink": "QPushButton"
         }
       ]
@@ -135631,7 +135651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 843,
+          "line": 844,
           "sink": "pump_startup_splash"
         }
       ]
@@ -135766,7 +135786,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 451,
+          "line": 452,
           "sink": "_performance_group"
         }
       ]
@@ -136126,7 +136146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 173,
+          "line": 174,
           "sink": "QCheckBox"
         }
       ]
@@ -136141,7 +136161,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 536,
+          "line": 537,
           "sink": "_add_performance_row"
         }
       ]
@@ -137301,17 +137321,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -137341,7 +137361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 548,
+          "line": 549,
           "sink": "show_loading"
         }
       ]
@@ -137581,7 +137601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1205,
+          "line": 1211,
           "sink": "question"
         }
       ]
@@ -138766,7 +138786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 69,
+          "line": 70,
           "sink": "ValueError"
         }
       ]
@@ -139811,7 +139831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 931,
+          "line": 932,
           "sink": "QPushButton"
         }
       ]
@@ -141701,12 +141721,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 644,
+          "line": 650,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 565,
+          "line": 566,
           "sink": "_set_rust_status"
         }
       ]
@@ -141906,7 +141926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 932,
+          "line": 933,
           "sink": "setToolTip"
         }
       ]
@@ -142241,7 +142261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 277,
+          "line": 278,
           "sink": "QCheckBox"
         }
       ]
@@ -142426,7 +142446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 21,
+          "line": 22,
           "sink": "ValueError"
         }
       ]
@@ -142761,7 +142781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -142791,7 +142811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 224,
+          "line": 228,
           "sink": "QLabel"
         }
       ]
@@ -143216,7 +143236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 186,
+          "line": 190,
           "sink": "QPushButton"
         }
       ]
@@ -143316,7 +143336,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_template_materials.py",
-          "line": 166,
+          "line": 169,
           "sink": "report"
         }
       ]
@@ -144206,7 +144226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 639,
+          "line": 646,
           "sink": "emit"
         }
       ]
@@ -145426,7 +145446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 411,
+          "line": 412,
           "sink": "setToolTip"
         }
       ]
@@ -145456,7 +145476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 431,
+          "line": 432,
           "sink": "_add_performance_row"
         }
       ]
@@ -145771,7 +145791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1011,
+          "line": 1012,
           "sink": "setToolTip"
         }
       ]
@@ -146011,7 +146031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 949,
+          "line": 950,
           "sink": "QGroupBox"
         },
         {
@@ -146501,17 +146521,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 217,
+          "line": 221,
           "sink": "QGroupBox"
         }
       ]
@@ -146646,7 +146666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 439,
+          "line": 440,
           "sink": "QCheckBox"
         }
       ]
@@ -146741,17 +146761,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 232,
+          "line": 236,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 233,
+          "line": 237,
           "sink": "setWhatsThis"
         },
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 239,
+          "line": 243,
           "sink": "setWhatsThis"
         }
       ]
@@ -148036,7 +148056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1477,
+          "line": 1491,
           "sink": "setToolTip"
         }
       ]
@@ -149741,7 +149761,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1713,
+          "line": 1727,
           "sink": "setText"
         }
       ]
@@ -149871,7 +149891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1520,
+          "line": 1534,
           "sink": "setText"
         }
       ]
@@ -151976,17 +151996,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 237,
+          "line": 243,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1312,
+          "line": 1318,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1671,
+          "line": 1677,
           "sink": "set_status_message"
         }
       ]
@@ -152041,7 +152061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 220,
+          "line": 226,
           "sink": "set_status_message"
         }
       ]
@@ -152051,7 +152071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1795,
+          "line": 1801,
           "sink": "set_status_message"
         }
       ]
@@ -152316,7 +152336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 24,
+          "line": 25,
           "sink": "ValueError"
         }
       ]
@@ -152326,7 +152346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 27,
+          "line": 28,
           "sink": "ValueError"
         }
       ]
@@ -153021,7 +153041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 356,
+          "line": 357,
           "sink": "ValueError"
         }
       ]
@@ -153031,7 +153051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 98,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -155081,7 +155101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 297,
+          "line": 300,
           "sink": "_append_log"
         }
       ]
@@ -156376,17 +156396,17 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1454,
+          "line": 1468,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1461,
+          "line": 1475,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1477,
+          "line": 1491,
           "sink": "setToolTip"
         }
       ]
@@ -156786,7 +156806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 377,
+          "line": 378,
           "sink": "setToolTip"
         }
       ]
@@ -157111,7 +157131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1155,
+          "line": 1156,
           "sink": "_add_settings_page"
         },
         {
@@ -157246,7 +157266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 470,
+          "line": 471,
           "sink": "ValueError"
         }
       ]
@@ -157306,7 +157326,7 @@
         },
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 77,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -157316,7 +157336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 41,
+          "line": 42,
           "sink": "ValueError"
         }
       ]
@@ -157741,7 +157761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 850,
+          "line": 851,
           "sink": "addRow"
         }
       ]
@@ -157751,7 +157771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 864,
+          "line": 865,
           "sink": "addRow"
         }
       ]
@@ -157761,7 +157781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 857,
+          "line": 858,
           "sink": "addRow"
         }
       ]
@@ -157901,7 +157921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 912,
+          "line": 915,
           "sink": "note"
         }
       ]
@@ -157911,7 +157931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 910,
+          "line": 913,
           "sink": "note"
         }
       ]
@@ -157961,7 +157981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1183,
+          "line": 1184,
           "sink": "_add_settings_page"
         },
         {
@@ -158206,7 +158226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 115,
+          "line": 212,
           "sink": "QPushButton"
         }
       ]
@@ -158946,7 +158966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 562,
+          "line": 563,
           "sink": "QCheckBox"
         }
       ]
@@ -159056,7 +159076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 172,
+          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -159326,7 +159346,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 643,
+          "line": 644,
           "sink": "QCheckBox"
         }
       ]
@@ -159381,7 +159401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 24,
+          "line": 27,
           "sink": "QCheckBox"
         }
       ]
@@ -159546,7 +159566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 961,
+          "line": 962,
           "sink": "QCheckBox"
         }
       ]
@@ -159576,7 +159596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 160,
+          "line": 261,
           "sink": "_show_rows"
         }
       ]
@@ -159926,7 +159946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 563,
+          "line": 564,
           "sink": "setToolTip"
         }
       ]
@@ -160011,7 +160031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 962,
+          "line": 963,
           "sink": "setToolTip"
         }
       ]
@@ -160381,7 +160401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 457,
+          "line": 458,
           "sink": "_add_performance_row"
         }
       ]
@@ -161246,12 +161266,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 708,
+          "line": 715,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 709,
+          "line": 716,
           "sink": "emit"
         }
       ]
@@ -162706,7 +162726,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 662,
+          "line": 663,
           "sink": "addRow"
         }
       ]
@@ -163491,7 +163511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 110,
+          "line": 111,
           "sink": "ValueError"
         },
         {
@@ -164071,7 +164091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 829,
+          "line": 830,
           "sink": "addRow"
         }
       ]
@@ -164101,7 +164121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 843,
+          "line": 844,
           "sink": "addRow"
         }
       ]
@@ -164111,7 +164131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 836,
+          "line": 837,
           "sink": "addRow"
         }
       ]
@@ -164156,7 +164176,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1700,
+          "line": 1714,
           "sink": "question"
         }
       ]
@@ -164561,7 +164581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1194,
+          "line": 1214,
           "sink": "set_part_editor_state"
         }
       ]
@@ -165076,7 +165096,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1335,
+          "line": 1344,
           "sink": "addItem"
         }
       ]
@@ -165106,7 +165126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/rust_host.py",
-          "line": 229,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -165471,7 +165491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 271,
+          "line": 272,
           "sink": "QGroupBox"
         }
       ]
@@ -166101,7 +166121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 824,
+          "line": 827,
           "sink": "addButton"
         }
       ]
@@ -166126,7 +166146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 811,
+          "line": 814,
           "sink": "setText"
         }
       ]
@@ -166146,7 +166166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1001,
+          "line": 1004,
           "sink": "setAccessibleText"
         }
       ]
@@ -167411,7 +167431,7 @@
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 25,
+          "line": 26,
           "sink": "ValueError"
         },
         {
@@ -169381,7 +169401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 878,
+          "line": 881,
           "sink": "note"
         }
       ]
@@ -169406,12 +169426,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 878,
+          "line": 881,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]
@@ -169591,7 +169611,7 @@
         },
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 755,
+          "line": 761,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -170541,7 +170561,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1062,
+          "line": 1068,
           "sink": "set_status_message"
         }
       ]
@@ -170881,7 +170901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 400,
+          "line": 401,
           "sink": "ValueError"
         }
       ]
@@ -170891,7 +170911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 679,
+          "line": 680,
           "sink": "setToolTip"
         }
       ]
@@ -171451,7 +171471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1997,
+          "line": 2005,
           "sink": "setText"
         }
       ]
@@ -171461,22 +171481,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1919,
+          "line": 1926,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1920,
+          "line": 1927,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1927,
+          "line": 1934,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1928,
+          "line": 1935,
           "sink": "_set_rust_status"
         }
       ]
@@ -171486,22 +171506,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1919,
+          "line": 1926,
           "sink": "show_error"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1920,
+          "line": 1927,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1927,
+          "line": 1934,
           "sink": "show_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1928,
+          "line": 1935,
           "sink": "_set_rust_status"
         }
       ]
@@ -171511,7 +171531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1997,
+          "line": 2005,
           "sink": "setText"
         }
       ]
@@ -171571,7 +171591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 821,
+          "line": 824,
           "sink": "setText"
         }
       ]
@@ -171676,7 +171696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 256,
+          "line": 351,
           "sink": "_show_dmm_status"
         }
       ]
@@ -171686,7 +171706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 978,
+          "line": 979,
           "sink": "QLabel"
         }
       ]
@@ -171696,22 +171716,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 940,
-          "sink": "RuntimeError"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 942,
-          "sink": "RuntimeError"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 947,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 978,
+          "line": 949,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 954,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 985,
           "sink": "RuntimeError"
         },
         {
@@ -172126,7 +172146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 771,
+          "line": 777,
           "sink": "_invalidate"
         }
       ]
@@ -172196,7 +172216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 402,
+          "line": 405,
           "sink": "_snapshot_failed"
         }
       ]
@@ -172386,7 +172406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 485,
+          "line": 486,
           "sink": "_fail_pending"
         }
       ]
@@ -172471,22 +172491,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 443,
+          "line": 444,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 450,
+          "line": 451,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 458,
+          "line": 459,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 481,
+          "line": 482,
           "sink": "_fail_pending"
         }
       ]
@@ -172496,12 +172516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 447,
+          "line": 448,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 464,
+          "line": 465,
           "sink": "_fail_pending"
         }
       ]
@@ -172571,12 +172591,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 442,
+          "line": 445,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 448,
+          "line": 451,
           "sink": "setText"
         }
       ]
@@ -172666,7 +172686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 239,
+          "line": 265,
           "sink": "ValueError"
         }
       ]
@@ -173031,7 +173051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 385,
+          "line": 386,
           "sink": "ValueError"
         }
       ]
@@ -173041,7 +173061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 387,
+          "line": 388,
           "sink": "ValueError"
         }
       ]
@@ -173051,7 +173071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 397,
+          "line": 398,
           "sink": "ValueError"
         }
       ]
@@ -173356,7 +173376,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 273,
+          "line": 274,
           "sink": "ValueError"
         }
       ]
@@ -173366,7 +173386,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 270,
+          "line": 271,
           "sink": "ValueError"
         }
       ]
@@ -174166,7 +174186,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1469,
+          "line": 1483,
           "sink": "setToolTip"
         }
       ]
@@ -174631,12 +174651,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 409,
+          "line": 410,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 411,
+          "line": 412,
           "sink": "ValueError"
         }
       ]
@@ -175001,7 +175021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1477,
+          "line": 1491,
           "sink": "setToolTip"
         }
       ]
@@ -175011,7 +175031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1454,
+          "line": 1468,
           "sink": "setToolTip"
         }
       ]
@@ -175116,7 +175136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 42,
+          "line": 44,
           "sink": "ValueError"
         }
       ]
@@ -175126,7 +175146,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 83,
+          "line": 84,
           "sink": "ValueError"
         }
       ]
@@ -175511,7 +175531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 804,
+          "line": 811,
           "sink": "emit"
         }
       ]
@@ -175591,7 +175611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1147,
+          "line": 1151,
           "sink": "setText"
         }
       ]
@@ -176006,17 +176026,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 860,
+          "line": 867,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 861,
+          "line": 868,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 862,
+          "line": 869,
           "sink": "emit"
         }
       ]
@@ -176126,7 +176146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1580,
+          "line": 1594,
           "sink": "setToolTip"
         }
       ]
@@ -176791,7 +176811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 642,
+          "line": 649,
           "sink": "emit"
         }
       ]
@@ -177421,7 +177441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 466,
+          "line": 467,
           "sink": "ValueError"
         }
       ]
@@ -178276,7 +178296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 756,
+          "line": 763,
           "sink": "emit"
         }
       ]
@@ -178421,7 +178441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 877,
+          "line": 884,
           "sink": "emit"
         }
       ]
@@ -178466,7 +178486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 171,
+          "line": 172,
           "sink": "addRow"
         }
       ]
@@ -178476,7 +178496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1178,
+          "line": 1179,
           "sink": "_add_settings_page"
         }
       ]
@@ -178706,7 +178726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1425,
+          "line": 1436,
           "sink": "setPlainText"
         }
       ]
@@ -178836,7 +178856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1026,
+          "line": 1027,
           "sink": "QLabel"
         }
       ]
@@ -178926,7 +178946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 730,
+          "line": 731,
           "sink": "QLabel"
         }
       ]
@@ -179556,12 +179576,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 309,
+          "line": 310,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 468,
+          "line": 469,
           "sink": "_fail_pending"
         },
         {
@@ -179681,7 +179701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1817,
+          "line": 1824,
           "sink": "_set_rust_status"
         }
       ]
@@ -180021,7 +180041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 701,
+          "line": 703,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -183461,7 +183481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 39,
+          "line": 41,
           "sink": "ValueError"
         }
       ]
@@ -183471,12 +183491,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 34,
+          "line": 36,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_translucency.py",
-          "line": 76,
+          "line": 78,
           "sink": "python-return:translucency_ui_state"
         }
       ]
@@ -183576,7 +183596,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 130,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -183786,7 +183806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 447,
+          "line": 450,
           "sink": "setText"
         },
         {
@@ -184311,7 +184331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1207,
+          "line": 1216,
           "sink": "setToolTip"
         }
       ]
@@ -187166,7 +187186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -187181,7 +187201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -187241,12 +187261,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1484,
+          "line": 1486,
           "sink": "python-return:_appearance_change_payload"
         }
       ]
@@ -189171,7 +189191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 597,
+          "line": 598,
           "sink": "QCheckBox"
         }
       ]
@@ -189731,7 +189751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 226,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -189741,7 +189761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 236,
+          "line": 237,
           "sink": "setToolTip"
         }
       ]
@@ -189976,7 +189996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1275,
+          "line": 1295,
           "sink": "set_part_editor_state"
         }
       ]
@@ -189986,7 +190006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1275,
+          "line": 1295,
           "sink": "set_part_editor_state"
         }
       ]
@@ -190146,7 +190166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1351,
+          "line": 1353,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -191611,7 +191631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 908,
+          "line": 911,
           "sink": "note"
         }
       ]
@@ -191621,7 +191641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 908,
+          "line": 911,
           "sink": "note"
         }
       ]
@@ -191991,7 +192011,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1224,
+          "line": 1244,
           "sink": "set_part_editor_state"
         }
       ]
@@ -192286,7 +192306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 746,
+          "line": 752,
           "sink": "set_status_message"
         }
       ]
@@ -192461,7 +192481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1469,
+          "line": 1483,
           "sink": "setToolTip"
         }
       ]
@@ -194131,7 +194151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 278,
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -195201,7 +195221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 486,
+          "line": 487,
           "sink": "_add_performance_row"
         }
       ]
@@ -195381,7 +195401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 540,
+          "line": 543,
           "sink": "QGroupBox"
         }
       ]
@@ -195391,7 +195411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1168,
+          "line": 1169,
           "sink": "_add_settings_page"
         }
       ]
@@ -195551,7 +195571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1059,
+          "line": 1063,
           "sink": "setText"
         }
       ]
@@ -195621,7 +195641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1155,
+          "line": 1156,
           "sink": "_add_settings_page"
         }
       ]
@@ -195796,7 +195816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 757,
+          "line": 758,
           "sink": "addRow"
         }
       ]
@@ -197336,7 +197356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/npc_finder/dialog.py",
-          "line": 766,
+          "line": 772,
           "sink": "setText"
         }
       ]
@@ -197776,7 +197796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1999,
+          "line": 2007,
           "sink": "setInformativeText"
         }
       ]
@@ -197806,12 +197826,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1645,
+          "line": 1652,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1822,
+          "line": 1829,
           "sink": "show_result"
         }
       ]
@@ -198176,7 +198196,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 287,
+          "line": 290,
           "sink": "appendPlainText"
         },
         {
@@ -198921,7 +198941,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 547,
+          "line": 548,
           "sink": "addItem"
         }
       ]
@@ -199071,7 +199091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 546,
+          "line": 549,
           "sink": "tinted"
         }
       ]
@@ -199476,7 +199496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1178,
+          "line": 1179,
           "sink": "_add_settings_page"
         }
       ]
@@ -200131,7 +200151,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 546,
+          "line": 547,
           "sink": "addItem"
         }
       ]
@@ -202276,7 +202296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 207,
+          "line": 208,
           "sink": "addItem"
         }
       ]
@@ -202361,7 +202381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 205,
+          "line": 206,
           "sink": "addItem"
         }
       ]
@@ -204091,7 +204111,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1182,
+          "line": 1201,
           "sink": "open_mesh_session"
         },
         {
@@ -204376,7 +204396,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 2293,
+          "line": 2297,
           "sink": "python-return:current_language_code"
         }
       ]
@@ -204706,7 +204726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 315,
+          "line": 316,
           "sink": "python-return:_validate_rust_executable_resolution"
         }
       ]
@@ -206306,7 +206326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1160,
+          "line": 1161,
           "sink": "_add_settings_page"
         }
       ]
@@ -211851,7 +211871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1579,
+          "line": 1593,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -211981,7 +212001,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 206,
+          "line": 207,
           "sink": "addItem"
         },
         {
@@ -212406,7 +212426,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 545,
+          "line": 546,
           "sink": "addItem"
         },
         {
@@ -213341,7 +213361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1168,
+          "line": 1169,
           "sink": "_add_settings_page"
         }
       ]
@@ -213421,7 +213441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1173,
+          "line": 1174,
           "sink": "_add_settings_page"
         }
       ]
@@ -215771,7 +215791,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 924,
+          "line": 925,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -217386,7 +217406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 931,
+          "line": 932,
           "sink": "_register_detachable_tool"
         },
         {
@@ -217411,7 +217431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1155,
+          "line": 1156,
           "sink": "_add_settings_page"
         }
       ]
@@ -217741,12 +217761,12 @@
       "origins": [
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1183,
+          "line": 1184,
           "sink": "_add_settings_page"
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 1206,
+          "line": 1207,
           "sink": "add"
         }
       ]
@@ -219491,7 +219511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 919,
+          "line": 920,
           "sink": "_register_detachable_tool"
         }
       ]
@@ -219521,7 +219541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 328,
+          "line": 329,
           "sink": "python-return:_rust_open_preflight_reason"
         }
       ]
@@ -222171,7 +222191,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 683,
+          "line": 684,
           "sink": "_create_int_spin"
         },
         {
@@ -223086,7 +223106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 188,
+          "line": 289,
           "sink": "QListWidgetItem"
         },
         {
@@ -223716,12 +223736,12 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1154,
+          "line": 1158,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1239,
+          "line": 1248,
           "sink": "setText"
         }
       ]
@@ -225171,12 +225191,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1074,
+          "line": 1077,
           "sink": "_append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1084,
+          "line": 1087,
           "sink": "_append_log"
         }
       ]
@@ -225456,7 +225476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 195,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -226116,7 +226136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
-          "line": 313,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -226786,7 +226806,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1532,
+          "line": 1546,
           "sink": "setText"
         }
       ]
@@ -226881,7 +226901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1170,
+          "line": 1179,
           "sink": "setText"
         }
       ]
@@ -226891,7 +226911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1173,
+          "line": 1182,
           "sink": "setText"
         }
       ]
@@ -227076,7 +227096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1589,
+          "line": 1603,
           "sink": "setText"
         }
       ]
@@ -227086,7 +227106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1591,
+          "line": 1605,
           "sink": "setText"
         }
       ]
@@ -227096,7 +227116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1593,
+          "line": 1607,
           "sink": "setText"
         }
       ]
@@ -227176,7 +227196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1714,
+          "line": 1720,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -227576,7 +227596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 547,
+          "line": 550,
           "sink": "setToolTip"
         }
       ]
@@ -227751,7 +227771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 1714,
+          "line": 1720,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -227771,7 +227791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 886,
+          "line": 889,
           "sink": "note"
         }
       ]
@@ -227906,7 +227926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1420,
+          "line": 1431,
           "sink": "setText"
         }
       ]
@@ -228191,7 +228211,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 260,
+          "line": 286,
           "sink": "ValueError"
         }
       ]
@@ -228201,7 +228221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_skinning_preflight.py",
-          "line": 263,
+          "line": 289,
           "sink": "ValueError"
         }
       ]
@@ -228721,7 +228741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1146,
+          "line": 1150,
           "sink": "setText"
         }
       ]
@@ -228731,7 +228751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1144,
+          "line": 1148,
           "sink": "setText"
         }
       ]
@@ -229351,7 +229371,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1771,
+          "line": 1785,
           "sink": "python-return:_short_member"
         }
       ]
@@ -229516,7 +229536,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1241,
+          "line": 1250,
           "sink": "setText"
         },
         {
@@ -230016,7 +230036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_shader_controls.py",
-          "line": 28,
+          "line": 29,
           "sink": "ValueError"
         }
       ]
@@ -230106,7 +230126,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 121,
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -230116,7 +230136,7 @@
       "origins": [
         {
           "path": "cdmw/services/transparency_masks.py",
-          "line": 164,
+          "line": 165,
           "sink": "ValueError"
         }
       ]
@@ -230236,7 +230256,7 @@
         },
         {
           "path": "cdmw/services/new_item_shader_controls.py",
-          "line": 99,
+          "line": 98,
           "sink": "ValueError"
         },
         {
@@ -230331,7 +230351,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 1947,
+          "line": 1954,
           "sink": "emit"
         },
         {
@@ -230386,7 +230406,7 @@
         },
         {
           "path": "cdmw/ui/speed_prefabs/workspace.py",
-          "line": 1576,
+          "line": 1590,
           "sink": "QTableWidgetItem"
         },
         {
@@ -230696,7 +230716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/dmm_mounted_mods_group.py",
-          "line": 59,
+          "line": 86,
           "sink": "setToolTip"
         }
       ]
@@ -231026,7 +231046,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 1000,
+          "line": 1003,
           "sink": "setToolTip"
         }
       ]

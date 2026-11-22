@@ -272,5 +272,10 @@ internal static class NpcCatalogTests
                 "NPC build failed when cache overwrite hit a sharing violation");
             await freshRoot.DisposeAsync();
         }
+
+        const string expectedUtf8 = "путь/测试/0.pamt";
+        var encodedUtf8 = Encoding.UTF8.GetBytes(expectedUtf8).Concat(new byte[] { 0, 0xFF, (byte)'x' }).ToArray();
+        Check(NativeArchiveCore.DecodeUtf8NullTerminated(encodedUtf8) == expectedUtf8,
+            "NativeArchiveCore did not decode UTF-8 null-terminated diagnostic buffer");
     }
 }

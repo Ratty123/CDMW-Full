@@ -3599,6 +3599,7 @@
     "Copy validation report": "검증 보고서 복사",
     "Copy value": "값 복사",
     "Copy, cut and paste stay with text fields.": "복사, 잘라내기, 붙여넣기는 텍스트 필드용으로 남겨 둡니다.",
+    "Copying {value_0} file(s)...": "파일 {value_0}개를 복사하는 중...",
     "Corpus evidence: ": "말뭉치 증거: ",
     "Correct the selected sections before changing their width": "너비 변경 전에 선택된 섹션 수정",
     "Correction action: {value_0}": "수정 작업: {value_0}",

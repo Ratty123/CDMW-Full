@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -785,3 +786,152 @@ def test_dmm_added_files_copy_tool_normalizes_duplicate_paths(tmp_path, monkeypa
     monkeypatch.setattr("cdmw.mcp.dmm_mount_tools.window", lambda _call: Context.window)
     result = _added_copy(call)
     assert len(result["written"]) == 1 and Path(result["written"][0]).read_bytes() == b"modded mesh"
+
+
+def test_files_dmm_adds_copy_dialog_runs_off_the_ui_thread(tmp_path, monkeypatch):
+    import threading
+    from PySide6.QtWidgets import QFileDialog, QWidget
+    import cdmw.ui.archive_browser.dmm_added_files as dmm_ui
+
+    _qt()
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+
+    class Bridge:
+        current_session = SimpleNamespace(session_id="s", package_root=str(game))
+
+    class Archive(QWidget):
+        archive_remote_bridge = Bridge()
+        shell = None
+
+    archive = Archive()
+    group = dmm_ui.DmmAddedFilesGroup(archive)
+    mount = dmm.read_runtime_mount(game)
+    group._show_rows(dmm_ui.added_files(dict(mount.files), set()), "")
+    group.select_paths([MESH])
+    out_dir = tmp_path / "copied-async"
+    out_dir.mkdir()
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_args: str(out_dir))
+    thread_ids = []
+    real_copy = dmm_ui._copy_added_rows
+
+    def traced_copy(game_root, rows, target_root):
+        thread_ids.append(threading.get_ident())
+        return real_copy(game_root, rows, target_root)
+
+    monkeypatch.setattr(dmm_ui, "_copy_added_rows", traced_copy)
+    ui_thread_id = threading.get_ident()
+    group.copy_selected_dialog()
+    assert _until(lambda: not group._copy_in_progress and group.status_label.text().startswith("Copied "))
+    assert thread_ids and thread_ids[0] != ui_thread_id
+    assert (out_dir / MESH).read_bytes() == b"modded mesh"
+    archive.deleteLater()
+
+
+def test_files_dmm_adds_open_prepares_referenced_vanilla_game_textures(tmp_path, monkeypatch):
+    from PySide6.QtCore import QObject, QTimer, Signal
+    from PySide6.QtWidgets import QWidget
+    from cdmw.domain.archives.catalogue import (
+        ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRef, ArchiveEntryRole, ArchiveLookupResult,
+    )
+    from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
+    from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup, _expected_sidecar_path, added_files
+
+    _qt()
+    game = _game(tmp_path)
+    mods = tmp_path / "mods"
+    xml_path = _expected_sidecar_path(MESH)
+    vanilla_tex = "character/texture/vanilla_shared_d.dds"
+    dmm_sidecar = _write(mods / "Sword" / xml_path, f'<Root><ResourceReferencePath_ITexture _path="{vanilla_tex}"/></Root>'.encode("utf-8"))
+    dmm_pac = _write(mods / "Sword" / MESH, b"modded mesh")
+    _manifest(game, [f"file\t{MESH}\t{dmm_pac}", f"file\t{xml_path}\t{dmm_sidecar}"])
+    vanilla_prepared = tmp_path / "vanilla_tex.dds"
+    vanilla_prepared.write_bytes(b"DDS vanilla")
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+
+    class Service(QObject):
+        batch_ready = Signal(str, str, object)
+        result_ready = Signal(str, str, object)
+        request_failed = Signal(str, object)
+        request_cancelled = Signal(str)
+
+        def __init__(self):
+            super().__init__()
+            self.n = 0
+            self.prepared_ids = []
+
+        def resolve_entries(self, request, *, ui_generation=0):
+            self.n += 1
+            req_id = f"res-{self.n}"
+            wanted = {path.casefold() for path in request.values}
+            entries = ()
+            if vanilla_tex in wanted:
+                ident = ArchiveDurableIdentity(vanilla_tex, "0.pamt", 1, 64)
+                entries = (ArchiveEntryDto(
+                    "s", 42, ident, vanilla_tex, "0.pamt", "0.paz", 1, 64, 11, 11, 0,
+                    ".dds", "0", ArchiveEntryRole.IMAGE, "Texture", True, is_active_override=True,
+                ),)
+            QTimer.singleShot(0, lambda: self.result_ready.emit(
+                req_id, "resolve_entries", ArchiveLookupResult("s", entries, len(entries), False),
+            ))
+            return req_id
+
+        def prepare_entries(self, request, *, ui_generation=0, dmm_overlay=True):
+            self.n += 1
+            req_id = f"prep-{self.n}"
+            self.prepared_ids.append(tuple(request.entry_ids))
+            items = (PrepareEntryResult(
+                ArchiveEntryRef("s", 42, ArchiveDurableIdentity(vanilla_tex, "0.pamt", 1, 64), vanilla_tex),
+                str(vanilla_prepared), 11, "deadbeef", None,
+            ),)
+            QTimer.singleShot(0, lambda: self.result_ready.emit(
+                req_id, "prepare_entries", PrepareEntriesResult("s", items, 1, 1, 11),
+            ))
+            return req_id
+
+        def cancel(self, _request_id):
+            pass
+
+    opened = []
+
+    class Tab:
+        def open_archive_session(self, entry, *, archive_dependencies=None):
+            opened.append((entry, archive_dependencies))
+
+    class Shell:
+        mesh_editor_tab = Tab()
+
+        def _prepare_mesh_editor_archive_launch(self, _entry):
+            return True
+
+        def _activate_tool_widget(self, _tab):
+            pass
+
+        def set_status_message(self, *_args, **_kwargs):
+            pass
+
+    service = Service()
+
+    class Archive(QWidget):
+        archive_remote_bridge = SimpleNamespace(
+            current_session=SimpleNamespace(session_id="s", package_root=str(game)),
+            controller=SimpleNamespace(generation=1),
+        )
+        archive_catalogue_service = service
+        shell = Shell()
+
+    archive = Archive()
+    group = DmmAddedFilesGroup(archive)
+    mount = dmm.read_runtime_mount(game)
+    group._show_rows(added_files(dict(mount.files), set()), "")
+    group.select_paths([MESH])
+    group.open_selected()
+    assert _until(lambda: len(opened) == 1)
+    entry, context = opened[0]
+    assert entry.path == MESH
+    assert service.prepared_ids == [(42,)]
+    vanilla_dep = context.entry_for_path(vanilla_tex)
+    assert vanilla_dep is not None and vanilla_dep.prepared_path == vanilla_prepared
+    archive.deleteLater()

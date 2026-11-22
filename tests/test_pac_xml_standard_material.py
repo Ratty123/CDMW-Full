@@ -190,6 +190,26 @@ class RewriteTests(unittest.TestCase):
         with self.assertRaisesRegex(PacXmlMaterialError, "no material wrappers"):
             rewrite_materials("<ModelPropertyList/>", {"x": PlainMaterial(base="a.dds")})
 
+    def test_stray_spaces_in_submesh_name_match_across_material_and_emission_writers(self) -> None:
+        from cdmw.core.pac_xml_emission import rewrite_emission_animation, rewrite_rgb_emission
+        from cdmw.core.pac_xml_standard_material import authored_translucency_values, rewrite_emission, rewrite_translucency
+        from cdmw.domain.mesh.emission import GlowAnimation, RgbGlow
+
+        padded = HEAD + wrapper(
+            " cape_cloth ", LAYERED_SHADER,
+            texture("_baseColorTexture", "0", f"{TEX}/cape_base.dds", 0)
+            + texture("_emissiveIntensityTexture", "1", f"{TEX}/cape_emi.dds", 1),
+        ) + TAIL
+        rewritten = rewrite_materials(padded, {"cape_cloth": PlainMaterial(base="b.dds")})
+        self.assertEqual(rewritten.missing, ())
+        self.assertEqual(len(rewritten.rewritten), 1)
+        translucent = rewrite_translucency(padded, {"cape_cloth": (0.25, 0.5)})
+        self.assertEqual(authored_translucency_values(translucent), {"cape_cloth": (0.25, 0.5)})
+        emissive = rewrite_emission(padded, {"cape_cloth": (f"{TEX}/cape_emi.dds", "#112233ff", 2.0)})
+        animated = rewrite_emission_animation(emissive, {"cape_cloth": GlowAnimation(flow_u=1.5)})
+        rgb = rewrite_rgb_emission(animated, {"cape_cloth": (RgbGlow(intensity=0.8), "#445566ff")})
+        self.assertIn("_emissiveProgressColor", rgb)
+
 
 if __name__ == "__main__":
     unittest.main()

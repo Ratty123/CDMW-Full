@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.material_shader_controls import (control_material_variants, material_source_details,
                                                  rewrite_shader_controls, rewrite_texture_paths, validate_source)
+from cdmw.core.pac_xml_standard_material import wrapper_key
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
 from cdmw.domain.mesh.shader_controls import (veil_layer_inputs, MESH_FAMILIES, SHADER_LAYOUTS, ShaderControls, authored_values_payload, catalogue_payload,
                                              family_for, preview_factors)
@@ -78,7 +79,7 @@ def build_shader_control_files(state, original, companion_files, *, stop_event=N
         if matches:
             found.update(matches)
             files[path] = replace(source, data=source_format.bom + text.encode(source_format.encoding))
-    missing = {name for name, _ in choices} - found
+    missing = {wrapper_key(name) for name, _ in choices} - found
     if missing:
         raise ValueError("The matching material sidecar is missing or incomplete for: " + ", ".join(sorted(missing)))
     return tuple(files.values())
@@ -95,8 +96,8 @@ def owned_texture_files(choices, target_path):
     """{casefolded material: {parameter: ReplacementFile}} for the chosen replacement textures."""
     from cdmw.core.shader_texture_store import read_texture
     from cdmw.domain.mesh.replacement import ReplacementFile
-    return {name.casefold(): {parameter: ReplacementFile(owned_texture_path(target_path, parameter, digest), read_texture(digest))
-                              for parameter, digest in controls.textures}
+    return {wrapper_key(name): {parameter: ReplacementFile(owned_texture_path(target_path, parameter, digest), read_texture(digest))
+                                for parameter, digest in controls.textures}
             for name, controls in choices if controls.textures}
 
 
@@ -139,7 +140,7 @@ def _shader_source_options(session):
                 if not static:
                     sidecar_path = file.path.replace("\\", "/")
                     for wrapper in material_source_details(text):
-                        details.setdefault(wrapper["name"].casefold(), []).append(wrapper)
+                        details.setdefault(wrapper_key(wrapper["name"]), []).append(wrapper)
             except (ValueError, ET.ParseError) as exc:
                 error = str(exc)
     result = {}

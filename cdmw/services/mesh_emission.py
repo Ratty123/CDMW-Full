@@ -9,7 +9,7 @@ from cdmw.services.mesh_replacement_materials import _sidecar_text, material_bin
 
 
 def build_emission_files(state, original, companion_files, *, stop_event=None):
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, rewrite_emission, wrapper_key
     from cdmw.core.pac_xml_emission import rewrite_emission_animation
     from cdmw.services.new_item_materials import encode_emissive_solid
 
@@ -29,7 +29,7 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
             if part.translucency is not None and (part.emission.animation.active or part.emission.rgb is not None):
                 raise ValueError("Animated glow cannot share a part with translucency.")
         settings[name] = part.emission
-    settings = {name: value for name, value in settings.items() if value is not None}
+    settings = {wrapper_key(name): value for name, value in settings.items() if value is not None}
     if not settings:
         return tuple(companion_files)
     if original.format.casefold() != "pac":
@@ -59,7 +59,7 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
     emission = {}
     for wrapper in find_material_wrappers(text):
         raise_if_cancelled(stop_event)
-        value = settings.get(wrapper.submesh_name.casefold())
+        value = settings.get(wrapper_key(wrapper.submesh_name))
         if value is None:
             continue
         texture = wrapper.textures.get("_emissiveIntensityTexture", "")

@@ -3599,6 +3599,7 @@
     "Copy validation report": "复制验证报告",
     "Copy value": "复制值",
     "Copy, cut and paste stay with text fields.": "复制、剪切和粘贴保留给文本框使用。",
+    "Copying {value_0} file(s)...": "正在复制 {value_0} 个文件...",
     "Corpus evidence: ": "语料库证据： ",
     "Correct the selected sections before changing their width": "在更改宽度之前校正所选部分",
     "Correction action: {value_0}": "更正操作：{value_0}",

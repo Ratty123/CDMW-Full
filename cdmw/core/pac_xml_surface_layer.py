@@ -40,7 +40,7 @@ from __future__ import annotations
 import struct
 
 from cdmw.core.material_shader_controls import _write_parameter, edit_material_variants
-from cdmw.core.pac_xml_standard_material import find_material_wrappers
+from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
 
 #: Shader families whose G-buffer shaders were traced to the layer-R surface path.
 SURFACE_LAYER_SHADERS = frozenset({
@@ -91,15 +91,6 @@ def surface_material_dds(roughness: float, metallic: float) -> bytes:
 def surface_rgb_dds(red: int, green: int, blue: int) -> bytes:
     """A uniform 4x4 B8G8R8A8 texture of the given bytes, for a game surface's own means."""
     return _uniform_dds(red, green, blue)
-
-
-def wrapper_key(name) -> str:
-    """A wrapper or material name as the surface code matches it: trimmed and case-folded.
-
-    A few shipped ``_subMeshName`` values carry a stray space, which the part
-    names bound to them do not.
-    """
-    return str(name or "").strip().casefold()
 
 
 def bind_texture(text: str, material_names, parameter: str, path: str, item_id: str) -> tuple[str, int]:

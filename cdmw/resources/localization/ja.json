@@ -3599,6 +3599,7 @@
     "Copy validation report": "検証レポートのコピー",
     "Copy value": "値をコピーする",
     "Copy, cut and paste stay with text fields.": "コピー、切り取り、貼り付けはテキストフィールド用に予約されています。",
+    "Copying {value_0} file(s)...": "{value_0} 個のファイルをコピーしています...",
     "Corpus evidence: ": "コーパスの証拠: ",
     "Correct the selected sections before changing their width": "幅を変更する前に選択したセクションを修正してください",
     "Correction action: {value_0}": "修正アクション: {value_0}",

@@ -24,7 +24,7 @@ public sealed class NativeArchiveCore
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexPath);
         EnsureCompatible();
-        var error = new StringBuilder(DiagnosticCapacity);
+        var error = new byte[DiagnosticCapacity];
         Exception? callbackException = null;
         string? sourcePath = null;
         NativeMethods.BuildIndexProgressCallback callback = (completed, total, phasePointer, itemPointer, _) =>
@@ -55,7 +55,7 @@ public sealed class NativeArchiveCore
         if (sourcePamtPaths is null)
         {
             status = NativeMethods.BuildIndexWithProgress(packageRoot, indexPath, out entryCount,
-                callback, IntPtr.Zero, error, error.Capacity);
+                callback, IntPtr.Zero, error, error.Length);
         }
         else
         {
@@ -65,7 +65,7 @@ public sealed class NativeArchiveCore
                 for (var index = 0; index < sourcePamtPaths.Length; index++)
                     pointers[index] = Marshal.StringToCoTaskMemUTF8(sourcePamtPaths[index]);
                 status = NativeMethods.BuildIndexFromSources(packageRoot, indexPath, pointers,
-                    checked((nuint)pointers.Length), out entryCount, callback, IntPtr.Zero, error, error.Capacity);
+                    checked((nuint)pointers.Length), out entryCount, callback, IntPtr.Zero, error, error.Length);
             }
             finally
             {
@@ -81,7 +81,7 @@ public sealed class NativeArchiveCore
         {
             throw new OperationCanceledException("Archive index build was cancelled.", cancellationToken);
         }
-        ThrowIfFailed(status, error.ToString(), sourcePath);
+        ThrowIfFailed(status, DecodeUtf8NullTerminated(error), sourcePath);
         return checked((long)entryCount);
     }
 
@@ -99,8 +99,8 @@ public sealed class NativeArchiveCore
         }
 
         var bytes = new byte[checked((int)expectedSize)];
-        var note = new StringBuilder(256);
-        var error = new StringBuilder(DiagnosticCapacity);
+        var note = new byte[256];
+        var error = new byte[DiagnosticCapacity];
         var status = NativeMethods.DecodeEntryWithContext(
             entry.Path,
             entry.SourcePamt,
@@ -113,9 +113,9 @@ public sealed class NativeArchiveCore
             checked((nuint)bytes.Length),
             out var requiredSize,
             note,
-            note.Capacity,
+            note.Length,
             error,
-            error.Capacity);
+            error.Length);
         if (status == NativeStatus.BufferTooSmall)
         {
             if (requiredSize > MaximumDecodedEntryBytes || requiredSize > (nuint)Array.MaxLength)
@@ -123,8 +123,8 @@ public sealed class NativeArchiveCore
                 throw new InvalidDataException("Archive entry exceeds the one GiB decoded resource limit.");
             }
             bytes = new byte[checked((int)requiredSize)];
-            error.Clear();
-            note.Clear();
+            Array.Clear(error);
+            Array.Clear(note);
             status = NativeMethods.DecodeEntryWithContext(
                 entry.Path,
                 entry.SourcePamt,
@@ -137,17 +137,17 @@ public sealed class NativeArchiveCore
                 checked((nuint)bytes.Length),
                 out requiredSize,
                 note,
-                note.Capacity,
+                note.Length,
                 error,
-                error.Capacity);
+                error.Length);
         }
 
-        ThrowIfFailed(status, error.ToString());
+        ThrowIfFailed(status, DecodeUtf8NullTerminated(error));
         if (requiredSize < (nuint)bytes.Length)
         {
             Array.Resize(ref bytes, checked((int)requiredSize));
         }
-        return new DecodedArchiveEntry(bytes, note.ToString());
+        return new DecodedArchiveEntry(bytes, DecodeUtf8NullTerminated(note));
     }
 
     public void EnsureCompatible()
@@ -158,6 +158,12 @@ public sealed class NativeArchiveCore
                 NativeStatus.Unsupported,
                 $"Archive core ABI {AbiVersion} does not match required ABI {ExpectedAbiVersion}.");
         }
+    }
+
+    internal static string DecodeUtf8NullTerminated(byte[] buffer)
+    {
+        var length = Array.IndexOf(buffer, (byte)0);
+        return Encoding.UTF8.GetString(buffer, 0, length < 0 ? buffer.Length : length);
     }
 
     private static void ThrowIfFailed(NativeStatus status, string message, string? sourcePath = null)
@@ -178,7 +184,7 @@ public sealed class NativeArchiveCore
             [MarshalAs(UnmanagedType.LPUTF8Str)] string packageRoot,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string indexPath,
             out ulong entryCount,
-            StringBuilder errorMessage,
+            [Out] byte[] errorMessage,
             int errorMessageCapacity);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -196,7 +202,7 @@ public sealed class NativeArchiveCore
             out ulong entryCount,
             BuildIndexProgressCallback progressCallback,
             IntPtr progressUserData,
-            StringBuilder errorMessage,
+            [Out] byte[] errorMessage,
             int errorMessageCapacity);
 
         [DllImport(LibraryName, EntryPoint = "cdmw_full_archive_build_index_from_sources_utf8", CallingConvention = CallingConvention.Cdecl)]
@@ -208,7 +214,7 @@ public sealed class NativeArchiveCore
             out ulong entryCount,
             BuildIndexProgressCallback progressCallback,
             IntPtr progressUserData,
-            StringBuilder errorMessage,
+            [Out] byte[] errorMessage,
             int errorMessageCapacity);
 
         [DllImport(LibraryName, EntryPoint = "cdmw_full_archive_decode_entry_utf8", CallingConvention = CallingConvention.Cdecl)]
@@ -222,9 +228,9 @@ public sealed class NativeArchiveCore
             [Out] byte[] output,
             nuint outputCapacity,
             out nuint requiredSize,
-            StringBuilder note,
+            [Out] byte[] note,
             int noteCapacity,
-            StringBuilder errorMessage,
+            [Out] byte[] errorMessage,
             int errorMessageCapacity);
 
         [DllImport(LibraryName, EntryPoint = "cdmw_full_archive_decode_entry_with_context_utf8", CallingConvention = CallingConvention.Cdecl)]
@@ -239,9 +245,9 @@ public sealed class NativeArchiveCore
             [Out] byte[] output,
             nuint outputCapacity,
             out nuint requiredSize,
-            StringBuilder note,
+            [Out] byte[] note,
             int noteCapacity,
-            StringBuilder errorMessage,
+            [Out] byte[] errorMessage,
             int errorMessageCapacity);
     }
 }

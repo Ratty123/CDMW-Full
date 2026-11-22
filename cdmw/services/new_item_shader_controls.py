@@ -3,6 +3,7 @@ from dataclasses import replace
 import xml.etree.ElementTree as ET
 
 from cdmw.core.material_shader_controls import _rewrite_block
+from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
 from cdmw.domain.mesh.shader_controls import EYE_COVER, validate_choices
 
 
@@ -11,7 +12,6 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
     if not choices:
         return {}
     validate_choices(choices, equipment=True)
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
     from cdmw.services.new_item_materials import _plain_pbr_inputs, source_materials_from_import
 
     sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
@@ -21,7 +21,7 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
         # Shared template textures do not prove source ownership. The Builder's
         # cloned wrappers may inherit only an import-owned base dependency.
         source_by_base = {path: source for path, source in inputs[-1].items() if path in inputs[3]}
-    wanted = {name.casefold(): controls for name, controls in choices}
+    wanted = {wrapper_key(name): controls for name, controls in choices}
     bindings, found = {}, set()
     for path, data in files.side_files.items():
         if not path.casefold().endswith(".pac_xml"):
@@ -29,11 +29,11 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
         text = data.decode("utf-8-sig")
         mapped, matched, unselected = {}, set(), set()
         for wrapper in find_material_wrappers(text):
-            name = wrapper.submesh_name.casefold()
+            name = wrapper_key(wrapper.submesh_name)
             base = wrapper.textures.get("_baseColorTexture") or wrapper.textures.get("_overlayColorTexture", "")
             source = sources.get(name) or source_by_base.get(base.replace("\\", "/").casefold())
-            names = {name, str(getattr(source, "name", "")).casefold()}
-            atlas = {part.name.casefold() for part in getattr(source, "atlas_sources", ())}
+            names = {name, wrapper_key(getattr(source, "name", ""))}
+            atlas = {wrapper_key(part.name) for part in getattr(source, "atlas_sources", ())}
             selected = wanted.keys() & (names | atlas)
             if not selected:
                 unselected.add(name)
@@ -56,7 +56,7 @@ def shader_control_bindings(files, choices, *, result=None, scene=None):
         if mapped:
             bindings[path] = tuple(mapped.values())
             found.update(matched)
-    missing = {name.casefold() for name, _ in choices} - found
+    missing = {wrapper_key(name) for name, _ in choices} - found
     if missing:
         raise ValueError("Shader material bindings were not found: " + ", ".join(sorted(missing)))
     return bindings
@@ -66,21 +66,20 @@ def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *,
     from cdmw.services.new_item_eye_cover import prepare_eye_cover_textures
     # Validate the material contract before decoding/encoding any textures.
     from cdmw.core.material_shader_controls import validate_source, _parameter_rows
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
     if len(text) > 16 * 1024 * 1024:
         raise ValueError("Material sidecar exceeds the supported size limit.")
     validate_choices(choices, equipment=True)
-    settings = {name.casefold(): controls for name, controls in choices}
-    wrappers = [wrapper for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in settings]
-    matched = {wrapper.submesh_name.casefold() for wrapper in wrappers}
+    settings = {wrapper_key(name): controls for name, controls in choices}
+    wrappers = [wrapper for wrapper in find_material_wrappers(text) if wrapper_key(wrapper.submesh_name) in settings]
+    matched = {wrapper_key(wrapper.submesh_name) for wrapper in wrappers}
     if not allow_missing and settings.keys() - matched:
         raise ValueError("Shader material bindings were not found: " + ", ".join(sorted(settings.keys() - matched)))
     for wrapper in wrappers:
-        validate_source(wrapper.shader, settings[wrapper.submesh_name.casefold()],
+        validate_source(wrapper.shader, settings[wrapper_key(wrapper.submesh_name)],
                         _parameter_rows(text[wrapper.start:wrapper.end]), allow_bake=True)
     from cdmw.services.new_item_template_materials import bake_equipment_glass
     text, baked = bake_equipment_glass(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
-    wrappers = [wrapper for wrapper in find_material_wrappers(text) if wrapper.submesh_name.casefold() in settings]
+    wrappers = [wrapper for wrapper in find_material_wrappers(text) if wrapper_key(wrapper.submesh_name) in settings]
     paths, textures = prepare_eye_cover_textures(text, choices, model_path, read_texture, stop_event=stop_event, on_log=on_log)
     from cdmw.services.transparency_masks import prepare_cutout_textures
     cutout_paths, cutout_textures = prepare_cutout_textures(wrappers, settings, model_path, stop_event=stop_event, on_log=on_log)
@@ -94,7 +93,7 @@ def rewrite_new_item_shader_controls(text, choices, model_path, read_texture, *,
     for wrapper in reversed(wrappers):
         try:
             block = _rewrite_block(text[wrapper.start:wrapper.end], wrapper.shader,
-                settings[wrapper.submesh_name.casefold()], static=False, texture_paths=paths.get(wrapper.start, {}))
+                settings[wrapper_key(wrapper.submesh_name)], static=False, texture_paths=paths.get(wrapper.start, {}))
         except (ValueError, ET.ParseError) as exc:
             raise ValueError(f"{wrapper.submesh_name}: {exc}") from exc
         text = text[:wrapper.start] + block + text[wrapper.end:]

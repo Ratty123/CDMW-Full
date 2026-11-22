@@ -168,6 +168,12 @@ def find_material_wrappers(text: str) -> Tuple[MaterialWrapper, ...]:
     return tuple(out)
 
 
+def wrapper_key(name: object) -> str:
+    """Normalize a XML wrapper or part name for matching (trimmed and case-folded)."""
+
+    return str(name or "").strip().casefold()
+
+
 def authored_translucency_values(text: str) -> Dict[str, Tuple[float, float]]:
     """Thickness and extinction of authored translucent wrappers, keyed by folded part name.
 
@@ -183,7 +189,7 @@ def authored_translucency_values(text: str) -> Dict[str, Tuple[float, float]]:
         except ValueError:
             continue
         if all(math.isfinite(value) and 0 <= value <= 1 for value in pair):
-            values.setdefault(wrapper.submesh_name.casefold(), pair)
+            values.setdefault(wrapper_key(wrapper.submesh_name), pair)
     return values
 
 
@@ -272,10 +278,10 @@ def rewrite_emission(text: str, settings: Mapping[str, Tuple[str, str, float]]) 
     """Change selected emission while retaining the authored material's other inputs."""
     if len(text) > 16 * 1024 * 1024:
         raise PacXmlMaterialError("Glow material sidecar exceeds the supported size limit.")
-    settings = {name.casefold(): values for name, values in settings.items()}
+    settings = {wrapper_key(name): values for name, values in settings.items()}
     edits, found = [], set()
     for wrapper in find_material_wrappers(text):
-        name = wrapper.submesh_name.casefold()
+        name = wrapper_key(wrapper.submesh_name)
         if name not in settings:
             continue
         found.add(name)
@@ -313,8 +319,8 @@ def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]],
     """Edit only selected shaders and absorption, retaining every other parameter."""
     if len(text) > 16 * 1024 * 1024:
         raise PacXmlMaterialError("Translucency material sidecar exceeds the supported size limit.")
-    settings = {name.casefold(): values for name, values in settings.items()}
-    material_paths = {name.casefold(): path for name, path in (material_paths or {}).items()}
+    settings = {wrapper_key(name): values for name, values in settings.items()}
+    material_paths = {wrapper_key(name): path for name, path in (material_paths or {}).items()}
     if material_paths.keys() - settings.keys():
         raise PacXmlMaterialError("Surface overrides must belong to selected translucent materials.")
     for values in settings.values():
@@ -322,7 +328,7 @@ def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]],
             raise PacXmlMaterialError("translucency needs thickness and extinction in 0..1")
     edits, found = [], set()
     for wrapper in find_material_wrappers(text):
-        name = wrapper.submesh_name.casefold()
+        name = wrapper_key(wrapper.submesh_name)
         if name not in settings:
             continue
         if not wrapper.textures.get("_baseColorTexture"):
@@ -375,13 +381,13 @@ def rewrite_materials(text: str, replacements: Mapping[str, PlainMaterial]) -> R
     wrappers = find_material_wrappers(text)
     if not wrappers:
         raise PacXmlMaterialError("no material wrappers were found in the sidecar")
-    wanted = {name.casefold(): material for name, material in replacements.items()}
+    wanted = {wrapper_key(name): material for name, material in replacements.items()}
     newline = _newline_of(text)
     pieces = []
     cursor = 0
     rewritten = []
     for wrapper in wrappers:
-        material = wanted.get(wrapper.submesh_name.casefold())
+        material = wanted.get(wrapper_key(wrapper.submesh_name))
         if material is None:
             continue
         pieces.append(text[cursor:wrapper.start])
@@ -389,8 +395,8 @@ def rewrite_materials(text: str, replacements: Mapping[str, PlainMaterial]) -> R
         cursor = wrapper.end
         rewritten.append(wrapper.submesh_name)
     pieces.append(text[cursor:])
-    seen = {name.casefold() for name in rewritten}
-    missing = tuple(name for name in replacements if name.casefold() not in seen)
+    seen = {wrapper_key(name) for name in rewritten}
+    missing = tuple(name for name in replacements if wrapper_key(name) not in seen)
     return RewriteResult(text="".join(pieces), rewritten=tuple(rewritten), missing=missing)
 
 
@@ -403,6 +409,7 @@ __all__ = [
     "PacXmlMaterialError",
     "PlainMaterial",
     "RewriteResult",
+    "wrapper_key",
     "authored_translucency_values",
     "find_material_wrappers",
     "plain_material_xml",

@@ -102,16 +102,17 @@ def encode_masked_texture(image, *, stop_event=None, on_log=None):
 
 def apply_translucency_masks(text, masks, model_path, read_texture, *, stop_event=None, on_log=None):
     """Override only base alpha, including explicitly painted OPAQUE imports."""
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
     from cdmw.core.material_shader_controls import _write_parameter
-    masks = {name.casefold(): mask for name, mask in masks.items() if mask is not None}
+    masks = {wrapper_key(name): mask for name, mask in masks.items() if mask is not None}
     if not masks:
         return text, {}
     files, found = {}, set()
     stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/")
                             .replace("/model/", "/texture/")).with_suffix(""))
     for wrapper in reversed(find_material_wrappers(text)):
-        mask = masks.get(wrapper.submesh_name.casefold())
+        key = wrapper_key(wrapper.submesh_name)
+        mask = masks.get(key)
         if mask is None:
             continue
         raise_if_cancelled(stop_event)
@@ -125,7 +126,7 @@ def apply_translucency_masks(text, masks, model_path, read_texture, *, stop_even
         files[path] = data
         block = _write_parameter(text[wrapper.start:wrapper.end], "_baseColorTexture", "Texture", path, "0", static=False)
         text = text[:wrapper.start] + block + text[wrapper.end:]
-        found.add(wrapper.submesh_name.casefold())
+        found.add(key)
     if masks.keys() - found:
         raise ValueError("Transparency mask materials were not found: " + ", ".join(sorted(masks.keys() - found)))
     return text, files
@@ -291,11 +292,13 @@ def encode_cutout_texture(mask, *, compressed=True, stop_event=None, on_log=None
 
 
 def prepare_cutout_textures(wrappers, settings, model_path, *, stop_event=None, on_log=None):
+    from cdmw.core.pac_xml_standard_material import wrapper_key
+
     paths, files = {}, {}
     stem = str(PurePosixPath(model_path.replace("\\", "/").replace("/modelproperty/", "/texture/", 1)
                             .replace("/model/", "/texture/", 1)).with_suffix(""))
     for wrapper in wrappers:
-        mask = settings[wrapper.submesh_name.casefold()].cutout_mask
+        mask = settings[wrapper_key(wrapper.submesh_name)].cutout_mask
         if mask is None:
             continue
         data = encode_cutout_texture(mask, stop_event=stop_event, on_log=on_log)

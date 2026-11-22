@@ -3599,6 +3599,7 @@
     "Copy validation report": "Doğrulama raporunu kopyala",
     "Copy value": "Değeri kopyala",
     "Copy, cut and paste stay with text fields.": "Kopyalama, kesme ve yapıştırma metin alanlarına ayrılmıştır.",
+    "Copying {value_0} file(s)...": "{value_0} dosya kopyalanıyor...",
     "Corpus evidence: ": "Corpus kanıtı: ",
     "Correct the selected sections before changing their width": "Genişliklerini değiştirmeden önce seçilen bölümleri düzeltin",
     "Correction action: {value_0}": "Düzeltme eylemi: {value_0}",

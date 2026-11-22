@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+from cdmw.core.pac_xml_standard_material import wrapper_key
 from cdmw.domain.mesh.translucency import translucency_values, translucency_surface_values
 from cdmw.services.mesh_replacement_materials import _sidecar_text, material_binding_name, material_binding_names
 
@@ -27,7 +28,8 @@ def build_translucency_files(state, original, companion_files, *, stop_event=Non
             raise ValueError("Select all parts sharing this material and use the same translucency settings.")
         settings[name] = value
         surfaces[name] = surface
-    settings = {name: value for name, value in settings.items() if value is not None}
+    settings = {wrapper_key(name): value for name, value in settings.items() if value is not None}
+    surfaces = {wrapper_key(name): value for name, value in surfaces.items() if name in settings}
     if not settings:
         return tuple(companion_files)
     if original.format.casefold() != "pac":
