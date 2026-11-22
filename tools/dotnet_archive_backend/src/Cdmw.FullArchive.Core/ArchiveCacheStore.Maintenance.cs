@@ -14,6 +14,8 @@ public sealed partial class ArchiveCacheStore
     private bool _maintenanceDraining;
     private long? _lastMaintenanceTick;
 
+    internal Action? OnBeforePreparedEviction { get; set; }
+
     private static readonly EnumerationOptions CacheEnumerationOptions = new()
     {
         RecurseSubdirectories = true,
@@ -186,27 +188,35 @@ public sealed partial class ArchiveCacheStore
             }
         }
         var overBudget = total > _maximumBytes;
+        var retirementAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var directory in directories.OrderBy(item => item.LastWriteUtc))
         {
             if ((!directory.ExcessGeneration && (!overBudget || total <= _targetBytes))
                 || IsCurrentGeneration(directory.Path)) continue;
-            using (var lease = TryLockInactiveGeneration(directory.Path))
+            if (TryRetireInactiveGeneration(directory, ref total))
             {
-                if (lease is null || IsCurrentGeneration(directory.Path)) continue;
-                total -= RetireGeneration(directory, lease);
-            }
-            if (!Directory.Exists(directory.Path))
-            {
-                try { File.Delete(GenerationUsePath(directory.Path)); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+                retirementAttempted.Add(directory.Path);
             }
         }
         if (!overBudget || total <= _targetBytes) return;
+        OnBeforePreparedEviction?.Invoke();
         // Current indexes/catalogues are durable. Only their derived payloads
         // can be evicted, and only after every generation owner has released it.
         foreach (var directory in directories.OrderBy(item => item.LastWriteUtc))
         {
             if (!Directory.Exists(directory.Path)) continue;
+            if (!retirementAttempted.Contains(directory.Path) && !IsCurrentGeneration(directory.Path))
+            {
+                // A non-current generation that closed after stage 1 must still be retired
+                // as a unit before Stage 2 trims its prepared files and drops below budget.
+                var attempted = TryRetireInactiveGeneration(directory, ref total);
+                if (!Directory.Exists(directory.Path))
+                {
+                    if (total <= _targetBytes) return;
+                    continue;
+                }
+                if (!attempted && !IsCurrentGeneration(directory.Path)) continue;
+            }
             using (var probe = TryLockInactiveGeneration(directory.Path))
             {
                 if (probe is null) continue;
@@ -223,6 +233,21 @@ public sealed partial class ArchiveCacheStore
                 if (total <= _targetBytes) return;
             }
         }
+    }
+
+    private bool TryRetireInactiveGeneration(CacheDirectory directory, ref long total)
+    {
+        using (var lease = TryLockInactiveGeneration(directory.Path))
+        {
+            if (lease is null || IsCurrentGeneration(directory.Path)) return false;
+            total -= RetireGeneration(directory, lease);
+        }
+        if (!Directory.Exists(directory.Path))
+        {
+            try { File.Delete(GenerationUsePath(directory.Path)); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+        }
+        return true;
     }
 
     private static readonly TimeSpan AbandonedStagingAge = TimeSpan.FromMinutes(10);

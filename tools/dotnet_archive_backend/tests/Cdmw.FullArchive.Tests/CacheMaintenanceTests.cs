@@ -87,6 +87,8 @@ internal static class CacheMaintenanceTests
         var generation = sessions.GetRequired(first.SessionId).GenerationPath;
         var prepared = await AddUnitAsync(generation, 'a');
         var other = await otherSessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+        Require(other.CacheHit, "second cache owner did not reuse the current generation");
+        await otherCache.WaitForMaintenanceAsync(CancellationToken.None);
         var publicationGuardObserved = false;
         await sessions.RefreshAsync(new(fixture.Archive.Root), CancellationToken.None, _ =>
         {
@@ -145,6 +147,96 @@ internal static class CacheMaintenanceTests
         Require(!File.Exists(cancelledMarker!), "a cancelled publication left its lease file behind");
         var reopened = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
         Require(reopened.CacheHit, "a cancelled publication broke the previous current generation");
+    }
+
+    public static async Task MidSweepReleaseRetiresGenerationAsync()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var cache = fixture.CreateCache();
+        var otherCache = fixture.CreateCache();
+        using var sessions = new ArchiveSessionManager(fixture.Native, cache);
+        using var otherSessions = new ArchiveSessionManager(fixture.Native, otherCache);
+        var first = await fixture.OpenAsync(sessions, cache);
+        var generation = sessions.GetRequired(first.SessionId).GenerationPath;
+        await AddUnitAsync(generation, 'a');
+        var other = await otherSessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+        Require(other.CacheHit, "second cache owner did not reuse the current generation");
+        await sessions.RefreshAsync(new(fixture.Archive.Root), CancellationToken.None);
+        sessions.Close(first.SessionId);
+        await otherCache.WaitForMaintenanceAsync(CancellationToken.None);
+        await cache.WaitForMaintenanceAsync(CancellationToken.None);
+        Require(Directory.Exists(generation), "active external generation was deleted early");
+
+        var closed = 0;
+        cache.OnBeforePreparedEviction = () =>
+        {
+            if (Interlocked.Exchange(ref closed, 1) == 0)
+            {
+                otherSessions.Close(other.SessionId);
+            }
+        };
+        try
+        {
+            await cache.WaitForMaintenanceAsync(CancellationToken.None);
+        }
+        finally
+        {
+            cache.OnBeforePreparedEviction = null;
+        }
+        Require(Interlocked.CompareExchange(ref closed, 0, 0) == 1, "mid-sweep eviction hook did not run");
+        Require(!Directory.Exists(generation), "generation released mid-sweep was trimmed instead of retired");
+    }
+
+    public static async Task PublishedManifestRemainsImmutableAsync()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var cache = fixture.CreateCache(long.MaxValue);
+        string generation;
+        string manifestPath;
+        byte[] initialManifestBytes;
+        DateTime initialManifestWriteUtc;
+        using (var sessions = new ArchiveSessionManager(fixture.Native, cache))
+        {
+            var handle = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+            generation = sessions.GetRequired(handle.SessionId).GenerationPath;
+            manifestPath = Path.Combine(generation, "manifest.json");
+            initialManifestBytes = await File.ReadAllBytesAsync(manifestPath);
+            initialManifestWriteUtc = File.GetLastWriteTimeUtc(manifestPath);
+
+            var lookups = new ArchiveLookupService(sessions, cache, fixture.Native);
+            await lookups.WarmAsync(handle.SessionId, CancellationToken.None);
+            await lookups.ResolveAsync(
+                new ArchiveLookupRequest(handle.SessionId, ArchiveLookupKind.Extensions, Values: [".dds"]),
+                CancellationToken.None);
+            var names = new ArchiveNameIndexService(sessions, cache, fixture.Native);
+            await names.WarmAsync(handle.SessionId, CancellationToken.None);
+        }
+        await cache.WaitForMaintenanceAsync(CancellationToken.None);
+        Require(File.Exists(Path.Combine(generation, "archive.adi")), "dependency index was not published");
+        Require(File.Exists(Path.Combine(generation, "lookups.bin")), "lookup index was not published");
+        Require(File.Exists(Path.Combine(generation, "names.bin")), "name index was not published");
+        Require(
+            (await File.ReadAllBytesAsync(manifestPath)).SequenceEqual(initialManifestBytes)
+            && File.GetLastWriteTimeUtc(manifestPath) == initialManifestWriteUtc,
+            "published generation manifest changed after secondary index builds");
+
+        using (var sessions = new ArchiveSessionManager(fixture.Native, cache))
+        {
+            ArchiveSessionHandle fallback;
+            using (new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                fallback = await sessions.OpenAsync(new(fixture.Archive.Root), CancellationToken.None);
+                Require(!fallback.CacheHit, "a locked manifest still reported a cache hit");
+                Require(
+                    Directory.Exists(generation)
+                    && !Directory.Exists(Path.Combine(Directory.GetParent(generation)!.Parent!.FullName, "quarantine")),
+                    "a sharing violation on manifest.json quarantined a valid generation");
+            }
+            sessions.Close(fallback.SessionId);
+        }
+        await cache.WaitForMaintenanceAsync(CancellationToken.None);
+        var family = Directory.GetParent(generation)!.Parent!.FullName;
+        Directory.Move(Path.Combine(family, "g"), Path.Combine(family, "generations"));
     }
 
     public static async Task AbandonedStagingAsync()

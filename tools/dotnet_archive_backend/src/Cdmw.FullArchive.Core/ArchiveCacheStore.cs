@@ -56,29 +56,6 @@ public sealed partial class ArchiveCacheStore
         return digest[..24];
     }
 
-    public async Task UpdateSecondaryStateAsync(
-        string generationPath,
-        bool? lookupsReady,
-        bool? namesReady,
-        CancellationToken cancellationToken)
-    {
-        var fullGenerationPath = Path.GetFullPath(generationPath);
-        var cataloguePrefix = CatalogueRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!fullGenerationPath.StartsWith(cataloguePrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Archive generation is outside the v2 cache family.");
-        }
-        var manifestPath = Path.Combine(fullGenerationPath, "manifest.json");
-        var manifest = await ReadJsonAsync<ArchiveGenerationManifest>(manifestPath, cancellationToken).ConfigureAwait(false);
-        var updated = manifest with
-        {
-            LookupsReady = lookupsReady ?? manifest.LookupsReady,
-            NamesReady = namesReady ?? manifest.NamesReady,
-        };
-        await AtomicJson.WriteAsync(manifestPath, updated, cancellationToken).ConfigureAwait(false);
-        RequestMaintenance();
-    }
-
     public async Task<CacheHealthResult> InspectAsync(
         string packageRoot,
         CancellationToken cancellationToken,
@@ -231,7 +208,6 @@ public sealed partial class ArchiveCacheStore
                 var pointer = new ArchiveCurrentPointer(rootId, generationId, fingerprint.Value, DateTimeOffset.UtcNow);
                 await AtomicJson.WriteAsync(Path.Combine(RootDirectory(rootId), "current.json"), pointer, cancellationToken).ConfigureAwait(false);
                 var lease = await AcquireGenerationAsync(
-                    rootId,
                     generationPath,
                     manifest,
                     cacheHit: false,
@@ -309,7 +285,7 @@ public sealed partial class ArchiveCacheStore
         {
             validatedIndex?.Dispose();
             generationUse?.Dispose();
-            if (pointer is not null)
+            if (pointer is not null && !(exception is IOException io && IsSharingViolation(io)))
             {
                 QuarantineCorruptGeneration(rootId, pointer.GenerationId, exception.Message);
             }
@@ -323,7 +299,6 @@ public sealed partial class ArchiveCacheStore
         }
 
         return await AcquireGenerationAsync(
-            rootId,
             generationPath!,
             manifest!,
             cacheHit: true,
@@ -334,7 +309,6 @@ public sealed partial class ArchiveCacheStore
     }
 
     private async Task<ArchiveGenerationLease> AcquireGenerationAsync(
-        string rootId,
         string generationPath,
         ArchiveGenerationManifest manifest,
         bool cacheHit,
@@ -356,25 +330,11 @@ public sealed partial class ArchiveCacheStore
                 index,
                 Path.Combine(generationPath, "archive.adi"));
             cancellationToken.ThrowIfCancellationRequested();
-            if (dependencyIndex.IsReady && !manifest.LookupsReady)
-            {
-                await UpdateSecondaryStateAsync(
-                    generationPath,
-                    lookupsReady: true,
-                    namesReady: null,
-                    cancellationToken).ConfigureAwait(false);
-                manifest = manifest with { LookupsReady = true };
-            }
             lock (_activeGate)
             {
                 _activeGenerations[generationPath] = _activeGenerations.GetValueOrDefault(generationPath) + 1;
             }
-            var lease = new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit, generationUse);
-            if (!dependencyIndex.IsReady)
-            {
-                MarkLookupsReadyWhenBuilt(dependencyIndex, rootId, generationPath);
-            }
-            return lease;
+            return new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit, generationUse);
         }
         catch
         {
@@ -383,45 +343,6 @@ public sealed partial class ArchiveCacheStore
             generationUse?.Dispose();
             throw;
         }
-    }
-
-    private void MarkLookupsReadyWhenBuilt(
-        ArchiveDependencyIndexHandle dependencyIndex,
-        string rootId,
-        string generationPath)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await dependencyIndex.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-                // Taken under the same gate as an open: this rewrites the manifest a
-                // concurrent open validates, and that write used to be serialised by
-                // running inside the open itself.
-                var rootGate = _rootGates.GetOrAdd(rootId, static _ => new SemaphoreSlim(1, 1));
-                await rootGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-                try
-                {
-                    await UpdateSecondaryStateAsync(
-                        generationPath,
-                        lookupsReady: true,
-                        namesReady: null,
-                        CancellationToken.None).ConfigureAwait(false);
-                }
-                finally
-                {
-                    rootGate.Release();
-                }
-            }
-            catch (Exception exception) when (
-                exception is OperationCanceledException or ObjectDisposedException or IOException
-                    or UnauthorizedAccessException or InvalidDataException or JsonException)
-            {
-                // The manifest flag is a hint. A session that closed before its
-                // background build finished simply leaves it unset, and the next
-                // open rebuilds and records it then.
-            }
-        });
     }
 
     internal void ReleaseGeneration(string generationPath)
@@ -458,9 +379,7 @@ public sealed partial class ArchiveCacheStore
         {
             throw new InvalidDataException("The archive generation is incomplete.");
         }
-        manifest = JsonSerializer.Deserialize<ArchiveGenerationManifest>(
-            File.ReadAllText(manifestPath),
-            WorkerProtocol.JsonOptions) ?? throw new InvalidDataException("The archive generation manifest is empty.");
+        manifest = ReadJson<ArchiveGenerationManifest>(manifestPath);
         if (!StringComparer.Ordinal.Equals(manifest.RootId, pointer.RootId) ||
             !StringComparer.Ordinal.Equals(manifest.GenerationId, pointer.GenerationId) ||
             !StringComparer.Ordinal.Equals(manifest.Fingerprint, fingerprint) ||
@@ -579,6 +498,8 @@ public sealed partial class ArchiveCacheStore
             ArchiveIndex.Version,
             DateTimeOffset.UtcNow,
             rows,
+            // manifest.json is write-once after generation publication; secondary indexes
+            // (archive.adi, lookups.bin, names.bin) are detected directly on disk.
             LookupsReady: false,
             NamesReady: false);
     }
@@ -627,12 +548,10 @@ public sealed partial class ArchiveCacheStore
         }
         try
         {
-            var pointer = JsonSerializer.Deserialize<ArchiveCurrentPointer>(
-                File.ReadAllText(Path.Combine(rootDirectory.FullName, "current.json")),
-                WorkerProtocol.JsonOptions);
-            return pointer?.GenerationId.Equals(generation.Name, StringComparison.Ordinal) == true;
+            var pointer = ReadJson<ArchiveCurrentPointer>(Path.Combine(rootDirectory.FullName, "current.json"));
+            return pointer.GenerationId?.Equals(generation.Name, StringComparison.Ordinal) == true;
         }
-        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
             return false;
         }
@@ -725,6 +644,19 @@ public sealed partial class ArchiveCacheStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         return Path.GetFullPath(packageRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static T ReadJson<T>(string path)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            16 * 1024,
+            FileOptions.SequentialScan);
+        return JsonSerializer.Deserialize<T>(stream, WorkerProtocol.JsonOptions)
+            ?? throw new InvalidDataException($"JSON file is empty: {path}");
     }
 
     private static async Task<T> ReadJsonAsync<T>(string path, CancellationToken cancellationToken)

@@ -74,7 +74,7 @@ public sealed class ArchiveNameIndexService(
             CancellationToken.None).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await WriteAsync(path, session.Fingerprint, index, cancellationToken).ConfigureAwait(false);
-        await cache.UpdateSecondaryStateAsync(session.GenerationPath, lookupsReady: null, namesReady: true, cancellationToken).ConfigureAwait(false);
+        cache.RequestMaintenance();
         return index;
     }
 
