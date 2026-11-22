@@ -584,3 +584,59 @@ def test_settings_are_read_without_secrets(mcp, settings) -> None:
     assert rows["appearance/theme"] == "graphite" and rows["model_library/api_token"] == "[removed]"
     only = mcp.ok("app_settings_get", {"prefix": "appearance/"})["settings"]
     assert [row["key"] for row in only] == ["appearance/theme"]
+
+
+def test_a_popup_panel_without_a_title_is_listed_and_its_controls_are_reached(mcp, window, app) -> None:
+    """Browse Archives' Edited Results..., Files DMM Adds and More Filters open from its Actions
+    menu as titleless Qt.Popup panels; app_state, app_ui and app_ui_act skipped them (2026-11-22)."""
+
+    from PySide6.QtWidgets import QGroupBox, QMenu, QToolButton
+
+    from cdmw.ui.archive_browser.command_strip import _ArchiveFiltersPopup
+
+    group = QGroupBox("Edited Results...")
+    inner = QVBoxLayout(group)
+    only_edited = QCheckBox("Only edited files")
+    only_edited.toggled.connect(lambda on: window.seen.append(("edited", on)))
+    inner.addWidget(only_edited)
+    button = QToolButton(window.centralWidget())
+    button.setText("Actions")
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    menu = QMenu(button)
+    popup = _ArchiveFiltersPopup(group, button, "ProbeEditedResultsPopup")
+    menu.addAction("Edited Results...").triggered.connect(lambda _checked=False: popup.toggle())
+    button.setMenu(menu)
+    window.centralWidget().layout().addWidget(button)
+    app.processEvents()
+    try:
+        mcp.ok("app_ui_act", {"text": "Actions", "action": "menu", "menu": "Edited Results..."})
+        app.processEvents()
+        assert popup.isVisible()
+
+        listed = {row["title"]: row for row in mcp.ok("app_state")["windows"]}
+        assert listed["Edited Results..."]["class"] == "_ArchiveFiltersPopup"
+        assert "Only edited files" in _controls(mcp), "the open panel is what app_ui shows"
+        page = mcp.ok("app_state")["window"]
+        assert "Only edited files" in _controls(mcp, widget=page), "the page it was opened from lists it too"
+        mcp.ok("app_ui_act", {"text": "Only edited files", "action": "check"})
+        assert ("edited", True) in window.seen
+    finally:
+        popup.hide()
+        popup.deleteLater()
+        app.processEvents()
+
+
+def test_an_unmarked_popup_is_not_taken_for_a_panel(mcp, window, app) -> None:
+    """A combo box's list is a popup too; app_ui keeps showing the page it belongs to."""
+
+    from cdmw.mcp.ui_tree import is_panel_popup
+
+    window.choice.showPopup()
+    app.processEvents()
+    try:
+        opened = QApplication.activePopupWidget()
+        assert opened is not None and not is_panel_popup(opened)
+        assert "Apply change" in _controls(mcp)
+    finally:
+        window.choice.hidePopup()
+        app.processEvents()

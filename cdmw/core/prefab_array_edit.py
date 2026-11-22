@@ -75,7 +75,7 @@ from cdmw.core.prefab_binary_edit import (
     _patch_data_header,
     affected_length_fields,
 )
-from cdmw.core.prefab_component_graft import element_bounds
+from cdmw.core.prefab_component_graft import element_bounds, refuse_keyed_preamble
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +255,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
             "does not choose between them, so every offset in it is a guess; "
             "refusing to resize."
         )
+    refuse_keyed_preamble(payload, document, collection_index)
     if not 0 <= element_index < len(collection.elements):
         raise PrefabEditError(
             f"No element {element_index} in {collection.member_name}; "

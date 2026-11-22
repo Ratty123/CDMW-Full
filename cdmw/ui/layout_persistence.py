@@ -16,6 +16,7 @@ from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QHeaderView, QSplitter, QWidget
 from shiboken6 import isValid
 from cdmw.ui.app_event_hub import install_app_event_filter, remove_app_event_filter
+from cdmw.ui.table_coherence import mark_user_sized_columns
 
 from cdmw.ui.widgets import request_settings_sync
 from cdmw.ui.window_interaction import ensure_window_interaction_tracker
@@ -229,12 +230,18 @@ class UiLayoutPersistence(QObject):
         widths = _sizes(self.settings.value(key), header.count())
         previous = self._restoring
         self._restoring = True
+        restored: list[int] = []
         try:
             for i, width in enumerate(widths):
                 if width > 0 and header.sectionResizeMode(i) == QHeaderView.Interactive:
                     header.resizeSection(i, width)
+                    restored.append(i)
         finally:
             self._restoring = previous
+        if restored:
+            # The saved widths are the user's: table coherence must keep them
+            # rather than refit the columns when the view is shown.
+            mark_user_sized_columns(header, restored)
         return bool(widths)
 
     def save_header(self, header: QHeaderView) -> None:

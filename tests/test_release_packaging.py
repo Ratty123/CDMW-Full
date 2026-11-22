@@ -852,3 +852,16 @@ def test_the_package_holds_the_mesh_editor_commands_settings_reads() -> None:
     assert keymap.RESOURCE.is_file()
     assert (f'_add_data_if_exists(datas, "{relative}", "{destination}", required_release=True)'
             in SPEC.read_text(encoding="utf-8"))
+
+
+def test_the_package_holds_the_mcp_coverage_file() -> None:
+    """The MCP server reads cdmw://coverage from this file next to its module; a
+    package without it raised FileNotFoundError on resources/read (2026-11-22)."""
+
+    from cdmw.mcp import coverage
+
+    relative = coverage.COVERAGE_FILE.relative_to(ROOT).as_posix()
+    destination = Path(relative).parent.as_posix()
+    assert coverage.COVERAGE_FILE.is_file()
+    assert (f'_add_data_if_exists(datas, "{relative}", "{destination}", required_release=True)'
+            in SPEC.read_text(encoding="utf-8"))

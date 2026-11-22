@@ -70,6 +70,7 @@ def build_with_collection(
     indexes=None,
     aliases=(),
     name_lengths: bool = False,
+    preamble: bytes = b"",
 ) -> bytes:
     """A prefab whose root holds a collection of ``len(names)`` elements.
 
@@ -80,7 +81,8 @@ def build_with_collection(
     declares the collection the way ``SocketComponent._socketList`` is declared
     (member ``extra`` 0x100): a reference after the count and an index in each
     element; ``indexes`` overrides the indexes written. ``name_lengths`` writes
-    the trailing name-length field shipped elements carry.
+    the trailing name-length field shipped elements carry. ``preamble`` is
+    written between the count and the first element, as an object list's is.
     """
     types = bytearray()
     types += text("SceneObject") + struct.pack("<H", 1)
@@ -100,6 +102,7 @@ def build_with_collection(
     if wide:
         blob += b"\x00"                   # the wide header's extra byte
     blob += struct.pack("<I", len(names) if declared is None else declared)
+    blob += preamble
     if indexed and names:
         blob += b"\x01" + struct.pack("<I", 8) + bytes(8)  # the list's reference
     written = list(indexes) if indexes is not None else list(range(len(names)))
@@ -136,12 +139,19 @@ class GroupBlob:
         self.base = base
         self.out = bytearray()
         self.out += struct.pack("<H", 2) + (0b1).to_bytes(6, "little")  # root: member 0
+        #: Whether the list being written has withIds: each element then carries a u32
+        #: index after its owner field.
+        self.ids = False
+        self.written = 0
 
     def element(self, type_index: int, mask: int, name: str, members) -> tuple[int, int]:
         """Write one object; ``members(self)`` writes its body. Returns its span."""
         start = len(self.out)
         self.out += struct.pack("<H", 1) + bytes((mask, type_index, 0, 0))
         self.out += b"\xff" * 8
+        if self.ids:
+            self.out += struct.pack("<I", self.written)
+            self.written += 1
         self.out += struct.pack("<I", self.base + len(self.out) + 4)
         name_start = len(self.out)
         self.out += struct.pack("<HHH", 0, 1, 0) + text(name)
@@ -149,20 +159,33 @@ class GroupBlob:
         self.out += struct.pack("<I", len(self.out) - name_start)
         return self.base + start, self.base + len(self.out)
 
-    def collection(self, writers) -> None:
+    def collection(self, writers, keys: int = 0, with_ids: bool = False) -> None:
         self.out += b"\x00" + struct.pack("<I", len(writers))
-        self.out += b"\x00" * 13  # the preamble: no ids, no keys
+        # The preamble: withIds, two u32s, then the key count, the keys and, with
+        # withIds, an index per key.
+        self.out += bytes((1 if with_ids else 0,)) + b"\x00" * 8 + struct.pack("<I", keys)
+        self.out += b"".join(struct.pack("<Q", 0x1000 + key) for key in range(keys))
+        if with_ids:
+            self.out += b"".join(struct.pack("<I", key) for key in range(keys))
+        outer = (self.ids, self.written)
+        self.ids, self.written = with_ids, 0
         for write in writers:
             write(self)
+        self.ids, self.written = outer
 
 
-def build_nested_groups(leaves=("Alpha", "Beta"), *, nested_type: str = "Holder", holder_mask: int = 0b011) -> bytes:
+def build_nested_groups(
+    leaves=("Alpha", "Beta"), *, nested_type: str = "Holder", holder_mask: int = 0b011, leaf_keys: int = 0,
+    leaf_ids: bool = False,
+) -> bytes:
     """A root ``_childSceneObjects`` holding one object that holds ``leaves``.
 
     The holder declares ``_label``, ``_components`` and an unselected
     ``_tags`` list, written as the byte 01 after the nested collection.
     ``holder_mask`` 0b001 leaves ``_components`` unselected too: a nested
     prefab instance (``nested_type`` starting ``/``) still writes it in full.
+    ``leaf_keys`` lists that many keys in the leaf collection's preamble, and
+    ``leaf_ids`` sets its withIds (an index per key and per leaf).
     """
     types = bytearray()
     types += text("SceneObject") + struct.pack("<H", 1)
@@ -187,7 +210,7 @@ def build_nested_groups(leaves=("Alpha", "Beta"), *, nested_type: str = "Holder"
 
     def holder(b: GroupBlob) -> None:
         b.out += text("holder")
-        b.collection([leaf(label) for label in leaves])
+        b.collection([leaf(label) for label in leaves], leaf_keys, leaf_ids)
         b.out += b"\x01"  # the unselected _tags
 
     blob.collection([lambda b: b.element(1, holder_mask, "Holder", holder)])

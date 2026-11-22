@@ -330,3 +330,54 @@ def test_a_resize_that_leaves_an_enclosing_length_stale_is_refused(monkeypatch: 
     # closes with one field fewer; both are refusals.
     with pytest.raises(PrefabEditError, match="no longer reads all the way|pointee length field"):
         duplicate_prefab_element(build_nested_groups(), 1, 0)
+
+
+def test_a_collection_whose_preamble_lists_keys_is_not_resized() -> None:
+    """The keys (and with withIds, their indexes) describe the elements; a splice would leave
+    their count stale while the read-back still passed (2026-11-22)."""
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups(("Alpha", "Beta"), leaf_keys=2)
+    document = decode_prefab_binary(data)
+    assert document.walk_complete, document.walk_note
+    assert document.collections[1].preamble_keys == 2
+    assert document.collections[0].preamble_keys == 0
+    for edit in (duplicate_prefab_element, remove_prefab_element):
+        with pytest.raises(PrefabEditError, match="2 preamble key"):
+            edit(data, 1, 0)
+    # The keyless holder list around it is still resizable.
+    assert duplicate_prefab_element(data, 0, 0).count_after == 2
+
+
+def test_a_withids_list_is_not_resized() -> None:
+    """With withIds each element carries its own index after its owner field."""
+    from tests.prefab_collection_builder import build_nested_groups
+
+    data = build_nested_groups(("Alpha", "Beta"), leaf_ids=True)
+    document = decode_prefab_binary(data)
+    assert document.walk_complete, document.walk_note
+    assert document.collections[1].preamble_with_ids
+    with pytest.raises(PrefabEditError, match="0 preamble key.*with element indexes"):
+        duplicate_prefab_element(data, 1, 0)
+
+
+@pytest.mark.parametrize(
+    ("preamble", "refused"),
+    [
+        (bytes(13), ""),
+        (bytes(9) + struct.pack("<I", 0xFFFFFFFF), ""),
+        (bytes(9) + struct.pack("<I", 2) + bytes(16), "2 preamble key"),
+        (b"\x01" + bytes(12), "with element indexes"),
+    ],
+)
+def test_an_earlier_reading_that_steps_over_a_keyed_preamble_is_refused(preamble: bytes, refused: str) -> None:
+    """The earlier readings find the first element with the header search, which steps
+    over a preamble without recording its keys."""
+    data = _build_with_collection(("Alpha", "Beta"), preamble=preamble, name_lengths=True)
+    document = decode_prefab_binary(data)
+    assert document.reading != "group-lists" and document.walk_complete
+    if refused:
+        with pytest.raises(PrefabEditError, match=refused):
+            duplicate_prefab_element(data, 0, 0)
+    else:
+        assert duplicate_prefab_element(data, 0, 0).count_after == 3
