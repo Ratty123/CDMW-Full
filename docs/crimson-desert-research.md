@@ -2217,7 +2217,13 @@ path is readable. Complete and determined walks are stricter states than
 Collection insertion/removal additionally requires known element spans and a
 fully recovered declared collection. A structural splice invalidates later
 offset-keyed edits, so the workflow must not apply a pending edit at its old
-location after a resize.
+location after a resize. Resizing (and grafting a component into) an indexed
+socket list, or an object list whose preamble lists keys or sets `withIds`, is
+refused: what the keys and indexes refer to is not known, and a splice would
+leave them out of step with the list while the read-back still passed. The
+earlier readings step over a preamble in the header search, so for them the
+preamble is read from the bytes before the first element (2026-11-22, source
+and synthetic fixtures only).
 
 ### 8.3 Findings that superseded earlier assumptions
 

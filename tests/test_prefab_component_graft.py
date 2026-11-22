@@ -60,7 +60,7 @@ class _Blob:
         self.out += struct.pack("<I", self.here - pointee_start)
 
 
-def build_prefab(*, component: str, member_kind: str, value: str, with_transform: bool = False, owner: bytes = b"\x00" * 8, pointee_type: str = "Path") -> bytes:
+def build_prefab(*, component: str, member_kind: str, value: str, with_transform: bool = False, owner: bytes = b"\x00" * 8, pointee_type: str = "Path", preamble: bytes = b"") -> bytes:
     """A root SceneObject whose `_components` holds one element of `component`.
 
     `member_kind` is "string" (a `staticstringA` member, the `_shrinkTag` shape),
@@ -97,6 +97,7 @@ def build_prefab(*, component: str, member_kind: str, value: str, with_transform
     blob = _Blob(base)
     blob.out += struct.pack("<H", 2) + (0b1).to_bytes(6, "little")   # root: _components selected
     blob.out += b"\x00" + struct.pack("<I", 1)                        # collection: kind, count
+    blob.out += preamble                                              # an object list's preamble, if any
     mask = 0b11 if with_transform else 0b1
     blob.out += _pointer_header(mask, 1)                              # element header: mask, type 1
     name_start = blob.pointer(owner)
@@ -307,3 +308,16 @@ def test_a_length_field_read_as_a_width_4_header_gives_way_to_the_real_one() -> 
     data, start = _header_then_pointer(b"\x65\x04\x00\x00", 1, 0b111, 3)
     assert data[:10] == bytes.fromhex("65040000010007030000")
     assert _element_header_start(data, types, 0, len(data)) == start == 4
+
+
+def test_a_graft_into_a_list_whose_preamble_lists_keys_is_refused() -> None:
+    """Appending an element leaves the keys out of step with the list, as a resize would."""
+
+    donor = build_prefab(component="Glow", member_kind="object", value="fx_a.level.effect")
+    keyed = build_prefab(component="Mesh", member_kind="string", value="a/mesh.pac",
+                         preamble=bytes(9) + struct.pack("<I", 2) + bytes(16))
+    assert decode_prefab_binary(keyed).walk_complete
+    with pytest.raises(PrefabEditError, match="2 preamble key"):
+        graft_prefab_component(keyed, donor, component_type="Glow")
+    empty = build_prefab(component="Mesh", member_kind="string", value="a/mesh.pac", preamble=bytes(13))
+    assert graft_prefab_component(empty, donor, component_type="Glow").data

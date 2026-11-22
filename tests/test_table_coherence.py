@@ -70,7 +70,10 @@ def test_restored_column_widths_survive_the_fit_on_show_and_on_model_changes(app
         view.model().setItem(0, 0, QStandardItem("a much longer value than before in this cell"))
         fit_resizable_columns(view)
         app.processEvents()
-        assert [header.sectionSize(col) for col in range(header.count())] == saved
+        widths = [header.sectionSize(col) for col in range(header.count())]
+        assert widths[:3] == saved[:3]
+        # Every column is the user's, so the last one takes the slack rather than leave a void.
+        assert widths[3] >= saved[3] and sum(widths) == view.viewport().width()
     finally:
         view.close()
         view.deleteLater()

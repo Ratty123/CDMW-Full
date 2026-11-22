@@ -482,6 +482,10 @@ def fit_resizable_columns(view: object, *, force: bool = False) -> None:
             col for col in range(col_count)
             if not hidden[col] and not has_widget_col[col] and (force or col not in user_resized)
         ]
+        if not candidates:
+            # Every column keeps the user's width. As when a drag leaves a gap
+            # (_absorb_header_gap), the last one takes it rather than leave a void.
+            candidates = [col for col in range(col_count) if not hidden[col] and not has_widget_col[col]][-1:]
         if candidates:
             primary = view.property("_cdmwPrimaryColumn")
             if isinstance(primary, int) and primary in candidates:

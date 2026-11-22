@@ -11,6 +11,8 @@ class _ArchiveFiltersPopup(QFrame):
     def __init__(self, filters: QGroupBox, button: QToolButton, name: str = "CompactArchiveFiltersMenu") -> None:
         super().__init__(button, Qt.WindowType.Popup)
         self.setObjectName(name)
+        # AI connections read and drive the controls of a window marked this way (cdmw.mcp.ui_tree).
+        self.setProperty("cdmwPopupPanel", True)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_NoMouseReplay)

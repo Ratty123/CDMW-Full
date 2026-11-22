@@ -75,7 +75,7 @@ from cdmw.core.prefab_binary_edit import (
     _patch_data_header,
     affected_length_fields,
 )
-from cdmw.core.prefab_component_graft import element_bounds
+from cdmw.core.prefab_component_graft import element_bounds, refuse_keyed_preamble
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,16 +171,6 @@ def _resizable_collection(
         raise PrefabEditError(
             f"{collection.member_name} is an indexed list (socket list); resizing it is not supported"
         )
-    if collection.preamble_keys or collection.preamble_with_ids:
-        # The preamble before the first element lists keys (and with withIds,
-        # an index per key, and an index in every element). What they key is
-        # not known, so a splice would leave their count and indexes stale
-        # while the read-back still passes.
-        raise PrefabEditError(
-            f"{collection.member_name} lists {collection.preamble_keys} preamble key(s)"
-            + (" with element indexes" if collection.preamble_with_ids else "")
-            + "; resizing it is not supported"
-        )
     return collection
 
 
@@ -265,6 +255,7 @@ def _resize(data: bytes, collection_index: int, element_index: int, *, insert: b
             "does not choose between them, so every offset in it is a guess; "
             "refusing to resize."
         )
+    refuse_keyed_preamble(payload, document, collection_index)
     if not 0 <= element_index < len(collection.elements):
         raise PrefabEditError(
             f"No element {element_index} in {collection.member_name}; "

@@ -99,20 +99,21 @@ def _clean(text: object) -> str:
 
 
 def is_panel_popup(widget) -> bool:
-    """Is ``widget`` a shown popup panel: a ``Qt.Popup`` window that is not a menu?
+    """Is ``widget`` a shown popup panel whose controls a tool may read and drive?
 
     Browse Archives keeps Edited Results..., Files DMM Adds and More Filters in
-    such panels. They have no window title and are windows of their own, so a
-    walk that skips untitled windows or stops at window boundaries misses them.
-    A menu is read through its menu bar or button instead.
+    ``Qt.Popup`` panels marked with the ``cdmwPopupPanel`` property. They have
+    no window title and are windows of their own, so a walk that skips untitled
+    windows or stops at window boundaries missed them. Only marked panels are
+    taken: a combo box's list, a completer and the command palette are popups
+    too, and none of them is a page of controls.
     """
 
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QMenu
 
     try:
         return (_valid(widget) and widget.isWindow() and widget.isVisible()
-                and widget.windowType() == Qt.WindowType.Popup and not isinstance(widget, QMenu))
+                and widget.windowType() == Qt.WindowType.Popup and bool(widget.property("cdmwPopupPanel")))
     except RuntimeError:
         return False
 
@@ -137,15 +138,21 @@ def panel_popups(under=None) -> list:
 
 
 def window_title(window) -> str:
-    """A window's title; for an untitled popup panel, the title of the group it shows."""
+    """A window's title; for an untitled popup panel, the title of the group it shows, or
+    the text of the button that opens it (More Filters' group has no title)."""
 
-    from PySide6.QtWidgets import QGroupBox
+    from PySide6.QtWidgets import QAbstractButton, QGroupBox
 
     title = str(window.windowTitle() or "")
     if title or not is_panel_popup(window):
         return title
     group = window.findChild(QGroupBox)
-    return _clean(group.title()) if group is not None and group.title() else window.objectName()
+    if group is not None and group.title():
+        return _clean(group.title())
+    opener = window.parentWidget()
+    if isinstance(opener, QAbstractButton) and source_text(opener):
+        return source_text(opener)
+    return window.objectName()
 
 
 def kind_of(widget) -> str:

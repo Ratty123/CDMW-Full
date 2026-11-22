@@ -50,6 +50,7 @@ from typing import Mapping, Optional, Sequence, Tuple
 from cdmw.core.prefab_binary import (
     _HEADER_WIDTHS,
     _MAX_MASK_BYTES,
+    READING_GROUP_LISTS,
     PrefabBinaryError,
     PrefabDocument,
     PrefabType,
@@ -109,29 +110,58 @@ def _type_count_offset(document: PrefabDocument) -> int:
     return (14 if document.version == 4 else 6) + 4
 
 
-def _header_states_its_type(data: bytes, start: int, width: int, types: Sequence[PrefabType]) -> bool:
-    """Is ``width`` at ``start`` a header width the decoder would believe?
+def _stated_type(data: bytes, start: int, width: int, types: Sequence[PrefabType]) -> Optional[PrefabType]:
+    if start + 2 + width + 2 > len(data):
+        return None
+    type_index = struct.unpack_from("<H", data, start + 2 + width)[0]
+    return types[type_index] if 0 <= type_index < len(types) else None
+
+
+def _header_width_believed(data: bytes, start: int, width: int, types: Sequence[PrefabType]) -> bool:
+    """Would the decoder read ``width`` at ``start`` as a header width?
 
     The header is ``u16 width, mask (width bytes), u16 typeIndex, u8 override``.
-    As in :mod:`cdmw.core.prefab_binary`, a width of 0 is a memberless type
-    and a width of 5 or more (6 for a 43-member SplineDecalComponent, 13 for
-    ScenePostProcessing) is believed only when the stated type needs exactly
-    that many mask bytes. Every width must also state a declared type whose
-    members cover the mask, which a length field read as a header rarely does:
-    ``65 04 00 00 01 00 07 03`` reads as width 4 three bytes before the real
-    width-1 header, and both end at the same owner field.
+    As in :mod:`cdmw.core.prefab_binary`, widths 1 to 4 are taken as they are,
+    a width of 0 only when the stated type has no members, and a width of 5 or
+    more (6 for a 43-member SplineDecalComponent, 13 for ScenePostProcessing)
+    only when the stated type needs exactly that many mask bytes.
     """
 
-    if not 0 <= width <= _MAX_MASK_BYTES or start + 2 + width + 3 > len(data):
+    if width in _HEADER_WIDTHS:
+        return True
+    if not 0 <= width <= _MAX_MASK_BYTES:
         return False
-    type_index = struct.unpack_from("<H", data, start + 2 + width)[0]
-    if not 0 <= type_index < len(types):
-        return False
-    members = len(types[type_index].members)
-    if width not in _HEADER_WIDTHS and (members + 7) // 8 != width:
-        return False
+    stated = _stated_type(data, start, width, types)
+    return stated is not None and (len(stated.members) + 7) // 8 == width
+
+
+def _header_fits(data: bytes, start: int, width: int, types: Sequence[PrefabType]) -> bool:
+    """Does the header at ``start`` state a declared type wide enough for its mask?"""
+
+    stated = _stated_type(data, start, width, types)
     mask = int.from_bytes(data[start + 2 : start + 2 + width], "little")
-    return mask.bit_length() <= members
+    return stated is not None and mask.bit_length() <= len(stated.members)
+
+
+def _narrower_header(data: bytes, probe: int, width: int, owner_at: int, types: Sequence[PrefabType]) -> int:
+    """The decoder's tie-break: a narrower header ending at the same owner, if only it fits.
+
+    The length field closing the previous element can read as a wider header:
+    ``65 04 00 00 01 00 07 03 00 00`` reads as width 4 three bytes before the
+    real width-1 header, and both reach the same owner field.
+    """
+
+    if _header_fits(data, probe, width, types):
+        return probe
+    for narrower in range(width - 1, 0, -1):
+        candidate = owner_at - 5 - narrower
+        if candidate <= probe:
+            break
+        if struct.unpack_from("<H", data, candidate)[0] != narrower or data[owner_at - 1] not in (0, 1):
+            continue
+        if _header_fits(data, candidate, narrower, types):
+            return candidate
+    return probe
 
 
 def _element_header_start(data: bytes, types: Sequence[PrefabType], at: int, limit: int) -> int:
@@ -140,15 +170,13 @@ def _element_header_start(data: bytes, types: Sequence[PrefabType], at: int, lim
 
     for probe in range(at, min(limit, len(data) - 24)):
         width = struct.unpack_from("<H", data, probe)[0]
-        if width > _MAX_MASK_BYTES:
+        if not _header_width_believed(data, probe, width, types):
             continue
         owner_at = probe + 2 + width + 3
-        if owner_at + 12 > len(data) or data[owner_at - 1] not in (0, 1):
+        if owner_at + 12 > len(data):
             continue
-        if struct.unpack_from("<I", data, owner_at + 8)[0] != owner_at + 12:
-            continue
-        if _header_states_its_type(data, probe, width, types):
-            return probe
+        if struct.unpack_from("<I", data, owner_at + 8)[0] == owner_at + 12:
+            return _narrower_header(data, probe, width, owner_at, types)
     raise PrefabEditError(f"no element header at or after 0x{at:x}")
 
 
@@ -185,6 +213,38 @@ def element_bounds(data: bytes, document: PrefabDocument, collection_index: int,
     return header, _element_end(data, walk_end, site + 4), site
 
 
+def refuse_keyed_preamble(data: bytes, document: PrefabDocument, collection_index: int) -> None:
+    """Refuse to add or drop elements of a list whose preamble lists keys or element indexes.
+
+    An object list's preamble (``u8 withIds, u32, u32, u32 n``, then ``n`` keys and, with
+    ``withIds``, an index per key) describes the elements that follow, and each element of a
+    ``withIds`` list carries its own index. What the keys refer to is not known, so a
+    splice would leave them out of step with the list while the read-back still passed.
+    The group-list reading records the preamble; the earlier readings step over it in the
+    header search, so for them it is read here from the bytes before the first element.
+    """
+
+    collection = document.collections[collection_index]
+    keys, with_ids = collection.preamble_keys, collection.preamble_with_ids
+    if not (keys or with_ids) and document.reading != READING_GROUP_LISTS and collection.elements:
+        preamble = 13 if document.revision >= 14 else 9
+        after_count = collection.count_offset + 4
+        try:
+            first = element_bounds(data, document, collection_index, 0)[0]
+        except PrefabEditError:
+            first = collection.elements[0][0]
+        if first - after_count >= preamble:
+            with_ids = document.revision >= 14 and data[after_count] == 1
+            listed = struct.unpack_from("<I", data, after_count + preamble - 4)[0]
+            keys = 0 if listed == 0xFFFFFFFF else listed
+    if keys or with_ids:
+        raise PrefabEditError(
+            f"{collection.member_name} lists {keys} preamble key(s)"
+            + (" with element indexes" if with_ids else "")
+            + "; adding or removing its elements is not supported"
+        )
+
+
 def _u16(data: bytes, at: int) -> int:
     return struct.unpack_from("<H", data, at)[0]
 
@@ -194,7 +254,7 @@ def _pointer_header_index_offset(data: bytes, site: int, types: Sequence[PrefabT
 
     The header ends ``u16 typeIndex, u8 override``. Only a header with override 0
     is taken: an overridden object is a delta over a nested prefab, not a whole
-    object to copy. Widths 0 to 13 occur (see :func:`_header_states_its_type`).
+    object to copy. Widths 0 to 13 occur (see :func:`_header_width_believed`).
     """
 
     owner_at = site - 8
@@ -204,7 +264,7 @@ def _pointer_header_index_offset(data: bytes, site: int, types: Sequence[PrefabT
         start = owner_at - (2 + width + 3)
         if start < 0:
             break
-        if struct.unpack_from("<H", data, start)[0] == width and _header_states_its_type(data, start, width, types):
+        if struct.unpack_from("<H", data, start)[0] == width and _header_width_believed(data, start, width, types):
             return owner_at - 3
     return None
 
@@ -301,6 +361,7 @@ def graft_prefab_component(
     t_coll = tdoc.collections[t_index]
     if t_coll.count != len(t_coll.elements) or not t_coll.elements:
         raise PrefabEditError(f"the target's {collection_member} collection declares {t_coll.count} element(s) and walked {len(t_coll.elements)}; refusing")
+    refuse_keyed_preamble(target_data, tdoc, t_index)
     _last_start, insert_at, _site = element_bounds(target_data, tdoc, t_index, len(t_coll.elements) - 1)
     for site, field_at in tdoc.pointee_length_fields:
         if site + 4 <= insert_at <= field_at:
