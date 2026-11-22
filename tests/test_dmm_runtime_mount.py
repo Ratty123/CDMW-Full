@@ -353,20 +353,23 @@ def test_files_dmm_adds_list(tmp_path, monkeypatch):
         group.copy_selected(game / "mods-here")
 
 
-def test_compact_workspace_opens_files_dmm_adds_and_edited_results_from_actions(monkeypatch):
-    """Compact Workspace hides the controls pane, so its panels open from the Actions menu."""
+def test_compact_workspace_opens_dmm_mounted_mods_and_edited_results_from_actions(tmp_path, monkeypatch):
+    """Compact Workspace exposes the toolbar DMM Mods button, Actions > DMM Mounted Mods..., and Edited Results."""
 
     from types import SimpleNamespace
 
-    from PySide6.QtWidgets import QApplication, QFrame, QSplitter, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QApplication, QFrame, QPushButton, QSplitter, QVBoxLayout, QWidget
 
     from cdmw.constants import DEFAULT_UI_THEME
     from cdmw.ui.archive_browser.asset_catalog_dialog import ArchiveAssetCatalogDialogMixin
     from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
     from cdmw.ui.archive_browser.controls_panel import ArchiveControlsPanelMixin
+    from cdmw.ui.archive_browser.dmm_mounted_mods_dialog import DmmMountedModsDialog
     from cdmw.ui.archive_browser.edited_results import ArchiveEditedResultsMixin
 
     application = QApplication.instance() or QApplication([])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
 
     class Window(ArchiveControlsPanelMixin, ArchiveAssetCatalogDialogMixin, ArchiveEditedResultsMixin, QWidget):
         def _build_archive_location_controls(self): pass
@@ -387,19 +390,18 @@ def test_compact_workspace_opens_files_dmm_adds_and_edited_results_from_actions(
     build_archive_command_strip(window, root)
 
     actions = root._cdmw_compact_archive_panel_actions
-    assert set(actions) == {"edited_results", "dmm_added_files"}
-    assert actions["dmm_added_files"].text() == "Files DMM Adds (Experimental)..."
+    assert set(actions) == {"edited_results", "dmm_mounted_mods"}
+    assert actions["dmm_mounted_mods"].text() == "DMM Mounted Mods..."
+    assert root.findChild(QPushButton, "ArchiveDmmModsButton") is window.archive_dmm_mods_button
     assert root._cdmw_compact_archive_actions_button.isEnabled()
-    dmm_popup = root._cdmw_compact_archive_actions_button.findChild(QFrame, "CompactArchiveDmmAddedFilesPanel")
-    assert window.archive_dmm_added_files_group.parentWidget() is dmm_popup
 
     window.resize(1200, 800)
     window.show()
-    actions["dmm_added_files"].trigger()
+    actions["dmm_mounted_mods"].trigger()
     application.processEvents()
-    assert dmm_popup.isVisible() and window.archive_dmm_added_files_group.isVisible()
-    assert window.archive_dmm_added_files_group.find_button.isVisible()
-    dmm_popup.hide()
+    dialog = getattr(window, "_dmm_mounted_mods_dialog", None)
+    assert isinstance(dialog, DmmMountedModsDialog) and dialog.isVisible()
+    dialog.close()
 
     # Edited Results is offered once the Mesh Editor has handed back a result.
     menu = root._cdmw_compact_archive_actions_button.menu()
@@ -935,3 +937,270 @@ def test_files_dmm_adds_open_prepares_referenced_vanilla_game_textures(tmp_path,
     vanilla_dep = context.entry_for_path(vanilla_tex)
     assert vanilla_dep is not None and vanilla_dep.prepared_path == vanilla_prepared
     archive.deleteLater()
+
+
+def test_mod_label_strips_mismatched_internal_paths_and_formats_badges():
+    source = (
+        r"C:\DMM\mods\Weapon_Carry_-_Base_Game_1.1.2\Weapon Carry 2 - Kliff - 2H Sword on Hip"
+        r"\character\motion\1_pc\1_phm\cd_phm_longsword_01_03_normal_stand_weapon_out_001.paa"
+    )
+    game_path = "character/motion/1_pc/1_phm/00_mon/cd_phm_longsword_01_03_normal_stand_weapon_out_001.paa"
+    assert dmm.mod_label(source, game_path) == "Weapon_Carry_-_Base_Game_1.1.2/Weapon Carry 2 - Kliff - 2H Sword on Hip"
+    assert dmm.dmm_mod_from_note("Raw,DMM mod: Sword_1.0_zip/Sword Mod") == "Sword_1.0_zip/Sword Mod"
+    assert dmm.dmm_mod_from_note("Raw") == ""
+    assert dmm.short_mod_name("KC-UI-EDITION/KC - UI EDITION/files") == "KC - UI EDITION"
+    assert dmm.short_mod_name("A" * 50, max_chars=20) == ("A" * 17) + "..."
+
+
+def test_dmm_mounted_mods_dialog_lists_filters_scopes_and_opens_replaced_and_added_files(tmp_path, monkeypatch):
+    from PySide6.QtCore import QObject, QSettings, QTimer, Signal
+    from PySide6.QtWidgets import QWidget
+    from cdmw.domain.archives.catalogue import (
+        ArchiveDurableIdentity, ArchiveEntryDto, ArchiveEntryRole, ArchiveLookupResult,
+    )
+    from cdmw.ui.archive_browser.dmm_mounted_mods_dialog import show_dmm_mounted_mods_dialog
+    from cdmw.ui.dmm_mounted_mods_group import DmmMountedModsGroup
+
+    _qt()
+    game = _game(tmp_path)
+    store = tmp_path / "DMM" / "mods"
+    replaced_mesh = MESH
+    added_mesh = "character/model/1_pc/1_phm/weapon/cd_phm_01_sword_9999_added.pac"
+    replaced_dds = "character/texture/cd_phm_01_sword_0109_d.dds"
+    table_path = "gamedata/binary__/client/bin/iteminfo.pabgb"
+    _write(store / "SwordPack" / replaced_mesh, b"replaced-pac")
+    _write(store / "SwordPack" / added_mesh, b"added-pac")
+    _write(store / "SwordPack" / replaced_dds, b"replaced-dds")
+    _write(store / "TablePack" / table_path, b"table-bytes")
+    _manifest(game, [
+        f"file\t{replaced_mesh}\t{store / 'SwordPack' / replaced_mesh}",
+        f"file\t{added_mesh}\t{store / 'SwordPack' / added_mesh}",
+        f"file\t{replaced_dds}\t{store / 'SwordPack' / replaced_dds}",
+        f"file\t{table_path}\t{store / 'TablePack' / table_path}",
+    ])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+
+    dto_mesh = ArchiveEntryDto(
+        "s", 11, ArchiveDurableIdentity(replaced_mesh, "0009/0.pamt", 0, 128), replaced_mesh,
+        "0009/0.pamt", "0009/0.paz", 0, 128, 12, 12, 0, ".pac", "0009", ArchiveEntryRole.MODEL, "Model", True,
+        is_active_override=True,
+    )
+    dto_dds = ArchiveEntryDto(
+        "s", 12, ArchiveDurableIdentity(replaced_dds, "0009/0.pamt", 0, 256), replaced_dds,
+        "0009/0.pamt", "0009/0.paz", 0, 256, 12, 12, 0, ".dds", "0009", ArchiveEntryRole.IMAGE, "Texture", True,
+        is_active_override=True,
+    )
+
+    class Service(QObject):
+        batch_ready = Signal(str, str, object)
+        result_ready = Signal(str, str, object)
+        request_failed = Signal(str, object)
+        request_cancelled = Signal(str)
+
+        def resolve_entries(self, request, *, ui_generation=0):
+            wanted = {path.casefold() for path in request.values}
+            found = tuple(dto for path, dto in ((replaced_mesh, dto_mesh), (replaced_dds, dto_dds)) if path in wanted)
+            QTimer.singleShot(0, lambda: self.result_ready.emit(
+                "r-1", "resolve_entries", ArchiveLookupResult("s", found, len(found), False),
+            ))
+            return "r-1"
+
+        def cancel(self, _request_id):
+            pass
+
+    scoped = []
+    mesh_opened = []
+    tex_opened = []
+
+    class Bridge:
+        current_session = SimpleNamespace(session_id="s", package_root=str(game))
+        controller = SimpleNamespace(generation=1)
+
+        def apply_entry_id_scope(self, entry_ids, *, label=""):
+            scoped.append((tuple(entry_ids), label))
+            return True
+
+    class Shell:
+        def __init__(self):
+            self.settings = QSettings(str(tmp_path / "ui.ini"), QSettings.Format.IniFormat)
+            self.mesh_editor_tab = SimpleNamespace(
+                open_archive_session=lambda entry, *, archive_dependencies=None: mesh_opened.append((entry, archive_dependencies))
+            )
+            self.textures = SimpleNamespace(
+                open_prepared_archive_texture=lambda entry, path: tex_opened.append((entry, Path(path)))
+            )
+            self.archive_browser_tab = QWidget()
+
+        def _prepare_mesh_editor_archive_launch(self, _entry):
+            return True
+
+        def _activate_tool_widget(self, _tab):
+            pass
+
+        def set_status_message(self, *_args, **_kwargs):
+            pass
+
+    class Archive(QWidget):
+        def __init__(self):
+            super().__init__()
+            self.archive_remote_bridge = Bridge()
+            self.archive_catalogue_service = Service()
+            self.shell = Shell()
+            self.settings = self.shell.settings
+
+    archive = Archive()
+    settings_group = DmmMountedModsGroup(archive.settings)
+    settings_group.setChecked(True) if hasattr(settings_group, "setChecked") else None
+
+    dialog = show_dmm_mounted_mods_dialog(archive)
+    assert _until(lambda: any(row.in_catalogue is True for row in dialog._all_rows))
+    assert len(dialog.visible_rows()) == 4
+
+    # Syncs toggle with Settings > Paths checkbox & persists setting.
+    dialog.enabled_checkbox.setChecked(False)
+    assert not overlay.enabled and not settings_group.show_checkbox.isChecked()
+    assert dmm.setting_enabled(archive.settings) is False
+    dialog.enabled_checkbox.setChecked(True)
+    assert overlay.enabled and settings_group.show_checkbox.isChecked()
+
+    # Filters by kind cleanly.
+    dialog.kind_combo.setCurrentIndex(dialog.kind_combo.findData("replaces"))
+    assert {row.game_path for row in dialog.visible_rows()} == {replaced_mesh, replaced_dds}
+    assert dialog.filter_browse_archives() is True
+    assert scoped and scoped[-1][0] == (11, 12)
+
+    # Opening a replaced vanilla mesh preserves vanilla archive identity while using DMM bytes.
+    dialog = show_dmm_mounted_mods_dialog(archive)
+    assert _until(lambda: any(row.in_catalogue is True for row in dialog._all_rows))
+    dialog.kind_combo.setCurrentIndex(dialog.kind_combo.findData("all"))
+    dialog.select_paths([replaced_mesh])
+    assert dialog.show_in_browse_button.isEnabled()
+    dialog.open_selected_in_mesh_editor()
+    assert _until(lambda: len(mesh_opened) == 1)
+    rep_entry, _ctx = mesh_opened[0]
+    assert rep_entry.path == replaced_mesh
+    assert rep_entry.prepared_path.read_bytes() == b"replaced-pac"
+    assert not dmm.is_dmm_added_entry(rep_entry) and Path(rep_entry.pamt_path) == Path("0009/0.pamt")
+
+    # Opening an added mesh marks manifest provenance as added.
+    dialog = show_dmm_mounted_mods_dialog(archive)
+    assert _until(lambda: any(row.in_catalogue is False for row in dialog._all_rows))
+    dialog.select_paths([added_mesh])
+    dialog.open_selected_in_mesh_editor()
+    assert _until(lambda: len(mesh_opened) == 2)
+    add_entry, _ctx = mesh_opened[1]
+    assert add_entry.path == added_mesh and dmm.is_dmm_added_entry(add_entry)
+    assert add_entry.prepared_path.read_bytes() == b"added-pac"
+
+    # Opening a mounted DDS sends DMM's copy directly to Texture Editor.
+    dialog = show_dmm_mounted_mods_dialog(archive)
+    assert _until(lambda: any(row.in_catalogue is True for row in dialog._all_rows))
+    dialog.select_paths([replaced_dds])
+    dialog.open_selected_in_texture_editor()
+    assert _until(lambda: len(tex_opened) == 1)
+    tex_entry, tex_path = tex_opened[0]
+    assert tex_entry.path == replaced_dds and tex_path.read_bytes() == b"replaced-dds"
+
+    dialog.close()
+    settings_group.deleteLater()
+    archive.deleteLater()
+
+
+def test_preview_health_and_texture_editor_reflect_dmm_overlay_and_refresh(tmp_path, monkeypatch):
+    from cdmw.models import ArchiveEntry, ArchivePreviewResult
+    from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup
+    from cdmw.ui.archive_browser.preview_panel import ArchivePreviewTextToolsMixin
+    from cdmw.ui.texture_workflow.editor_bridge import TextureWorkflowEditorBridgeMixin
+
+    _qt()
+    game = _game(tmp_path)
+    store = tmp_path / "DMM" / "mods" / "ArmorMod"
+    dds_path = "character/texture/cd_armor_d.dds"
+    _write(store / dds_path, b"DDS dmm texture")
+    _manifest(game, [f"file\t{dds_path}\t{store / dds_path}"])
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+
+    class PreviewPanel(ArchivePreviewTextToolsMixin):
+        def __init__(self):
+            self.archive_preview_request_entry = None
+            self.archive_remote_bridge = None
+
+        def _archive_entry_role_label(self, _entry):
+            return "Model"
+
+        def _archive_reference_role_label(self, _ref):
+            return ""
+
+        def _archive_known_used_by_references(self, _entry):
+            return False
+
+        def _archive_entry_item_name_match(self, _entry):
+            return False, False, ""
+
+        def _ui_compact_status_line(self, parts):
+            return " | ".join(parts)
+
+    panel = PreviewPanel()
+    entry = ArchiveEntry(
+        MESH, Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0,
+        prepared_note="Raw,DMM mod: Sword_1.0_zip/Sword Mod",
+    )
+    text = panel._archive_preview_health_text(ArchivePreviewResult(title="x", status="ok", preferred_view="model"), entry)
+    assert "DMM: Sword Mod" in text
+
+    # Companion DMM file badge when primary entry is vanilla.
+    companion = ArchiveEntry(dds_path, Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0, prepared_note="DMM mod: ArmorMod")
+    vanilla_primary = ArchiveEntry(MESH, Path("0.pamt"), Path("0.paz"), 0, 1, 1, 0, 0, prepared_note="Raw")
+    panel.archive_remote_bridge = SimpleNamespace(
+        prepared_dependencies_for=lambda _e: SimpleNamespace(entries=(vanilla_primary, companion))
+    )
+    comp_text = panel._archive_preview_health_text(
+        ArchivePreviewResult(title="x", status="ok", preferred_view="model"), vanilla_primary,
+    )
+    assert "DMM Companion Files" in comp_text
+
+    # Toggling overlay refreshes active Browse preview & DMM Mods button.
+    events = []
+    fake_archive = SimpleNamespace(
+        archive_remote_bridge=SimpleNamespace(
+            current_session=None,
+            cancel_preview_dependencies=lambda *, clear_snapshot=False: events.append(("cancel", clear_snapshot)),
+        ),
+        editing_in_place=False,
+        _clear_archive_preview_cache=lambda: events.append(("clear",)),
+        _clear_archive_asset_family_cache=lambda: events.append(("clear_family",)),
+        _refresh_archive_dmm_mods_button=lambda: events.append(("refresh_btn",)),
+        _current_archive_entry=lambda: vanilla_primary,
+        _render_archive_preview=lambda item, *, force=False: events.append(("render", item.path, force)),
+    )
+    group = DmmAddedFilesGroup(fake_archive)
+    overlay.set_enabled(False)
+    assert ("refresh_btn",) in events
+    assert ("cancel", True) in events
+    assert ("render", MESH, True) in events
+
+    # Opening an unprepared DDS in Texture Editor still picks DMM's mounted file.
+    overlay.set_enabled(True)
+    paz = _write(tmp_path / "0009" / "0.paz", b"vanilla paz bytes")
+    opened_textures = []
+
+    class TexBridge(TextureWorkflowEditorBridgeMixin):
+        def __init__(self):
+            self.archive = SimpleNamespace(
+                archive_remote_bridge=SimpleNamespace(current_session=SimpleNamespace(package_root=str(game)))
+            )
+            self.shell = SimpleNamespace(set_status_message=lambda *a, **kw: None)
+
+        def open_prepared_archive_texture(self, target_entry, source_path):
+            opened_textures.append((target_entry, Path(source_path)))
+
+    unprepared = ArchiveEntry(
+        dds_path, tmp_path / "0009" / "0.pamt", paz, 0, 17, 17, 0, 0,
+    )
+    TexBridge()._open_archive_entry_in_texture_editor(unprepared)
+    assert len(opened_textures) == 1
+    assert opened_textures[0][1].read_bytes() == b"DDS dmm texture"
+    assert dmm.dmm_mod_from_note(opened_textures[0][0].prepared_note) == "ArmorMod"
+    group.deleteLater()

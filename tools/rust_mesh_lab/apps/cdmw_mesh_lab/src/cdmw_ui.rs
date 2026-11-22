@@ -1432,29 +1432,36 @@ fn cdmw_panel_title_width(ui: &egui::Ui, title: &str) -> f32 {
         + cdmw_text_width(ui, crate::localization::tr(title), egui::TextStyle::Body)
 }
 
-/// The width a tool button needs to show its translated name on one line.
-fn cdmw_tool_button_width(ui: &egui::Ui, label: &str) -> f32 {
-    cdmw_text_width(ui, crate::localization::tr(label), egui::TextStyle::Button)
-        + ui.spacing().button_padding.x * 2.0
+fn cdmw_tool_button_padding_x(ui: &egui::Ui) -> f32 {
+    // Horizontal button padding plus 2 pt slack for subpixel glyph rounding
+    // so single-line or single-word tool labels never break mid-word inside
+    // `Button::wrap()`.
+    ui.spacing().button_padding.x * 2.0 + 2.0
 }
 
-/// How a rail group lays out its tool buttons: a grid in the panel's width.
+/// The width a tool button needs to show its translated name on one line.
+fn cdmw_tool_button_width(ui: &egui::Ui, label: &str) -> f32 {
+    (cdmw_text_width(ui, crate::localization::tr(label), egui::TextStyle::Button)
+        + cdmw_tool_button_padding_x(ui))
+    .ceil()
+}
+
+/// How a rail group lays out its tool buttons: equal columns in the panel's width.
 struct CdmwToolGrid {
     /// Each column's width.
     columns: Vec<f32>,
     rows: usize,
-    /// Filled column by column (top to bottom first) instead of row by row.
-    by_column: bool,
 }
 
 /// The width a tool button needs for its longest word, the narrowest it can
 /// be when its name wraps between words.
 fn cdmw_tool_button_word_width(ui: &egui::Ui, label: &str) -> f32 {
-    crate::localization::tr(label)
+    (crate::localization::tr(label)
         .split_whitespace()
         .map(|word| cdmw_text_width(ui, word.to_owned(), egui::TextStyle::Button))
         .fold(0.0_f32, f32::max)
-        + ui.spacing().button_padding.x * 2.0
+        + cdmw_tool_button_padding_x(ui))
+    .ceil()
 }
 
 /// The height of a tool button `width` wide: its name wrapped between words
@@ -1471,75 +1478,56 @@ fn cdmw_tool_button_height(ui: &egui::Ui, label: &str, width: f32) -> f32 {
         )
         .size()
         .y;
-    (text + padding.y * 2.0).max(ui.spacing().interact_size.y)
+    (text + padding.y * 2.0)
+        .max(ui.spacing().interact_size.y)
+        .ceil()
 }
 
 impl CdmwToolGrid {
     /// The tool index shown at `row`, `column`, if any.
     fn index(&self, row: usize, column: usize) -> usize {
-        if self.by_column {
-            column * self.rows + row
-        } else {
-            row * self.columns.len() + column
-        }
+        row * self.columns.len() + column
     }
 }
 
-/// Lays out tool buttons in `available` width with as few rows as fit. Rows
-/// are balanced (four buttons make two rows of two, not three and one), each
-/// column is as wide as its widest button, and the room left over is shared
-/// out so the grid spans the panel. Filling row by row reads best; filling
-/// column by column is used only when it saves rows, as when one long name
-/// (Normals & Tangents) would otherwise leave every row a single button.
-/// Where only one button would fit on a row, a group of three or more gets
-/// two equal columns instead and its long names wrap between words.
+/// Lays out tool buttons in equal-width columns (at most three per row) inside
+/// `available` width. Rows are balanced (four buttons make two rows of two, not
+/// three and one) so the layout stays orderly at every panel width. When only
+/// one full-label column fits in a group of three or more tools, two equal
+/// columns are used if every longest single word fits cleanly without
+/// mid-word breaks.
 fn cdmw_tool_grid(ui: &egui::Ui, labels: &[&str], available: f32) -> CdmwToolGrid {
     let spacing = ui.spacing().item_spacing.x;
-    let widths: Vec<f32> = labels
+    let count = labels.len().max(1);
+    let widest_full = labels
         .iter()
         .map(|label| cdmw_tool_button_width(ui, label))
-        .collect();
-    let count = widths.len().max(1);
-    let layout = |fitting: usize, by_column: bool| {
-        let rows = count.div_ceil(fitting);
-        let columns = count.div_ceil(rows);
-        let mut grid = CdmwToolGrid {
-            columns: vec![0.0_f32; columns],
-            rows,
-            by_column,
-        };
-        for row in 0..rows {
-            for column in 0..columns {
-                if let Some(width) = widths.get(grid.index(row, column)) {
-                    grid.columns[column] = grid.columns[column].max(*width);
-                }
-            }
-        }
-        grid
+        .fold(0.0_f32, f32::max);
+    let widest_word = labels
+        .iter()
+        .map(|label| cdmw_tool_button_word_width(ui, label))
+        .fold(0.0_f32, f32::max);
+    let column_width = |columns: usize| {
+        ((available - spacing * (columns - 1) as f32) / columns as f32)
+            .floor()
+            .max(1.0)
     };
-    let used = |grid: &CdmwToolGrid| {
-        grid.columns.iter().sum::<f32>() + spacing * (grid.columns.len() - 1) as f32
-    };
-    let mut grid = (1..=count)
+    let max_columns = count.min(3);
+    let mut columns = (1..=max_columns)
         .rev()
-        .flat_map(|fitting| [layout(fitting, false), layout(fitting, true)])
-        .filter(|grid| used(grid) <= available)
-        .min_by_key(|grid| (grid.rows, grid.by_column))
-        .unwrap_or_else(|| layout(1, false));
-    if grid.columns.len() == 1 && count > 2 {
-        grid = CdmwToolGrid {
-            columns: vec![0.0; 2],
-            rows: count.div_ceil(2),
-            by_column: false,
-        };
+        .map(|fitting| {
+            let rows = count.div_ceil(fitting);
+            count.div_ceil(rows)
+        })
+        .find(|&cols| widest_full <= column_width(cols))
+        .unwrap_or(1);
+    if columns == 1 && count > 2 && widest_word <= column_width(2) {
+        columns = 2;
     }
-    // Whole points, so rounding never makes the grid a fraction wider than
-    // the panel (which would widen the panel by that fraction).
-    let extra = ((available - used(&grid)) / grid.columns.len() as f32).max(0.0);
-    for column in &mut grid.columns {
-        *column = (*column + extra).floor().max(1.0);
+    CdmwToolGrid {
+        columns: vec![column_width(columns); columns],
+        rows: count.div_ceil(columns),
     }
-    grid
 }
 
 /// The outer width a side panel needs to show rows of these content widths
@@ -1746,7 +1734,7 @@ pub(super) fn cdmw_list_header(
 
 fn cdmw_chrome_row_height(context: &egui::Context) -> f32 {
     let style = context.style_of(context.theme());
-    style.spacing.interact_size.y + style.spacing.item_spacing.y * 2.0 + 2.0
+    (style.spacing.interact_size.y + 6.0).max(24.0)
 }
 
 fn cdmw_chrome_fits_one_row(context: &egui::Context, available_width: f32) -> bool {
@@ -2368,14 +2356,13 @@ impl LabApplication {
         let wide = cdmw_chrome_fits_one_row(&self.egui_context, root_ui.available_width());
         let row_height = cdmw_chrome_row_height(&self.egui_context);
         egui::Panel::top("cdmw_session_bar")
+            .frame(
+                egui::Frame::side_top_panel(root_ui.style())
+                    .inner_margin(egui::Margin::symmetric(8, 3)),
+            )
             .exact_size(if wide { row_height } else { row_height * 2.0 })
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(crate::localization::tr("Mesh Editor"))
-                            .heading()
-                            .strong(),
-                    );
                     if self.cdmw_pending_request.as_ref().is_some_and(|pending| {
                         !matches!(
                             pending.origin,
@@ -2386,7 +2373,6 @@ impl LabApplication {
                         ui.add(Spinner::new());
                     }
                     if wide {
-                        ui.separator();
                         self.draw_cdmw_selection_history_controls(
                             ui, actions, busy, authoring, selected, cursor, undo_count, redo_count,
                         );
@@ -2640,6 +2626,10 @@ impl LabApplication {
         let wide = cdmw_chrome_fits_one_row(&self.egui_context, root_ui.available_width());
         let row_height = cdmw_chrome_row_height(&self.egui_context);
         egui::Panel::bottom("cdmw_bottom_bar")
+            .frame(
+                egui::Frame::side_top_panel(root_ui.style())
+                    .inner_margin(egui::Margin::symmetric(8, 3)),
+            )
             .exact_size(if wide {
                 row_height
             } else {
@@ -3094,9 +3084,9 @@ impl LabApplication {
         let policy_reason = state_str(&self.cdmw_state, "output_policy_reason")
             .unwrap_or("Authoring is unavailable under the current output policy")
             .to_owned();
-        // While it shows only headers and tool buttons, the rail is as wide as
-        // its widest header or button; a settings page (an active tool,
-        // Viewport, Output) gets the rail's usual width.
+        // While it shows headers, tool-button groups, Viewport, or Output, the
+        // rail stays at its compact width; only an active tool's settings page
+        // widens the panel.
         let compact = cdmw_side_panel_fit(
             root_ui,
             std::iter::once(cdmw_panel_title_width(root_ui, "Tools")).chain(
@@ -3128,17 +3118,9 @@ impl LabApplication {
                     .map(|label| cdmw_tool_button_width(root_ui, label)),
             ),
         );
-        let reveal_pending = [keyboard::CDMW_REVEAL_VIEWPORT, CDMW_REVEAL_OUTPUT]
-            .iter()
-            .any(|key| {
-                root_ui
-                    .ctx()
-                    .data(|data| data.get_temp::<bool>(egui::Id::new(*key)))
-                    .unwrap_or(false)
-            });
         let panel = egui::Panel::left("cdmw_tool_rail")
             .default_size(264.0_f32.max(compact))
-            .min_size(220.0_f32.max(compact))
+            .min_size(compact)
             .max_size(340.0_f32.max(compact))
             .resizable(true);
         cdmw_show_fitted_side_panel(
@@ -3146,7 +3128,7 @@ impl LabApplication {
             panel,
             egui::Id::new("cdmw_tool_rail"),
             compact,
-            self.cdmw_rail_page.is_some() || reveal_pending,
+            self.cdmw_rail_page.is_some(),
             |ui, open| {
                 ui.horizontal(|ui| {
                     if cdmw_sidebar_button(
@@ -3197,7 +3179,6 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
-                                *open |= section.openness > 0.0;
                                 if reveal {
                                     section.header_response.scroll_to_me(Some(egui::Align::Min));
                                 }
@@ -3221,7 +3202,6 @@ impl LabApplication {
                                             actions,
                                         )
                                     });
-                                *open |= section.openness > 0.0;
                                 if reveal {
                                     section.header_response.scroll_to_me(Some(egui::Align::Min));
                                 }
@@ -3559,6 +3539,7 @@ impl LabApplication {
         }
         egui::ComboBox::from_id_salt("lighting_preset")
             .width(ui.available_width())
+            .truncate()
             .selected_text(crate::localization::tr(self.lighting_preset.label()))
             .show_ui(ui, |ui| {
                 for preset in cdmw_render_wgpu::LightingPreset::MENU {
@@ -3570,19 +3551,28 @@ impl LabApplication {
                 }
             });
         if self.lighting_preset == cdmw_render_wgpu::LightingPreset::StudioFixed {
+            let mut wetness_percent = self.studio_look.wetness * 100.0;
+            if ui
+                .add(
+                    crate::cdmw_ui::numeric::slider(&mut wetness_percent, 0.0..=100.0)
+                        .suffix("%")
+                        .text(crate::localization::tr("Wetness")),
+                )
+                .changed()
+            {
+                self.studio_look.wetness = (wetness_percent / 100.0).clamp(0.0, 1.0);
+            }
             ui.add(
-                egui::Slider::new(&mut self.studio_look.wetness, 0.0..=1.0)
-                    .custom_formatter(|value, _| format!("{:.0}%", value * 100.0))
-                    .text(crate::localization::tr("Wetness")),
-            );
-            ui.add(
-                egui::Slider::new(&mut self.studio_look.exposure, 0.5..=2.0)
+                crate::cdmw_ui::numeric::slider(&mut self.studio_look.exposure, 0.5..=2.0)
                     .text(crate::localization::tr("Exposure")),
             );
             ui.add(
-                egui::Slider::new(&mut self.studio_look.env_rotation_degrees, -180.0..=180.0)
-                    .suffix("°")
-                    .text(crate::localization::tr("Light rotation")),
+                crate::cdmw_ui::numeric::slider(
+                    &mut self.studio_look.env_rotation_degrees,
+                    -180.0..=180.0,
+                )
+                .suffix("°")
+                .text(crate::localization::tr("Light rotation")),
             );
             // Its own row: beside the slider it is cut off at large font sizes.
             let is_default = self.studio_look == cdmw_render_wgpu::StudioLookSettings::default();
@@ -3646,7 +3636,7 @@ impl LabApplication {
         });
         ui.add_enabled(
             false,
-            Button::new(crate::localization::tr("Material Colour")),
+            Button::new(crate::localization::tr("Material Colour")).wrap(),
         )
         .on_disabled_hover_text(crate::localization::tr(
             "Material Colour is deliberately unavailable in the Mesh Editor product contract",
@@ -3685,7 +3675,7 @@ impl LabApplication {
                     colour_row(ui, "Screen grid", &mut self.viewport_grid_colour);
                 });
                 if ui
-                    .button(crate::localization::tr("Reset appearance"))
+                    .add(Button::new(crate::localization::tr("Reset appearance")).wrap())
                     .clicked()
                 {
                     self.overlay_wire_colour = Color32::from_rgb(105, 125, 155);
@@ -3702,7 +3692,7 @@ impl LabApplication {
         );
         ui.separator();
         if ui
-            .button(crate::localization::tr("Keyboard Shortcuts..."))
+            .add(Button::new(crate::localization::tr("Keyboard Shortcuts...")).wrap())
             .clicked()
         {
             self.shortcut_editor.open = true;
@@ -3812,7 +3802,7 @@ impl LabApplication {
             .add_enabled(
                 state_bool(&self.cdmw_state, "authoring_enabled")
                     && !self.cdmw_morph_comparison_active(),
-                Button::new(crate::localization::tr("Open Package in CDMW...")),
+                Button::new(crate::localization::tr("Open Package in CDMW...")).wrap(),
             )
             .on_disabled_hover_text(crate::localization::tr(
                 "This session is read-only; choose an editable output route first",
@@ -3899,7 +3889,7 @@ impl LabApplication {
         if heading {
             ui.label(RichText::new(crate::localization::tr("Output")).strong());
         }
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if ui.add_enabled(!replacement, Button::new(crate::localization::tr("Exact")).selected(exact)).clicked() && !exact {
                 actions.push(UiAction::CdmwCommand {
                     command: "configure_output_policy",
@@ -3933,7 +3923,7 @@ impl LabApplication {
             if ui
                 .add_enabled(
                     !archive_refit,
-                    Button::new(crate::localization::tr(folder_label)),
+                    Button::new(crate::localization::tr(folder_label)).wrap(),
                 )
                 .on_hover_text(crate::localization::tr(
                     "Choose the parent folder for a new OBJ package.",
@@ -3949,7 +3939,7 @@ impl LabApplication {
         if ui
             .add_enabled(
                 free_edit && ready,
-                Button::new(crate::localization::tr("Export Free Edit Package")),
+                Button::new(crate::localization::tr("Export Free Edit Package")).wrap(),
             )
             .on_disabled_hover_text(crate::localization::tr(
                 "Available only after a Free Edit package folder is proven",
@@ -6996,7 +6986,7 @@ impl SelectedCounts {
 }
 
 fn colour_row(ui: &mut egui::Ui, label: &str, colour: &mut Color32) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(crate::localization::tr(label));
         ui.color_edit_button_srgba(colour);
         numeric::menu(ui, &crate::localization::tr("RGBA"), |ui| {

@@ -118,6 +118,15 @@ def refresh_draft_name_controls(tab: object) -> None:
     button.setVisible(has_draft)
     label.setVisible(has_draft and bool(name))
     label.setText(f"Draft: {name}" if name else "")
+    from cdmw.services.dmm_runtime_mount import dmm_mod_from_note
+
+    target = getattr(getattr(tab, "current_request", None), "target_entry", None)
+    dmm_mod = dmm_mod_from_note(getattr(target, "prepared_note", ""))
+    if has_draft and dmm_mod:
+        existing_tip = str(label.toolTip() or "").strip()
+        if f"Loaded from mounted DMM mod: {dmm_mod}" not in existing_tip:
+            mod_note = f"Loaded from mounted DMM mod: {dmm_mod}"
+            label.setToolTip((existing_tip + "\n" + mod_note) if existing_tip else mod_note)
 
 
 def name_current_draft(tab: object) -> bool:

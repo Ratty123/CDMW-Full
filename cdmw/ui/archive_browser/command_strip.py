@@ -95,6 +95,9 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     action_charts = getattr(archive, "archive_action_chart_button", None)
     if isinstance(action_charts, QWidget):
         buttons = (*buttons, action_charts)
+    dmm_mods = getattr(archive, "archive_dmm_mods_button", None)
+    if isinstance(dmm_mods, QWidget):
+        buttons = (*buttons, dmm_mods)
     for button in buttons:
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(button)
@@ -134,8 +137,7 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     # Compact Workspace hides the controls pane, so its panels open from here.
     panel_actions: dict[str, QAction] = {}
     edited_group = getattr(archive, "archive_edited_results_group", None)
-    dmm_group = getattr(archive, "archive_dmm_added_files_group", None)
-    if isinstance(edited_group, QGroupBox) or isinstance(dmm_group, QGroupBox):
+    if isinstance(edited_group, QGroupBox) or isinstance(dmm_mods, QAbstractButton):
         actions_menu.addSeparator()
 
     def add_panel(group: QGroupBox, action: QAction, key: str, popup_name: str) -> None:
@@ -148,9 +150,11 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     if isinstance(edited_group, QGroupBox):
         add_panel(edited_group, actions_menu.addAction("Edited Results..."), "edited_results",
                   "CompactArchiveEditedResultsPanel")
-    if isinstance(dmm_group, QGroupBox):
-        add_panel(dmm_group, actions_menu.addAction("Files DMM Adds (Experimental)..."), "dmm_added_files",
-                  "CompactArchiveDmmAddedFilesPanel")
+    if isinstance(dmm_mods, QAbstractButton):
+        dmm_action = actions_menu.addAction("DMM Mounted Mods...")
+        dmm_action.setToolTip(dmm_mods.toolTip())
+        dmm_action.triggered.connect(lambda _checked=False, source=dmm_mods: source.click())
+        panel_actions["dmm_mounted_mods"] = dmm_action
 
     def sync_actions() -> None:
         for action, source in action_pairs:

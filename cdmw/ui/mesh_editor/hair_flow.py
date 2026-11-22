@@ -4,6 +4,62 @@ from PySide6.QtWidgets import QDialog
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
+HAIR_ENTRY_STATUS_AUTO_CLEAR_MS = 5000
+
+
+def cancel_hair_entry_status_auto_clear(tab) -> None:
+    label = getattr(tab, "hair_entry_status", None)
+    if label is None:
+        return
+    timer = getattr(label, "_auto_clear_timer", None)
+    if timer is not None:
+        try:
+            timer.stop()
+        except RuntimeError:
+            pass
+
+
+def clear_hair_entry_status(tab) -> None:
+    cancel_hair_entry_status_auto_clear(tab)
+    label = getattr(tab, "hair_entry_status", None)
+    if label is not None:
+        try:
+            label.setText("")
+        except RuntimeError:
+            pass
+
+
+def arm_hair_entry_status_auto_clear(tab, clear_after_ms: int | None = None) -> None:
+    from PySide6.QtCore import QTimer
+
+    cancel_hair_entry_status_auto_clear(tab)
+    label = getattr(tab, "hair_entry_status", None)
+    if label is None:
+        return
+    try:
+        expected = label.text()
+    except RuntimeError:
+        return
+    delay = HAIR_ENTRY_STATUS_AUTO_CLEAR_MS if clear_after_ms is None else int(clear_after_ms or 0)
+    if not expected or delay <= 0:
+        return
+    timer = QTimer(label)
+    timer.setSingleShot(True)
+    timer.setInterval(delay)
+
+    def _clear() -> None:
+        if getattr(label, "_auto_clear_timer", None) is not timer:
+            return
+        try:
+            if label.text() == expected:
+                label.setText("")
+        except RuntimeError:
+            pass
+
+    timer.timeout.connect(_clear)
+    label._auto_clear_timer = timer
+    timer.start()
+
 
 def build_hair_entry_bar(tab, *, close_button=None):
     from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy
@@ -12,8 +68,8 @@ def build_hair_entry_bar(tab, *, close_button=None):
     bar.setProperty("commandBar", True)
     bar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
     layout = QHBoxLayout(bar)
-    layout.setContentsMargins(8, 5, 8, 5)
-    layout.setSpacing(6)
+    layout.setContentsMargins(6, 2, 6, 2)
+    layout.setSpacing(4)
     button = QPushButton("Hair Tools (Experimental)", bar)
     # Bold through the theme, so it follows the UI font size.
     button.setObjectName("MeshEditorHairMenu")
@@ -65,20 +121,24 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
             return
         if result != QDialog.Accepted:
             tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+            arm_hair_entry_status_auto_clear(tab)
             return
         target = dialog.selected_entry
         chosen_mode, chosen_preset = dialog.mode.currentData(), "empty"
         live_target = getattr(tab, "_current_target_entry", lambda: None)()
         if dialog.prepared_result is None and getattr(tab, "standalone_rust_authoring_session", None) is not authoring:
             tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
+            arm_hair_entry_status_auto_clear(tab)
             return
         same = live_target is not None and live_target.identity == target.identity
         same_character = hair_character_name == dialog.context.character
         if same and same_character and generated_only and chosen_mode == "generated":
             if not tab._send_rust_message(tab._rust_host_message("hair_preset", request_id=0, extra={"preset": chosen_preset})):
                 tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
+                arm_hair_entry_status_auto_clear(tab)
                 return
             owner.shell._activate_tool_widget(tab)
+            cancel_hair_entry_status_auto_clear(tab)
             tab.hair_entry_status.setText("Starting empty hairstyle…")
             return
         # Same-target setup must still allow switching mode or character, and
@@ -88,6 +148,7 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
                 tab._discard_archive_session_result(dialog.prepared_result)
                 dialog.prepared_result = None
             tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+            arm_hair_entry_status_auto_clear(tab)
             return
         # The shell may have opened another document for the hairstyle, so that the one
         # this setup started in keeps its edit: the hairstyle opens in the shown one.
@@ -100,6 +161,7 @@ def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None
                                       prepared_result=dialog.prepared_result)
         dialog.prepared_result = None
         owner.shell._activate_tool_widget(tool)
+        cancel_hair_entry_status_auto_clear(document)
         document.hair_entry_status.setText("Loading character…")
     dialog.finished.connect(selected)
     dialog.open()

@@ -2536,8 +2536,8 @@
       "tool": "app.ui_act"
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/command_strip.py|Files DMM Adds (Experimental)...",
-      "tool": "app.dmm_added_files"
+      "key": "menu:cdmw/ui/archive_browser/command_strip.py|DMM Mounted Mods...",
+      "tool": "app.dmm_mounted_mods"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/header.py|<label>",
@@ -2979,6 +2979,10 @@
       "gap": "generic_only",
       "item": 14,
       "milestone": "P13 MCP gap plan item 14: action chart, sound and HKX physics tools"
+    },
+    {
+      "key": "dialog:cdmw/ui/archive_browser/dmm_mounted_mods_dialog.py|DmmMountedModsDialog",
+      "tool": "app.dmm_mounted_mods"
     },
     {
       "key": "dialog:cdmw/ui/archive_browser/failure_report.py|ArchiveFailureDialog",

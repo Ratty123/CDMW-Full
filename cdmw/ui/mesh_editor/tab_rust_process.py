@@ -897,7 +897,7 @@ class MeshEditorRustProcessMixin:
         dock = _host_textures_panel(self)
         row = dock.texture_row(texture_id) if dock is not None else None
         session_id = self._live_texture_session_id()
-        if row is None or not row.decoded_path:
+        if row is None or not row.decoded_path or (callable(getattr(self, "_hair_session_active", None)) and self._hair_session_active()):
             return
         tools = _host_panel(self, "_texture_tools_panel")
         if tools is None:
@@ -1401,6 +1401,11 @@ class MeshEditorRustProcessMixin:
         else:
             hair_status = getattr(self, "hair_entry_status", None)
             if hair_status is not None:
+                from cdmw.ui.mesh_editor.hair_flow import (
+                    cancel_hair_entry_status_auto_clear,
+                    clear_hair_entry_status,
+                )
+
                 session = self.standalone_rust_authoring_session
                 hair_active = (
                     active_event.get("event") == "transaction_request"
@@ -1409,7 +1414,15 @@ class MeshEditorRustProcessMixin:
                     and session.shadow_service._session(session.shadow_session_id).hair_state is not None
                 )
                 if active_event.get("command") == "hair_begin" or hair_active:
+                    cancel_hair_entry_status_auto_clear(self)
                     hair_status.setText("Ready — select visible hair to begin editing.")
+                elif hair_status.text() and (
+                    session is None
+                    or session.closed
+                    or session.shadow_service._session(session.shadow_session_id).hair_state is None
+                ):
+                    clear_hair_entry_status(self)
+            self._refresh_textures_panel_availability()
             payload = response.get("payload", {})
             result = payload.get("result", {}) if isinstance(payload, dict) else {}
             if isinstance(result, dict) and result.get("hair_texture_source"):

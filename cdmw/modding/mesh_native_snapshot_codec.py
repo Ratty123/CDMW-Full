@@ -208,7 +208,39 @@ def _snapshot_metadata_value(value: object) -> object:
         return value
     return str(value)
 
+_FLOAT_SNAPSHOT_METADATA_ATTRS = frozenset(
+    {
+        "preview_normal_texture_strength",
+        "preview_normal_texture_default_strength",
+        "preview_texture_brightness",
+        "preview_texture_contrast",
+        "preview_texture_saturation",
+        "preview_texture_gamma",
+        "preview_texture_uv_scale",
+        "preview_vertex_alpha_mean",
+        "preview_vertex_alpha_min",
+    }
+)
+_FLOAT_LIST_SNAPSHOT_METADATA_ATTRS = frozenset(
+    {
+        "preview_color",
+        "preview_texture_tint",
+        "preview_vertex_color_mean",
+    }
+)
+
+
+def _coerce_snapshot_float(value: object) -> object:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return float(value)
+    return value
+
+
 def _restored_snapshot_metadata_value(name: str, value: object) -> object:
+    if name in _FLOAT_SNAPSHOT_METADATA_ATTRS:
+        return _coerce_snapshot_float(_snapshot_metadata_value(value))
+    if name in _FLOAT_LIST_SNAPSHOT_METADATA_ATTRS and isinstance(value, (list, tuple)):
+        return [_coerce_snapshot_float(_snapshot_metadata_value(item)) for item in value]
     if name == "uv_sets" and isinstance(value, Mapping):
         # JSON object keys are strings; mesh exporters and UV consumers use
         # integer set indices, including the edited primary set at index 0.

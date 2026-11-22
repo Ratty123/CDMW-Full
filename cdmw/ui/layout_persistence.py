@@ -334,6 +334,8 @@ class UiLayoutPersistence(QObject):
     def _window_key(self, window: QWidget) -> str:
         if not window.isWindow() or window.testAttribute(Qt.WA_DontShowOnScreen):
             return ""
+        if window.property("cdmwSkipGeometryPersistence"):
+            return ""
         if window.windowType() not in (Qt.Window, Qt.Dialog, Qt.Tool):
             return ""
         if hasattr(window, "tool_key") and hasattr(window, "owner"):

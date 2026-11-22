@@ -31,6 +31,24 @@ class ArchivePreviewTextToolsMixin:
             preview_model = getattr(result, "preview_model", None)
             if preview_model is not None:
                 parts.append("3D Preview")
+        from cdmw.services.dmm_runtime_mount import dmm_mod_from_note, is_dmm_note, short_mod_name
+
+        dmm_mod = dmm_mod_from_note(getattr(entry, "prepared_note", ""))
+        if not dmm_mod:
+            req_entry = getattr(self, "archive_preview_request_entry", None)
+            if isinstance(req_entry, ArchiveEntry) and req_entry.identity == entry.identity:
+                dmm_mod = dmm_mod_from_note(getattr(req_entry, "prepared_note", ""))
+        if dmm_mod:
+            parts.append(f"DMM: {short_mod_name(dmm_mod)}")
+        else:
+            remote_bridge = getattr(self, "archive_remote_bridge", None)
+            deps_getter = getattr(remote_bridge, "prepared_dependencies_for", None)
+            deps = deps_getter(entry) if callable(deps_getter) else None
+            if deps is not None and any(
+                is_dmm_note(getattr(dep, "prepared_note", ""))
+                for dep in (getattr(deps, "entries", None) or ())
+            ):
+                parts.append("DMM Companion Files")
         role = self._archive_entry_role_label(entry)
         if role:
             parts.append(role)

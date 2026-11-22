@@ -354,20 +354,60 @@ def load_archive_refit_context(payload, project_root):
 _MAX_REFIT_MATERIAL_BYTES = 512 * 1024 * 1024
 
 
-def _material_path_fields(value):
+_PREVIEW_CORE_MATERIAL_FILE_KEYS = frozenset(
+    {
+        "diffuse_source",
+        "normal_source",
+        "material_source",
+        "height_source",
+        "mask_source",
+        "detail_mask_source",
+        "source_path",
+        "resolved_source_path",
+    }
+)
+
+
+def _material_path_fields(
+    value,
+    *,
+    in_preview_core_source: bool = False,
+    include_preview_core: bool = True,
+):
     """Visit local image paths, retaining archive names and material identity."""
     if isinstance(value, dict):
         for key, item in value.items():
-            if isinstance(item, str) and item and (
-                key == "texture" or key == "source_dds_path"
+            if key == "preview_core_material_source" and not include_preview_core:
+                continue
+            if in_preview_core_source and key == "package":
+                continue
+            if isinstance(item, str) and item and Path(item).is_absolute() and (
+                key == "texture"
+                or key == "source_dds_path"
                 or ("texture" in key and key.endswith("_path"))
-            ) and Path(item).is_absolute():
+                or (
+                    in_preview_core_source
+                    and (
+                        key in _PREVIEW_CORE_MATERIAL_FILE_KEYS
+                        or (key == "source" and Path(item).suffix.casefold() == ".dds")
+                    )
+                )
+            ):
                 yield value, key, item
             elif isinstance(item, (dict, list, tuple)):
-                yield from _material_path_fields(item)
+                child_preview_core = in_preview_core_source or key == "preview_core_material_source"
+                yield from _material_path_fields(
+                    item,
+                    in_preview_core_source=child_preview_core,
+                    include_preview_core=include_preview_core,
+                )
     elif isinstance(value, (list, tuple)):
         for item in value:
-            yield from _material_path_fields(item)
+            yield from _material_path_fields(
+                item,
+                in_preview_core_source=in_preview_core_source,
+                include_preview_core=include_preview_core,
+            )
 
 
 def _material_file_hash(path, stop_event=None):
@@ -419,14 +459,18 @@ def save_archive_refit_materials(snapshot, project_root, stop_event):
                     if destination.stat().st_size != size or _material_file_hash(destination, stop_event) != digest:
                         raise ValueError("Archive Refit draft material checksum failed")
             files[value] = {"path": destination.relative_to(root).as_posix(), "size": size, "sha256": digest}
-    return {"version": 1, "files": files}
+    return {"version": 2, "files": files}
 
 
 def load_archive_refit_materials(snapshot, payload, project_root, stop_event=None):
     """Rebase image bindings only after every owned material file verifies."""
     if payload is None:  # Earlier drafts retain their original cache references.
         return
-    if not isinstance(payload, dict) or payload.get("version") != 1 or not isinstance(payload.get("files"), dict):
+    if (
+        not isinstance(payload, dict)
+        or payload.get("version") not in {1, 2}
+        or not isinstance(payload.get("files"), dict)
+    ):
         raise ValueError("Unsupported Archive Refit draft material record")
     root = Path(project_root).resolve()
     resolved, owned = {}, {}
@@ -448,8 +492,15 @@ def load_archive_refit_materials(snapshot, payload, project_root, stop_event=Non
         if owned[path] != (size, descriptor["sha256"]):
             raise ValueError("Archive Refit draft material checksum failed")
         resolved[value] = str(path)
-    bindings = [field for item in snapshot["submeshes"]
-                for field in _material_path_fields(item.get("metadata", {}))]
+    include_preview_core = int(payload["version"]) >= 2
+    bindings = [
+        field
+        for item in snapshot["submeshes"]
+        for field in _material_path_fields(
+            item.get("metadata", {}),
+            include_preview_core=include_preview_core,
+        )
+    ]
     if any(value not in resolved for _container, _key, value in bindings):
         raise ValueError("Archive Refit draft omitted a material file")
     for container, key, value in bindings:

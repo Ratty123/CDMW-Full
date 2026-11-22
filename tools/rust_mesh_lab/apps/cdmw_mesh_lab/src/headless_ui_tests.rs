@@ -2384,8 +2384,11 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
         egui::vec2(800.0, 1_200.0),
     ] {
         let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(triangle_application()?, size);
+        assert!(
+            ui.label_rect("Mesh Editor").is_none(),
+            "redundant Mesh Editor heading should stay out of cdmw_session_bar at {size:?}"
+        );
         for label in [
-            "Mesh Editor",
             "Finish Edit Mesh",
             "Viewport",
             "Tools",
@@ -2435,19 +2438,28 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
     );
 
     assert!(ui.label_rect("Game / Mod output").is_none());
+    assert!(ui.label_rect("Mesh Editor").is_none());
 
-    let header_y = ui
-        .label_rect("Mesh Editor")
-        .ok_or("Mesh Editor")?
-        .center()
-        .y;
+    let selection_rect = ui
+        .label_rect_where("Selection", |rect| rect.top() < 40.0)
+        .ok_or("Selection")?;
+    assert!(
+        selection_rect.top() >= 2.0,
+        "header labels must not crowd the top border: {selection_rect:?}"
+    );
+    let header_y = selection_rect.center().y;
     for label in [
         "Clear Selection",
         "Select All",
         "History",
         "Finish Edit Mesh",
     ] {
-        let y = ui.label_rect(label).ok_or(label)?.center().y;
+        let rect = ui.label_rect(label).ok_or(label)?;
+        assert!(
+            rect.top() >= 2.0,
+            "{label} crowds the top border: {rect:?}"
+        );
+        let y = rect.center().y;
         assert!(
             (y - header_y).abs() < 6.0,
             "{label} is not in the compact header"
@@ -2465,8 +2477,8 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
 
     for labels in [
         ["Move", "Rotate", "Scale"],
-        ["Grab", "Smooth", ""],
-        ["Inflate", "Pinch", ""],
+        ["Grab", "Bend", ""],
+        ["Smooth", "Inflate", ""],
     ] {
         let first_y = ui.label_rect(labels[0]).ok_or(labels[0])?.center().y;
         for label in labels.into_iter().filter(|label| !label.is_empty()) {
@@ -2477,9 +2489,14 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
             );
         }
     }
+    assert!(ui.label_rect("Pinch").is_some(), "Pinch missing from Sculpt tool grid");
 
+    let collapsed = HeadlessUi::new_integrated_cdmw(
+        triangle_application()?,
+        egui::vec2(1_440.0, 900.0),
+    );
     assert!(
-        ui.label_rect("Morph & Refit").is_some(),
+        collapsed.label_rect("Morph & Refit").is_some(),
         "the complete collapsed tool index should be visible without scrolling at 900 points"
     );
     let viewport = ui.application.viewport_rect.ok_or("viewport")?;
@@ -2497,20 +2514,19 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
     }));
     ui.frame(Vec::new());
     ui.frame(Vec::new());
-    let themed_header_y = ui
-        .label_rect("Mesh Editor")
-        .ok_or("themed Mesh Editor")?
-        .center()
-        .y;
-    let themed_finish_y = ui
+    let themed_header_rect = ui
         .label_rect("Finish Edit Mesh")
-        .ok_or("Finish Edit Mesh was clipped by the large comfortable theme")?
+        .ok_or("Finish Edit Mesh was clipped by the large comfortable theme")?;
+    assert!(
+        themed_header_rect.top() >= 1.0,
+        "themed header control clipped against top edge: {themed_header_rect:?}"
+    );
+    let themed_header_y = themed_header_rect.center().y;
+    let themed_selection_y = ui
+        .label_rect_where("Selection", |rect| rect.top() < 90.0)
+        .ok_or("Selection was clipped by the large comfortable theme")?
         .center()
         .y;
-    assert!(
-        (themed_finish_y - themed_header_y).abs() < 8.0,
-        "header and Finish must stay on one row: header={themed_header_y}, finish={themed_finish_y}"
-    );
     let themed_controls_y = ui
         .label_rect("Clear Selection")
         .ok_or("Clear Selection was clipped by the large comfortable theme")?
@@ -2521,6 +2537,7 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
         .ok_or("History was clipped by the large comfortable theme")?
         .center()
         .y;
+    assert!((themed_selection_y - themed_controls_y).abs() < 8.0);
     assert!((themed_history_y - themed_controls_y).abs() < 8.0);
     assert!(
         themed_controls_y > themed_header_y + 8.0,

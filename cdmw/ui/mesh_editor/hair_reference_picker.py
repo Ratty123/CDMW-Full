@@ -2,9 +2,9 @@
 from dataclasses import replace
 from pathlib import Path
 import threading
-from PySide6.QtCore import QProcess, QSize, QTimer, Qt, Signal
+from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QPushButton, QSplitter, QVBoxLayout
 from cdmw.domain.archives.character_catalogue import CharacterCatalogSearchRequest, CharacterCatalogSearchResult, CharacterCatalogDetailRequest, CharacterCatalogDetailResult
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
@@ -61,6 +61,7 @@ class HairReferencePickerDialog(QDialog):
         self._icon_images, self._page_icon_paths = {}, {}
         self._pending_icon_keys = set()
         self._icon_preparation = None
+        self._tile_metrics: tuple[int, int, int] = (0, 0, 0)
         if self._icon_paths and not base_only:
             from cdmw.ui.mesh_editor.hair_icon_preparation import HairIconPreparation
             self._icon_preparation = HairIconPreparation(owner, self)
@@ -73,16 +74,26 @@ class HairReferencePickerDialog(QDialog):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter these compatible choices")
         layout.addWidget(self.search)
-        row = QHBoxLayout()
+        self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter.setChildrenCollapsible(False)
         self.grid = QListWidget()
         self.grid.setViewMode(QListView.IconMode)
         self.grid.setResizeMode(QListView.Adjust)
-        self.grid.setIconSize(QSize(140, 140))
+        self.grid.setMovement(QListView.Static)
+        self.grid.setWrapping(True)
+        self.grid.setSpacing(0)
+        self.grid.setUniformItemSizes(True)
         self.grid.setWordWrap(True)
-        row.addWidget(self.grid, 1)
         self.host = RustPreviewHostFrame(self, terminate_on_close=True, ui_localizer=getattr(owner, "ui_localizer", None))
-        row.addWidget(self.host, 1)
-        layout.addLayout(row, 1)
+        self.splitter.addWidget(self.grid)
+        self.splitter.addWidget(self.host)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([520, 500])
+        self.splitter.splitterMoved.connect(lambda *_args: self._update_grid_tile_sizes())
+        self.grid.viewport().installEventFilter(self)
+        layout.addWidget(self.splitter, 1)
+        self._update_grid_tile_sizes()
         self.status = QLabel("Loading compatible choices…")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -260,7 +271,48 @@ class HairReferencePickerDialog(QDialog):
         if row.key in self._icon_images:
             item.setIcon(self._icon_images[row.key])
         item.setToolTip(row.path)
-        item.setData(Qt.UserRole, row.key); item.setSizeHint(QSize(168, 192))
+        tile_w, tile_h, _icon_side = self._tile_metrics if self._tile_metrics[0] > 0 else (156, 178, 134)
+        item.setData(Qt.UserRole, row.key); item.setSizeHint(QSize(tile_w, tile_h))
+
+    def _update_grid_tile_sizes(self) -> None:
+        if self._closed:
+            return
+        viewport_w = self.grid.viewport().width()
+        if viewport_w <= 100:
+            grid_w = self.grid.width() if self.grid.width() > 100 else max(360, self.width() // 2 - 24)
+            viewport_w = max(240, grid_w - 8)
+        scrollbar = self.grid.verticalScrollBar()
+        scrollbar_reserve = 0 if (scrollbar is not None and scrollbar.isVisible()) else 16
+        usable = max(240, viewport_w - scrollbar_reserve - 6)
+        columns = max(2, min(4, usable // 148))
+        tile_width = max(136, usable // columns)
+        icon_side = max(104, min(140, tile_width - 22))
+        tile_height = icon_side + 44
+        metrics = (tile_width, tile_height, icon_side)
+        if metrics == self._tile_metrics:
+            return
+        self._tile_metrics = metrics
+        self.grid.setIconSize(QSize(icon_side, icon_side))
+        self.grid.setGridSize(QSize(tile_width, tile_height))
+        tile_size = QSize(tile_width, tile_height)
+        for index in range(self.grid.count()):
+            item = self.grid.item(index)
+            if item is not None:
+                item.setSizeHint(tile_size)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._update_grid_tile_sizes()
+        QTimer.singleShot(0, self._update_grid_tile_sizes)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_grid_tile_sizes()
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.grid.viewport() and event.type() == QEvent.Type.Resize:
+            self._update_grid_tile_sizes()
+        return super().eventFilter(watched, event)
 
     def _key(self):
         item = self.grid.currentItem()

@@ -24,6 +24,10 @@ class HairSetupDialog(QDialog):
         import threading
         self._stop = threading.Event()
         self.setWindowTitle("Hair Tools (Experimental)")
+        # Dynamically switches between compact setup/loading (620x220) and the
+        # embedded hairstyle picker (1060x800); persisting one shared geometry
+        # shrinks the picker after a compact run or inflates Create hairstyle.
+        self.setProperty("cdmwSkipGeometryPersistence", True)
         self.resize(620, 220)
         layout = QVBoxLayout(self)
         notice = QLabel("Not tested in game. Hairstyles may not work correctly.")
@@ -55,7 +59,9 @@ class HairSetupDialog(QDialog):
         self._choices_layout = QVBoxLayout(choices)
         self._choices_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(choices, 1)
-        buttons = QHBoxLayout()
+        self._buttons_row = QWidget(self)
+        buttons = QHBoxLayout(self._buttons_row)
+        buttons.setContentsMargins(0, 0, 0, 0)
         self.retry = QPushButton("Retry loading choices")
         buttons.addWidget(self.retry)
         buttons.addStretch(1)
@@ -65,7 +71,7 @@ class HairSetupDialog(QDialog):
         buttons.addWidget(self.waiting_start)
         self.cancel_button = QPushButton("Cancel")
         buttons.addWidget(self.cancel_button)
-        layout.addLayout(buttons)
+        layout.addWidget(self._buttons_row)
         self._resolver = HairContextPreparation(self._service, self)
         self._resolver.ready.connect(self._context_ready)
         self._resolver.failed.connect(self._failed)
@@ -109,6 +115,8 @@ class HairSetupDialog(QDialog):
             self._picker = None
             self._choices_layout.removeWidget(picker)
             picker.reject()
+        self._buttons_row.show()
+        self.retry.show()
         self.waiting_start.show()
         self.cancel_button.show()
         self.layout().activate()
@@ -179,8 +187,12 @@ class HairSetupDialog(QDialog):
                 picker.base_ready.connect(base_ready)
                 self.status.setText("Checking character compatibility for an empty hairstyle…")
             else:
+                if picker.layout() is not None:
+                    picker.layout().setContentsMargins(0, 0, 0, 0)
                 self.waiting_start.hide()
                 self.cancel_button.hide()  # The embedded chooser has its own Cancel.
+                self.retry.hide()
+                self._buttons_row.hide()
                 self._choices_layout.addWidget(picker)
                 picker.show()
                 self.status.setText("Choose an existing hairstyle to load and edit.")
@@ -199,6 +211,8 @@ class HairSetupDialog(QDialog):
             self.selected_dependencies = picker.selected_dependencies
             self._picker = None
             self._choices_layout.removeWidget(picker)
+            self._buttons_row.show()
+            self.retry.show()
             self.waiting_start.show()
             self.cancel_button.show()
             self.waiting_start.setEnabled(False)
@@ -232,6 +246,8 @@ class HairSetupDialog(QDialog):
         """Say what failed. ``hint`` is off for messages that already name their own way forward."""
         if self._closed:
             return
+        self._buttons_row.show()
+        self.retry.show()
         for control in (self.character, self.mode, self.preset, self.retry):
             control.setEnabled(True)
         text = str(message).strip()

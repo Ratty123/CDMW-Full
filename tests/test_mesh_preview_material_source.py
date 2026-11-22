@@ -316,3 +316,46 @@ def test_replacement_material_payloads_keep_the_graph_totals_the_editor_checks(t
     finally:
         authoring.cancel()
         service.close_edit_session("authoritative-rust-test", force_without_saving=True)
+
+
+def test_binding_signature_survives_json_int_float_round_trip_for_v1_and_v2(tmp_path):
+    from cdmw.modding.mesh_native_snapshot_codec import _restored_snapshot_metadata_value
+    from cdmw.services.mesh_preview_material_source import _legacy_binding_signature
+
+    package = _native(tmp_path)
+    native = json.loads((package / "manifest.json").read_text())
+    batch = native["batches"][0]
+    conservation = native["material_conservation"]
+
+    def make_part():
+        return SimpleNamespace(
+            material=batch["material_name"],
+            texture="",
+            preview_color=[1.0, 1.0, 1.0],
+            preview_normal_texture_strength=1.0,
+            preview_native_material_overrides={"roughness": 1.0, "metalness": 0.0},
+        )
+
+    part_v2 = make_part()
+    bind_preview_core_material_source(part_v2, package, batch, conservation)
+    # Simulate C++ JSON serializer writing whole floats as ints and snapshot restore reading JSON.
+    for target, versioned in ((part_v2, True), (make_part(), False)):
+        if not versioned:
+            target.preview_native_material_overrides["preview_core_material_source"] = {
+                "package": str(package),
+                "batch": dict(batch),
+                "conservation": dict(conservation),
+                "binding_signature": _legacy_binding_signature(target),
+            }
+        target.preview_color = _restored_snapshot_metadata_value("preview_color", [1, 1, 1])
+        target.preview_normal_texture_strength = _restored_snapshot_metadata_value(
+            "preview_normal_texture_strength", 1
+        )
+        # Also simulate an uncoerced nested override int (metalness=0, roughness=1) on v2.
+        if versioned:
+            target.preview_native_material_overrides["roughness"] = 1
+            target.preview_native_material_overrides["metalness"] = 0
+        assert unedited_preview_core_material_source(target) is not None
+        # Real material edits must still invalidate both v1 and v2 signatures.
+        target.preview_color = [0.5, 1.0, 1.0]
+        assert unedited_preview_core_material_source(target) is None

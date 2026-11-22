@@ -1401,7 +1401,6 @@
   "Mesh",
   "Mesh Data",
   "Mesh Edit",
-  "Mesh Editor",
   "Mesh Editor event loop failed",
   "Mesh Editor window closed",
   "Mesh Morph state exceeds the 16 MiB inline protocol limit",

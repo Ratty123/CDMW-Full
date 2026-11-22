@@ -247,26 +247,257 @@ fn tool_button_rects(ui: &HeadlessUi, tools: &[&str]) -> Result<Vec<Rect>, Error
 
 #[test]
 fn opening_tool_groups_keeps_the_left_panel_compact() -> TestResult {
-    let mut ui = side_panel_ui(&json!({"font_point_size": 10.0}))?;
-    let (collapsed, _) = panel_widths(&ui)?;
-    assert!(
-        collapsed < LEFT_OPEN_MINIMUM,
-        "collapsed left panel {collapsed}"
-    );
-    // A group of buttons fits the compact rail: no group widens it.
-    for group in ["Transform", "Sculpt", "Mesh Data", "Rig"] {
-        ui.click_tool_button(group)?;
+    for font in [8.0_f32, 10.0] {
+        let mut ui = side_panel_ui(&json!({"font_point_size": font}))?;
+        let (collapsed, _) = panel_widths(&ui)?;
+        assert!(
+            collapsed < LEFT_OPEN_MINIMUM,
+            "{font} pt: collapsed left panel {collapsed}"
+        );
+        // Tool groups, Viewport, and Output all fit the compact rail.
+        for section in [
+            "Viewport",
+            "Output",
+            "Transform",
+            "Sculpt",
+            "Mesh Data",
+            "Rig",
+        ] {
+            ui.click_tool_button(section)?;
+            let (open, _) = panel_widths(&ui)?;
+            assert!(
+                (open - collapsed).abs() <= 1.0,
+                "{font} pt, {section} open: left panel {open}, collapsed {collapsed}"
+            );
+        }
+        // Expanding Overlay appearance inside Viewport also keeps the rail compact.
+        ui.click_tool_button("Overlay appearance")?;
         let (open, _) = panel_widths(&ui)?;
         assert!(
             (open - collapsed).abs() <= 1.0,
-            "{group} open: left panel {open}, collapsed {collapsed}"
+            "{font} pt, Overlay appearance open: left panel {open}, collapsed {collapsed}"
         );
+        // Every group button is whole inside the compact rail.
+        for tools in [&LEFT_TOOLS[0..3], &LEFT_TOOLS[3..8], &LEFT_TOOLS[8..15]] {
+            ui.scroll_tool_rail(-2_000.0);
+            ui.reveal(tools[0])?;
+            tool_button_rects(&ui, tools)?;
+        }
     }
-    // Every button is whole inside the compact rail.
-    for tools in [&LEFT_TOOLS[0..3], &LEFT_TOOLS[3..8], &LEFT_TOOLS[8..15]] {
-        ui.scroll_tool_rail(-2_000.0);
-        ui.reveal(tools[0])?;
-        tool_button_rects(&ui, tools)?;
+    Ok(())
+}
+
+fn assert_left_panel_text_not_clipped(ui: &HeadlessUi, context: &str) -> Result<(), Error> {
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    for clipped in &ui.output.shapes {
+        if let egui::Shape::Text(text) = &clipped.shape {
+            let rect = text.visual_bounding_rect();
+            if clipped.clip_rect.right() <= viewport.left() + 6.0
+                && clipped.clip_rect.width() > 60.0
+                && rect.intersects(clipped.clip_rect)
+            {
+                assert!(
+                    rect.right() <= clipped.clip_rect.right() + 1.0,
+                    "{context}: horizontally clipped text {:?}: {rect:?} vs {:?}",
+                    text.galley.job.text,
+                    clipped.clip_rect
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn viewport_and_output_fit_compact_left_panel_without_clipping() -> TestResult {
+    for font in [8.0_f32, 10.0, 15.0] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(
+            triangle_application()?,
+            egui::vec2(1600.0, 1800.0),
+        );
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font}));
+        ui.settle_layout();
+        let (collapsed, _) = panel_widths(&ui)?;
+        ui.click_tool_button("Viewport")?;
+        ui.click_tool_button("Overlay appearance")?;
+        ui.click_tool_button("Output")?;
+        let (open, _) = panel_widths(&ui)?;
+        assert!(
+            (open - collapsed).abs() <= 1.0,
+            "{font} pt: Viewport + Output widened left panel from {collapsed} to {open}"
+        );
+        assert_left_panel_text_not_clipped(&ui, &format!("{font} pt Viewport + Output"))?;
+    }
+    Ok(())
+}
+
+fn left_panel_tool_text(
+    ui: &HeadlessUi,
+    label: &str,
+) -> Result<(Rect, std::sync::Arc<egui::Galley>), Error> {
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    ui.output
+        .shapes
+        .iter()
+        .filter_map(|clipped| {
+            let egui::Shape::Text(text) = &clipped.shape else {
+                return None;
+            };
+            let rect = text.visual_bounding_rect();
+            (text.galley.job.text == label
+                && clipped.clip_rect.contains_rect(rect)
+                && rect.top() >= viewport.top()
+                && rect.bottom() <= viewport.bottom()
+                && rect.right() <= viewport.left())
+            .then(|| (rect, text.galley.clone()))
+        })
+        .min_by(|(a, _), (b, _)| a.top().total_cmp(&b.top()))
+        .ok_or_else(|| format!("missing left-panel text for {label:?}").into())
+}
+
+fn tool_button_frame_rect(ui: &HeadlessUi, label: &str) -> Result<Rect, Error> {
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    let (text_rect, _) = left_panel_tool_text(ui, label)?;
+    ui.output
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Rect(shape)
+                if (shape.fill != Color32::TRANSPARENT || shape.stroke.width > 0.0)
+                    && shape.rect.contains_rect(text_rect)
+                    && shape.rect.right() <= viewport.left() + 1.0
+                    && shape.rect.width() < viewport.left() - 2.0 =>
+            {
+                Some(shape.rect)
+            }
+            _ => None,
+        })
+        .min_by(|a, b| a.area().total_cmp(&b.area()))
+        .ok_or_else(|| format!("missing button frame for {label:?}").into())
+}
+
+fn left_panel_text_galley(ui: &HeadlessUi, label: &str) -> Result<std::sync::Arc<egui::Galley>, Error> {
+    left_panel_tool_text(ui, label).map(|(_, galley)| galley)
+}
+
+fn distinct_x_columns(rects: &[Rect]) -> usize {
+    let mut columns: Vec<f32> = Vec::new();
+    for rect in rects {
+        if !columns.iter().any(|x| (x - rect.left()).abs() <= 2.0) {
+            columns.push(rect.left());
+        }
+    }
+    columns.len()
+}
+
+#[test]
+fn tool_group_buttons_use_even_columns_and_never_split_single_words() -> TestResult {
+    const SINGLE_WORDS: [&str; 13] = [
+        "Move", "Rotate", "Scale", "Grab", "Bend", "Smooth", "Inflate", "Pinch", "Topology",
+        "Cleanup", "UV", "Cloth", "Jiggle",
+    ];
+    for font in [8.0_f32, 10.0, 15.0] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(
+            triangle_application()?,
+            egui::vec2(1600.0, 2000.0),
+        );
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font}));
+        ui.settle_layout();
+        for group in ["Transform", "Sculpt", "Mesh Data", "Rig"] {
+            ui.click_tool_button(group)?;
+        }
+        for label in SINGLE_WORDS {
+            let galley = left_panel_text_galley(&ui, label)?;
+            assert_eq!(
+                galley.rows.len(),
+                1,
+                "{font} pt compact: {label:?} split across {} lines",
+                galley.rows.len()
+            );
+        }
+        for (group, tools) in [
+            ("Transform", &LEFT_TOOLS[0..3]),
+            ("Sculpt", &LEFT_TOOLS[3..8]),
+            ("Mesh Data", &LEFT_TOOLS[8..15]),
+        ] {
+            let frames: Vec<Rect> = tools
+                .iter()
+                .map(|tool| tool_button_frame_rect(&ui, tool))
+                .collect::<Result<_, _>>()?;
+            let first = frames[0].width();
+            for (tool, frame) in tools.iter().zip(&frames) {
+                assert!(
+                    (frame.width() - first).abs() <= 1.0,
+                    "{font} pt compact {group}: {tool:?} width {} != {first}",
+                    frame.width()
+                );
+            }
+            assert!(
+                distinct_x_columns(&frames) <= 3,
+                "{font} pt compact {group}: exceeded 3 columns"
+            );
+        }
+    }
+    // At both the default working width (264 pt) and a remembered 340 pt width,
+    // an active tool widens the rail while tool grids keep equal columns capped
+    // at 3 per row and never split single words.
+    for (font, remembered) in [
+        (8.0_f32, None),
+        (8.0, Some(340.0)),
+        (10.0, None),
+        (10.0, Some(340.0)),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(
+            triangle_application()?,
+            egui::vec2(1600.0, 2000.0),
+        );
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font}));
+        if let Some(width) = remembered {
+            crate::cdmw_layout::restore(
+                &ui.application.egui_context,
+                &json!({"cdmw_tool_rail": width}),
+            );
+        }
+        ui.settle_layout();
+        for group in ["Transform", "Sculpt", "Mesh Data", "Rig"] {
+            ui.click_tool_button(group)?;
+        }
+        ui.click_tool_button("Grab")?;
+        for label in SINGLE_WORDS {
+            let galley = left_panel_text_galley(&ui, label)?;
+            assert_eq!(
+                galley.rows.len(),
+                1,
+                "{font} pt widened ({remembered:?}): {label:?} split across {} lines",
+                galley.rows.len()
+            );
+        }
+        for (group, tools) in [
+            ("Transform", &LEFT_TOOLS[0..3]),
+            ("Sculpt", &LEFT_TOOLS[3..8]),
+            ("Mesh Data", &LEFT_TOOLS[8..15]),
+        ] {
+            let frames: Vec<Rect> = tools
+                .iter()
+                .map(|tool| tool_button_frame_rect(&ui, tool))
+                .collect::<Result<_, _>>()?;
+            let first = frames[0].width();
+            for (tool, frame) in tools.iter().zip(&frames) {
+                assert!(
+                    (frame.width() - first).abs() <= 1.0,
+                    "{font} pt widened ({remembered:?}) {group}: {tool:?} width {} != {first}",
+                    frame.width()
+                );
+            }
+            let columns = distinct_x_columns(&frames);
+            assert!(
+                columns <= 3,
+                "{font} pt widened ({remembered:?}) {group}: laid out {columns} columns instead of at most 3"
+            );
+        }
     }
     Ok(())
 }

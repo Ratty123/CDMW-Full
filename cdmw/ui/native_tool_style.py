@@ -638,6 +638,10 @@ _NATIVE_TOOL_QSS = """
         border-bottom: 2px solid {accent};
         font-weight: 600;
     }}
+    QTabBar#MeshEditorDocumentTabs::tab {{
+        padding: 3px 10px;
+        margin-right: 2px;
+    }}
     QScrollBar:vertical {{
         background: transparent;
         border: none;
@@ -739,6 +743,19 @@ _NATIVE_TOOL_QSS = """
         border: 1px solid {accent};
         color: {text_strong};
         font-weight: 600;
+    }}
+    QFrame#MeshEditorEntryBar {{
+        border-radius: 0px;
+        border: none;
+        border-bottom: 1px solid {border};
+    }}
+    QFrame#MeshEditorEntryBar QPushButton,
+    QFrame#MeshEditorEntryBar QPushButton:checked,
+    QFrame#MeshEditorEntryBar QToolButton,
+    QPushButton#MeshEditorHairMenu,
+    QToolButton#MeshEditorCloseSessionButton {{
+        padding: 2px 8px;
+        min-height: 18px;
     }}
     """
 

@@ -203,7 +203,20 @@ def _app_shell_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> str
         background: {theme["button_disabled"]};
         border-color: {theme["border"]};
     }}
+    QFrame#MeshEditorEntryBar {{
+        border-radius: 0px;
+        border: none;
+        border-bottom: 1px solid {theme["border"]};
+    }}
     QFrame#MeshEditorEntryBar QPushButton,
+    QFrame#MeshEditorEntryBar QPushButton:checked,
+    QFrame#MeshEditorEntryBar QToolButton,
+    QToolButton#MeshEditorCloseSessionButton,
+    QPushButton#MeshEditorHairMenu {{
+        border-radius: 4px;
+        padding: 2px 8px;
+        min-height: 18px;
+    }}
     QFrame#MeshEditorDraftChoiceCard QPushButton {{
         border-radius: 4px;
         padding: {metrics["button_pad_y"]}px {metrics["button_pad_x"]}px;
@@ -1028,6 +1041,10 @@ def _app_navigation_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -
     }}
     QTabBar::tab:hover:!selected {{
         background: {theme["button_hover"]};
+    }}
+    QTabBar#MeshEditorDocumentTabs::tab {{
+        padding: 3px 10px;
+        min-height: 18px;
     }}
     QSplitter::handle {{
         background: transparent;

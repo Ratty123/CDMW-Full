@@ -740,6 +740,9 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive._schedule_archive_selection_state_update()
         window.shell._schedule_archive_tree_content_autofit()
         window.archive._update_archive_filter_button_state()
+        refresh_dmm = getattr(window.archive, "_refresh_archive_dmm_mods_button", None)
+        if callable(refresh_dmm):
+            refresh_dmm()
         completion = f"Archive catalogue ready. Showing {handle.total_matches:,} entries."
         if current_session is not None:
             cache_detail = (

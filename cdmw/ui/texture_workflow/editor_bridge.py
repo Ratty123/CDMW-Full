@@ -252,6 +252,29 @@ class TextureWorkflowEditorBridgeMixin:
             self.shell.set_status_message("Archive Browser is open. Select a DDS file and use 'Open in Texture Editor'.")
 
     def _open_archive_entry_in_texture_editor(self, entry: ArchiveEntry) -> None:
+        if getattr(entry, "prepared_path", None) is None:
+            bridge = getattr(getattr(self, "archive", None), "archive_remote_bridge", None)
+            session = getattr(bridge, "current_session", None)
+            game_root = str(getattr(session, "package_root", "") or "")
+            if game_root:
+                from cdmw.services.dmm_runtime_mount import DMM_NOTE_PREFIX, current_overlay
+
+                overlay = current_overlay()
+                if overlay.enabled and overlay.served_file(game_root, entry.path) is not None:
+                    try:
+                        prepared = overlay.prepare(game_root, entry.path)
+                    except OSError:
+                        prepared = None
+                    if prepared is not None:
+                        from dataclasses import replace
+
+                        entry = replace(
+                            entry,
+                            prepared_path=prepared.path,
+                            prepared_size=prepared.size,
+                            prepared_sha256=prepared.sha256,
+                            prepared_note=f"{DMM_NOTE_PREFIX} {prepared.mod}",
+                        )
         try:
             source_path, _note = ensure_archive_preview_source(entry)
         except Exception as exc:

@@ -84,6 +84,12 @@ class ArchiveControlsPanelMixin:
         # Only the full Archive Browser carries the action chart actions.
         build_action_chart_button = getattr(self, "_build_action_chart_button", None)
         self.archive_action_chart_button = build_action_chart_button() if callable(build_action_chart_button) else None
+        self.archive_dmm_mods_button = QPushButton("DMM Mods")
+        self.archive_dmm_mods_button.setObjectName("ArchiveDmmModsButton")
+        self.archive_dmm_mods_button.setToolTip(
+            "Inspect files DMM mounts at run time, toggle DMM vs. vanilla previews, or open modded meshes and textures."
+        )
+        self.archive_dmm_mods_button.clicked.connect(self._show_archive_dmm_mods_dialog)
         self.archive_clear_asset_scope_button = QPushButton("Clear Scope")
         self.archive_clear_asset_scope_button.setToolTip("Clear the active Item Finder scope and return to normal archive filters.")
         self.archive_clear_asset_scope_button.setVisible(False)
@@ -139,6 +145,7 @@ class ArchiveControlsPanelMixin:
         archive_scan_actions_row.addWidget(self.archive_npc_finder_button)
         if self.archive_action_chart_button is not None:
             archive_scan_actions_row.addWidget(self.archive_action_chart_button)
+        archive_scan_actions_row.addWidget(self.archive_dmm_mods_button)
         archive_scan_actions_row.addWidget(self.archive_clear_asset_scope_button)
         archive_scan_actions_row.addStretch(1)
         archive_search_layout.addLayout(archive_scan_actions_row)
@@ -166,6 +173,9 @@ class ArchiveControlsPanelMixin:
 
         self.archive_dmm_added_files_group = DmmAddedFilesGroup(self)
         archive_controls_layout.addWidget(self.archive_dmm_added_files_group)
+        refresh_dmm = getattr(self, "_refresh_archive_dmm_mods_button", None)
+        if callable(refresh_dmm):
+            refresh_dmm()
 
         self.archive_preview_settings_status_label = QLabel("")
         self.archive_preview_settings_status_label.setObjectName("HintLabel")

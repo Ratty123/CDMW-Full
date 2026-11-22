@@ -1223,12 +1223,45 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         ):
             self._resume_rust_relaunch_after_dispose()
 
+    def _hair_session_active(self) -> bool:
+        if getattr(self, "_pending_hair_start", None) is not None:
+            return True
+        session = getattr(self, "standalone_rust_authoring_session", None)
+        if session is not None and not bool(getattr(session, "closed", False)):
+            if bool(getattr(session, "hair_start_mode", "")):
+                return True
+            try:
+                shadow_service = getattr(session, "shadow_service", None)
+                shadow_id = str(getattr(session, "shadow_session_id", "") or "")
+                if shadow_service is not None and shadow_id:
+                    if getattr(shadow_service._session(shadow_id), "hair_state", None) is not None:
+                        return True
+            except (AttributeError, KeyError, RuntimeError, TypeError):
+                pass
+        controller = getattr(self, "standalone_controller", None)
+        if controller is not None:
+            try:
+                mesh_service = getattr(controller, "mesh_service", None)
+                active_id = str(getattr(controller, "active_session_id", "") or "")
+                if mesh_service is not None and active_id:
+                    if getattr(mesh_service._session(active_id), "hair_state", None) is not None:
+                        return True
+            except (AttributeError, KeyError, RuntimeError, TypeError):
+                pass
+        return False
+
+    def _refresh_textures_panel_availability(self) -> None:
+        sync = getattr(self, "_sync_textures_panel_availability", None)
+        if callable(sync):
+            sync(self._hair_session_active())
+
     def _show_session_textures(self, session_root) -> None:
         """The Textures panel follows the document's session (step 8)."""
 
         dock = _host_textures_panel(self)
         if dock is not None:
             dock.show_session(session_root)
+        self._refresh_textures_panel_availability()
 
     def _reset_rust_session_references(self) -> None:
         self._stop_rust_session_prepare(invalidate=True)
@@ -1248,6 +1281,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_closing = False
         self.standalone_rust_close_session_pending = False
         self.standalone_rust_terminal_close_pending = False
+        self._refresh_textures_panel_availability()
 
 
 __all__ = [

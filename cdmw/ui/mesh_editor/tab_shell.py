@@ -181,6 +181,23 @@ class MeshEditorTabShellMixin(
 
         return getattr(getattr(self, "standalone_workspace", None), "texture_tools_dock", None)
 
+    def _sync_textures_panel_availability(self, hair_active: bool) -> None:
+        hair_active = bool(hair_active)
+        workspace = getattr(self, "standalone_workspace", None)
+        texture_panels = getattr(workspace, "texture_panels", None) if workspace is not None else None
+        set_suppressed = getattr(texture_panels, "set_suppressed", None) if texture_panels is not None else None
+        if callable(set_suppressed):
+            try:
+                set_suppressed(hair_active)
+            except RuntimeError:
+                pass
+        button = getattr(self, "textures_toggle_button", None)
+        if button is not None:
+            try:
+                button.setVisible(not hair_active)
+            except RuntimeError:
+                pass
+
     def _build_standalone_workspace(self) -> QWidget:
         from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 

@@ -328,6 +328,10 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
         self.standalone_native_host_frame.show_loading(f"Loading archive mesh: {entry.path}")
         self.update_editor_session_state(None)
+        if getattr(self, "_pending_hair_start", None) is None:
+            from cdmw.ui.mesh_editor.hair_flow import clear_hair_entry_status
+
+            clear_hair_entry_status(self)
         self._sync_state()
         if prepared_result is not None:
             self._handle_archive_session_loaded(request_id, prepared_result)
@@ -465,8 +469,17 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
         self._restore_cached_mesh_character_context(entry)
-        if not bool(getattr(self, "edit_item_set", False)) and not self._archive_material_preview_model_ready(
-            self.standalone_archive_material_preview_model
+        try:
+            loaded_session = result.service._session(result.view.session_id)
+        except (AttributeError, KeyError):
+            loaded_session = None
+        has_refit_context = getattr(loaded_session, "archive_refit_context", None) is not None
+        if (
+            not bool(getattr(self, "edit_item_set", False))
+            and not has_refit_context
+            and not self._archive_material_preview_model_ready(
+                self.standalone_archive_material_preview_model
+            )
         ):
             self._start_archive_material_context_resolution(entry)
         self.mesh_editor_draft_manifest_path = result.draft_manifest_path
@@ -487,7 +500,27 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 f"Mesh Editor resumed draft for {entry.basename}.",
                 False,
             )
+        else:
+            from cdmw.services.dmm_runtime_mount import dmm_mod_from_note, short_mod_name
+
+            dmm_mod = dmm_mod_from_note(getattr(entry, "prepared_note", ""))
+            if dmm_mod:
+                self.status_message_requested.emit(
+                    f"Mesh Editor opened {entry.basename} from DMM mod: {short_mod_name(dmm_mod)}.",
+                    False,
+                )
         self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
+        try:
+            loaded_hair = getattr(result.service._session(result.view.session_id), "hair_state", None)
+        except (AttributeError, KeyError):
+            loaded_hair = None
+        if loaded_hair is None and getattr(self, "_pending_hair_start", None) is None:
+            from cdmw.ui.mesh_editor.hair_flow import clear_hair_entry_status
+
+            clear_hair_entry_status(self)
+        sync_textures = getattr(self, "_refresh_textures_panel_availability", None)
+        if callable(sync_textures):
+            sync_textures()
         self._sync_state()
         if result.skeleton_source_path:
             self.status_message_requested.emit(
@@ -547,6 +580,13 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if int(request_id) != int(self.archive_session_load_request_id):
             return
         self.standalone_controller = None
+        if getattr(self, "_pending_hair_start", None) is None:
+            from cdmw.ui.mesh_editor.hair_flow import clear_hair_entry_status
+
+            clear_hair_entry_status(self)
+        sync_textures = getattr(self, "_refresh_textures_panel_availability", None)
+        if callable(sync_textures):
+            sync_textures()
         self._replace_archive_material_context_package_lease(None)
         text = f"Mesh Editor archive load failed: {message}"
         self.standalone_status_label.setText(text)
@@ -677,6 +717,9 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         except Exception:
             # Cleanup only: opening failures must propagate to the caller.
             self.standalone_controller = None
+            sync_textures = getattr(self, "_sync_textures_panel_availability", None)
+            if callable(sync_textures):
+                sync_textures()
             raise
         self.standalone_source_skeleton = loaded_source_skeleton
         if loaded_source_skeleton is not None:
@@ -777,6 +820,13 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if int(request_id) != self.standalone_file_load_request_id:
             return
         self.standalone_controller = None
+        if getattr(self, "_pending_hair_start", None) is None:
+            from cdmw.ui.mesh_editor.hair_flow import clear_hair_entry_status
+
+            clear_hair_entry_status(self)
+        sync_textures = getattr(self, "_refresh_textures_panel_availability", None)
+        if callable(sync_textures):
+            sync_textures()
         self._set_rust_status(f"Mesh Editor file load failed: {message}", error=True)
         self.update_editor_session_state(None)
     def _cleanup_standalone_file_loader(self, thread: QThread, worker: _tab.MeshFileSessionLoadWorker) -> None:
@@ -826,6 +876,9 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         if callable(show_loading):
             show_loading("Preparing the embedded Mesh Editor...")
         self.update_editor_session_state(view, active_selection_mode=self.standalone_controller.active_selection_mode)
+        sync_textures = getattr(self, "_refresh_textures_panel_availability", None)
+        if callable(sync_textures):
+            sync_textures()
         self.status_message_requested.emit(f"Mesh Editor loaded standalone mesh: {Path(self.standalone_mesh_label).name}", False)
         if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
             self._start_selected_mesh_editor(self.standalone_controller)
@@ -918,6 +971,13 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
                 reason="Mesh Editor cancelled; CDMW mesh unchanged."
             )
         self.standalone_controller = None
+        if getattr(self, "_pending_hair_start", None) is None:
+            from cdmw.ui.mesh_editor.hair_flow import clear_hair_entry_status
+
+            clear_hair_entry_status(self)
+        sync_textures = getattr(self, "_refresh_textures_panel_availability", None)
+        if callable(sync_textures):
+            sync_textures()
         self.standalone_native_selection_stroke_id = ""
         self.standalone_pending_dotnet_topology_request = None
         self.standalone_pending_dotnet_live_stroke_outcome = None

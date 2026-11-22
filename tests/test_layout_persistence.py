@@ -240,3 +240,32 @@ def test_existing_detached_key_and_dialog_restore_are_preserved(rig):
     finally:
         dialog.close()
         dialog.deleteLater()
+
+
+def test_dialogs_with_skip_geometry_property_neither_save_nor_restore_geometry(rig):
+    seed = QDialog()
+    seed.setObjectName("dynamic-dialog")
+    legacy_key = rig.policy._window_key(seed)
+    assert legacy_key
+    seed.resize(360, 240)
+    rig.settings.setValue(legacy_key, seed.saveGeometry())
+    seed.deleteLater()
+    rig.settings.writes.clear()
+
+    dialog = QDialog()
+    dialog.setObjectName("dynamic-dialog")
+    dialog.setProperty("cdmwSkipGeometryPersistence", True)
+    assert rig.policy._window_key(dialog) == ""
+    dialog.resize(640, 480)
+    dialog.show()
+    rig.app.processEvents()
+    rig.app.processEvents()
+    dialog.resize(700, 500)
+    _settle(rig)
+    try:
+        assert dialog.size().width() == 700 and dialog.size().height() == 500
+        assert _geometry_writes(rig) == []
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        rig.app.processEvents()

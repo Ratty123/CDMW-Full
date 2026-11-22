@@ -25,7 +25,7 @@ HOST_NAMES = (
     "_archive_refit_picker", "_archive_texture_indexes", "_cloth_collision_picker",
     "_current_target_entry", "_hair_context_preparation", "_hair_picker",
     "_pending_hair_character", "_pending_hair_context",
-    "_start_archive_material_context_resolution", "_texture_tools_panel", "_textures_panel", "archive_material_context_package_path",
+    "_start_archive_material_context_resolution", "_sync_textures_panel_availability", "_texture_tools_panel", "_textures_panel", "archive_material_context_package_path",
     "archive_material_context_verified_for_rust", "archive_physics_profile_context",
     "archive_session_dependencies", "archive_session_retry_request", "close_standalone_session", "current_archive_selection",
     "edit_item_set", "font", "hair_entry_status", "item_set_contexts",

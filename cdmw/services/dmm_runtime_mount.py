@@ -95,7 +95,34 @@ def normalized_game_path(value: str) -> str:
 def is_dmm_note(note: object) -> bool:
     """Whether a prepared note (comma-joined parts) says DMM serves the file."""
 
-    return any(part.strip().startswith(DMM_NOTE_PREFIX) for part in str(note or "").split(","))
+    return bool(dmm_mod_from_note(note))
+
+
+def dmm_mod_from_note(note: object) -> str:
+    """The mod name recorded in a prepared note (``DMM mod: <mod>``), or ``""``."""
+
+    for part in str(note or "").split(","):
+        stripped = part.strip()
+        if stripped.startswith(DMM_NOTE_PREFIX):
+            return stripped[len(DMM_NOTE_PREFIX):].strip()
+    return ""
+
+
+_GENERIC_MOD_FOLDERS = frozenset({"files", "data", "mods"})
+
+
+def short_mod_name(mod: str, *, max_chars: int = 36) -> str:
+    """A compact display label for a DMM mod name, keeping meaningful folder context."""
+
+    parts = [part.strip() for part in str(mod or "").replace("\\", "/").split("/") if part.strip()]
+    if not parts:
+        return ""
+    while len(parts) > 1 and parts[-1].casefold() in _GENERIC_MOD_FOLDERS:
+        parts.pop()
+    label = parts[-1]
+    if len(label) > max_chars >= 4:
+        return label[: max_chars - 3].rstrip() + "..."
+    return label
 
 
 def is_dmm_added_entry(entry: object) -> bool:
@@ -135,9 +162,11 @@ def mod_label(source_text: str, game_path: str) -> str:
     parts = [part for part in re.split(r"[\\/]+", source_text.strip()) if part]
     tail = [part for part in game_path.replace("\\", "/").split("/") if part]
     lowered = [part.casefold() for part in parts]
+    tail_stripped = False
     if len(parts) > len(tail) and lowered[-len(tail):] == [part.casefold() for part in tail]:
         parts = parts[:-len(tail)]
         lowered = lowered[:-len(tail)]
+        tail_stripped = True
     if lowered[-3:] == ["bin64", "dmm", "files"]:
         return DMM_MERGED_LABEL
     if parts and _GROUP_FOLDER.fullmatch(parts[-1]):
@@ -147,6 +176,14 @@ def mod_label(source_text: str, game_path: str) -> str:
         if anchor in lowered:
             index = len(lowered) - 1 - lowered[::-1].index(anchor)
             named = parts[index + 1:]
+            if not tail_stripped and tail and len(named) > 1:
+                first_tail = tail[0].casefold()
+                for cut in range(1, len(named)):
+                    if named[cut].casefold() == first_tail:
+                        named = named[:cut]
+                        break
+                if len(named) > 1 and _GROUP_FOLDER.fullmatch(named[-1]):
+                    named = named[:-1]
             if named:
                 return "/".join(named)
     return parts[-1] if parts else "DMM"

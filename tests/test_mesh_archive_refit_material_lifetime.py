@@ -269,3 +269,139 @@ def test_rejected_refit_materials_do_not_block_the_next_valid_import(tmp_path, f
     finally:
         editor.cancel()
         authority.close_edit_session(editor.authoritative_session_id, force_without_saving=True)
+
+
+def test_refit_draft_persists_preview_core_layer_dds_after_cache_and_package_cleanup(tmp_path):
+    from cdmw.services.mesh_preview_material_source import (
+        bind_preview_core_material_source,
+        unedited_preview_core_material_source,
+    )
+    from cdmw.services.mesh_rust_preview_package import _composite_preview_core_material_graph
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    base_dds = _image(cache_dir / "armor_d.dds", (120, 40, 20))
+    norm_dds = _image(cache_dir / "armor_n.dds", (128, 128, 255))
+    mat_dds = _image(cache_dir / "armor_r.dds", (90, 90, 90))
+    detail_dds = _image(cache_dir / "detail_d.dds", (200, 180, 140))
+    mask_dds = _image(cache_dir / "mask.dds", (0, 255, 0))
+    temp_pkg = tmp_path / "deleted_temp_pkg"
+    temp_pkg.mkdir()
+
+    layer = {
+        "layer_role": "base",
+        "mask_channel": "",
+        "owner_wrapper_item_id": "mat0",
+        "material_wrapper_index": 0,
+        "source_parameter": "",
+        "mask_parameter": "",
+        "weight": 1.0,
+        "diffuse_source": str(base_dds),
+        "diffuse_archive_path": "character/texture/armor_d.dds",
+        "normal_source": str(norm_dds),
+        "normal_archive_path": "character/texture/armor_n.dds",
+        "material_source": str(mat_dds),
+        "material_archive_path": "character/texture/armor_r.dds",
+        "height_source": "",
+        "height_archive_path": "",
+        "mask_source": "",
+        "mask_archive_path": "",
+    }
+    detail_layer = {
+        **layer,
+        "layer_role": "detail",
+        "mask_channel": "r",
+        "source_parameter": "_detailDiffuseTextureR",
+        "diffuse_source": str(detail_dds),
+        "diffuse_archive_path": "character/texture/detail_d.dds",
+    }
+    batch = {
+        "material_name": "mat0",
+        "material_layers": [layer, detail_layer],
+        "primary_material_layer": layer,
+        "native_base_quality": {"source": str(base_dds)},
+        "dds_textures": {"base": {"source_path": str(base_dds)}},
+    }
+    conservation = {
+        "parameters": [
+            {
+                "component_scope_id": "",
+                "owner_wrapper_item_id": "mat0",
+                "material_wrapper_index": 0,
+                "parameter_name": "_detailMaskTexture",
+                "resolved_source_path": str(mask_dds),
+                "resolved_archive_path": "character/texture/mask.dds",
+            }
+        ]
+    }
+    part = SimpleNamespace(
+        name="armor",
+        material="mat0",
+        texture="",
+        preview_color=[1.0, 1.0, 1.0],
+        preview_normal_texture_strength=1.0,
+        preview_native_material_overrides={},
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        faces=[(0, 1, 2)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        normals=[(0.0, 0.0, 1.0)] * 3,
+    )
+    bind_preview_core_material_source(part, temp_pkg, batch, conservation)
+    # Simulate native snapshot round-trip where 1.0 becomes JSON integer 1.
+    part_dict = {
+        "name": part.name,
+        "material": part.material,
+        "texture": "",
+        "extra_attrs": {
+            "preview_color": [1, 1, 1],
+            "preview_normal_texture_strength": 1,
+            "preview_native_material_overrides": copy.deepcopy(part.preview_native_material_overrides),
+        },
+    }
+    snapshot = {"submeshes": [{"index": 0, "metadata": part_dict}]}
+    project = tmp_path / "draft"
+    # Legacy v1 records without Preview Core DDS files must remain readable while cache files exist.
+    legacy_snapshot = copy.deepcopy(snapshot)
+    load_archive_refit_materials(legacy_snapshot, {"version": 1, "files": {}}, project)
+    assert legacy_snapshot == snapshot
+
+    payload = save_archive_refit_materials(snapshot, project, threading.Event())
+    assert payload["version"] == 2
+    # "package" directory must never be treated as a copied file.
+    assert str(temp_pkg) not in payload["files"]
+    for src in (base_dds, norm_dds, mat_dds, detail_dds, mask_dds):
+        assert str(src) in payload["files"]
+        src.unlink()
+    temp_pkg.rmdir()
+
+    load_archive_refit_materials(snapshot, payload, project)
+    restored_meta = snapshot["submeshes"][0]["metadata"]["extra_attrs"]
+    from cdmw.modding.mesh_native_snapshot_codec import _restored_snapshot_metadata_value
+
+    restored_part = SimpleNamespace(
+        name="armor",
+        material="mat0",
+        texture="",
+        preview_color=_restored_snapshot_metadata_value("preview_color", restored_meta["preview_color"]),
+        preview_normal_texture_strength=_restored_snapshot_metadata_value(
+            "preview_normal_texture_strength", restored_meta["preview_normal_texture_strength"]
+        ),
+        preview_native_material_overrides=_restored_snapshot_metadata_value(
+            "preview_native_material_overrides", restored_meta["preview_native_material_overrides"]
+        ),
+    )
+    source = unedited_preview_core_material_source(restored_part)
+    assert source is not None
+    out_dir = tmp_path / "composed"
+    out_dir.mkdir()
+    root_id = (out_dir.stat().st_dev, out_dir.stat().st_ino)
+    graph = _composite_preview_core_material_graph(
+        out_dir,
+        SimpleNamespace(submeshes=[restored_part], lod_levels=[]),
+        [],
+        [{"lod_index": 0, "material_index": 0, "material_slot_index": 0}],
+        "full",
+        root_id,
+        lambda: False,
+    )
+    assert graph is not None and len(graph["materials"]) == 1 and graph["unique_resource_count"] >= 4

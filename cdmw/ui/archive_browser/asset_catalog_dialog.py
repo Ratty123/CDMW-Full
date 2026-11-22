@@ -45,6 +45,46 @@ class ArchiveAssetCatalogDialogMixin:
 
         show_npc_finder(self)
 
+    def _show_archive_dmm_mods_dialog(self) -> None:
+        from cdmw.ui.archive_browser.dmm_mounted_mods_dialog import show_dmm_mounted_mods_dialog
+
+        show_dmm_mounted_mods_dialog(self)
+
+    def _refresh_archive_dmm_mods_button(self) -> None:
+        button = getattr(self, "archive_dmm_mods_button", None)
+        if button is None:
+            return
+        from cdmw.services.dmm_runtime_mount import describe_mount
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        session = getattr(bridge, "current_session", None)
+        game_root = str(getattr(session, "package_root", "") or "").strip()
+        if not game_root:
+            settings = getattr(self, "settings", None) or getattr(getattr(self, "shell", None), "settings", None)
+            if settings is not None and callable(getattr(settings, "value", None)):
+                game_root = str(settings.value("archive/package_root", "") or "").strip()
+        info = describe_mount(game_root)
+        state = str(info.get("state", "") or "")
+        mods = info.get("mods") or ()
+        if state == "serving":
+            button.setText(f"DMM Mods ({len(mods)})")
+        elif state == "off":
+            button.setText("DMM Mods (Off)")
+        elif state == "stale":
+            button.setText("DMM Mods (Outdated)")
+        elif state == "unreadable":
+            button.setText("DMM Mods (!)")
+        else:
+            button.setText("DMM Mods")
+        message = str(info.get("message", "") or "").strip()
+        if mods:
+            preview_lines = "\n".join(f"- {row['mod']}: {row['files']:,} file(s)" for row in mods[:12])
+            if len(mods) > 12:
+                preview_lines += f"\n... and {len(mods) - 12} more mod(s)"
+            button.setToolTip(f"{message}\n\n{preview_lines}".strip())
+        elif message:
+            button.setToolTip(message)
+
     def _show_archive_asset_catalog_dialog(self) -> None:
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:

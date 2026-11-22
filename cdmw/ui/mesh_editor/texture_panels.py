@@ -75,6 +75,7 @@ class TexturePanels(QObject):
         self.tools = tools
         self.settings: object = None
         self._wanted = False
+        self._suppressed = False
         self._texture_open = False
         self._list_sized = False
         self._editor_sized = False
@@ -159,12 +160,24 @@ class TexturePanels(QObject):
     def texture_open(self) -> bool:
         return self._texture_open
 
+    @property
+    def suppressed(self) -> bool:
+        return self._suppressed
+
+    def set_suppressed(self, suppressed: bool) -> None:
+        """Temporarily suppress both panels (e.g. during Hair Tools) without altering ``wanted``."""
+
+        suppressed = bool(suppressed)
+        if suppressed != self._suppressed:
+            self._suppressed = suppressed
+            self.apply()
+
     def apply(self) -> None:
         """Show or hide both panels as the rule above says. Each goes on its own: with
         the list hidden, the Texture Editor has the whole side."""
 
-        show_list = self._wanted and self.session_open
-        show_editor = self.session_open and self._texture_open and self.tools is not None
+        show_list = (not self._suppressed) and self._wanted and self.session_open
+        show_editor = (not self._suppressed) and self.session_open and self._texture_open and self.tools is not None
         mode = "both" if show_list and show_editor else "editor" if show_editor else "list" if show_list else ""
         self._enter_mode(mode)
         if self.tools is not None and self.tools.isHidden() == show_editor:

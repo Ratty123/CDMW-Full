@@ -319,3 +319,29 @@ def test_an_empty_document_does_not_say_it_is_preparing_the_editor(rig) -> None:
     assert first.empty_state.isVisibleTo(first) and _host_text(first) == ""
     _settle_opens(view)  # the closed session is disposed of; a warning about that may show
     assert "Preparing" not in _host_text(first)
+
+
+def test_cancelled_hair_setup_banner_auto_clears_and_clears_on_session_change(rig, monkeypatch) -> None:
+    from cdmw.ui.mesh_editor import hair_flow
+
+    monkeypatch.setattr(hair_flow, "HAIR_ENTRY_STATUS_AUTO_CLEAR_MS", 15)
+    view = rig.view
+    first = view.active
+    _sword, _session = rig.open_mesh(first, SWORD, edited=False)
+
+    first.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+    hair_flow.arm_hair_entry_status_auto_clear(first)
+    assert first.hair_entry_status.text() == "Hair setup cancelled. The current scene is unchanged."
+    _settle(0.06)
+    assert first.hair_entry_status.text() == ""
+
+    # Closing or loading a non-hair mesh also clears a stale notice immediately.
+    first.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+    hair_flow.arm_hair_entry_status_auto_clear(first, 5000)
+    first.close_standalone_session()
+    assert first.hair_entry_status.text() == ""
+
+    first.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+    hair_flow.arm_hair_entry_status_auto_clear(first, 5000)
+    rig.open_mesh(first, SWORD, edited=False)
+    assert first.hair_entry_status.text() == ""

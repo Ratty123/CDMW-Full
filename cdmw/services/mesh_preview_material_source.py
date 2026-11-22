@@ -8,9 +8,20 @@ import json
 from pathlib import Path, PurePosixPath
 
 
-def _binding_signature(part):
+def _canonicalize_signature_numbers(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return 0.0 if value == 0 else float(value)
+    if isinstance(value, Mapping):
+        return {str(key): _canonicalize_signature_numbers(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonicalize_signature_numbers(item) for item in value]
+    return value
+
+
+def _binding_signature_values(part):
     from cdmw.services.mesh_dotnet_material_bindings import _DOTNET_PREVIEW_MATERIAL_ATTRS
-    from cdmw.services.mesh_rust_authoring import _canonical_json_bytes, _json_safe
 
     # Geometry edits and scene placement do not edit a material. All material
     # inputs, parameters, factors and direct texture assignments do.
@@ -43,7 +54,21 @@ def _binding_signature(part):
             except OSError:
                 files[text] = None
     values["source_files"] = files
-    return hashlib.sha256(_canonical_json_bytes(_json_safe(values))).hexdigest()
+    return values
+
+
+def _binding_signature(part):
+    from cdmw.services.mesh_rust_authoring import _canonical_json_bytes, _json_safe
+
+    return hashlib.sha256(
+        _canonical_json_bytes(_canonicalize_signature_numbers(_json_safe(_binding_signature_values(part))))
+    ).hexdigest()
+
+
+def _legacy_binding_signature(part):
+    from cdmw.services.mesh_rust_authoring import _canonical_json_bytes, _json_safe
+
+    return hashlib.sha256(_canonical_json_bytes(_json_safe(_binding_signature_values(part)))).hexdigest()
 
 
 def bind_preview_core_material_source(part, package, batch, conservation):
@@ -51,6 +76,7 @@ def bind_preview_core_material_source(part, package, batch, conservation):
     overrides["preview_core_material_source"] = {
         "package": str(package), "batch": dict(batch), "conservation": dict(conservation),
         "binding_signature": _binding_signature(part),
+        "binding_signature_version": 2,
     }
     part.preview_native_material_overrides = overrides
 
@@ -102,8 +128,15 @@ def restore_preview_core_sources(set_aside, *, onto=None):
 
 def unedited_preview_core_material_source(part):
     source = (getattr(part, "preview_native_material_overrides", {}) or {}).get("preview_core_material_source")
-    if (isinstance(source, dict) and source.get("binding_signature") == _binding_signature(part)
-            and source.get("batch", {}).get("material_name") == getattr(part, "material", "")):
+    if (
+        not isinstance(source, dict)
+        or source.get("batch", {}).get("material_name") != getattr(part, "material", "")
+    ):
+        return None
+    stored_signature = source.get("binding_signature")
+    if source.get("binding_signature_version") == 2:
+        return source if stored_signature == _binding_signature(part) else None
+    if stored_signature in {_binding_signature(part), _legacy_binding_signature(part)}:
         return source
     return None
 

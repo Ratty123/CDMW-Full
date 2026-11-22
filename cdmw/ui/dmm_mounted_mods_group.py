@@ -49,6 +49,17 @@ class DmmMountedModsGroup(QGroupBox):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(300)
         self._refresh_timer.timeout.connect(self.refresh)
+        overlay = current_overlay()
+        overlay.add_listener(self._sync_from_overlay)
+        self.destroyed.connect(
+            lambda _obj=None, overlay=overlay, listener=self._sync_from_overlay: overlay.remove_listener(listener)
+        )
+        self.refresh()
+
+    def _sync_from_overlay(self) -> None:
+        enabled = current_overlay().enabled
+        with QSignalBlocker(self.show_checkbox):
+            self.show_checkbox.setChecked(enabled)
         self.refresh()
 
     def bind_game_folder(self, field) -> None:

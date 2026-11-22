@@ -935,3 +935,27 @@ def test_a_character_left_by_an_unstarted_setup_is_not_used_for_another_hairstyl
     tab._pending_hair_context = SimpleNamespace(character="Damiane", arguments=lambda: {"character": "Damiane"})
     hair_flow.begin_hair_context(tab, session, {"command": "hair_begin", "arguments": {}})
     assert started == ["Damiane"] and resumed[0]["arguments"]["character"] == "Damiane"
+
+
+def test_edit_hair_setup_hides_redundant_retry_row_until_failure_and_picker_fills_grid(owner, monkeypatch):
+    from tests.test_hair_registration import game_table, shown
+
+    dialog, tasks = _setup_with_remembered_character(owner, monkeypatch, game_table(shown(0)), mode="existing")
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    picker = dialog._picker
+    assert picker is not None
+    assert dialog.retry.isHidden() and dialog._buttons_row.isHidden()
+    dialog.show()
+    QApplication.processEvents()
+    QApplication.processEvents()
+    tile_w, _tile_h, _icon_side = picker._tile_metrics
+    viewport_w = picker.grid.viewport().width()
+    usable = max(240, viewport_w - (0 if picker.grid.verticalScrollBar().isVisible() else 16) - 6)
+    columns = max(1, usable // tile_w)
+    assert columns >= 3 and (usable - columns * tile_w) < tile_w
+    assert picker.splitter.count() == 2
+
+    picker.preparation_failed.emit("Style check stalled.")
+    assert not dialog.retry.isHidden() and not dialog._buttons_row.isHidden()
+    dialog.reject()

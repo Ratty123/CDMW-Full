@@ -163,6 +163,243 @@ def _prepare_open(game_root: str, row: DmmAddedFile):
     return entry, entries, missing_game_paths
 
 
+def launch_dmm_mesh_editor_session(
+    archive: object,
+    entry: object,
+    entries: tuple[object, ...],
+    on_error: object,
+    on_launched: object = None,
+) -> bool:
+    """Open ``entry`` and its DMM/vanilla dependency ``entries`` in Mesh Editor."""
+
+    shell = getattr(archive, "shell", None)
+    tab = getattr(shell, "mesh_editor_tab", None)
+    context = _build_dependency_context(entry, entries)
+    try:
+        blocked = getattr(shell, "_mesh_editor_open_blocked", None)
+        if callable(blocked) and blocked():
+            return False
+        # Finish, Discard or Keep editing for an unfinished edit; another file opens beside it.
+        if not shell._prepare_mesh_editor_archive_launch(entry):
+            return False
+        tab.open_archive_session(entry, archive_dependencies=context)
+        activate = getattr(shell, "_activate_tool_widget", None)
+        if callable(activate):
+            activate(tab)
+    except (AttributeError, OSError, ValueError, RuntimeError) as exc:
+        if callable(on_error):
+            on_error(str(exc))
+        return False
+    if callable(on_launched):
+        on_launched()
+    return True
+
+
+def resolve_missing_vanilla_and_launch_mesh_editor(
+    owner: object,
+    *,
+    archive: object,
+    generation_attr: str,
+    generation: int,
+    lookup_attr: str,
+    cleanup_attr: str,
+    entry: object,
+    entries: tuple[object, ...],
+    missing_game_paths: tuple[str, ...],
+    on_error: object,
+    on_launched: object = None,
+    allow_sidecar_followup: bool = True,
+) -> None:
+    """Resolve missing referenced vanilla files from the catalogue, then open Mesh Editor."""
+
+    def launch(merged: tuple[object, ...]) -> None:
+        launch_dmm_mesh_editor_session(archive, entry, merged, on_error, on_launched=on_launched)
+
+    bridge = getattr(archive, "archive_remote_bridge", None)
+    session = getattr(bridge, "current_session", None)
+    service = getattr(archive, "archive_catalogue_service", None)
+    if (
+        not missing_game_paths
+        or session is None
+        or service is None
+        or not callable(getattr(service, "resolve_entries", None))
+        or not callable(getattr(service, "prepare_entries", None))
+    ):
+        launch(entries)
+        return
+
+    from cdmw.domain.archives.catalogue import ArchiveLookupKind
+    from cdmw.domain.archives.catalogue_operations import PrepareEntriesRequest, PrepareEntriesResult
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    from cdmw.ui.archive_browser.remote_entry_lookup import lookup_requests, start_live_catalogue_lookup
+
+    requests = lookup_requests(session.session_id, ArchiveLookupKind.EXACT_PATHS, missing_game_paths)
+    if not requests:
+        launch(entries)
+        return
+
+    fallback_launched = False
+
+    def is_current() -> bool:
+        return int(getattr(owner, generation_attr, -1)) == generation
+
+    def launch_fallback() -> None:
+        nonlocal fallback_launched
+        if fallback_launched or not is_current():
+            return
+        fallback_launched = True
+        launch(entries)
+
+    def on_lookup_error(_message: str) -> None:
+        launch_fallback()
+
+    def on_lookup_done(outcome) -> None:
+        if not is_current():
+            return
+        ordered_dtos = sorted(outcome.entries, key=lambda dto: not getattr(dto, "is_active_override", False))
+        chosen_by_path: dict[str, object] = {}
+        for dto in ordered_dtos:
+            key = normalized_game_path(dto.path)
+            if key and key not in chosen_by_path:
+                chosen_by_path[key] = dto
+        dtos_by_id = {dto.entry_id: dto for dto in chosen_by_path.values()}
+        if not dtos_by_id:
+            launch_fallback()
+            return
+        ui_generation = int(getattr(getattr(bridge, "controller", None), "generation", 0) or 0)
+        prepare_request_id: str | None = None
+        collected: dict[int, object] = {}
+        finished = False
+
+        def disconnect() -> None:
+            for signal_name, handler in (
+                ("batch_ready", on_batch),
+                ("result_ready", on_result),
+                ("request_failed", on_failed),
+                ("request_cancelled", on_cancelled),
+            ):
+                signal = getattr(service, signal_name, None)
+                if signal is not None:
+                    try:
+                        signal.disconnect(handler)
+                    except (RuntimeError, TypeError):
+                        pass
+
+        def cleanup(*, cancel_service: bool = True) -> None:
+            nonlocal finished
+            if finished:
+                return
+            finished = True
+            disconnect()
+            if getattr(owner, cleanup_attr, None) is cleanup:
+                setattr(owner, cleanup_attr, None)
+            if cancel_service and prepare_request_id is not None:
+                try:
+                    service.cancel(prepare_request_id)
+                except (AttributeError, RuntimeError):
+                    pass
+
+        def accept_payload(payload: object) -> bool:
+            if not isinstance(payload, PrepareEntriesResult) or payload.session_id != session.session_id:
+                return False
+            for item in payload.items:
+                if item.entry.entry_id in dtos_by_id:
+                    collected[item.entry.entry_id] = item
+            return True
+
+        def on_batch(req_id: str, _operation: str, payload: object) -> None:
+            if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
+                accept_payload(payload)
+
+        def on_result(req_id: str, _operation: str, payload: object) -> None:
+            if finished or prepare_request_id is None or str(req_id) != prepare_request_id:
+                return
+            ok = accept_payload(payload)
+            cleanup(cancel_service=False)
+            if not is_current():
+                return
+            if not ok:
+                launch_fallback()
+                return
+            seen_paths = {normalized_game_path(item.path) for item in entries}
+            added_vanilla: list[object] = []
+            for entry_id, item in collected.items():
+                dto = dtos_by_id.get(entry_id)
+                if dto is None:
+                    continue
+                key = normalized_game_path(dto.path)
+                if not key or key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                prepared_entry = ArchiveCatalogueService.compatibility_entry(dto)
+                prepared_entry.prepared_path = Path(item.prepared_path)
+                prepared_entry.prepared_size = item.size
+                prepared_entry.prepared_sha256 = item.sha256
+                prepared_entry.prepared_note = str(item.note or "")
+                added_vanilla.append(prepared_entry)
+            merged = (*entries, *added_vanilla)
+            if allow_sidecar_followup and added_vanilla:
+                followup = _referenced_game_paths(entry, merged)
+                if followup:
+                    resolve_missing_vanilla_and_launch_mesh_editor(
+                        owner,
+                        archive=archive,
+                        generation_attr=generation_attr,
+                        generation=generation,
+                        lookup_attr=lookup_attr,
+                        cleanup_attr=cleanup_attr,
+                        entry=entry,
+                        entries=merged,
+                        missing_game_paths=followup,
+                        on_error=on_error,
+                        on_launched=on_launched,
+                        allow_sidecar_followup=False,
+                    )
+                    return
+            launch(merged)
+
+        def on_failed(req_id: str, _error: object) -> None:
+            if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
+                cleanup(cancel_service=False)
+                launch_fallback()
+
+        def on_cancelled(req_id: str) -> None:
+            if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
+                cleanup(cancel_service=False)
+
+        setattr(owner, cleanup_attr, cleanup)
+        for signal_name, handler in (
+            ("batch_ready", on_batch),
+            ("result_ready", on_result),
+            ("request_failed", on_failed),
+            ("request_cancelled", on_cancelled),
+        ):
+            signal = getattr(service, signal_name, None)
+            if signal is not None:
+                signal.connect(handler)
+
+        try:
+            prepare_request_id = str(
+                service.prepare_entries(
+                    PrepareEntriesRequest(session.session_id, tuple(dtos_by_id)),
+                    ui_generation=ui_generation,
+                    dmm_overlay=True,
+                )
+            )
+        except Exception:
+            cleanup(cancel_service=False)
+            launch_fallback()
+            return
+
+    start_live_catalogue_lookup(
+        owner,
+        lookup_attr,
+        requests,
+        on_done=on_lookup_done,
+        on_error=on_lookup_error,
+    )
+
+
 def added_files(served: dict[str, DmmServedFile], found_paths: set[str]) -> list[DmmAddedFile]:
     """The served files whose game path the catalogue does not have, by game path."""
 
@@ -237,8 +474,21 @@ class DmmAddedFilesGroup(QGroupBox):
         clear_family = getattr(self._archive, "_clear_archive_asset_family_cache", None)
         if callable(clear_family):
             clear_family()
+        refresh_button = getattr(self._archive, "_refresh_archive_dmm_mods_button", None)
+        if callable(refresh_button):
+            refresh_button()
+        remote_bridge = getattr(self._archive, "archive_remote_bridge", None)
+        cancel_deps = getattr(remote_bridge, "cancel_preview_dependencies", None)
+        if callable(cancel_deps):
+            cancel_deps(clear_snapshot=True)
         if self._lookup is None:
             self._show_rows([], DMM_ADDED_FILES_EMPTY)
+        current_getter = getattr(self._archive, "_current_archive_entry", None)
+        render = getattr(self._archive, "_render_archive_preview", None)
+        if callable(current_getter) and callable(render) and not getattr(self._archive, "editing_in_place", False):
+            current = current_getter()
+            if current is not None:
+                render(current, force=True)
 
     # ------------------------------------------------------------ finding
 
@@ -402,193 +652,27 @@ class DmmAddedFilesGroup(QGroupBox):
         *,
         allow_sidecar_followup: bool,
     ) -> None:
-        bridge = getattr(self._archive, "archive_remote_bridge", None)
-        session = getattr(bridge, "current_session", None)
-        service = getattr(self._archive, "archive_catalogue_service", None)
-        if (
-            not missing_game_paths
-            or session is None
-            or service is None
-            or not callable(getattr(service, "resolve_entries", None))
-            or not callable(getattr(service, "prepare_entries", None))
-        ):
-            self._launch_mesh_editor(entry, entries)
-            return
-
-        from cdmw.domain.archives.catalogue import ArchiveLookupKind
-        from cdmw.domain.archives.catalogue_operations import PrepareEntriesRequest, PrepareEntriesResult
-        from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
-        from cdmw.ui.archive_browser.remote_entry_lookup import lookup_requests, start_live_catalogue_lookup
-
-        requests = lookup_requests(session.session_id, ArchiveLookupKind.EXACT_PATHS, missing_game_paths)
-        if not requests:
-            self._launch_mesh_editor(entry, entries)
-            return
-
-        fallback_launched = False
-
-        def launch_fallback() -> None:
-            nonlocal fallback_launched
-            if fallback_launched or generation != self._open_generation:
-                return
-            fallback_launched = True
-            self._launch_mesh_editor(entry, entries)
-
-        def on_lookup_error(_message: str) -> None:
-            launch_fallback()
-
-        def on_lookup_done(outcome) -> None:
-            if generation != self._open_generation:
-                return
-            ordered_dtos = sorted(outcome.entries, key=lambda dto: not getattr(dto, "is_active_override", False))
-            chosen_by_path: dict[str, object] = {}
-            for dto in ordered_dtos:
-                key = normalized_game_path(dto.path)
-                if key and key not in chosen_by_path:
-                    chosen_by_path[key] = dto
-            dtos_by_id = {dto.entry_id: dto for dto in chosen_by_path.values()}
-            if not dtos_by_id:
-                launch_fallback()
-                return
-            ui_generation = int(getattr(getattr(bridge, "controller", None), "generation", 0) or 0)
-            prepare_request_id: str | None = None
-            collected: dict[int, object] = {}
-            finished = False
-
-            def disconnect() -> None:
-                for signal_name, handler in (
-                    ("batch_ready", on_batch),
-                    ("result_ready", on_result),
-                    ("request_failed", on_failed),
-                    ("request_cancelled", on_cancelled),
-                ):
-                    signal = getattr(service, signal_name, None)
-                    if signal is not None:
-                        try:
-                            signal.disconnect(handler)
-                        except (RuntimeError, TypeError):
-                            pass
-
-            def cleanup(*, cancel_service: bool = True) -> None:
-                nonlocal finished
-                if finished:
-                    return
-                finished = True
-                disconnect()
-                if self._prepare_cleanup is cleanup:
-                    self._prepare_cleanup = None
-                if cancel_service and prepare_request_id is not None:
-                    try:
-                        service.cancel(prepare_request_id)
-                    except (AttributeError, RuntimeError):
-                        pass
-
-            def accept_payload(payload: object) -> bool:
-                if not isinstance(payload, PrepareEntriesResult) or payload.session_id != session.session_id:
-                    return False
-                for item in payload.items:
-                    if item.entry.entry_id in dtos_by_id:
-                        collected[item.entry.entry_id] = item
-                return True
-
-            def on_batch(req_id: str, _operation: str, payload: object) -> None:
-                if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
-                    accept_payload(payload)
-
-            def on_result(req_id: str, _operation: str, payload: object) -> None:
-                if finished or prepare_request_id is None or str(req_id) != prepare_request_id:
-                    return
-                ok = accept_payload(payload)
-                cleanup(cancel_service=False)
-                if generation != self._open_generation:
-                    return
-                if not ok:
-                    launch_fallback()
-                    return
-                seen_paths = {normalized_game_path(item.path) for item in entries}
-                added_vanilla: list[object] = []
-                for entry_id, item in collected.items():
-                    dto = dtos_by_id.get(entry_id)
-                    if dto is None:
-                        continue
-                    key = normalized_game_path(dto.path)
-                    if not key or key in seen_paths:
-                        continue
-                    seen_paths.add(key)
-                    prepared_entry = ArchiveCatalogueService.compatibility_entry(dto)
-                    prepared_entry.prepared_path = Path(item.prepared_path)
-                    prepared_entry.prepared_size = item.size
-                    prepared_entry.prepared_sha256 = item.sha256
-                    prepared_entry.prepared_note = str(item.note or "")
-                    added_vanilla.append(prepared_entry)
-                merged = (*entries, *added_vanilla)
-                if allow_sidecar_followup and added_vanilla:
-                    followup = _referenced_game_paths(entry, merged)
-                    if followup:
-                        self._resolve_and_open_vanilla(
-                            generation, entry, merged, followup, allow_sidecar_followup=False,
-                        )
-                        return
-                self._launch_mesh_editor(entry, merged)
-
-            def on_failed(req_id: str, _error: object) -> None:
-                if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
-                    cleanup(cancel_service=False)
-                    launch_fallback()
-
-            def on_cancelled(req_id: str) -> None:
-                if not finished and prepare_request_id is not None and str(req_id) == prepare_request_id:
-                    cleanup(cancel_service=False)
-
-            self._prepare_cleanup = cleanup
-            for signal_name, handler in (
-                ("batch_ready", on_batch),
-                ("result_ready", on_result),
-                ("request_failed", on_failed),
-                ("request_cancelled", on_cancelled),
-            ):
-                signal = getattr(service, signal_name, None)
-                if signal is not None:
-                    signal.connect(handler)
-
-            try:
-                prepare_request_id = str(
-                    service.prepare_entries(
-                        PrepareEntriesRequest(session.session_id, tuple(dtos_by_id)),
-                        ui_generation=ui_generation,
-                        dmm_overlay=True,
-                    )
-                )
-            except Exception:
-                cleanup(cancel_service=False)
-                launch_fallback()
-                return
-
-        start_live_catalogue_lookup(
+        resolve_missing_vanilla_and_launch_mesh_editor(
             self,
-            "_open_lookup",
-            requests,
-            on_done=on_lookup_done,
-            on_error=on_lookup_error,
+            archive=self._archive,
+            generation_attr="_open_generation",
+            generation=generation,
+            lookup_attr="_open_lookup",
+            cleanup_attr="_prepare_cleanup",
+            entry=entry,
+            entries=entries,
+            missing_game_paths=missing_game_paths,
+            on_error=lambda message: self._show_dmm_status(message, error=True),
+            allow_sidecar_followup=allow_sidecar_followup,
         )
 
     def _launch_mesh_editor(self, entry: object, entries: tuple[object, ...]) -> None:
-        shell = getattr(self._archive, "shell", None)
-        tab = getattr(shell, "mesh_editor_tab", None)
-        context = _build_dependency_context(entry, entries)
-        try:
-            blocked = getattr(shell, "_mesh_editor_open_blocked", None)
-            if callable(blocked) and blocked():
-                return
-            # Finish, Discard or Keep editing for an unfinished edit; another file opens beside it.
-            if not shell._prepare_mesh_editor_archive_launch(entry):
-                return
-            tab.open_archive_session(entry, archive_dependencies=context)
-            activate = getattr(shell, "_activate_tool_widget", None)
-            if callable(activate):
-                activate(tab)
-        except (AttributeError, OSError, ValueError, RuntimeError) as exc:
-            self._show_dmm_status(str(exc), error=True)
+        launch_dmm_mesh_editor_session(
+            self._archive,
+            entry,
+            entries,
+            lambda message: self._show_dmm_status(message, error=True),
+        )
 
     def copy_selected(self, folder: Path | str) -> list[str]:
         """Copy the selected files into ``folder`` under their game paths; never into the game folder."""

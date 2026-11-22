@@ -428,3 +428,59 @@ def test_the_texture_editors_own_close_hides_it_and_keeps_the_edits(tmp_path: Pa
         tab.standalone_controller = None
         tab.deleteLater()
         _APP.processEvents()
+
+
+def test_hair_tools_hides_unwired_textures_dock_without_losing_user_preference(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from cdmw.ui.mesh_editor.texture_panels import SHOWN_KEY
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    try:
+        workspace = tab.standalone_workspace
+        textures, tools = workspace.textures_dock, workspace.texture_tools_dock
+        panels = workspace.texture_panels
+        tools._editor_factory = _FakeEditor
+        tab.resize(1400, 800)
+        tab.show()
+        tab.textures_toggle_button.click()
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        tools.open_target(LiveTextureTarget(session_id="doc", source_path=str(tmp_path / "a.dds"),
+                                            source_sha256="ab" * 32, channel="base_color", display_name="a.dds"))
+        _settle()
+        assert textures.isVisible() and tools.isVisible() and tab.textures_toggle_button.isVisible()
+
+        panels.set_suppressed(True)
+        _settle()
+        assert panels.suppressed and panels.wanted
+        assert tab.settings.value(SHOWN_KEY) in (True, "true")
+        assert not textures.isVisible() and not tools.isVisible()
+
+        panels.set_suppressed(False)
+        _settle()
+        assert textures.isVisible() and tools.isVisible()
+
+        # Simulate an active Hair Tools session on the tab.
+        tab.standalone_rust_authoring_session = SimpleNamespace(
+            closed=False,
+            hair_start_mode="existing",
+            shadow_session_id="hair-1",
+            shadow_service=SimpleNamespace(_session=lambda _sid: SimpleNamespace(hair_state=object())),
+        )
+        tab._refresh_textures_panel_availability()
+        _settle()
+        assert panels.suppressed and not tab.textures_toggle_button.isVisible()
+        assert not textures.isVisible() and not tools.isVisible()
+        assert panels.wanted and tab.settings.value(SHOWN_KEY) in (True, "true")
+
+        # Leaving Hair Tools restores both the toggle button and the user's wanted panel.
+        tab.standalone_rust_authoring_session = None
+        tab._refresh_textures_panel_availability()
+        _settle()
+        assert not panels.suppressed and tab.textures_toggle_button.isVisible()
+        assert textures.isVisible() and tools.isVisible()
+    finally:
+        tab.standalone_rust_authoring_session = None
+        tab.deleteLater()
+        _APP.processEvents()

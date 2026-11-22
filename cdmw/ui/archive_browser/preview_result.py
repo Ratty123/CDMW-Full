@@ -75,6 +75,21 @@ class ArchivePreviewResultMixin:
             if family_badge and family_badge != "Unknown" and f"Family: {family_badge}" not in metadata_summary:
                 metadata_summary = f"{metadata_summary} | Family: {family_badge}"
             detail_text = result.detail_text or metadata_summary
+            from cdmw.services.dmm_runtime_mount import dmm_mod_from_note
+
+            dmm_mod = dmm_mod_from_note(getattr(selected_entry, "prepared_note", ""))
+            if not dmm_mod:
+                req_entry = getattr(self, "archive_preview_request_entry", None)
+                if (
+                    isinstance(selected_entry, ArchiveEntry)
+                    and isinstance(req_entry, ArchiveEntry)
+                    and req_entry.identity == selected_entry.identity
+                ):
+                    dmm_mod = dmm_mod_from_note(getattr(req_entry, "prepared_note", ""))
+            if dmm_mod and f"DMM Mounted Mod: {dmm_mod}" not in detail_text:
+                detail_text = (
+                    f"DMM Mounted Mod: {dmm_mod} (showing DMM's mounted file in place of vanilla)\n\n{detail_text}"
+                )
             warning_badge = result.warning_badge
             warning_text = result.warning_text
             preview_image_path = result.preview_image_path
