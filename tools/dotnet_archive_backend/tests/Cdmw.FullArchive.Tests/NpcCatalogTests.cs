@@ -247,5 +247,30 @@ internal static class NpcCatalogTests
         Check(search.SessionId == refreshed.SessionId, "search answered for another session");
         try { await service.OutfitAsync(new(refreshed.SessionId, "npc:999999"), null, CancellationToken.None); throw new InvalidOperationException("unknown key answered"); }
         catch (KeyNotFoundException) { }
+
+        // Shared reader and writer sharing violations on npc-catalog cache must not crash BuildAsync.
+        var cacheFile = Path.Combine(generation, $"npc-catalog-v{ArchiveNpcCatalogBuilder.Version}.json");
+        using (var sharedReader = new FileStream(cacheFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        {
+            var concurrentSession = await sessions.OpenAsync(new(fixture.Root), CancellationToken.None);
+            var concurrentBuild = await new ArchiveNpcCatalogService(sessions, native).BuildAsync(
+                new(concurrentSession.SessionId), null, CancellationToken.None);
+            Check(concurrentBuild.UsedCache && concurrentBuild.NpcCount == cold.NpcCount,
+                "NPC cache could not be read while shared reader held a handle");
+        }
+        using (var readOnlyLock = new FileStream(cacheFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var freshRoot = await SyntheticArchiveFixture.CreateAssociatedAssetsAsync();
+            var freshSession = await sessions.OpenAsync(new(freshRoot.Root), CancellationToken.None);
+            var lockedGeneration = sessions.GetRequired(freshSession.SessionId).GenerationPath;
+            var lockedCache = Path.Combine(lockedGeneration, $"npc-catalog-v{ArchiveNpcCatalogBuilder.Version}.json");
+            File.WriteAllText(lockedCache, "{}");
+            using var blocker = new FileStream(lockedCache, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var built = await new ArchiveNpcCatalogService(sessions, native).BuildAsync(
+                new(freshSession.SessionId), null, CancellationToken.None);
+            Check(!built.UsedCache && built.NpcCount == cold.NpcCount,
+                "NPC build failed when cache overwrite hit a sharing violation");
+            await freshRoot.DisposeAsync();
+        }
     }
 }

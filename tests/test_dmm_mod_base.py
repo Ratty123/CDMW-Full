@@ -145,3 +145,31 @@ def test_stock_bytes_inverts_stock_value(tmp_path):
     value = stock_value(raw)
     with pytest.raises(RecordError):
         stock_bytes({**value, "effect_list": "x"})
+
+
+def test_append_stock_renumbers_stock_index_on_dlc_override(tmp_path):
+    from types import SimpleNamespace
+
+    from cdmw.core.dmm_item_fields import stock_value
+    from cdmw.core.storeinfo_table import encode_stock_entry, parse_store_table
+    from cdmw.services.dmm_mod_base import fold_operations
+    from tests.compact_item_fixtures import store, table
+    from tests.test_new_item_compact_dlc import ROOT, setup
+    from tests.test_new_item_service import TEMPLATE
+
+    _service, snapshot = setup(tmp_path, dlc=True)
+    dlc_body, dlc_head = table([(2003, store(2003, "Store_Pai_BlackMarket", [TEMPLATE, TEMPLATE + 1]))], 2)
+    payloads = {
+        (ROOT + "storeinfo.dlc_01.staticinfobody").lower(): SimpleNamespace(read_bytes=lambda data=dlc_body: data),
+        (ROOT + "storeinfo.dlc_01.staticinfoheader").lower(): SimpleNamespace(read_bytes=lambda data=dlc_head: data),
+    }
+    base_entry = snapshot.store("Store_Pai_BlackMarket").entries[0]
+    new_entry = replace(base_entry, item_key=1990001, stock_index=1)
+    targets = [{"file": "storeinfo.pabgb", "intents": [
+        {"op": "array_append", "key": 2003, "field": "stock_data_list",
+         "new": stock_value(encode_stock_entry(new_entry))}]}]
+    folded = fold_operations(snapshot, payloads, targets)
+    out_body = folded[(ROOT + "storeinfo.dlc_01.staticinfobody").lower()]
+    out_head = folded[(ROOT + "storeinfo.dlc_01.staticinfoheader").lower()]
+    rows = parse_store_table(out_body, out_head, layout="current")
+    assert [entry.stock_index for entry in rows[0].entries] == [0, 1, 2]

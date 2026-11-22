@@ -15,3 +15,13 @@ def test_a_draft_with_a_game_table_edit_can_be_saved():
     edit = TableFieldEdit(table="iteminfo", key=1, target="_itemTier", value=3)
     draft = NewItemDraft(template_key=1, table_edits=(edit,))
     assert decode_draft(encode_draft(draft)).table_edits == (edit,)
+
+
+def test_resuming_pending_package_without_template_ignores_unrelated_template_change():
+    from types import SimpleNamespace
+    from cdmw.ui.new_item.tab import NewItemStudioTab
+
+    launch = SimpleNamespace(draft=NewItemDraft(template_key=None))
+    stub = SimpleNamespace(_pending_package=launch, _pending_package_requested=True)
+    NewItemStudioTab._resume_pending_package(stub, 12345)
+    assert stub._pending_package is None

@@ -738,3 +738,50 @@ def test_files_dmm_adds_open_goes_through_the_archive_open(tmp_path, monkeypatch
     assert group.rows == []
     popup.deleteLater()
     archive.deleteLater()
+
+
+def test_dmm_added_files_copy_tool_normalizes_duplicate_paths(tmp_path, monkeypatch):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from cdmw.mcp.dmm_mount_tools import _added_copy
+    from cdmw.ui.archive_browser.dmm_added_files import DmmAddedFilesGroup, DmmAddedFile
+
+    game, _store = _mounted(tmp_path)
+    overlay = dmm.DmmMountOverlay(tmp_path / "copies")
+    monkeypatch.setattr(dmm, "_overlay", overlay)
+
+    class Archive:
+        archive_remote_bridge = SimpleNamespace(current_session=SimpleNamespace(session_id="s", package_root=str(game)))
+        shell = None
+
+    group = DmmAddedFilesGroup(Archive())
+    group._show_rows([DmmAddedFile(MESH, "Sword_1.0_zip/Sword Mod", Path("x"))], "")
+    out_dir = tmp_path / "copied"
+
+    class Context:
+        window = SimpleNamespace(archive=SimpleNamespace(archive_dmm_added_files_group=group))
+
+        @staticmethod
+        def ui_call(fn):
+            return fn()
+
+        @staticmethod
+        def resolve_output_folder(path):
+            return Path(path)
+
+        @staticmethod
+        def approve_write(*_args, **_kwargs):
+            return True
+
+    call = SimpleNamespace(
+        context=Context(),
+        arguments={"paths": [MESH.replace("/", "\\"), "/" + MESH.upper()], "folder": str(out_dir)},
+    )
+    # Test directly with mocked output helper or real context
+    monkeypatch.setattr("cdmw.mcp.dmm_mount_tools.output", lambda _call, path, folder=False: Path(path))
+    monkeypatch.setattr("cdmw.mcp.dmm_mount_tools.window", lambda _call: Context.window)
+    result = _added_copy(call)
+    assert len(result["written"]) == 1 and Path(result["written"][0]).read_bytes() == b"modded mesh"

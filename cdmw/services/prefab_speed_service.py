@@ -112,6 +112,7 @@ PARTLY_READ = "partly read"
 UNDECIDED = "its layout cannot be decided from the file"
 NO_VALUE = "no speed value reached"
 ZERO_VALUES = "the values are 0"
+UNCHANGED = "no value changed"
 
 
 def _state_of(data: bytes, document: PrefabDocument) -> str:
@@ -386,7 +387,8 @@ def scale_speed_prefabs(
                    for item in (value.value if isinstance(value.value, tuple) else (value.value,))]
         before = (min(numbers), max(numbers))
         if patched == data:
-            outcomes.append(PrefabScaleOutcome(path, data, None, len(values), before, before, ZERO_VALUES))
+            reason = ZERO_VALUES if all(item == 0.0 for item in numbers) else UNCHANGED
+            outcomes.append(PrefabScaleOutcome(path, data, None, len(values), before, before, reason))
             continue
         after = (min(numbers) * float(factor), max(numbers) * float(factor))
         outcomes.append(PrefabScaleOutcome(path, data, patched, len(values), before,
@@ -418,6 +420,7 @@ __all__ = [
     "PrefabSpeedError",
     "PrefabSpeedHit",
     "PrefabSpeedValue",
+    "UNCHANGED",
     "UNDECIDED",
     "ZERO_VALUES",
     "apply_speed_edits",

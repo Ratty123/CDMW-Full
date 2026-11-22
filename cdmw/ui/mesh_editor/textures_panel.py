@@ -974,6 +974,7 @@ class MeshEditorTexturesPanel(QDockWidget):
         Texture Editor panel under it; the sizes that follow the font are fitted again."""
 
         _ = data_font
+        before = self.thumbnail_side()
         self._ui_font = QFont(font)
         for widget in (self, self._body, self.placeholder_label, self.tree, self.tree.header()):
             own = QFont(widget.font())
@@ -986,7 +987,6 @@ class MeshEditorTexturesPanel(QDockWidget):
                                  else QFont.StyleHint.AnyStyle)
             if own != widget.font() or not widget.testAttribute(Qt.WidgetAttribute.WA_SetFont):
                 widget.setFont(own)
-        before = self.thumbnail_side()
         self._fit_to_font()
         self._invalidate_column_metrics()
         self._restyle_headers()
@@ -1213,7 +1213,14 @@ class MeshEditorTexturesPanel(QDockWidget):
                 continue
             cached = self._icons_by_path.get((path, device_side, dpr_mill))
             items = self._items_by_path.get(path, ())
-            if cached is not None and items and all(not it.icon(COLUMN_THUMBNAIL).isNull() for it in items):
+            if cached is not None and items:
+                applied = self._applied_icon_key_by_path.get(path)
+                if applied is None or applied[:2] != (device_side, dpr_mill) or any(
+                    it.icon(COLUMN_THUMBNAIL).isNull() for it in items
+                ):
+                    for it in items:
+                        it.setIcon(COLUMN_THUMBNAIL, cached)
+                    self._applied_icon_key_by_path[path] = (device_side, dpr_mill, 0)
                 self._requested_paths.add(path)
                 continue
             self._requested_paths.add(path)

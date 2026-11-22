@@ -103,7 +103,7 @@ it cannot produce a package containing only the PAM.
 ## Edited Mesh Editor results
 
 After accepting **Finish Edit Mesh**, choose **Add to Archive Browser**. Eligible
-game-format meshes appear in **Controls > Edited results** for the current app
+game-format meshes appear in **Actions > Edited Results...** for the current app
 session. Select one and choose **Open in Mesh Editor**, or double-click it, to
 start another editing pass from the rebuilt bytes. The loaded archive catalogue
 and Game/Package path stay in place. These entries do not install a mod or change

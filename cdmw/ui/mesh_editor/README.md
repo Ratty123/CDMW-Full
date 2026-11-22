@@ -3547,7 +3547,7 @@ For an existing item, use **Open in Mesh Editor**. When fitting and removing Par
 complete **Morph & Refit** first, inspect and **Bake** the fit, then **Finish Edit
 Mesh > Start next edit pass**. In the next pass, exclude unwanted Parts
 with the **Include** controls, then finish and **Build Mod**. **Add to Archive Browser**
-offers the same handoff through **Archive Browser > Controls > Edited results**,
+offers the same handoff through **Browse Archives > Actions > Edited Results...**,
 where another source asset can be selected. Combined archive Refit retains
 each source asset separately; the handoff carries their edited output and captured
 dependencies through later passes. A new independent item is not required for an

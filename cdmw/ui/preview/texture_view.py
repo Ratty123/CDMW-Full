@@ -144,6 +144,20 @@ class GpuTexturePreview(QWidget):
         self._idle = QTimer(self)
         self._idle.setSingleShot(True)
         self._idle.timeout.connect(self._retire_idle_helper)
+        self._cleanup_state = {"stop": None, "process": None}
+        cleanup_state = self._cleanup_state
+
+        def _cleanup_on_destroy(*_args):
+            stop = cleanup_state["stop"]
+            cleanup_state["stop"] = None
+            if stop is not None:
+                stop.set()
+            proc = cleanup_state["process"]
+            cleanup_state["process"] = None
+            if proc is not None:
+                stop_qprocess_async(proc)
+
+        self.destroyed.connect(_cleanup_on_destroy)
         QApplication.instance().aboutToQuit.connect(self.shutdown)
 
     def _set_gpu_controls(self, enabled):
@@ -220,12 +234,13 @@ class GpuTexturePreview(QWidget):
             return
         self._task = _PrepareTexture(self._generation, self._path, fallback=fallback, configured=self._configured)
         self._task.signals.completed.connect(self._prepared, Qt.QueuedConnection)
-        self.destroyed.connect(self._task.stop.set)
+        self._cleanup_state["stop"] = self._task.stop
         QThreadPool.globalInstance().start(self._task)
 
     def _prepared(self, generation, result):
         if generation != self._generation or self._closed:
             return
+        self._cleanup_state["stop"] = None
         self._task = None
         if result.get("executable"):
             self._start_process(result["executable"])
@@ -255,7 +270,7 @@ class GpuTexturePreview(QWidget):
         process.finished.connect(lambda *_: dispatch("_process_failed"))
         process.errorOccurred.connect(lambda *_: dispatch("_process_failed"))
         # The application owns QProcess so deleting the viewport never blocks waiting for it.
-        self.destroyed.connect(lambda *_: stop_qprocess_async(process))
+        self._cleanup_state["process"] = process
         register_owned_qprocess_for_exit(process)
         self._buffer.clear()
         self._timeout.start(_HELPER_LOAD_TIMEOUT_MS)
@@ -328,6 +343,7 @@ class GpuTexturePreview(QWidget):
     def _process_failed(self, process):
         if process is not self._process:
             return
+        self._cleanup_state["process"] = None
         self._process = None
         self._ready = False
         self._idle.stop()
@@ -354,9 +370,11 @@ class GpuTexturePreview(QWidget):
         if self._task is not None:
             self._task.stop.set()
             self._task = None
+        self._cleanup_state["stop"] = None
 
     def _stop_process(self):
         process, self._process = self._process, None
+        self._cleanup_state["process"] = None
         self._ready = False
         self._idle.stop()
         if process is not None:

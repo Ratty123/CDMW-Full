@@ -200,7 +200,7 @@ def test_prefab_list_shows_what_each_prefab_holds_and_scales_the_ones_with_value
 
 
 def test_prefab_batch_summary_counts_what_changes_and_what_is_left_out():
-    from cdmw.services.prefab_speed_service import NO_VALUE, PARTLY_READ, ZERO_VALUES, PrefabScaleOutcome
+    from cdmw.services.prefab_speed_service import NO_VALUE, PARTLY_READ, UNCHANGED, ZERO_VALUES, PrefabScaleOutcome
     from cdmw.ui.archive_browser.speed_tuning_actions import prefab_batch_summary
 
     outcomes = (
@@ -209,12 +209,13 @@ def test_prefab_batch_summary_counts_what_changes_and_what_is_left_out():
         PrefabScaleOutcome("c.prefab", b"s", None, 0, None, None, PARTLY_READ),
         PrefabScaleOutcome("d.prefab", b"s", None, 0, None, None, NO_VALUE),
         PrefabScaleOutcome("e.prefab", b"s", None, 1, (0.0, 0.0), (0.0, 0.0), ZERO_VALUES),
+        PrefabScaleOutcome("f.prefab", b"s", None, 1, (2.0, 2.0), (2.0, 2.0), UNCHANGED),
     )
     text, details, count = prefab_batch_summary(outcomes, 0.5, ("gone.prefab",))
     assert count == 2
     assert text.splitlines()[0] == "Scale 8 value(s) in 2 prefab(s) by 0.5x and save them as one item package?"
     assert ("Left out: partly read (1), no speed value reached (1), the values are 0 (1), "
-            "not in the game archives (1).") in text
+            "no value changed (1), not in the game archives (1).") in text
     assert "not been tested in game" in text
     assert "a.prefab: 3 value(s), 1 to 4 -> 0.5 to 2" in details and "b.prefab: 5 value(s), 2 -> 1" in details
     assert "c.prefab: left out, partly read" in details and "gone.prefab: left out, not in the game archives" in details

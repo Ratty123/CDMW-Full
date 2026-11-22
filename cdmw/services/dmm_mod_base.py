@@ -166,9 +166,11 @@ def _append_stock(snapshot, payload, header, intent):
             row = replace(row, entries=row.entries + (added,))
     except (RecordError, StoreInfoError, struct.error) as exc:
         raise DmmOperationsError(f"A shop operation cannot be read back: {exc}") from exc
-    # The head counts follow the flags, as for any stock line CDMW adds.
-    counted = replace(row, buyable_count=sum(1 for e in row.entries if e.is_buyable),
-                      sellable_count=sum(1 for e in row.entries if e.is_sellable))
+    # The head counts follow the flags, and stock_index follows position in this copy of the store.
+    entries = row.entries[:-1] + (replace(row.entries[-1], stock_index=len(row.entries) - 1),)
+    counted = replace(row, entries=entries,
+                      buyable_count=sum(1 for e in entries if e.is_buyable),
+                      sellable_count=sum(1 for e in entries if e.is_sellable))
     return apply_store_row(payload, header, replace(counted, raw=encode_store_row(counted)))
 
 

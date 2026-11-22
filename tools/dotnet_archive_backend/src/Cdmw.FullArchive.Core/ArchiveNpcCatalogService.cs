@@ -99,14 +99,21 @@ public sealed class ArchiveNpcCatalogService(ArchiveSessionManager sessions, Nat
 
     private static async Task<NpcCatalogSnapshot?> ReadCacheAsync(string cachePath, string signature, CancellationToken token)
     {
-        if (!File.Exists(cachePath) || new FileInfo(cachePath).Length > 256 * 1024 * 1024) return null;
+        if (!File.Exists(cachePath)) return null;
         try
         {
-            await using var stream = File.OpenRead(cachePath);
+            if (new FileInfo(cachePath).Length > 256 * 1024 * 1024) return null;
+            await using var stream = new FileStream(
+                cachePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                16 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
             var cached = await JsonSerializer.DeserializeAsync<NpcCatalogSnapshot>(stream, CacheOptions, token).ConfigureAwait(false);
             return cached is not null && cached.Version == ArchiveNpcCatalogBuilder.Version && cached.Signature == signature ? cached : null;
         }
-        catch (Exception error) when (error is IOException or JsonException or NotSupportedException) { return null; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or NotSupportedException) { return null; }
     }
 
     private async Task WriteCacheAsync(string cachePath, NpcCatalogSnapshot snapshot, string sessionId, CancellationToken token)
@@ -123,7 +130,15 @@ public sealed class ArchiveNpcCatalogService(ArchiveSessionManager sessions, Nat
             sessions.GetRequired(sessionId);
             File.Move(temporary, cachePath, overwrite: true);
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort cache write; concurrent readers or sharing violations leave the in-memory build intact.
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
     }
 
     private async Task<ArchiveNpcCatalog> RequiredAsync(string sessionId, Func<ProgressUpdate, Task>? progress, CancellationToken token)

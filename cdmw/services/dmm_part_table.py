@@ -24,12 +24,13 @@ def part_operations(files, read_game):
             or before.head_records != after.head_records
             or any(new.get(name) != row for name, row in old.items())):
         raise ValueError("DMM item exports can add parts, but cannot replace existing parts or private heads.")
+    known_paths = {str(path or "").replace("\\", "/").strip().strip("/").lower() for path in files}
     intents = []
     for name, row in new.items():
         if name in old:
             continue
         # A registration must belong to an actual prefab emitted by this package.
-        if row.prefab_path not in files:
+        if str(row.prefab_path or "").replace("\\", "/").strip().strip("/").lower() not in known_paths:
             raise ValueError(f"Part {name!r} has no prefab in this item export; refusing to copy another mod's registration.")
         value = dict(key_a=row.stem, key_b=row.folder, key_c=row.sockets_path,
                      bool_flag=1, asset_id=row.extra, flag=row.flag,

@@ -84,3 +84,15 @@ def test_real_dmm_export_has_owned_part_intents_and_no_table_copy(tmp_path):
     assert PART_TABLE not in {entry.path for entry in parse_archive_pamt(sent.folder/'0036/0.pamt')}
     targets = json.loads((sent.folder/OPERATIONS_FILE).read_text())['targets']
     assert next(row['intents'] for row in targets if row['file'] == PART_TABLE)
+
+
+def test_part_operations_matches_prefab_paths_case_insensitively():
+    stock = PartPrefabRecord('stock', 'armor', '')
+    own = stock.cloned('cdmw_upper')
+    own = replace(own, folder='Character/Armor')
+    base = PartPrefabTable((stock,))
+    after = replace(base, records=(stock, own))
+    files = {PART_TABLE: encode_pappt(after), own.prefab_path.lower(): b'owned'}
+    remaining, targets = part_operations(files, lambda _: encode_pappt(base))
+    assert PART_TABLE not in remaining
+    assert len(targets) == 1 and targets[0]['intents'][0]['new']['key_a'] == 'cdmw_upper'

@@ -155,3 +155,49 @@ def test_behavior_tree_and_stock_action_translate_in_all_builtin_locales(tmp_pat
             finally:
                 panel.deleteLater(); controller.deleteLater(); app.processEvents(); localizer.shutdown()
     finally: app.setProperty(ACTIVE_UI_LOCALIZER_PROPERTY,previous)
+
+
+def test_adding_page_includes_texture_rotation_only_on_3732_rows(tmp_path, behavior_game):
+    from cdmw.core.item_layout import replace_layout_fields
+    from cdmw.core.structured_binary_editor import parse_pabgh_table
+    from tests.compact_item_fixtures import item
+    from tests.test_iteminfo_patch_3732 import patched
+    from tests.test_iteminfo_patch_layout import patched as patched_3527
+    from tests.test_new_item_service import TEMPLATE
+
+    app = QApplication.instance() or QApplication([])
+    controller, panel, settings = editor_fixture(tmp_path)
+    editor = settings.behavior
+    panel.views.setCurrentWidget(settings)
+    settings.pages.setCurrentWidget(editor)
+    document = PresentationDocument()
+    try:
+        # Pre-3732 row: Add entry omits texture_rotation.
+        select_field(editor, 'inspection', 'fixed_pages')
+        editor.tree.setCurrentIndex(editor._nodes[()].index())
+        editor.add.click()
+        assert 'texture_rotation' not in controller.draft.behavior_settings.fields['fixed_pages'][-1]
+        editor.reset.click()
+
+        # 1.0.0.3732 row: Add entry includes texture_rotation=0 and lets the user edit it.
+        raw_3732 = patched(patched_3527(item()))
+        old_row = controller.snapshot.rows[TEMPLATE]
+        body, header = controller.snapshot.payload_entry.path if hasattr(controller.snapshot, 'payload_entry') else (None, None)
+        controller.snapshot.rows[TEMPLATE] = replace(old_row, raw=raw_3732)
+        editor.rebuild()
+        select_field(editor, 'inspection', 'dynamic_pages')
+        editor.override.setChecked(True)
+        editor.tree.setCurrentIndex(editor._nodes[()].index())
+        editor.add.click()
+        assert controller.draft.behavior_settings.fields['dynamic_pages'] == [
+            {'left_texture': '', 'right_texture': '', 'left_knowledge': 0, 'right_knowledge': 0, 'texture_rotation': 0}
+        ]
+        native_edit(document, panel, editor.tree, 'cell', {
+            'path': model_path(editor, (0, 'texture_rotation')), 'column': 1, 'text': '3',
+        })
+        app.processEvents()
+        assert controller.current_spec().behavior_settings.fields['dynamic_pages'][0]['texture_rotation'] == 3
+    finally:
+        panel.deleteLater()
+        controller.deleteLater()
+        app.processEvents()

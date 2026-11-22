@@ -67,13 +67,15 @@ def _added(call):
 
 
 def _added_copy(call):
+    from cdmw.services.dmm_runtime_mount import normalized_game_path
+
     paths = required(call.arguments, "paths")
     folder = output(call, required(call.arguments, "folder"), folder=True)
 
     def run():
         group = _group(call)
         chosen = group.select_paths(paths)
-        if len(chosen) != len({str(path).casefold() for path in paths}):
+        if len(chosen) != len({normalized_game_path(path) for path in paths}):
             raise ToolError(NOT_FOUND, "Some paths are not in the Files DMM adds list. Use app_dmm_added_files find first.")
         try:
             written = group.copy_selected(folder)
