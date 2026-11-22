@@ -52847,6 +52847,16 @@
       ]
     },
     {
+      "key": "Edited Results...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/command_strip.py",
+          "line": 136,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Edited animation",
       "origins": [
         {
@@ -61698,6 +61708,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 392,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Files DMM Adds (Experimental)...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/command_strip.py",
+          "line": 139,
+          "sink": "addAction"
         }
       ]
     },
@@ -98806,7 +98826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 136,
+          "line": 160,
           "sink": "setText"
         }
       ]
@@ -158971,7 +158991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 137,
+          "line": 161,
           "sink": "setToolTip"
         }
       ]
