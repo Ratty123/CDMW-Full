@@ -156,7 +156,18 @@ class ShellWindowBootstrapStateMixin:
         self.archive._model_preview_render_settings = clamp_model_preview_render_settings()
         self.archive.model_preview_settings_dialog = None
         self.archive._archive_performance_settings = clamp_archive_performance_settings()
-        self.resize(1360, 840)
+        default_w, default_h = 1360, 840
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None and app.platformName() != "offscreen":
+            screen = app.primaryScreen()
+            if screen is not None:
+                avail = screen.availableGeometry()
+                if avail.width() > 0 and avail.height() > 0:
+                    default_w = min(default_w, max(480, avail.width() - 32))
+                    default_h = min(default_h, max(320, avail.height() - 48))
+        self.resize(default_w, default_h)
         self.setMinimumSize(480, 320)
         ensure_app_display_scaling()
 

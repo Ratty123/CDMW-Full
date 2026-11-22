@@ -94,7 +94,7 @@ class TextureWorkspaceLayoutMixin:
         ))
         left_layout.addWidget(self._deferred_workflow_section(
             "filters_section",
-            "Workflow Profiles, Rules & Matches",
+            "Workflow Profiles, Rules && Matches",
             "_build_workflow_profiles_body",
             expanded=expanded["filters"],
         ))

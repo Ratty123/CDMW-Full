@@ -349,6 +349,7 @@ def test_usable_manual_window_placement_is_preserved(app, monkeypatch, geometry)
     (QRect(1080, 100, 100, 300), [QRect(0, 0, 960, 720), QRect(1280, 0, 960, 720)]),
     (QRect(350, 100, 1300, 450), [QRect(0, 0, 960, 720), QRect(1280, 0, 960, 720)]),
     (QRect(1500, 100, 600, 350), [QRect(0, 0, 960, 720)]),  # Removed screen.
+    (QRect(0, 0, 1350, 750), [QRect(0, 0, 1280, 720)]),  # Slightly oversized on single screen.
 ])
 def test_unreachable_windows_and_missing_spanning_content_are_recovered(app, monkeypatch, geometry, areas):
     window = QWidget()
