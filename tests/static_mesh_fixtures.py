@@ -30,16 +30,20 @@ def two_part_pam() -> bytes:
     return bytes(data)
 
 
-def shipped_pamlod(levels=((4, 4), (3, 3), (3,)), materials=(b"stone", b"wood")) -> bytes:
-    """A version 4 PAMLOD laid out as the game ships it.
+def shipped_pamlod(levels=((4, 4), (3, 3), (3,)), materials=(b"stone", b"wood"), version=4,
+                   packed=False) -> bytes:
+    """A version 4 (or, with ``version=3``, 3) PAMLOD laid out as the game ships it.
 
     Per-level descriptor headers start at 0x54, a stated (offset, size, 0) block table ends at the
     geometry offset, and each level block holds 20-byte vertex records then u16 indices, starting
     on a 16-byte boundary. ``levels`` gives each level's vertex count per Part; each Part is a fan.
+    Version 3 states only each block's offset and a block runs to the next one, alignment
+    padding included; ``packed`` lays its blocks end to end instead.
     """
     head = bytearray(0x54)
     struct.pack_into("<I", head, 0x50, len(levels))
-    head[0x0C] = 4
+    head[0x0C] = version
+    entry = 4 if version == 3 else 12
     descriptors = bytearray()
     blocks = []
     for level, parts in enumerate(levels):
@@ -69,15 +73,19 @@ def shipped_pamlod(levels=((4, 4), (3, 3), (3,)), materials=(b"stone", b"wood"))
             vertex_offset += count
             index_offset += index_count
         blocks.append(bytes(vertex_bytes + index_bytes))
-    geometry = (0x54 + len(descriptors) + 12 * len(levels) + 15) & ~15
+    geometry = (0x54 + len(descriptors) + entry * len(levels) + 15) & ~15
     data = bytearray(head + descriptors)
-    data += bytes(geometry - 12 * len(levels) - len(data))
+    data += bytes(geometry - entry * len(levels) - len(data))
     table = len(data)
-    data += bytes(12 * len(levels))
+    data += bytes(entry * len(levels))
     struct.pack_into("<II", data, 0, len(levels), geometry)
     struct.pack_into("<ffffff", data, 0x10, -1, -1, -1, 1, 1, 1)
     for level, block in enumerate(blocks):
-        data += bytes((-len(data)) % 16)
-        struct.pack_into("<III", data, table + level * 12, len(data), len(block), 0)
+        if not packed:
+            data += bytes((-len(data)) % 16)
+        if version == 3:
+            struct.pack_into("<I", data, table + level * 4, len(data))
+        else:
+            struct.pack_into("<III", data, table + level * 12, len(data), len(block), 0)
         data += block
     return bytes(data)
