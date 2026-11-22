@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import functools
 import sys
 from ctypes import wintypes
 
@@ -38,6 +39,7 @@ _SWP_NOOWNERZORDER = 0x0200
 _SWP_ASYNCWINDOWPOS = 0x4000
 
 
+@functools.lru_cache(maxsize=1)
 def _windows_api() -> object:
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     hwnd = wintypes.HWND
@@ -109,6 +111,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._child_hwnd = 0
         self._child_process_id = 0
         self._launch_parent_hwnd = 0
+        self._last_synced_geometry: tuple[int, int, int] | None = None
         self._editor_visible = False
         self._reported_scale: float | None = None
         self._focus_request_supported = False
@@ -182,7 +185,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._return_is_current = None
         self._return_button = QPushButton("Return to Create New Item", content)
         self._return_button.setObjectName("MeshEditorRustResultReturnToNewItem")
-        self._return_button.setMinimumHeight(38)
+        self._return_button.setProperty("primaryAction", True)
         self._return_button.setToolTip(
             "Go back to Create New Item and use these accepted changes there, as Use Mesh Editor changes does.")
         self._return_button.clicked.connect(self._return_requested)
@@ -226,7 +229,6 @@ class RustMeshEditorHostFrame(QFrame):
             button = QPushButton(text, group)
             # Keep existing lookup keys independent of the clearer labels.
             button.setObjectName("MeshEditorRustResult" + action_id)
-            button.setMinimumHeight(34)
             button.setToolTip(description)
             button.setWhatsThis(description)
             button.clicked.connect(signal.emit)
@@ -410,10 +412,14 @@ class RustMeshEditorHostFrame(QFrame):
             height = max(0, int(rect.bottom - rect.top))
             if width <= 0 or height <= 0:
                 return
+            geom_key = (self._child_hwnd, width, height)
+            if not force_frame_refresh and self._last_synced_geometry == geom_key:
+                return
             flags = _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOOWNERZORDER | _SWP_ASYNCWINDOWPOS
             if force_frame_refresh:
                 flags |= _SWP_FRAMECHANGED
             user32.SetWindowPos(child, None, 0, 0, width, height, flags)
+            self._last_synced_geometry = geom_key
         except (AttributeError, OSError, TypeError, ValueError):
             return
 
@@ -440,6 +446,7 @@ class RustMeshEditorHostFrame(QFrame):
         self._set_child_visible(False)
         self._child_hwnd = 0
         self._child_process_id = 0
+        self._last_synced_geometry = None
         self._editor_visible = False
 
     def show_idle(self) -> None:

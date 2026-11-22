@@ -97,18 +97,53 @@ def _rows_in_view(panel: MeshEditorTexturesPanel) -> int:
 
 
 def test_the_list_opens_at_a_usable_size_and_the_3d_view_keeps_its_room(tmp_path: Path) -> None:
+    from cdmw.ui.mesh_editor.textures_panel import COLUMN_FILE, COLUMN_ROLE, COLUMN_STATE
+
+    for width, height in ((1600, 900), (1920, 1080), (1280, 720)):
+        page = _page(width, height)
+        try:
+            _show_list(page, tmp_path)
+            dock, host = page.textures_dock, page.dock_host
+            least = dock.widget().minimumSize()
+            # Compact default width (~380-440px, clamped proportionally on smaller screens):
+            # never ~45% of the window, while keeping every part name and Game file readable.
+            assert dock.width() >= max(least.width(), scaled_px(420, dock))
+            assert dock.width() <= max(least.width(), scaled_px(500, dock))
+            assert dock.width() <= host.width() * 0.36
+            names = max(dock.tree.fontMetrics().horizontalAdvance(f"CD_PHM_00_UB_00_0440_{i:02d}") for i in range(12))
+            assert dock.tree.viewport().width() >= names + dock.tree.indentation()
+            assert _rows_in_view(dock) >= 12  # the whole height of the editor is the list's
+            assert page.native_host_frame.width() >= host.width() * 0.6
+            # Collapsed and expanded: Texture and State stay tight while Game file takes remaining width.
+            base_role_w = dock.tree.fontMetrics().horizontalAdvance("Base colour")
+            state_hdr_w = dock.tree.header().fontMetrics().horizontalAdvance("State")
+            icon_side = dock.tree.iconSize().width()
+            for expanded in (False, True, False):
+                dock.part_item(0).setExpanded(expanded)
+                _settle(3)
+                role_w = dock.tree.columnWidth(COLUMN_ROLE)
+                file_w = dock.tree.columnWidth(COLUMN_FILE)
+                state_w = dock.tree.columnWidth(COLUMN_STATE)
+                assert role_w <= base_role_w + icon_side + dock.tree.indentation() * 3 + 48
+                assert state_w <= max(68, state_hdr_w + 32)
+                assert file_w >= scaled_px(110, dock.tree)
+        finally:
+            page.deleteLater()
+
+
+def test_closing_texture_editor_returns_the_list_to_its_compact_width(tmp_path: Path) -> None:
     page = _page(1600, 900)
     try:
         _show_list(page, tmp_path)
-        dock, host = page.textures_dock, page.dock_host
-        least = dock.widget().minimumSize()
-        # Not a strip: about a quarter of the editor, and every part's whole name in view.
-        assert dock.width() >= max(least.width(), int(host.width() * 0.22))
-        assert dock.width() <= host.width() * 0.4
-        names = max(dock.tree.fontMetrics().horizontalAdvance(f"CD_PHM_00_UB_00_0440_{i:02d}") for i in range(12))
-        assert dock.tree.viewport().width() >= names + dock.tree.indentation()
-        assert _rows_in_view(dock) >= 12  # the whole height of the editor is the list's
-        assert page.native_host_frame.width() >= host.width() * 0.55
+        compact = page.textures_dock.width()
+        least = page.textures_dock.widget().minimumSize().width()
+        assert compact <= max(least, scaled_px(500, page.textures_dock))
+        _open_texture(page, tmp_path)
+        assert page.texture_tools_dock.width() >= int(page.dock_host.width() * 0.44)
+        page.texture_tools_dock.close()
+        _settle()
+        assert page.textures_dock.isVisible() and page.texture_tools_dock.isHidden()
+        assert abs(page.textures_dock.width() - compact) <= 4
     finally:
         page.deleteLater()
 
@@ -331,9 +366,9 @@ def test_sizes_follow_the_font(tmp_path: Path) -> None:
             assert panel.font().pointSizeF() == points  # the dock's title
             sizes[points] = (panel.tree.iconSize().height(), panel.widget().minimumSize().width(),
                              panel.widget().minimumSize().height())
-            # A thumbnail stays about a line of text, at any size.
+            # A framed preview thumbnail stays recognizable (~2x line height) and scales with font.
             line = panel.tree.fontMetrics().height()
-            assert line * 0.8 <= panel.tree.iconSize().height() <= line * 2
+            assert line * 1.5 <= panel.tree.iconSize().height() <= line * 3.0
         assert all(large > small for small, large in zip(sizes[9], sizes[15]))
     finally:
         panel.shutdown()
@@ -368,7 +403,9 @@ def test_thumbnails_are_decoded_for_the_screens_scale(tmp_path: Path, monkeypatc
         monkeypatch.setattr(panel, "_device_pixel_ratio", lambda scale=scale: scale)
         try:
             panel.set_manifest(_manifest(1), session_root=tmp_path)
-            item = panel.part_item(0).child(0)
+            part = panel.part_item(0)
+            part.setExpanded(True)
+            item = part.child(0)
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and item.icon(COLUMN_THUMBNAIL).isNull():
                 _settle(2)

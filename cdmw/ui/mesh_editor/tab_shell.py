@@ -103,19 +103,28 @@ class MeshEditorTabShellMixin(
         page = QFrame(self)
         page.setObjectName("MeshEditorEmptyState")
         page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(0)
+        outer.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        card = QFrame(page)
+        card.setObjectName("MeshEditorEmptyCard")
+        card.setProperty("surfaceCard", True)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        header = QFrame(page)
+        header = QFrame(card)
         header.setObjectName("MeshEditorEmptyHeader")
         header_layout = QGridLayout(header)
-        header_layout.setContentsMargins(8, 6, 8, 6)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setHorizontalSpacing(8)
         header_layout.setVerticalSpacing(3)
 
         self.target_label = QLabel("Target: none")
+        self.target_label.setObjectName("SectionTitle")
         self.target_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.target_label.setWordWrap(True)
         self.session_label = QLabel("Mode: no active session")
@@ -127,13 +136,12 @@ class MeshEditorTabShellMixin(
 
         header_layout.addWidget(self.target_label, 0, 0)
         header_layout.addWidget(self.session_label, 1, 0)
-        header_layout.addWidget(self.open_archive_button, 0, 1, 2, 1)
         header_layout.setColumnStretch(0, 1)
         layout.addWidget(header)
 
         self.mesh_editor_backend_label = None
         self.mesh_editor_backend_combo = None
-        self.mesh_editor_backend_reason_label = QLabel("", page)
+        self.mesh_editor_backend_reason_label = QLabel("", card)
         self.mesh_editor_backend_reason_label.setObjectName("MeshEditorAvailabilityReason")
         self.mesh_editor_backend_reason_label.setWordWrap(True)
         layout.addWidget(self.mesh_editor_backend_reason_label)
@@ -148,14 +156,15 @@ class MeshEditorTabShellMixin(
         workflow_row.setSpacing(8)
         self.open_selected_mesh_button = QPushButton("Open Selected Mesh")
         self.open_selected_mesh_button.setObjectName("MeshEditorOpenSelectedMeshButton")
+        self.open_selected_mesh_button.setProperty("primaryAction", True)
         self.open_selected_mesh_button.setToolTip(
             "Open the selected archive mesh directly in the resident mesh-authoring workspace."
         )
-        self.open_selected_mesh_button.setMinimumHeight(30)
         workflow_row.addWidget(self.open_selected_mesh_button)
+        workflow_row.addWidget(self.open_archive_button)
         workflow_row.addStretch(1)
         layout.addLayout(workflow_row)
-        layout.addStretch(1)
+        outer.addWidget(card)
 
         self.open_selected_mesh_button.clicked.connect(
             lambda _checked=False: self._emit_target(self.open_archive_session_requested)

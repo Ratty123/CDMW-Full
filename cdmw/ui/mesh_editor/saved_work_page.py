@@ -232,36 +232,29 @@ class SavedWorkPage(QWidget):
         self.combine_flow.finished.connect(self._combine_finished)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        title = QLabel("Drafts & Mods", self)
-        title.setObjectName("SectionTitle")
-        layout.addWidget(title)
-        intro = QLabel(
-            "Mesh Editor saves a draft each time you choose Finish Edit Mesh, and Build Mod keeps "
-            "the editing state with the mod. Create New Item keeps the settings of each .cdmw item "
-            "package it writes. Name your work, group it into projects, and choose Continue Editing "
-            "to pick up where you left off.",
-            self,
-        )
-        intro.setObjectName("HintLabel")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        toolbar = QHBoxLayout()
-        self.filter_edit = QLineEdit(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+        cmd_bar = QFrame(self)
+        cmd_bar.setObjectName("SavedWorkCommandBar")
+        cmd_bar.setProperty("commandBar", True)
+        toolbar = QHBoxLayout(cmd_bar)
+        toolbar.setContentsMargins(10, 6, 10, 6)
+        toolbar.setSpacing(8)
+        self.filter_edit = QLineEdit(cmd_bar)
         self.filter_edit.setObjectName("SavedWorkFilter")
         self.filter_edit.setPlaceholderText("Filter by name, game file or notes")
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(lambda _text: self._populate())
         toolbar.addWidget(self.filter_edit, 1)
-        self.add_folder_button = QPushButton("Add Mod Folder...", self)
+        self.add_folder_button = QPushButton("Add Mod Folder...", cmd_bar)
         self.add_folder_button.setObjectName("SavedWorkAddFolder")
         self.add_folder_button.setToolTip(
             "List a mod folder built before saved drafts existed, or by someone else. "
             "Continue Editing then opens its finished mesh as a new edit pass."
         )
-        self.refresh_button = QPushButton("Refresh", self)
+        self.refresh_button = QPushButton("Refresh", cmd_bar)
         self.refresh_button.setObjectName("SavedWorkRefresh")
-        self.add_package_button = QPushButton("Add Item Package...", self)
+        self.add_package_button = QPushButton("Add Item Package...", cmd_bar)
         self.add_package_button.setObjectName("SavedWorkAddPackage")
         self.add_package_button.setToolTip(
             "List a .cdmw item package written before Drafts & Mods kept them, or by someone else. "
@@ -270,7 +263,7 @@ class SavedWorkPage(QWidget):
         toolbar.addWidget(self.add_folder_button)
         toolbar.addWidget(self.add_package_button)
         toolbar.addWidget(self.refresh_button)
-        layout.addLayout(toolbar)
+        layout.addWidget(cmd_bar)
 
         self.splitter = splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setChildrenCollapsible(False)
@@ -294,12 +287,12 @@ class SavedWorkPage(QWidget):
     # ------------------------------------------------------------ layout
 
     def _build_projects_panel(self, parent: QWidget) -> QWidget:
-        panel = QWidget(parent)
+        panel = QFrame(parent)
+        panel.setObjectName("SavedWorkProjectsCard")
+        panel.setProperty("surfaceCard", True)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 6, 0)
-        heading = QLabel("Projects", panel)
-        heading.setObjectName("SectionTitle")
-        layout.addWidget(heading)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         self.project_list = QListWidget(panel)
         self.project_list.setObjectName("SavedWorkProjects")
         self.project_list.setProperty("_i18n_translate_items", True)
@@ -310,26 +303,36 @@ class SavedWorkPage(QWidget):
         layout.addWidget(self.project_list, 1)
         self.new_project_button = QPushButton("New Project...", panel)
         self.new_project_button.setObjectName("SavedWorkNewProject")
-        self.rename_project_button = QPushButton("Rename Project...", panel)
+        self.rename_project_button = QPushButton("Rename", panel)
         self.rename_project_button.setObjectName("SavedWorkRenameProject")
-        self.delete_project_button = QPushButton("Delete Project...", panel)
+        self.rename_project_button.setToolTip("Rename the selected project.")
+        self.delete_project_button = QPushButton("Delete", panel)
         self.delete_project_button.setObjectName("SavedWorkDeleteProject")
         self.delete_project_button.setToolTip(
             "Delete this project. Its drafts and built mods are kept and move to No project."
         )
-        for button in (self.new_project_button, self.rename_project_button, self.delete_project_button):
-            layout.addWidget(button)
+        layout.addWidget(self.new_project_button)
+        secondary = QHBoxLayout()
+        secondary.setContentsMargins(0, 0, 0, 0)
+        secondary.setSpacing(6)
+        secondary.addWidget(self.rename_project_button, 1)
+        secondary.addWidget(self.delete_project_button, 1)
+        layout.addLayout(secondary)
         self.new_project_button.clicked.connect(self._new_project)
         self.rename_project_button.clicked.connect(self._rename_project)
         self.delete_project_button.clicked.connect(self._delete_project)
         return panel
 
     def _build_table_panel(self, parent: QWidget) -> QWidget:
-        panel = QWidget(parent)
+        panel = QFrame(parent)
+        panel.setObjectName("SavedWorkTableCard")
+        panel.setProperty("surfaceCard", True)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(6, 0, 6, 0)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         self.table = QTableWidget(0, 7, panel)
         self.table.setObjectName("SavedWorkTable")
+        self.table.setProperty("_cdmwKeepFixedColumns", True)
         self.table.setHorizontalHeaderLabels(
             ["Saved on", "File name", "Game file", "Draft or mod", "Edit pass", "Status", "Project"]
         )
@@ -359,6 +362,7 @@ class SavedWorkPage(QWidget):
         self.empty_label = QLabel("", panel)
         self.empty_label.setObjectName("SavedWorkEmpty")
         self.empty_label.setWordWrap(True)
+        self.empty_label.setVisible(False)
         layout.addWidget(self.empty_label)
         return panel
 
@@ -370,9 +374,12 @@ class SavedWorkPage(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.details_scroll = scroll
-        panel = QGroupBox("Details", scroll)
+        panel = QFrame(scroll)
         panel.setObjectName("SavedWorkDetails")
+        panel.setProperty("surfaceCard", True)
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
         form = QFormLayout()
         self.name_edit = QLineEdit(panel)
         self.name_edit.setObjectName("SavedWorkName")
@@ -466,7 +473,7 @@ class SavedWorkPage(QWidget):
             # The first layout follows the font; later drags are the user's.
             self._splitter_sized = True
             char = max(1, self.fontMetrics().averageCharWidth())
-            projects = char * 20
+            projects = max(char * 22, self.splitter.widget(0).minimumSizeHint().width())
             details = max(char * 38, self.details_scroll.minimumWidth())
             self.splitter.setSizes([projects, max(char * 40, self.width() - projects - details), details])
         self.refresh()
@@ -536,6 +543,7 @@ class SavedWorkPage(QWidget):
             cancel()
         if not self._rows:
             self.empty_label.setText("Reading saved work...")
+            self.empty_label.setVisible(True)
         root = self.draft_root
         self._run(lambda: (list_saved_work(root), list_projects(root)), self._list_done)
 
@@ -557,6 +565,7 @@ class SavedWorkPage(QWidget):
             # A read error is not an empty list: show the error, not "nothing saved yet".
             self.table_switch.set_empty(False)
             self.empty_label.setText(f"Saved work could not be read: {error}")
+            self.empty_label.setVisible(True)
             return
         rows, projects = result
         self._rows, self._projects = tuple(rows), tuple(projects)
@@ -779,6 +788,7 @@ class SavedWorkPage(QWidget):
         # The date column sizes to its contents after this pass.
         QTimer.singleShot(0, self, self._fit_columns)
         self.empty_label.setText("")
+        self.empty_label.setVisible(False)
         if self._rows and not rows:
             self.empty_state.set_state(SAVED_WORK_NO_MATCH_TEXT, SAVED_WORK_SHOW_ALL_TEXT, run=self._show_all_work)
         elif not self._rows:

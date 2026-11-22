@@ -18,8 +18,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from PySide6.QtCore import QEvent, QObject, QRunnable, QSize, Qt, QThreadPool, Signal
-from PySide6.QtGui import QFont, QIcon, QImage, QPixmap
+from PySide6.QtCore import QEvent, QObject, QRect, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -35,9 +35,9 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.layout_utils import scaled_px
 
-#: A thumbnail's side in logical pixels at the default font size; it follows the
-#: panel's font, and is decoded at the screen's device pixel ratio.
-THUMBNAIL_SIZE = 22
+#: A thumbnail's side in logical pixels at the 11pt reference font (34-36px at 9-10pt);
+#: it follows the panel's font, and is decoded at the screen's device pixel ratio.
+THUMBNAIL_SIZE = 40
 TEXTURE_ID_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 #: The part a row belongs to (a part row and each of its textures); a file header has none.
 PART_INDEX_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -457,7 +457,13 @@ def _graph_archive_paths(manifest: Mapping[str, object]) -> dict[str, str]:
 ThumbnailDecoder = Callable[[Path, int, str], "QImage | None"]
 
 
-def decode_texture_thumbnail(path: Path, size: int, role: str = "") -> QImage | None:
+def decode_texture_thumbnail(
+    path: Path,
+    size: int,
+    role: str = "",
+    *,
+    stop_event: threading.Event | None = None,
+) -> QImage | None:
     """Decode one texture to a thumbnail; None when it cannot be read.
 
     Runs on a pool thread only. DDS goes through the project's native preview
@@ -466,6 +472,8 @@ def decode_texture_thumbnail(path: Path, size: int, role: str = "") -> QImage | 
     """
 
     try:
+        if stop_event is not None and stop_event.is_set():
+            return None
         if not path.is_file():
             return None
         if path.suffix.casefold() == ".dds":
@@ -473,7 +481,12 @@ def decode_texture_thumbnail(path: Path, size: int, role: str = "") -> QImage | 
 
             normal_roles = {"normal", "shader_normal", "skin_detail_normal"}
             slot = "normal" if str(role).casefold() in normal_roles else "base"
-            preview = ensure_native_dds_preview_png(path, max_dimension=max(64, size * 2), slot_kind=slot)
+            preview = ensure_native_dds_preview_png(
+                path,
+                max_dimension=max(64, size * 2),
+                slot_kind=slot,
+                stop_event=stop_event,
+            )
             if preview is None:
                 return None
             image = QImage(str(preview))
@@ -487,17 +500,57 @@ def decode_texture_thumbnail(path: Path, size: int, role: str = "") -> QImage | 
                         Qt.TransformationMode.SmoothTransformation)
 
 
+_THUMBNAIL_POOL: QThreadPool | None = None
+_THUMBNAIL_POOL_LOCK = threading.Lock()
+_CHECKER_BACKING_CACHE: dict[tuple[int, int], QPixmap] = {}
+
+
+def _default_thumbnail_pool() -> QThreadPool:
+    """Gentle 2-thread pool dedicated to thumbnail decoding so UI/GIL & global jobs stay smooth."""
+
+    global _THUMBNAIL_POOL
+    if _THUMBNAIL_POOL is not None:
+        return _THUMBNAIL_POOL
+    with _THUMBNAIL_POOL_LOCK:
+        if _THUMBNAIL_POOL is None:
+            pool = QThreadPool()
+            pool.setMaxThreadCount(2)
+            _THUMBNAIL_POOL = pool
+        return _THUMBNAIL_POOL
+
+
 class _ThumbnailState:
     """Shared by the loader and its jobs; it outlives the loader object."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.closed = False
+        self.active_generation = 0
+        self.stop_event = threading.Event()
         self.cache: OrderedDict[tuple[str, int, int], QImage | None] = OrderedDict()
+
+    def set_generation(self, generation: int) -> None:
+        with self.lock:
+            gen = int(generation)
+            if gen > self.active_generation:
+                self.stop_event.set()
+                self.stop_event = threading.Event()
+                self.active_generation = gen
+
+    def current_stop_event(self, generation: int) -> threading.Event | None:
+        with self.lock:
+            if self.closed or (self.active_generation > 0 and generation != self.active_generation):
+                return None
+            return self.stop_event
+
+    def is_stale(self, generation: int) -> bool:
+        with self.lock:
+            return self.closed or (self.active_generation > 0 and generation != self.active_generation)
 
     def close(self) -> None:
         with self.lock:
             self.closed = True
+            self.stop_event.set()
 
 
 class _ThumbnailJob(QRunnable):
@@ -509,6 +562,9 @@ class _ThumbnailJob(QRunnable):
         self._decoder = decoder
 
     def run(self) -> None:
+        stop_event = self._state.current_stop_event(self._generation)
+        if stop_event is None:
+            return
         image: QImage | None = None
         try:
             stat = os.stat(self._path)
@@ -517,22 +573,34 @@ class _ThumbnailJob(QRunnable):
         if stat is not None:
             key = (self._path, self._size, stat.st_mtime_ns)
             with self._state.lock:
-                if self._state.closed:
+                if self._state.closed or (
+                    self._state.active_generation > 0 and self._generation != self._state.active_generation
+                ):
                     return
                 hit = key in self._state.cache
                 if hit:
                     self._state.cache.move_to_end(key)
                     image = self._state.cache[key]
             if not hit:
-                image = self._decoder(Path(self._path), self._size, self._role)
-                with self._state.lock:
-                    self._state.cache[key] = image
-                    while len(self._state.cache) > _THUMBNAIL_CACHE_LIMIT:
-                        self._state.cache.popitem(last=False)
+                if self._state.is_stale(self._generation):
+                    return
+                if self._decoder is decode_texture_thumbnail:
+                    image = decode_texture_thumbnail(
+                        Path(self._path), self._size, self._role, stop_event=stop_event,
+                    )
+                else:
+                    image = self._decoder(Path(self._path), self._size, self._role)
+                if not stop_event.is_set():
+                    with self._state.lock:
+                        self._state.cache[key] = image
+                        while len(self._state.cache) > _THUMBNAIL_CACHE_LIMIT:
+                            self._state.cache.popitem(last=False)
         with self._state.lock:
             # Emitting under the lock means no job reaches a deleted loader
             # once close() has returned.
-            if not self._state.closed:
+            if not self._state.closed and (
+                self._state.active_generation <= 0 or self._generation == self._state.active_generation
+            ):
                 self._deliver(self._generation, self._path, image if image is not None else QImage())
 
 
@@ -546,20 +614,88 @@ class TextureThumbnailLoader(QObject):
                  decoder: ThumbnailDecoder | None = None, size: int = THUMBNAIL_SIZE) -> None:
         super().__init__(parent)
         self._state = _ThumbnailState()
-        self._pool = pool or QThreadPool.globalInstance()
+        self._pool = pool if pool is not None else _default_thumbnail_pool()
         self._decoder = decoder or decode_texture_thumbnail
         self.size = int(size)
         state = self._state
         self.destroyed.connect(lambda *_args: state.close())
 
-    def queue_texture_thumbnail(self, generation: int, path: str, role: str = "") -> None:
+    def set_generation(self, generation: int) -> None:
+        """Advance active generation so queued obsolete jobs cancel before decoding."""
+
+        self._state.set_generation(generation)
+
+    def queue_texture_thumbnail(self, generation: int, path: str, role: str = "", *, priority: int = 0) -> None:
         if self._state.closed or not path:
             return
-        self._pool.start(_ThumbnailJob(self._state, self.thumbnail_ready.emit, int(generation),
-                                       str(path), str(role), self.size, self._decoder))
+        self._state.set_generation(generation)
+        self._pool.start(
+            _ThumbnailJob(
+                self._state, self.thumbnail_ready.emit, int(generation),
+                str(path), str(role), self.size, self._decoder,
+            ),
+            int(priority),
+        )
 
     def shutdown(self) -> None:
         self._state.close()
+
+
+def _checker_backing(side: int, border: int) -> QPixmap:
+    """Cached checker + border template painted once per (side, border) on the UI thread."""
+
+    key = (side, border)
+    cached = _CHECKER_BACKING_CACHE.get(key)
+    if cached is not None:
+        return cached
+    backing = QPixmap(side, side)
+    backing.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(backing)
+    try:
+        inner = max(2, side - border * 2)
+        cell = max(4, side // 6)
+        c1 = QColor("#23272e")
+        c2 = QColor("#2d323b")
+        painter.fillRect(border, border, inner, inner, c1)
+        for y in range(border, side - border, cell):
+            for x in range(border, side - border, cell):
+                if ((x - border) // cell + (y - border) // cell) % 2:
+                    w = min(cell, side - border - x)
+                    h = min(cell, side - border - y)
+                    painter.fillRect(x, y, w, h, c2)
+    finally:
+        painter.end()
+    if len(_CHECKER_BACKING_CACHE) >= 24:
+        _CHECKER_BACKING_CACHE.clear()
+    _CHECKER_BACKING_CACHE[key] = backing
+    return backing
+
+
+def _frame_thumbnail_pixmap(image: QImage, device_side: int, dpr: float) -> QPixmap:
+    """Paint any decoded texture into a uniform framed square with subtle checker backing."""
+
+    side = max(4, int(device_side))
+    border = max(1, int(round(dpr)))
+    inner = max(2, side - border * 2)
+    pixmap = _checker_backing(side, border).copy()
+    painter = QPainter(pixmap)
+    try:
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        if image.width() == inner and image.height() == inner:
+            scaled = image
+        else:
+            scaled = image.scaled(inner, inner, Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation)
+        dx = border + (inner - scaled.width()) // 2
+        dy = border + (inner - scaled.height()) // 2
+        painter.drawImage(QRect(dx, dy, scaled.width(), scaled.height()), scaled)
+        painter.setPen(QPen(QColor("#4c5561"), border))
+        half = border // 2
+        painter.drawRect(half, half, side - border, side - border)
+    finally:
+        painter.end()
+    pixmap.setDevicePixelRatio(dpr)
+    return pixmap
 
 
 class MeshEditorTexturesPanel(QDockWidget):
@@ -597,6 +733,17 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._generation = 0
         self._items_by_path: dict[str, list[QTreeWidgetItem]] = {}
         self._roles_by_path: dict[str, str] = {}
+        self._paths_by_part: dict[int, list[str]] = {}
+        self._requested_paths: set[str] = set()
+        self._part_items_by_index: dict[int, QTreeWidgetItem] = {}
+        self._framed_icons: OrderedDict[tuple[str, int, int, int], QIcon] = OrderedDict()
+        self._icons_by_path: dict[tuple[str, int, int], QIcon] = {}
+        self._applied_icon_key_by_path: dict[str, tuple[int, int, int]] = {}
+        self._pending_thumbnails: dict[str, QImage] = {}
+        self._column_metrics_cache_key: tuple[object, ...] | None = None
+        self._cached_role_w = 0
+        self._cached_state_w = 0
+        self._cached_min_file_w = 0
         self._session_request = 0
         self._manifest_readers: set[QObject] = set()
         self.groups: list[TexturePartGroup] = []
@@ -609,6 +756,17 @@ class MeshEditorTexturesPanel(QDockWidget):
         self._has_session = False
         self._hovered_part = NO_PART
         self._ui_font: QFont | None = None
+        self._user_resized_cols: set[int] = set()
+        self._programmatic_column_resize = False
+        self._header_user_dragging = False
+        self._fit_columns_timer = QTimer(self)
+        self._fit_columns_timer.setSingleShot(True)
+        self._fit_columns_timer.setInterval(0)
+        self._fit_columns_timer.timeout.connect(self._fit_columns)
+        self._thumbnail_flush_timer = QTimer(self)
+        self._thumbnail_flush_timer.setSingleShot(True)
+        self._thumbnail_flush_timer.setInterval(0)
+        self._thumbnail_flush_timer.timeout.connect(self._flush_pending_thumbnails)
 
         body = QWidget(self)
         self._body = body
@@ -622,23 +780,28 @@ class MeshEditorTexturesPanel(QDockWidget):
         self.placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tree = QTreeWidget()
         self.tree.setObjectName("MeshEditorTexturesTree")
+        self.tree.setProperty("_cdmwPrimaryColumn", COLUMN_FILE)
+        self.tree.setProperty("_cdmwKeepElide", True)
+        self.tree.setProperty("_cdmwKeepFixedColumns", True)
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Texture", "Game file", "State"])
         self.tree.setRootIsDecorated(True)
-        self.tree.setUniformRowHeights(True)
-        self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)  # both ends of a file name stay readable
+        self.tree.setUniformRowHeights(False)
+        self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         header = self.tree.header()
         header.setStretchLastSection(False)
         header.setSectionsMovable(False)
-        header.setSectionResizeMode(COLUMN_ROLE, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(COLUMN_FILE, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(COLUMN_STATE, QHeaderView.ResizeMode.ResizeToContents)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        for col in (COLUMN_ROLE, COLUMN_FILE, COLUMN_STATE):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        header.sectionResized.connect(self._on_header_section_resized)
+        header.viewport().installEventFilter(self)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self.tree.itemExpanded.connect(lambda item: self._remember_part_open(item, True))
-        self.tree.itemCollapsed.connect(lambda item: self._remember_part_open(item, False))
+        self.tree.itemExpanded.connect(self._on_item_expanded)
+        self.tree.itemCollapsed.connect(self._on_item_collapsed)
         # Pointing at a part or a texture lights its part up in the 3D view.
         self.tree.setMouseTracking(True)
         self.tree.itemEntered.connect(self._on_item_entered)
@@ -671,19 +834,140 @@ class MeshEditorTexturesPanel(QDockWidget):
         # Decoded for the screen's scale: sharp at 150 %, not oversized at 100 %.
         return max(1, int(round(self.thumbnail_side() * self._device_pixel_ratio())))
 
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt API
+        hint = super().sizeHint()
+        least = self._body.minimumSize()
+        preferred_w = max(least.width(), scaled_px(460, self.tree))
+        return QSize(preferred_w, max(hint.height(), least.height()))
+
     def _fit_to_font(self) -> None:
         """Icon size, indentation and the least usable size, from the font in use."""
 
         side = self.thumbnail_side()
         self.tree.setIconSize(QSize(side, side))
-        self.tree.setIndentation(scaled_px(12, self.tree))
+        indent = scaled_px(12, self.tree)
+        self.tree.setIndentation(indent)
         metrics = self.tree.fontMetrics()
-        # Never crushed: room for the role, about eighteen characters of a file name
-        # and the state, and for the header and five rows.
-        width = (side + metrics.horizontalAdvance("Base colour") + metrics.horizontalAdvance("Not one file")
-                 + metrics.averageCharWidth() * 18 + scaled_px(56, self.tree))
-        row = max(side, metrics.height()) + scaled_px(4, self.tree)
-        self._body.setMinimumSize(width, row * 6 + scaled_px(12, self.tree))
+        # Never crushed: room for the thumbnail + role, a readable file name slice,
+        # and the state, plus the header and at least five compact part rows.
+        width = (
+            indent * 2
+            + side
+            + metrics.horizontalAdvance("Base colour")
+            + metrics.horizontalAdvance("Shared")
+            + metrics.averageCharWidth() * 12
+            + scaled_px(28, self.tree)
+        )
+        part_row = metrics.height() + scaled_px(8, self.tree)
+        self._body.setMinimumSize(width, part_row * 6 + scaled_px(24, self.tree))
+
+    def _schedule_fit_columns(self) -> None:
+        if not self._fit_columns_timer.isActive():
+            self._fit_columns_timer.start()
+
+    def _invalidate_column_metrics(self) -> None:
+        self._column_metrics_cache_key = None
+
+    def _fit_columns(self) -> None:
+        """Keep Texture and State compact while Game file takes all flexible width."""
+
+        header = self.tree.header()
+        if header is None or header.count() < 3:
+            return
+        header_item = self.tree.headerItem()
+        role_hdr = header_item.text(COLUMN_ROLE) if header_item is not None else "Texture"
+        file_hdr = header_item.text(COLUMN_FILE) if header_item is not None else "Game file"
+        state_hdr = header_item.text(COLUMN_STATE) if header_item is not None else "State"
+        side = self.thumbnail_side()
+        indent = max(8, self.tree.indentation())
+        tree_font = self.tree.font()
+        cache_key = (
+            self._generation,
+            tree_font.family(),
+            tree_font.pointSizeF(),
+            indent,
+            side,
+            role_hdr,
+            file_hdr,
+            state_hdr,
+        )
+        if cache_key != self._column_metrics_cache_key:
+            metrics = self.tree.fontMetrics()
+            header_metrics = header.fontMetrics()
+            has_file_headers = any(group.source_file for group in self.groups)
+            leaf_depth = 3 if has_file_headers else 2
+
+            unique_roles = {texture_role_label(row.role) for group in self.groups for row in group.rows}
+            unique_roles.add("Base colour")
+            max_role_w = max(metrics.horizontalAdvance(text) for text in unique_roles)
+            self._cached_role_w = max(
+                header_metrics.horizontalAdvance(role_hdr) + scaled_px(24, self.tree),
+                leaf_depth * indent + side + max_role_w + scaled_px(40, self.tree),
+            )
+
+            has_not_one_file = any(made_from_several_files(row) for group in self.groups for row in group.rows)
+            has_shared = (
+                not has_not_one_file
+                and any(row.shared for group in self.groups for row in group.rows)
+            )
+            state_texts = [state_hdr]
+            if has_not_one_file:
+                state_texts.append(NOT_ONE_FILE_STATE)
+            elif has_shared:
+                state_texts.append("Shared")
+            max_state_w = max(
+                max(metrics.horizontalAdvance(text), header_metrics.horizontalAdvance(text))
+                for text in state_texts
+            )
+            self._cached_state_w = max(scaled_px(68, self.tree), max_state_w + scaled_px(28, self.tree))
+            self._cached_min_file_w = max(
+                scaled_px(96, self.tree),
+                header_metrics.horizontalAdvance(file_hdr) + scaled_px(12, self.tree),
+            )
+            self._column_metrics_cache_key = cache_key
+
+        role_w = header.sectionSize(COLUMN_ROLE) if COLUMN_ROLE in self._user_resized_cols else self._cached_role_w
+        state_w = header.sectionSize(COLUMN_STATE) if COLUMN_STATE in self._user_resized_cols else self._cached_state_w
+
+        viewport_w = self.tree.viewport().width()
+        if viewport_w <= 40:
+            viewport_w = max(
+                self.tree.width() - scaled_px(4, self.tree),
+                self.sizeHint().width() - scaled_px(12, self.tree),
+            )
+        min_file_w = self._cached_min_file_w
+        if COLUMN_FILE in self._user_resized_cols:
+            file_w = max(min_file_w, header.sectionSize(COLUMN_FILE))
+        else:
+            file_w = max(min_file_w, viewport_w - role_w - state_w)
+
+        min_section = scaled_px(44, self.tree)
+        if (
+            header.minimumSectionSize() == min_section
+            and header.sectionSize(COLUMN_ROLE) == role_w
+            and header.sectionSize(COLUMN_FILE) == file_w
+            and header.sectionSize(COLUMN_STATE) == state_w
+        ):
+            return
+        self._programmatic_column_resize = True
+        try:
+            if header.minimumSectionSize() != min_section:
+                header.setMinimumSectionSize(min_section)
+            if header.sectionSize(COLUMN_ROLE) != role_w:
+                header.resizeSection(COLUMN_ROLE, role_w)
+            if header.sectionSize(COLUMN_FILE) != file_w:
+                header.resizeSection(COLUMN_FILE, file_w)
+            if header.sectionSize(COLUMN_STATE) != state_w:
+                header.resizeSection(COLUMN_STATE, state_w)
+        finally:
+            self._programmatic_column_resize = False
+
+    def _on_header_section_resized(self, logical_index: int, _old_size: int, _new_size: int) -> None:
+        if self._programmatic_column_resize or not self._header_user_dragging:
+            return
+        self._user_resized_cols.add(logical_index)
+        if logical_index != COLUMN_FILE and COLUMN_FILE not in self._user_resized_cols:
+            self._fit_columns()
 
     def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
         """The Mesh Editor's UI font on the title, the list and its header, as on the
@@ -704,15 +988,23 @@ class MeshEditorTexturesPanel(QDockWidget):
                 widget.setFont(own)
         before = self.thumbnail_side()
         self._fit_to_font()
+        self._invalidate_column_metrics()
         self._restyle_headers()
+        self._fit_columns()
         if self.thumbnail_side() != before:
+            self._requested_paths.clear()
             self._request_thumbnails()
 
     def event(self, event: QEvent) -> bool:
-        # Moved to a screen with another scale: the thumbnails are decoded for it.
+        # Moved to a screen with another scale: re-decode expanded parts at the new DPR.
         if event.type() == getattr(QEvent.Type, "DevicePixelRatioChange", None) and hasattr(self, "thumbnails"):
+            self._requested_paths.clear()
             self._request_thumbnails()
         return super().event(event)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)
+        self._schedule_fit_columns()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
         # The host decides: it hides the panel and remembers that the user closed it.
@@ -734,10 +1026,18 @@ class MeshEditorTexturesPanel(QDockWidget):
             self.part_hovered.emit(part_index)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        if watched is self.tree.viewport():
-            if event.type() == QEvent.Type.Leave:
+        etype = event.type()
+        if watched is self.tree.header().viewport():
+            if etype in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick):
+                self._header_user_dragging = True
+            elif etype == QEvent.Type.MouseButtonRelease:
+                self._header_user_dragging = False
+        elif watched is self.tree.viewport():
+            if etype == QEvent.Type.Resize:
+                self._schedule_fit_columns()
+            elif etype == QEvent.Type.Leave:
                 self._set_hovered_part(NO_PART)
-            elif event.type() == QEvent.Type.MouseMove and self.tree.itemAt(event.position().toPoint()) is None:
+            elif etype == QEvent.Type.MouseMove and self._hovered_part != NO_PART and self.tree.itemAt(event.position().toPoint()) is None:
                 self._set_hovered_part(NO_PART)  # over the empty space under the rows
         return super().eventFilter(watched, event)
 
@@ -753,6 +1053,20 @@ class MeshEditorTexturesPanel(QDockWidget):
             self.session_shown.emit(shown)
 
     # ----- the list -----------------------------------------------------------
+    def _tree_style_tokens(self) -> tuple[QBrush, QBrush, QBrush, QFont, QFont, QSize]:
+        app = QApplication.instance()
+        palette = app.palette() if app is not None else self.tree.palette()
+        header_bg = QBrush(palette.color(QPalette.ColorRole.AlternateBase))
+        part_fg = QBrush(palette.color(QPalette.ColorRole.ButtonText))
+        muted_fg = QBrush(palette.color(QPalette.ColorRole.PlaceholderText))
+        base_font = QFont(self.tree.font())
+        bold_font = QFont(base_font)
+        bold_font.setBold(True)
+        part_font = QFont(base_font)
+        part_font.setWeight(QFont.Weight.Medium)
+        leaf_h = max(self.thumbnail_side(), self.tree.fontMetrics().height()) + scaled_px(6, self.tree)
+        return header_bg, part_fg, muted_fg, bold_font, part_font, QSize(0, leaf_h)
+
     def set_manifest(self, manifest: Mapping[str, object] | None, *,
                      session_root: str | os.PathLike[str] | None = None,
                      part_names: Mapping[int, str] | Sequence[str] | None = None) -> None:
@@ -765,87 +1079,196 @@ class MeshEditorTexturesPanel(QDockWidget):
         if self._shown_live is not None:
             groups = with_shown_live_textures(groups, self._shown_live)
         root = str(session_root) if session_root is not None else None
-        if root is None or root != self._opened_parts_root:
+        same_session = root is not None and root == self._opened_parts_root
+        if not same_session:
             # Another mesh: its list starts closed. The same session's list, rebuilt,
             # keeps the parts the user opened.
             self._opened_parts = set()
             self._opened_parts_root = root
+            self._icons_by_path.clear()
         opened = set(self._opened_parts)
         self._generation += 1
+        self.thumbnails.set_generation(self._generation)
+        self._pending_thumbnails.clear()
+        self._thumbnail_flush_timer.stop()
         self._items_by_path = {}
         self._roles_by_path = {}
+        self._paths_by_part = {}
+        self._requested_paths = set()
+        self._part_items_by_index = {}
+        self._applied_icon_key_by_path = {}
+        self._invalidate_column_metrics()
         self.groups = groups
         self._set_hovered_part(NO_PART)
-        self.tree.clear()
         if not groups:
+            self.tree.clear()
             self.placeholder_label.setText("No textures were resolved for this mesh.")
             self.stack.setCurrentWidget(self.placeholder_label)
             self._set_has_session(True)
             return
+
+        header_bg, part_fg, muted_fg, bold_font, part_font, leaf_size = self._tree_style_tokens()
+        device_side = self._thumbnail_device_side()
+        dpr_mill = int(round(self._device_pixel_ratio() * 1000))
         file_items: dict[str, QTreeWidgetItem] = {}
-        for group in groups:
-            holder: QTreeWidget | QTreeWidgetItem = self.tree
-            if group.source_file:
-                # The file is named once, over its parts.
-                holder = file_items.get(group.source_file)
-                if holder is None:
-                    holder = file_items[group.source_file] = QTreeWidgetItem(self.tree)
-                    holder.setText(COLUMN_THUMBNAIL, group.source_file)
-                    holder.setFirstColumnSpanned(True)
-                    holder.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                    holder.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, NO_PART)
-            parent = QTreeWidgetItem(holder)
-            parent.setText(COLUMN_THUMBNAIL, group.part_name)
-            parent.setToolTip(COLUMN_THUMBNAIL, group.group_heading)
-            parent.setFirstColumnSpanned(True)
-            parent.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            parent.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
-            for row in group.rows:
-                item = QTreeWidgetItem(parent)
-                item.setData(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE, row.texture_id)
-                item.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
-                item.setText(COLUMN_ROLE, texture_role_label(row.role))
-                item.setText(COLUMN_FILE, row.file_name)
-                item.setToolTip(COLUMN_FILE, row.game_path)
-                if made_from_several_files(row):
-                    item.setText(COLUMN_STATE, NOT_ONE_FILE_STATE)
-                    contributors = contributing_rows(group, row)
-                    item.setToolTip(COLUMN_STATE, NOT_ONE_FILE_REASON + (
-                        "\n" + EDIT_INSTEAD_TEXT.format(files=", ".join(other.file_name for other in contributors))
-                        if contributors else ""))
-                elif row.shared:
-                    item.setText(COLUMN_STATE, "Shared")
-                    item.setToolTip(COLUMN_STATE, "Used by more than one part of this model.")
-                if row.decoded_path:
-                    self._items_by_path.setdefault(row.decoded_path, []).append(item)
-                    self._roles_by_path.setdefault(row.decoded_path, row.role)
-        # The files stay open (they are only headers); the parts start closed.
-        for holder in file_items.values():
-            holder.setExpanded(True)
-        self._opened_parts = set()
-        for part_index in opened:
-            item = self.part_item(part_index)
-            if item is not None:
-                item.setExpanded(True)
-        self._restyle_headers()
+        restored_open: set[int] = set()
+
+        self.tree.setUpdatesEnabled(False)
+        prev_blocked = self.tree.blockSignals(True)
+        try:
+            self.tree.clear()
+            for group in groups:
+                holder: QTreeWidget | QTreeWidgetItem = self.tree
+                if group.source_file:
+                    # The file is named once, over its parts.
+                    holder = file_items.get(group.source_file)
+                    if holder is None:
+                        holder = file_items[group.source_file] = QTreeWidgetItem(self.tree)
+                        holder.setText(COLUMN_THUMBNAIL, group.source_file)
+                        holder.setFont(COLUMN_THUMBNAIL, bold_font)
+                        holder.setBackground(COLUMN_THUMBNAIL, header_bg)
+                        holder.setFirstColumnSpanned(True)
+                        holder.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                        holder.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, NO_PART)
+                parent = QTreeWidgetItem(holder)
+                parent.setText(COLUMN_THUMBNAIL, group.part_name)
+                parent.setFont(COLUMN_THUMBNAIL, part_font)
+                parent.setForeground(COLUMN_THUMBNAIL, part_fg)
+                parent.setToolTip(COLUMN_THUMBNAIL, group.group_heading)
+                parent.setFirstColumnSpanned(True)
+                parent.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                parent.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
+                self._part_items_by_index[group.part_index] = parent
+                for row in group.rows:
+                    item = QTreeWidgetItem(parent)
+                    item.setSizeHint(COLUMN_ROLE, leaf_size)
+                    item.setData(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE, row.texture_id)
+                    item.setData(COLUMN_THUMBNAIL, PART_INDEX_ROLE, group.part_index)
+                    item.setText(COLUMN_ROLE, texture_role_label(row.role))
+                    item.setText(COLUMN_FILE, row.file_name)
+                    item.setToolTip(COLUMN_FILE, row.game_path)
+                    if made_from_several_files(row):
+                        item.setText(COLUMN_STATE, NOT_ONE_FILE_STATE)
+                        item.setForeground(COLUMN_STATE, muted_fg)
+                        contributors = contributing_rows(group, row)
+                        item.setToolTip(COLUMN_STATE, NOT_ONE_FILE_REASON + (
+                            "\n" + EDIT_INSTEAD_TEXT.format(files=", ".join(other.file_name for other in contributors))
+                            if contributors else ""))
+                    elif row.shared:
+                        item.setText(COLUMN_STATE, "Shared")
+                        item.setForeground(COLUMN_STATE, muted_fg)
+                        item.setToolTip(COLUMN_STATE, "Used by more than one part of this model.")
+                    if row.decoded_path:
+                        self._items_by_path.setdefault(row.decoded_path, []).append(item)
+                        self._roles_by_path.setdefault(row.decoded_path, row.role)
+                        part_paths = self._paths_by_part.setdefault(group.part_index, [])
+                        if row.decoded_path not in part_paths:
+                            part_paths.append(row.decoded_path)
+                        cached_icon = self._icons_by_path.get((row.decoded_path, device_side, dpr_mill))
+                        if cached_icon is not None:
+                            item.setIcon(COLUMN_THUMBNAIL, cached_icon)
+            # The files stay open (they are only headers); the parts start closed.
+            for holder in file_items.values():
+                holder.setExpanded(True)
+            for part_index in opened:
+                item = self._part_items_by_index.get(part_index)
+                if item is not None:
+                    item.setExpanded(True)
+                    restored_open.add(part_index)
+            self._opened_parts = restored_open
+        finally:
+            self.tree.blockSignals(prev_blocked)
+            self.tree.setUpdatesEnabled(True)
+
         self.stack.setCurrentWidget(self.tree)
+        self._fit_columns()
+        if self.isVisible():
+            self._schedule_fit_columns()
         self._request_thumbnails()
         self._set_has_session(True)
 
+    def _on_item_expanded(self, item: QTreeWidgetItem) -> None:
+        self._remember_part_open(item, True)
+        part = item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE)
+        if not item.data(COLUMN_THUMBNAIL, TEXTURE_ID_ROLE) and part is not None and part != NO_PART:
+            self._request_part_thumbnails(int(part))
+        self._schedule_fit_columns()
+
+    def _on_item_collapsed(self, item: QTreeWidgetItem) -> None:
+        self._remember_part_open(item, False)
+        self._schedule_fit_columns()
+
+    def _request_paths(self, paths: Iterable[str], *, priority: int = 0) -> None:
+        """Queue thumbnail decodes only for unrequested paths not already framed at this DPR."""
+
+        device_side = self._thumbnail_device_side()
+        dpr_mill = int(round(self._device_pixel_ratio() * 1000))
+        self.thumbnails.size = device_side
+        self.thumbnails.set_generation(self._generation)
+        for path in paths:
+            if not path or path in self._requested_paths:
+                continue
+            role = self._roles_by_path.get(path)
+            if role is None:
+                continue
+            cached = self._icons_by_path.get((path, device_side, dpr_mill))
+            items = self._items_by_path.get(path, ())
+            if cached is not None and items and all(not it.icon(COLUMN_THUMBNAIL).isNull() for it in items):
+                self._requested_paths.add(path)
+                continue
+            self._requested_paths.add(path)
+            self.thumbnails.queue_texture_thumbnail(self._generation, path, role, priority=priority)
+
+    def _request_part_thumbnails(self, part_index: int) -> None:
+        paths = self._paths_by_part.get(part_index)
+        if paths:
+            self._request_paths(paths, priority=1)
+
     def _request_thumbnails(self) -> None:
-        self.thumbnails.size = self._thumbnail_device_side()
-        for path, role in self._roles_by_path.items():
-            self.thumbnails.queue_texture_thumbnail(self._generation, path, role)
+        """Decode thumbnails lazily for currently expanded parts only (zero collapsed flood)."""
+
+        if not self._opened_parts:
+            return
+        expanded_paths: list[str] = []
+        seen: set[str] = set()
+        for part_index in self._opened_parts:
+            for path in self._paths_by_part.get(part_index, ()):
+                if path not in seen:
+                    seen.add(path)
+                    expanded_paths.append(path)
+        if expanded_paths:
+            self._request_paths(expanded_paths, priority=1)
 
     def _restyle_headers(self) -> None:
-        """A file's header in bold, so it reads as a heading over its parts."""
+        """Distinct visual hierarchy for .pac headers, parts, and muted state tags."""
 
-        for index in range(self.tree.topLevelItemCount()):
-            item = self.tree.topLevelItem(index)
-            if item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == NO_PART:
-                font = QFont(self.tree.font())
-                font.setBold(True)
-                item.setFont(COLUMN_THUMBNAIL, font)
+        header_bg, part_fg, muted_fg, bold_font, part_font, leaf_size = self._tree_style_tokens()
+
+        def _style_leaf(leaf: QTreeWidgetItem) -> None:
+            leaf.setSizeHint(COLUMN_ROLE, leaf_size)
+            if leaf.text(COLUMN_STATE):
+                leaf.setForeground(COLUMN_STATE, muted_fg)
+
+        self.tree.setUpdatesEnabled(False)
+        try:
+            for index in range(self.tree.topLevelItemCount()):
+                top = self.tree.topLevelItem(index)
+                if top.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == NO_PART:
+                    top.setFont(COLUMN_THUMBNAIL, bold_font)
+                    top.setBackground(COLUMN_THUMBNAIL, header_bg)
+                    for p_idx in range(top.childCount()):
+                        part = top.child(p_idx)
+                        part.setFont(COLUMN_THUMBNAIL, part_font)
+                        part.setForeground(COLUMN_THUMBNAIL, part_fg)
+                        for l_idx in range(part.childCount()):
+                            _style_leaf(part.child(l_idx))
+                else:
+                    top.setFont(COLUMN_THUMBNAIL, part_font)
+                    top.setForeground(COLUMN_THUMBNAIL, part_fg)
+                    for l_idx in range(top.childCount()):
+                        _style_leaf(top.child(l_idx))
+        finally:
+            self.tree.setUpdatesEnabled(True)
 
     def _part_items(self) -> list[QTreeWidgetItem]:
         items: list[QTreeWidgetItem] = []
@@ -860,10 +1283,7 @@ class MeshEditorTexturesPanel(QDockWidget):
     def part_item(self, part_index: int) -> QTreeWidgetItem | None:
         """The row of one part (its textures are its children)."""
 
-        for item in self._part_items():
-            if item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE) == part_index:
-                return item
-        return None
+        return self._part_items_by_index.get(part_index)
 
     def _remember_part_open(self, item: QTreeWidgetItem, opened: bool) -> None:
         part = item.data(COLUMN_THUMBNAIL, PART_INDEX_ROLE)
@@ -873,8 +1293,18 @@ class MeshEditorTexturesPanel(QDockWidget):
 
     def clear(self) -> None:
         self._generation += 1
+        self.thumbnails.set_generation(self._generation)
+        self._pending_thumbnails.clear()
+        self._thumbnail_flush_timer.stop()
+        self._fit_columns_timer.stop()
         self._items_by_path = {}
         self._roles_by_path = {}
+        self._paths_by_part = {}
+        self._requested_paths = set()
+        self._part_items_by_index = {}
+        self._icons_by_path.clear()
+        self._applied_icon_key_by_path = {}
+        self._invalidate_column_metrics()
         self.groups = []
         self._set_hovered_part(NO_PART)
         self.tree.clear()
@@ -885,6 +1315,9 @@ class MeshEditorTexturesPanel(QDockWidget):
     def shutdown(self) -> None:
         """Drop pending thumbnails; the host calls this before tearing the page down."""
 
+        self._pending_thumbnails.clear()
+        self._thumbnail_flush_timer.stop()
+        self._fit_columns_timer.stop()
         self.thumbnails.shutdown()
 
     def set_shown_live_textures(self, shown: Mapping[str, frozenset[int]] | None) -> None:
@@ -962,17 +1395,54 @@ class MeshEditorTexturesPanel(QDockWidget):
         picked = menu.exec(QCursor.pos())
         return actions.get(picked)
 
+    def _framed_icon_for(self, path: str, image: QImage, device_side: int, dpr: float, dpr_mill: int) -> QIcon:
+        cache_key = (path, device_side, dpr_mill, int(image.cacheKey()))
+        icon = self._framed_icons.get(cache_key)
+        if icon is not None:
+            self._framed_icons.move_to_end(cache_key)
+            return icon
+        pixmap = _frame_thumbnail_pixmap(image, device_side, dpr)
+        icon = QIcon(pixmap)
+        self._framed_icons[cache_key] = icon
+        while len(self._framed_icons) > _THUMBNAIL_CACHE_LIMIT:
+            self._framed_icons.popitem(last=False)
+        return icon
+
     def _on_thumbnail_ready(self, generation: int, path: str, image: QImage) -> None:
         if generation != self._generation or image.isNull():
             return
-        items = self._items_by_path.get(path, ())
-        if not items:
+        if path not in self._items_by_path:
             return
-        pixmap = QPixmap.fromImage(image)
-        pixmap.setDevicePixelRatio(self._device_pixel_ratio())  # device pixels in, logical size out
-        icon = QIcon(pixmap)
-        for item in items:
-            item.setIcon(COLUMN_THUMBNAIL, icon)
+        self._pending_thumbnails[path] = image
+        if not self._thumbnail_flush_timer.isActive():
+            self._thumbnail_flush_timer.start()
+
+    def _flush_pending_thumbnails(self) -> None:
+        if not self._pending_thumbnails:
+            return
+        batch = self._pending_thumbnails
+        self._pending_thumbnails = {}
+        device_side = self._thumbnail_device_side()
+        dpr = self._device_pixel_ratio()
+        dpr_mill = int(round(dpr * 1000))
+        self.tree.setUpdatesEnabled(False)
+        try:
+            for path, image in batch.items():
+                items = self._items_by_path.get(path)
+                if not items:
+                    continue
+                img_sig = (device_side, dpr_mill, int(image.cacheKey()))
+                if self._applied_icon_key_by_path.get(path) == img_sig and all(
+                    not item.icon(COLUMN_THUMBNAIL).isNull() for item in items
+                ):
+                    continue
+                icon = self._framed_icon_for(path, image, device_side, dpr, dpr_mill)
+                self._icons_by_path[(path, device_side, dpr_mill)] = icon
+                self._applied_icon_key_by_path[path] = img_sig
+                for item in items:
+                    item.setIcon(COLUMN_THUMBNAIL, icon)
+        finally:
+            self.tree.setUpdatesEnabled(True)
 
     # ----- a session's manifest, read off the UI thread --------------------
     def show_session(self, session_root: str | os.PathLike[str] | None) -> None:

@@ -543,7 +543,6 @@ class WorkspacePanelBuilderMixin:
         button.setIconSize(QSize(18, 18))
         button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         button.setAutoRaise(True)
-        button.setMinimumHeight(28)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setEnabled(False)
         button.clicked.connect(callback)  # type: ignore[arg-type]
