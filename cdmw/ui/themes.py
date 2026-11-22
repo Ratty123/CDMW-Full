@@ -615,7 +615,7 @@ def _app_controls_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> 
         color: {theme["accent_text"]};
         background: {theme["accent"]};
         border-color: {theme["accent"]};
-        font-weight: 600;
+        font-weight: 400;
     }}
     QPushButton#EditorPrimaryButton:hover:enabled, QPushButton[primaryAction="true"]:hover:enabled {{
         color: {theme["text_strong"]};

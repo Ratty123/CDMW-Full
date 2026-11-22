@@ -355,7 +355,9 @@ _NATIVE_TOOL_QSS = """
         border-color: {accent};
         padding: 4px 10px;
         min-height: 22px;
-        font-weight: 600;
+        /* Regular weight: CDMW sets each widget's font itself, so a heavier style sheet
+           weight is painted but not measured, and the text overruns the button. */
+        font-weight: 400;
     }}
     QPushButton#EditorPrimaryButton:hover:enabled,
     QPushButton[primaryAction="true"]:hover:enabled {{
