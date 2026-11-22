@@ -58,6 +58,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
   - Opening a texture in the Mesh Editor's docked Texture Editor checks it in the background, so the window stays responsive; opening another texture first cancels the earlier one.
 - **Browse Archives:** the **Parts** drop-down above the 3D preview is gone. The **Scene** panel beside the preview lists the same files and parts, shows and hides them, and loads prefab pieces such as a scabbard when you tick them.
 - **Browse Archives** keeps showing a model while it is open in the Mesh Editor, so going back to Browse no longer needs **Refresh**.
+- **Compact Workspace is the only layout.** Classic Workspace is retired: CDMW always opens in Compact Workspace, a saved Classic choice opens Compact Workspace, and **Settings > Appearance** no longer has a **Layout** choice. AI apps can no longer set `ui/shell_variant`.
+- **One look across the tools.** Tables, trees and lists open with columns sized to their content that you can still resize, and the whole row under the pointer is highlighted; Browse Archives' file list keeps its own columns. The tools share the same cards, command bars and spacing, including Research, Text Search, Mesh Editor Textures and Saved Work, Create New Item, Model Library, Item Icons, Mod Management, Format Explorer, Translation Studio and Placement Studio. Browse Archives loses the empty **Files** and **Preview** header strips above its panes.
+- **Speed & Prefabs (experimental):** the move categories sit in two aligned columns that never overlap the **Moves named** row, and **Show unused** lists the categories the open set does not use. The notes on what has not been tested in game are in the tooltips of the **Experimental** badge, **Start from…**, the prefab search, **Scale Listed Prefabs** and the game table buttons. AI apps can tick **Show unused** through `speed_workspace_edit`.
+- **Windows and scaling:** the first window fits the screen it opens on, a restored window that no longer fits is brought back onto the screen, and fractional Windows display scaling such as 125% or 150% is used as set instead of being rounded.
+- **Mesh Editor:** the **Textures** panel decodes thumbnails in the background for the parts you expand, so it stays responsive on models with many textures.
 
 ### Fixed
 
