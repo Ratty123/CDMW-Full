@@ -389,3 +389,62 @@ def test_close_panel_hides_the_docked_texture_editor_and_keeps_its_edits(connect
         holder.deleteLater()
         tab.deleteLater()
         QApplication.processEvents()
+
+
+# ----- 6. The panel tools' arguments, typed ----------------------------------------------
+def test_every_panel_command_has_its_own_typed_shape_matching_the_hosts_tables() -> None:
+    from cdmw.mcp.mesh_edit_tools import PANEL_COMMANDS
+    from cdmw.mcp.mesh_panel_schemas import PANELS, PARAMS
+    from cdmw.services.mesh_rust_authoring import _HOST_MESH_ACTION_PARAMS, _HOST_TOPOLOGY_ACTION_PARAMS
+
+    # Every command the panel tools send has a shape, and no shape names a command they do not send.
+    assert {family: set(table) for family, table in PANELS.items()} == {
+        family: set(PANEL_COMMANDS[family]) for family in PANELS}
+    assert "hair" not in PANELS  # Hair Tools' shapes are another change's
+    # The params the host takes for each topology and mesh action, exactly.
+    assert {name: set(shape["properties"]) for name, shape in PARAMS["topology"].items()} == {
+        name: set(keys) for name, keys in _HOST_TOPOLOGY_ACTION_PARAMS.items()}
+    assert {name: set(shape["properties"]) for name, shape in PARAMS["mesh_action"].items()} == {
+        name: set(keys) for name, keys in _HOST_MESH_ACTION_PARAMS.items()}
+    for table in (*PANELS.values(), *PARAMS.values()):
+        for shape in table.values():
+            assert set(shape["required"]) <= set(shape["properties"])
+            assert "selection" not in shape["properties"] and not any(k.startswith("_") for k in shape["properties"])
+    # The fields named in the audit, with their documented shapes.
+    shader = PANELS["replacement"]["shader_controls"]["properties"]
+    assert shader["texture_files"]["type"] == "object" and "parameter: path" in shader["texture_files"]["description"]
+    assert {"jiggle", "physics_profile", "collision_volumes", "weapon_collisions"} <= set(PANELS["replacement"])
+    assert PANELS["morph"]["create"]["properties"]["definition"]["required"] == [
+        "profile_id", "profile_name", "definition_id", "label"]
+    assert "definition" in PANELS["morph"]["capture_authored"]["required"]
+
+
+def test_the_tool_list_shows_each_actions_fields_and_a_wrong_field_is_refused_before_sending(answered) -> None:
+    editor, mcp = answered, answered.mcp
+    listed = {tool["name"]: tool for tool in mcp.request("tools/list")["result"]["tools"]}
+    refit = listed["mesh_refit"]
+    assert "configure {submesh_indices, enabled?" in refit["description"]
+    assert refit["inputSchema"]["properties"]["arguments"]["properties"]["clearance_percent"]["maximum"] == 5
+    part = listed["mesh_part_options"]["inputSchema"]["properties"]["arguments"]["properties"]
+    assert "texture_files" in part and "shader_controls" in part
+    params = listed["mesh_topology"]["inputSchema"]["properties"]["params"]["properties"]
+    assert params["cuts"]["maximum"] == 16
+    assert listed["mesh_hair"]["inputSchema"]["properties"]["arguments"] == {"type": "object"}
+
+    sent = len(_commands(editor))
+    # A field another action takes is not this one's; a required one left out; a value of the wrong type.
+    wrong_field = mcp.error("mesh_layers", {"action": "rename", "arguments": {"layer_id": "base", "visible": True}})
+    assert wrong_field["code"] == "invalid_arguments" and "layer_id, name" in wrong_field["message"]
+    missing = mcp.error("mesh_weights", {"action": "adjust_weight", "arguments": {}})
+    assert missing["code"] == "invalid_arguments" and "delta" in missing["message"]
+    typed = mcp.error("mesh_cloth", {"action": "pin_set", "arguments": {"value": 0.5}})
+    assert typed["code"] == "invalid_arguments" and "boolean" in typed["message"]
+    params_wrong = mcp.error("mesh_topology", {"action": "inset", "params": {"offset": [0, 0, 1]}})
+    assert params_wrong["code"] == "invalid_arguments" and "amount" in params_wrong["message"]
+    nested = mcp.error("mesh_part_options", {"action": "jiggle", "arguments": {"part_ids": ["a"], "rule": {}}})
+    assert nested["code"] == "invalid_arguments" and "below_y" in nested["message"]
+    assert len(_commands(editor)) == sent
+    # A right one goes through as before.
+    assert mcp.ok("mesh_layers", {"action": "visibility", "arguments": {"layer_id": "base", "visible": True}})[
+        "history"] is not None
+    assert _commands(editor)[-1] == ("layer_visibility", {"layer_id": "base", "visible": True})

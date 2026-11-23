@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, NOT_FOUND, UNAVAILABLE, ToolError
+from cdmw.mcp.mesh_panel_schemas import PANELS, PARAMS, actions_text, check, union_schema
 from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.tools import ON_CALL, ON_WORKER, Tool, object_schema
 
@@ -212,6 +213,8 @@ def _panel(family: str):
             raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
         command = f"{family}_{action}"
         arguments = dict(call.arguments.get("arguments") or {})
+        if family in PANELS:
+            check(PANELS[family], action, arguments, f"mesh {family}")
         from cdmw.mcp.mesh_archive_choice import picks_from_archive, send_with_choice
 
         if picks_from_archive(command, arguments):
@@ -289,9 +292,11 @@ def _labelled(command: str):
     def handler(call) -> dict[str, object]:
         a = call.arguments
         action = str(a["action"])
+        params = dict(a.get("params") or {})
+        if action in PARAMS[command]:
+            check(PARAMS[command], action, params, f"{command.replace('_', ' ')} params for")
         label = str(a.get("label") or action.replace("_", " ").capitalize())
-        return _send_edit(call, command, {"action": action, "params": dict(a.get("params") or {}),
-                                          "label": label})
+        return _send_edit(call, command, {"action": action, "params": params, "label": label})
 
     return handler
 
@@ -401,41 +406,28 @@ PANEL_SECTIONS = ("skeleton", "rig_influence", "morph_refit", "geometry_layers",
 
 _PANEL_TOOLS = (
     ("rig", "mesh.weights", "Weights",
-     "The Rig page's weight commands on the shown document's selected vertices, as its buttons send them: "
-     "select_bone {bone_index}, adjust_weight {delta}, normalize_weights {}, transfer_weights {}."),
+     "The Rig page's weight commands on the shown document's selected vertices, as its buttons send them."),
     ("morph", "mesh.morph", "Morphs",
-     "The Morph & Refit page's morph commands, by the names its controls send (activate, create, set_value, "
-     "set_macro, set_side_value, set_symmetry, set_influence, set_driver_region, bake, reset, save_profile, "
-     "apply_preset, save_preset, import_preset, corrections ...), with the arguments the page sends; "
-     "mesh_panels shows the morph state they work on."),
+     "The Morph & Refit page's morph commands, by the names its controls send; mesh_panels' morph_refit shows "
+     "the profiles, sliders, presets and body controls they work on."),
     ("refit", "mesh.refit", "Refit",
-     "The Morph & Refit page's refit commands: set_driver {submesh_indices}, use_loaded_body, load_mesh, "
-     "choose_archive {role: body or armor, archive_path} (Load Body or Load Armor from the game archives: "
-     "'archive_path' names the file, as search_archive lists it, in place of the picker), bind {submesh_indices}, "
-     "configure {submesh_indices, clearance_percent, intensity_percent, "
-     "tightness_percent, skin_pull_percent, mode, enabled}, island_configure, fit_to_body, restore_shape_preview, "
-     "restore_shape_apply, restore_shape_cancel, clear, diagnostics."),
+     "The Morph & Refit page's refit commands. choose_archive is Load Body or Load Armor from the game "
+     "archives: 'archive_path' names the file, as search_archive lists it, in place of the picker."),
     ("cloth", "mesh.cloth", "Cloth",
-     "The Cloth page's commands on the selected vertices: pin_set {value}, paint_set {value}, and the cloth "
-     "preview's collision inputs: collision_input {role, archive_path} (body or head: a .pabv, weapon: a .pac, "
-     "from the game archives, in place of the picker), {role, path} (an absolute path to such a file on disk), "
-     "{clear: true} (clears the inputs) or {weapon_placement: {offset: [x, y, z], rotation: [x, y, z] in degrees}} "
-     "(moves the weapon chosen before)."),
+     "The Cloth page's commands on the selected vertices, and the cloth preview's collision inputs: "
+     "collision_input takes {role, archive_path} (body or head: a .pabv, weapon: a .pac, from the game "
+     "archives, in place of the picker), {role, path} (such a file on disk), {clear: true} or "
+     "{weapon_placement: {offset: [x, y, z], rotation: [x, y, z] in degrees}} (moves the weapon chosen before)."),
     ("layer", "mesh.layers", "Layers",
-     "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
-     "visibility {layer_id, visible}, copy {target} (copies the current selection, as Copy does; target is "
-     "vertex, edge or face, by default what the selection holds), paste, delete {layer_id}."),
+     "The Layers list's commands. copy copies the current selection, as Copy does."),
     ("hair", "mesh.hair", "Hair",
      "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
      "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
      "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
     ("replacement", "mesh.part_options", "Part options",
-     "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
-     "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), material_colours "
-     "(Material colours: {part_ids, colours: {row: '#RRGGBB'}} or {part_ids, reset: true}, changing the tint and "
-     "dye rows mesh_panels lists under material_colours; parts sharing the material change together), emission, "
-     "translucency, jiggle, physics_profile, collision_volumes, weapon_collisions, cloth, guides, islands, "
-     "include {part_ids, included}; and Import Replacement's fit, compare and reset."),
+     "The Inspector's per-part options, as its controls send them ('part_ids' as mesh_panels' replacement "
+     "section lists them; parts sharing a material change together), and Import Replacement's fit, compare and "
+     "reset. shader_controls are the Shader experiments: its 'texture_files' gives a texture slot a file."),
 )
 
 
@@ -676,7 +668,9 @@ def mesh_edit_tools() -> list[Tool]:
                          "works on PAC faces only (not PAM or PAMLOD), and deleting whole Parts (params "
                          "delete_parts) needs Free Edit; untick Include instead. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_topology_actions())},
-                                         "params": {"type": "object"}, "label": label}, ["action"]),
+                                         "params": union_schema(PARAMS["topology"], "The action's params: "
+                                                                + actions_text(PARAMS["topology"])),
+                                         "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command topology", handler=_labelled("topology"),
              runs_on=ON_WORKER),
         Tool(name="mesh.mesh_action", family="mesh", title="Mesh action",
@@ -691,7 +685,9 @@ def mesh_edit_tools() -> list[Tool]:
                          "files store no normals or tangents. generate_tangents that would split vertices along a "
                          "UV seam needs Free Edit. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_mesh_actions())},
-                                         "params": {"type": "object"}, "label": label}, ["action"]),
+                                         "params": union_schema(PARAMS["mesh_action"], "The action's params: "
+                                                                + actions_text(PARAMS["mesh_action"])),
+                                         "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command mesh_action", handler=_labelled("mesh_action"),
              runs_on=ON_WORKER),
         Tool(name="mesh.transform", family="mesh", title="Move, rotate, scale",
@@ -718,10 +714,13 @@ def mesh_edit_tools() -> list[Tool]:
              effect=EDIT, route="helper:cdmw_command configure_output_policy", handler=_output_policy,
              runs_on=ON_WORKER, output_folders=("destination",)),
         *[Tool(name=name, family="mesh", title=title,
-               description=text + " CDMW checks each as it checks the panel's own; the result is the history "
-                                  "before and after and the status line, which says why a command was refused.",
+               description=text + (" Arguments by action (? marks an optional one): " + actions_text(PANELS[family])
+                                   if family in PANELS else "")
+                           + " CDMW checks each as it checks the panel's own; the result is the history "
+                             "before and after and the status line, which says why a command was refused.",
                input_schema=object_schema({"action": {"type": "string", "enum": list(PANEL_COMMANDS[family])},
-                                           "arguments": {"type": "object"}}, ["action"]),
+                                           "arguments": union_schema(PANELS[family], "The action's arguments.")
+                                           if family in PANELS else {"type": "object"}}, ["action"]),
                effect=EDIT, route=f"helper:cdmw_command {family}_*", handler=_panel(family), runs_on=ON_WORKER)
           for family, name, title, text in _PANEL_TOOLS],
         Tool(name="mesh.panels", family="mesh", title="Mesh Editor panels",
