@@ -678,12 +678,14 @@ class MeshEditorTextureTools(QDockWidget):
                 rail_layout.addWidget(section)
         actions = getattr(editor, "selection_actions_layout", None)
         if actions is not None:
-            from cdmw.ui.mesh_editor.texture_mesh_selection_flow import BUTTON_TEXT, BUTTON_TOOLTIP
-
             # Only here, beside the model: the 3D selection, as a selection on this texture.
-            button = QPushButton(BUTTON_TEXT)
+            button = QPushButton("Select From Mesh Selection")
             button.setObjectName("EditorPanelButton")
-            button.setToolTip(BUTTON_TOOLTIP)
+            button.setToolTip(
+                "Select the pixels the faces selected in the 3D view cover on this texture, by the selection "
+                "Mode above. Whole parts selected in the Parts list count with all of their faces. UVs outside "
+                "0-1 wrap, as the model repeats the texture."
+            )
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             button.setEnabled(getattr(editor, "document", None) is not None)
             button.clicked.connect(lambda _checked=False: self.select_from_mesh())

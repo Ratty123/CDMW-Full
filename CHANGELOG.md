@@ -10,6 +10,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Added
 
 - **Add to scene** in Browse Archives: right-click any `.pac` model and choose Add to scene to show it in the preview with the models already there (on the model shown, it starts a scene with that model), then search for more and add them too; Clear Scope ends the scene. **Remove from scene** in the Scene panel's right-click menu takes one out. **Open ticked parts in Mesh Editor** edits the collected models in one session, and Build Mod writes them into one mod. A scene holds up to 33 models; each is drawn in its own model space, so a weapon or prop sits at its own origin rather than in a hand, and a model you add shows its default material variant.
+- **Select From Mesh Selection** in the Mesh Editor's Texture Editor panel: select faces on the model, or parts in the Parts list, then choose it in the panel's new Selection section. The pixels those faces cover on the open texture become the selection, combined by its Mode (Replace, Add, Subtract or Intersect), so paint, fills and adjustments stay on that piece. UVs outside 0-1 wrap as the model repeats the texture, and the panel says when mirrored or overlapping UVs put faces outside the selection on the same pixels. Faces that do not use the open texture, and detail textures, are refused with the reason. AI apps (experimental) can do the same with `textures_select_from_mesh`, and `textures_mesh_at` says which faces a texture pixel or the texture selection covers.
 
 ### Changed
 

@@ -20,12 +20,6 @@ from cdmw.services.mesh_texture_selection import (
 )
 
 MODE_NAMES = {"replace": "Replace", "add": "Add", "subtract": "Subtract", "intersect": "Intersect"}
-BUTTON_TEXT = "Select From Mesh Selection"
-BUTTON_TOOLTIP = (
-    "Select the pixels the faces selected in the 3D view cover on this texture, by the selection "
-    "Mode above. Whole parts selected in the Parts list count with all of their faces. UVs outside "
-    "0-1 wrap, as the model repeats the texture."
-)
 WORKING_TEXT = "Selecting from the mesh selection..."
 NO_TEXTURE_TEXT = "Open a texture from the Textures panel first."
 
@@ -171,5 +165,5 @@ class MeshSelectionToTexture(QObject):
         self.reported.emit(text, refused)
 
 
-__all__ = ["BUTTON_TEXT", "BUTTON_TOOLTIP", "MODE_NAMES", "MeshSelectionToTexture", "apply_selection",
+__all__ = ["MODE_NAMES", "MeshSelectionToTexture", "apply_selection",
            "document_key", "dock_snapshot", "selection_mode", "summary_text"]

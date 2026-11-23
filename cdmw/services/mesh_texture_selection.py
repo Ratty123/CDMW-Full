@@ -213,7 +213,7 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
             continue
         if picked is None or picked:
             chosen[part] = picked
-            sources.add(kind)
+            sources |= {kind}
     if not chosen:
         if ignored:
             raise TextureMeshRefusal(
