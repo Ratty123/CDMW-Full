@@ -43,7 +43,14 @@ def worn_set_members(
     copy of its pieces: the male and the female Kuku Marni Laser Helm, or the NPC
     robe Martial Monk's Cloth Robe was refitted from. The set is the wearer of the
     first prefab that lists a worn model: a file another wearer's prefab lists, and
-    no prefab of that wearer does, is left out. Files no prefab lists stay.
+    no prefab of that wearer does, is left out.
+
+    A file no prefab lists stays, unless it is named like one of the wearer's prefabs
+    that does not list it. The scope finds such a file by the item's name alone:
+    Demeniss Honor Armor's prefab `cd_m0001_00_so_phm_ub_31067.prefab` lists
+    `ub_31066.pac`, and the unrelated `ub_31067.pac` was drawn over it. Other unlisted
+    files stay, as the St. Halssius Priest's Cloak, whose prefab lists only its
+    shoulder piece, and the packs whose strap has a prefab of its own need.
     """
 
     models = tuple(entry for entry in entries if entry.extension.casefold() == ".pac")
@@ -63,4 +70,14 @@ def worn_set_members(
         return ranked
     own = set().union(*(paths for group, paths in listed if group == wearer))
     others = set().union(*(paths for group, paths in listed if group != wearer))
-    return tuple(entry for entry in ranked if _path_key(entry.path) not in others - own)
+    # A prefab that does not list the model named like it says that model is not the item's.
+    named = {PurePosixPath(_path_key(prefab)).stem for prefab, _paths in item_prefabs
+             if prefab_group(prefab) == wearer}
+
+    def kept(entry: ArchiveEntryDto) -> bool:
+        key = _path_key(entry.path)
+        if key in own:
+            return True
+        return key not in others and PurePosixPath(key).stem not in named
+
+    return tuple(entry for entry in ranked if kept(entry))
