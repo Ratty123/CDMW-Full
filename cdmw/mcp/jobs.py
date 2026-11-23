@@ -81,6 +81,8 @@ class JobRegistry:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        #: Called with each job when it ends (the activity feed); must not block.
+        self.on_finished: Callable[[Job], None] | None = None
 
     def start(self, call, work: Callable[[], object], *, game_folder: Callable[[], str] | None = None) -> Job:
         job = Job(id="job-" + secrets.token_hex(6), tool=call.tool.name, client=call.client,
@@ -117,6 +119,12 @@ class JobRegistry:
         finally:
             job.finished = time.time()
             job._finished.set()
+            notify = self.on_finished
+            if notify is not None:
+                try:
+                    notify(job)
+                except Exception:
+                    pass
 
     def _trim(self) -> None:
         finished = sorted((j for j in self._jobs.values() if j.state != RUNNING), key=lambda j: j.finished)

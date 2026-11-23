@@ -6,6 +6,9 @@ secrets, no file contents, no image data), how it was approved, the result
 code, the job it started and how long it took. Past 4 MiB the file becomes
 ``ai-calls.1.log``, replacing the previous one. A log that cannot be written
 never stops the call.
+
+The same line goes to ``feed`` (an ``activity.ActivityFeed``) when one is
+set, so the drawer's AI Connection tab and the file never disagree.
 """
 
 from __future__ import annotations
@@ -35,6 +38,8 @@ class AuditLog:
         self._path = path
         self._lock = threading.Lock()
         self.failed = ""
+        #: Receives every line as it is written (``ActivityFeed``); never waits on the interface.
+        self.feed = None
 
     @property
     def path(self) -> Path:
@@ -71,6 +76,12 @@ class AuditLog:
                 self.failed = ""
             except OSError as exc:
                 self.failed = str(exc)
+        feed = self.feed
+        if feed is not None:
+            try:
+                feed.call(line)
+            except Exception:
+                pass
 
 
 class Stopwatch:

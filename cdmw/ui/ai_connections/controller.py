@@ -3,7 +3,9 @@
 It owns the link (pipe and token), the MCP server and the tool context,
 starts and stops the link with "Allow AI connections", shows the approval
 prompt on the UI thread, and marks the main window's title while
-connections are on, so the user can always see it.
+connections are on, so the user can always see it. The server's activity
+feed goes to the app's ``AiActivityModel``, which the Workspace Activity
+drawer's AI Connection tab shows.
 """
 
 from __future__ import annotations
@@ -41,7 +43,12 @@ class AiConnectionsController(QObject):
         self.table = table or ToolTable(typed_tools(), registry=command_registry)
         self.policy = approvals.ApprovalPolicy(settings, ask=self._ask.emit)
         self.server = McpServer(self.table, self.context, policy=self.policy)
-        self.link = AiConnectionLink(self.server.serve_connection)
+        self.link = AiConnectionLink(self.server.serve_connection, on_refused=self.server.activity.refused)
+        from cdmw.ui.ai_connections.activity_model import ai_activity_model
+
+        self.activity = ai_activity_model()
+        if self.activity is not None:
+            self.activity.attach(self.server.activity, log_path=self.server.audit.path)
         self.error = ""
         self.prompts: list = []
         self._prompt_factory = prompt_factory
@@ -72,12 +79,21 @@ class AiConnectionsController(QObject):
             self._poll.stop()
             self.link.stop()
         self._mark_title()
+        self._show_listening()
         self.state_changed.emit()
 
     def stop(self) -> None:
         self._poll.stop()
         self.link.stop()
         self._mark_title()
+        self._show_listening()
+
+    def _show_listening(self) -> None:
+        if self.activity is not None:
+            try:
+                self.activity.set_listening(self.link.listening)
+            except RuntimeError:  # the app's model is already gone at shutdown
+                self.activity = None
 
     def _check_connected(self) -> None:
         connected = self.link.connected
@@ -168,5 +184,7 @@ def remove_ai_connections() -> None:
     controller = getattr(app, _ATTRIBUTE, None)
     if controller is not None:
         controller.stop()
+        if controller.activity is not None:
+            controller.activity.detach(controller.server.activity)
         setattr(app, _ATTRIBUTE, None)
         controller.deleteLater()
