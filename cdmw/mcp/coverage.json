@@ -2,6 +2,10 @@
   "schema": 1,
   "about": "Every registry command and every capability of every panel, with the AI tool that covers it or an accepted gap. Gaps: not_built (names the milestone that builds it), needs_pointer (names the tool that takes points instead), writes_into_game (no tool ever covers it), user_only (only the user may do it). A row may add 'also': the generic tools that reach it meanwhile. tests/test_mcp_coverage.py keeps this file current. 'surfaces' has one row per menu entry, dialog class, Mesh Editor host command, Mesh Editor helper control and rail page found in the source, each with its tool, its registry command or a gap; generic_only is a gap the generic tools already reach and names the plan item that will type it.",
   "commands": {
+    "browse.add_to_scene": {
+      "tool": "app.run_command",
+      "class": "read"
+    },
     "browse.appearance_composite": {
       "tool": "app.run_command",
       "class": "read"
@@ -431,10 +435,6 @@
       "class": "edit"
     },
     "browse.preview_only_this_file": {
-      "tool": "app.run_command",
-      "class": "read"
-    },
-    "browse.add_to_scene": {
       "tool": "app.run_command",
       "class": "read"
     },
@@ -1223,7 +1223,7 @@
     {
       "id": "materials.set",
       "area": "Material panel",
-      "what": "Set a material factor or surface option (Shader experiments, emission, translucency)",
+      "what": "Set a material factor or surface option (Shader experiments, material colours, emission, translucency)",
       "class": "edit",
       "tool": "mesh.part_options"
     },
@@ -1238,10 +1238,9 @@
     {
       "id": "materials.recolour",
       "area": "Material panel",
-      "what": "Recolour",
+      "what": "Recolour: the tint and dye colours the material declares (Material colours)",
       "class": "edit",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: the app has no control for this yet, so there is nothing for a tool to press. A tool follows if the feature is built."
+      "tool": "mesh.part_options"
     },
     {
       "id": "view.texture_image",
@@ -2361,10 +2360,6 @@
       "typed_by": 13
     },
     {
-      "key": "menu:cdmw/ui/archive_browser/actions.py|Add to scene",
-      "command": "browse.add_to_scene"
-    },
-    {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Asset Family...",
       "command": "browse.asset_family"
     },
@@ -2527,6 +2522,10 @@
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open in Mesh Editor",
       "command": "browse.open_in_mesh_editor"
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Add to scene",
+      "command": "browse.add_to_scene"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Open set in Mesh Editor",
@@ -3620,6 +3619,10 @@
       "tool": "mesh.part_options"
     },
     {
+      "key": "host_command:replacement_material_colours",
+      "tool": "mesh.part_options"
+    },
+    {
       "key": "host_command:replacement_physics_profile",
       "tool": "mesh.part_options"
     },
@@ -3828,9 +3831,8 @@
       "tool": "mesh.layers"
     },
     {
-      "key": "helper_control:material_colour.unavailable",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: Material Colour is deliberately unavailable in the Mesh Editor's helper."
+      "key": "helper_control:material_colour.edit",
+      "tool": "mesh.part_options"
     },
     {
       "key": "helper_control:morph.bake",

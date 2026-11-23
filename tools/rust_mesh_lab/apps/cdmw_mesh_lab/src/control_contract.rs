@@ -32,6 +32,9 @@ enum RuntimeRouteKind {
     HostAction,
     PointerGesture,
     ReadOnlyState,
+    /// A control kept visible but disabled on purpose. No row uses it since
+    /// Material colours became editable; the contract keeps the check for one.
+    #[allow(dead_code)]
     Unavailable,
     Unregistered,
 }
@@ -166,7 +169,10 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_vertex_inspector.rs"),
     "\n",
-    include_str!("cdmw_hair.rs")
+    include_str!("cdmw_hair.rs"),
+    "
+",
+    include_str!("cdmw_material_colours.rs")
 );
 const MAIN_SOURCE: &str = concat!(
     include_str!("main.rs"),
@@ -561,7 +567,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
             Kind::PointerGesture,
             "ViewportPointerEvent+capture_viewport_pointer_event",
         ),
-        "material_colour.unavailable" => (Kind::Unavailable, "Material Colour"),
+        "material_colour.edit" => (Kind::ShadowCommand, "replacement_material_colours"),
         "import.open_package" => (Kind::HostAction, "UiAction::ChooseCdmwImportPackage"),
         "policy.exact_free_edit" => (Kind::ShadowCommand, "configure_output_policy"),
         _ => (Kind::Unregistered, ""),
@@ -728,7 +734,7 @@ camera.yaw_plus_15|camera_display|executable|session|false|
 camera.fit|camera_display|executable|session|false|
 camera.orbit|camera_display|executable|session|false|
 viewport.pointer_surface|camera_display|executable|session|false|
-material_colour.unavailable|material_colour|deliberately_disabled|not_reachable|true|Mesh Editor no longer exposes the obsolete Colour authoring section.
+material_colour.edit|material_colour|executable|session|false|
 import.open_package|import_output_export|executable|host_owned|true|
 policy.exact_free_edit|exact_free_edit|executable|session_policy|true|
 "#;
@@ -922,7 +928,7 @@ mod tests {
             .filter(|row| runtime_route(row.key).kind == RuntimeRouteKind::Unavailable)
             .map(|row| row.key)
             .collect::<BTreeSet<_>>();
-        assert_eq!(unavailable, BTreeSet::from(["material_colour.unavailable"]));
+        assert!(unavailable.is_empty(), "{unavailable:?}");
 
         for row in rows {
             let route = runtime_route(row.key);

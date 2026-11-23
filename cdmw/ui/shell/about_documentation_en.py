@@ -775,6 +775,15 @@ class AboutDocumentationEnglishMixin:
                 <p><b>Finish</b> creates a draft that keeps the texture edits. When you continue it after restarting CDMW, the edits appear on the model again. Before a draft exists, the status says the edits are not kept yet and closing the mesh asks first.</p>
                 <p><b>Build Mod</b> can build from texture edits alone. It writes each changed texture to its game path in the same mod, in the original format, size and mip levels. Unchanged textures are skipped. Each edited texture's line says <b>writes</b>, <b>left out</b> or <b>blocked</b>, with the reason and any other game files the edit affects.</p>
                 <p>A texture is left out if no part in the mod uses it, including when its parts were deleted, <b>Include</b> is off or only the excluded fitted body uses it. A blocked texture stops the build. Mesh Editor texture edits have not been checked in game.</p>
+                <h4>Material colours</h4>
+                <p>Most armour takes its colour from tints in its material file, which its colour mask applies, not from a base colour texture. Painting a texture does not change those parts; Material colours does.</p>
+                <ul>
+                  <li>Select parts that share one material, then expand <b>Material colours</b> in the Inspector.</li>
+                  <li>Pick a new colour for a row such as <b>Tint (red mask)</b>, then choose <b>Apply colours</b>. Every part that uses the material changes with it.</li>
+                  <li>Each colour keeps its strength (alpha). Only colours the material already has are listed; none is added.</li>
+                  <li><b>Restore original colours</b>, <b>Original</b> or <b>Undo</b> bring the source colours back. <b>Build Mod</b> writes the colours into the mod's material file.</li>
+                </ul>
+                <p>Imported materials and materials that Shader experiments rewrite with their own rows cannot use these colours. The preview approximates the game's colour mask; new colours have not been checked in game.</p>
                 <h4>Saved drafts and built mods</h4>
                 <p>A mesh opened from Archive Browser saves a draft each time you choose Finish Edit Mesh, so you can close CDMW and continue later. Changes still open in the editor are kept beside the draft until you finish or discard them; if CDMW closes first, the editor continues from them the next time you open the draft. Build Mod also keeps the editing state with the mod.</p>
                 <p>On the next start after an unexpected close, CDMW lists the drafts it saved while you were editing and offers to open <b>Drafts &amp; Mods</b> on those drafts.</p>

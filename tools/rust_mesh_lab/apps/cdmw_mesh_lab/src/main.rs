@@ -25,6 +25,7 @@ mod cdmw_session;
 use cdmw_ui::layout as cdmw_layout;
 mod cdmw_emission;
 mod cdmw_islands;
+mod cdmw_material_colours;
 mod cdmw_shader_controls;
 mod cdmw_ui;
 mod cdmw_vertex_inspector;

@@ -899,6 +899,7 @@ pub fn host_cdmw_panel_command(name: &str) -> Option<(&'static str, &'static str
         "replacement_include" => Some(("replacement_include", "Replacement")),
         "replacement_islands" => Some(("replacement_islands", "Replacement")),
         "replacement_jiggle" => Some(("replacement_jiggle", "Replacement")),
+        "replacement_material_colours" => Some(("replacement_material_colours", "Replacement")),
         "replacement_physics_profile" => Some(("replacement_physics_profile", "Replacement")),
         "replacement_reset" => Some(("replacement_reset", "Replacement")),
         "replacement_shader_controls" => Some(("replacement_shader_controls", "Replacement")),

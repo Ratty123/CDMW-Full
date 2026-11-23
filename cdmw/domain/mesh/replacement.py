@@ -50,6 +50,9 @@ class ReplacementPart:
     shader_controls: ShaderControls | None = None
     # Retained original LOD0 triangle IDs; applied only to the exported PAC.
     excluded_island_faces: tuple[int, ...] = ()
+    # Edited RGB of colour rows the part's PAC material already has, as
+    # ((parameter, "#RRGGBB"), ...) sorted by name; each row keeps its alpha.
+    material_colours: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -18,6 +18,7 @@ from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
 from cdmw.domain.mesh.translucency import translucency_values, translucency_surface_values
 from cdmw.domain.mesh.emission import EmissionChoice
 from cdmw.domain.mesh.shader_controls import ShaderControls
+from cdmw.domain.mesh.material_colours import normalize_material_colours
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -56,8 +57,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         part.cloth_guides is not None and part.cloth_guides.needs_new_draft_version for part in state.parts)
     if sum(len(part.excluded_island_faces) for part in state.parts) > 4_000_000:
         raise ValueError("Replacement draft island masks exceed the face limit.")
+    colours = any(part.material_colours for part in state.parts)
     return {
-        "version": (17 if pins_or_volumes else 16 if state.palette_extension is not None else 15 if regional_jiggle else 14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
+        "version": (18 if colours else 17 if pins_or_volumes else 16 if state.palette_extension is not None else 15 if regional_jiggle else 14 if state.weapon_collisions else 13 if islands else 12 if any(part.shader_controls is not None for part in state.parts) else 11 if any(part.emission is not None for part in state.parts) else 10 if any(part.translucency_surface is not None for part in state.parts) else 9 if guides else 8 if translucent else
                     7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
@@ -82,9 +84,10 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    **({"emission": part.emission.to_dict()} if part.emission is not None else {}),
                    **({"shader_controls": part.shader_controls.to_dict()} if part.shader_controls is not None else {}),
                    **({"excluded_island_faces": list(part.excluded_island_faces)} if part.excluded_island_faces else {}),
+                   **({"material_colours": dict(part.material_colours)} if part.material_colours else {}),
                    **({"translucency_surface": list(part.translucency_surface)} if part.translucency_surface is not None else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
-                                  **({"retained": part.jiggle.retained} if pins_or_volumes or regional_jiggle or state.weapon_collisions or islands or relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None or p.shader_controls is not None for p in state.parts) else {})}}
+                                  **({"retained": part.jiggle.retained} if colours or pins_or_volumes or regional_jiggle or state.weapon_collisions or islands or relative_jiggle or physics_profiles or translucent or guides or any(p.emission is not None or p.shader_controls is not None for p in state.parts) else {})}}
                       if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
@@ -103,7 +106,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     extension = None
@@ -222,14 +225,20 @@ def _load_replacement_state(payload, project_root):
         island_face_count += len(excluded_faces)
         if island_face_count > 4_000_000:
             raise ValueError("Replacement draft island masks exceed the face limit.")
+        if payload["version"] < 18 and "material_colours" in value:
+            raise ValueError("Material colours require replacement draft version 18.")
+        colours = normalize_material_colours(value["material_colours"]) if "material_colours" in value else ()
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface, emission, controls, tuple(excluded_faces)))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency, guides, surface, emission, controls, tuple(excluded_faces),
+            colours))
     collision_edits = payload.get("collision_edits", [])
     if (not isinstance(collision_edits, list) or ("collision_edits" in payload and payload["version"] < 17)
             or ("collision_edits" in payload and not collision_edits)):
         raise ValueError("Invalid collision volume draft settings.")
     collision_edits = tuple(CollisionVolumeEdit.from_dict(edit) for edit in collision_edits)
+    if payload["version"] == 18 and not any(part.material_colours for part in parts):
+        raise ValueError("Material colour draft has no colour edits.")
     if payload["version"] == 17 and not collision_edits and not any(
             part.cloth_guides is not None and part.cloth_guides.needs_new_draft_version for part in parts):
         raise ValueError("Collision and pin draft has no collision edits or painted pins.")

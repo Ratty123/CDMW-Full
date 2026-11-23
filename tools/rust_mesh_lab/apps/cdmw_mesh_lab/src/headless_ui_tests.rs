@@ -1649,6 +1649,7 @@ impl HeadlessUi {
                 "Translucency (experimental)",
                 "Glow (experimental)",
                 "Shader experiments",
+                "Material colours",
             ]
             .contains(&label)
             && let Some(back) = self.label_rect("Back to Inspector")
@@ -10021,6 +10022,52 @@ fn emission_controls_send_selected_parts_and_restore() -> TestResult {
         ui.application.mesh.as_ref().unwrap().draw_snapshot(),
         before
     );
+    Ok(())
+}
+
+#[test]
+fn material_colour_controls_send_selected_parts_restore_rows_and_refuse_mixed_materials() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 1600.0),
+    );
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let rows = json!([
+        {"name": "_tintColorR", "label": "Tint (red mask)", "original": "#F7C6AC", "alpha": 255},
+        {"name": "_tintColorG", "label": "Tint (green mask)", "original": "#EAD2AB", "alpha": 235}]);
+    ui.application.cdmw_state["material_colours"] = json!({"available": true, "parts": [
+        {"index": 0, "id": "a", "name": "Part A", "material": "cloth", "shared": ["a"], "rows": rows,
+         "blocked": "", "material_colours": null},
+        {"index": 1, "id": "b", "name": "Part B", "material": "plate", "shared": ["b"], "rows": rows, "blocked": "",
+         "material_colours": {"_tintColorR": "#102030", "_tintColorG": "#405060"}}]});
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Material colours")?;
+    ui.settle_layout();
+    // Saved colours are marked; applying them unchanged sends nothing.
+    assert!(ui.label_rect("Tint (red mask) *").is_some());
+    assert!(!has_host_command(&ui.actions_from_click("Apply colours")?, "replacement_material_colours"));
+    let actions = ui.actions_from_click("Restore original colours")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_material_colours", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "reset": true}))));
+    ui.application.cdmw_pending_request = None;
+    // One row back to its original: the other edit is what is sent.
+    ui.click("Original")?;
+    let actions = ui.actions_from_click("Apply colours")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_material_colours", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "colours": {"_tintColorG": "#405060"}})
+            || arguments == &json!({"part_ids": ["b"], "colours": {"_tintColorR": "#102030"}}))),
+        "{actions:?}");
+    ui.application.cdmw_pending_request = None;
+    // Two materials at once cannot share one set of colours.
+    ui.click("Parts")?;
+    ui.click("All")?;
+    ui.click("Back to Inspector")?;
+    assert!(ui.label_rect("The selected parts use different materials. Select parts that share one material to change its colours.").is_some());
+    assert!(!has_host_command(&ui.actions_from_click("Apply colours").unwrap_or_default(), "replacement_material_colours"));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
     Ok(())
 }
 

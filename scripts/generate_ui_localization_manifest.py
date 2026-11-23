@@ -1967,6 +1967,13 @@ def build_manifest() -> dict[str, object]:
                 "path": "cdmw/domain/mesh/shader_controls.py", "line": 1,
                 "sink": "rust-presentation",
             })
+    from cdmw.domain.mesh.material_colours import MATERIAL_COLOUR_LABELS
+    # Material colours sends these row names to the editor, which translates them.
+    for label in MATERIAL_COLOUR_LABELS.values():
+        origins.setdefault(label, []).append({
+            "path": "cdmw/domain/mesh/material_colours.py", "line": 1,
+            "sink": "rust-presentation",
+        })
     from cdmw.domain.textures.editor_presets import texture_editor_dds_presets
 
     # These built-in labels arrive in Rust through the typed morph state.
@@ -2155,7 +2162,7 @@ def _native_ui_keys(manifest: dict[str, object]) -> list[str]:
         if entry["key"] == "Undo replacement operations before adding geometry layers." or any(
             origin["sink"] == "rust-presentation"
             or origin["path"].startswith((
-                "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls",
+                "cdmw/services/mesh_rust_", "cdmw/services/mesh_shader_controls", "cdmw/services/mesh_material_colours",
                 "cdmw/services/mesh_emission", "cdmw/services/mesh_service_morph",
                 "cdmw/services/mesh_morph_profiles", "cdmw/services/mesh_service_body_controls",
                 "cdmw/services/mesh_hair_color", "cdmw/services/mesh_skin_import_policy",

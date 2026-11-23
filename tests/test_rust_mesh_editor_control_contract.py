@@ -112,7 +112,6 @@ def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> Non
         "host_action",
         "pointer_gesture",
         "read_only_state",
-        "deliberately_unavailable",
         "compiled_anchor",
     } <= route_kinds
     unavailable = {
@@ -120,7 +119,10 @@ def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> Non
         for row in integrated["rows"]
         if row["rust_route_kind"] == "deliberately_unavailable"
     }
-    assert unavailable == {"material_colour.unavailable"}
+    # Material colours became editable (Inspector > Material colours); no row is disabled now.
+    assert unavailable == set()
+    assert any(row["key"] == "material_colour.edit" and row["rust_route_kind"] == "typed_shadow_command"
+               for row in integrated["rows"])
     assert all(
         row["rust_runtime_dispatch"] is True
         for row in integrated["rows"]
