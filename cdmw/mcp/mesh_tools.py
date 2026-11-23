@@ -721,9 +721,35 @@ def _build_mod(call) -> dict[str, object]:
                             str(self.manager.itemData(row)[0]) for row in range(self.manager.count())) + "."
                         return int(self.DialogCode.Rejected)
                     self.manager.setCurrentIndex(index)
-                if a.get("include_body") is not None and self.include_body.isVisible():
+                # The dialog is never shown, so its controls are never "visible": the ones it
+                # leaves out for this build are the ones it hid.
+                offers_body = not self.include_body.isHidden()
+                if a.get("include_body") is not None and offers_body:
                     self.include_body.setChecked(bool(a["include_body"]))
+                hair = bool(getattr(self, "_hair_mode", False))
+                if not hair:
+                    for name in ("hair_stem", "custom_icon_path", "send_to_dmm"):
+                        if a.get(name):
+                            shown["refused"] = f"'{name}' is for a hairstyle made with Hair Tools; this is a mesh mod."
+                            return int(self.DialogCode.Rejected)
+                else:
+                    if a.get("hair_stem") is not None:
+                        if self.hair_stem.isHidden():
+                            shown["refused"] = "Replace Existing Hairstyle keeps the replaced hairstyle's ID: leave out 'hair_stem'."
+                            return int(self.DialogCode.Rejected)
+                        self.hair_stem.setText(str(a["hair_stem"]))
+                    if a.get("custom_icon_path"):
+                        self.custom_icon_path.setText(str(a["custom_icon_path"]))
+                    if a.get("send_to_dmm"):
+                        if not self.send_to_dmm.isEnabled() or self.send_to_dmm.isHidden():
+                            shown["refused"] = (self.send_to_dmm.toolTip()
+                                                or "DMM's mods folder was not found; open DMM once so it exists.")
+                            return int(self.DialogCode.Rejected)
+                    self.send_to_dmm.setChecked(bool(a.get("send_to_dmm")))
                 layers = [str(name) for name in a.get("keep_layers") or ()]
+                if layers and hair:
+                    shown["refused"] = "A hairstyle mod keeps no layers underneath."
+                    return int(self.DialogCode.Rejected)
                 self.keep_layers.setChecked(bool(layers))
                 names = {str(self.layers.item(row).data(QT_USER_ROLE)): row for row in range(self.layers.count())}
                 unknown = sorted(set(layers) - set(names))
@@ -733,9 +759,18 @@ def _build_mod(call) -> dict[str, object]:
                     return int(self.DialogCode.Rejected)
                 for name, row in names.items():
                     self.layers.item(row).setCheckState(QT_CHECKED if name in layers else QT_UNCHECKED)
+                if not self.build_button.isEnabled():
+                    # The dialog's own check: Build Mod stays disabled, and its line says why.
+                    shown["refused"] = (self.destination.text().strip()
+                                        or "Build Mod's options are incomplete: give a mod name and an output folder.")
+                    return int(self.DialogCode.Rejected)
                 shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text(),
                              manager=str(self.manager.currentData()[0]), kept_layers=list(self.kept_layers()),
-                             include_body=bool(self.include_body.isVisible() and self.include_body.isChecked()))
+                             include_body=bool(offers_body and self.include_body.isChecked()),
+                             destination=str(self.output_path()))
+                if hair:
+                    shown.update(hair_stem=self.target_stem(), send_to_dmm=bool(self.send_to_dmm_enabled()),
+                                 custom_icon_path=str(self.custom_icon() or ""))
                 return int(self.DialogCode.Accepted)
 
         from PySide6.QtCore import Qt
@@ -752,8 +787,7 @@ def _build_mod(call) -> dict[str, object]:
         busy = getattr(tab, "_mesh_direct_output_busy", None)
         return {"started": bool(busy()) if callable(busy) else bool(shown), **shown, "status": _status(tab)}
 
-    # A hairstyle's Build Mod asks for the folder with a chooser, not the dialog: the same answer.
-    outcome = _act(call, build, {"folder": folder})
+    outcome = _act(call, build)
     if not outcome.get("started"):
         outcome["message"] = ("Build Mod did not start: 'asked' and 'status' say why. A mesh edit must be "
                               "finished (mesh_finish) and pass validation first.")
@@ -912,7 +946,9 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.build_mod", family="mesh", title="Build Mod",
              description="Build Mod for the shown document, as its button does, with the options dialog "
                          "filled from the call: the mod is written as a new folder inside 'output_folder' "
-                         "(an existing folder outside the game). Returns once the build has started; "
+                         "(an existing folder outside the game), named in 'destination'. A hairstyle made with "
+                         "Hair Tools gets the hairstyle dialog: its package mode ('manager'), Hairstyle ID, "
+                         "barber icon and Send to DMM. Returns once the build has started; "
                          "mesh_state shows 'building' until it is done. When it does not start, 'asked' and "
                          "'status' carry the app's reason.",
              input_schema=object_schema({"output_folder": {"type": "string", "minLength": 3, "maxLength": 1024},
@@ -920,8 +956,13 @@ def mesh_tools() -> list[Tool]:
                                          "author": text, "description": {"type": "string", "maxLength": 1024},
                                          "create_zip": {"type": "boolean", "default": False},
                                          "manager": {"type": "string", "maxLength": 64,
-                                                     "description": "dmm_loose (DMM Loose Mesh, the default) or "
-                                                                    "dmm_archive (DMM Archive Group)."},
+                                                     "description": "For a mesh: dmm_loose (DMM Loose Mesh, the "
+                                                                    "default) or dmm_archive (DMM Archive Group). "
+                                                                    "For a hairstyle made with Hair Tools (Package "
+                                                                    "mode): hair_add (Add New Barber Hairstyle, DMM "
+                                                                    "Additive), hair_replace_loose (Replace Existing "
+                                                                    "Hairstyle, DMM Loose Mod) or hair_add_full (Add "
+                                                                    "New Barber Hairstyle, Full Tables Archive)."},
                                          "include_body": {"type": "boolean",
                                                           "description": "Include the body (offered for worn "
                                                                          "garments only)."},
@@ -929,7 +970,23 @@ def mesh_tools() -> list[Tool]:
                                                          "items": {"type": "string", "maxLength": 64},
                                                          "description": "Keep layers underneath "
                                                                         "(experimental): the clothing layers "
-                                                                        "this garment stops cutting."}},
+                                                                        "this garment stops cutting."},
+                                         "hair_stem": {"type": "string", "maxLength": 64,
+                                                       "description": "Hairstyle only: the new hairstyle's ID "
+                                                                      "(Hairstyle ID), for hair_add and "
+                                                                      "hair_add_full. By default it follows the "
+                                                                      "mod name."},
+                                         "custom_icon_path": {"type": "string", "minLength": 3, "maxLength": 1024,
+                                                              "description": "Hairstyle only: an existing image "
+                                                                             "or DDS file for the barber icon; "
+                                                                             "without it the donor's icon is "
+                                                                             "used."},
+                                         "send_to_dmm": {"type": "boolean", "default": False,
+                                                         "description": "Hairstyle only: write the mod straight "
+                                                                        "into DMM's mods folder instead of "
+                                                                        "'output_folder', replacing CDMW's earlier "
+                                                                        "folder of the same name there. Refused "
+                                                                        "when DMM's mods folder is not found."}},
                                         ["output_folder"]),
              effect=OUTPUT, route="ui:_start_mesh_mod_build_requested", handler=_build_mod, runs_on=ON_CALL,
              output_folders=("output_folder",)),

@@ -928,7 +928,7 @@
     {
       "id": "hair.build",
       "area": "Hair Tools",
-      "what": "Build Mod for a hairstyle",
+      "what": "Build Mod for a hairstyle: package mode, Hairstyle ID, custom barber icon and Send to DMM",
       "class": "output",
       "tool": "mesh.build_mod"
     },
