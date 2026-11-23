@@ -144,11 +144,14 @@ def test_terminal_status_is_published_after_real_worker_teardown(tmp_path, event
     tab.standalone_rust_process = _BufferedProcess()
     tab.standalone_rust_protocol_queue.append(request)
     notices, replies = [], []
-    worker = None
+    worker = thread = None
 
     def status(message, error):
         if worker is not None:
-            notices.append((message, error, shiboken6.isValid(worker)))
+            # Since ccc285b53 the worker itself is deleted on the GUI thread just
+            # after its thread ends; the status must wait for that thread's end.
+            ended = not shiboken6.isValid(thread) or thread.isFinished()
+            notices.append((message, error, ended))
 
     tab.status_message_requested.connect(status)
     rejection = ValueError("Synthetic Finish validation rejection")
@@ -163,13 +166,14 @@ def test_terminal_status_is_published_after_real_worker_teardown(tmp_path, event
         ):
             tab._start_next_rust_protocol_worker()
             worker = tab.standalone_rust_protocol_worker
+            thread = tab.standalone_rust_protocol_thread
             deadline = time.monotonic() + 10
             while tab.standalone_rust_protocol_thread is not None and time.monotonic() < deadline:
                 QApplication.instance().processEvents()
                 time.sleep(0.001)
         assert tab.standalone_rust_protocol_thread is None
         assert len(replies) == 1 and len(notices) == 1
-        assert notices[0][2] is False
+        assert notices[0][2] is True
         assert replies[0]["ok"] is (event != "rejected_finish")
         assert notices[0][1] is (event == "rejected_finish")
         assert ("rejected" if event == "rejected_finish" else "cancelled" if event == "cancel" else "accepted") in notices[0][0]
