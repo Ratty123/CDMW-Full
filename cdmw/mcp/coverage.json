@@ -3293,6 +3293,11 @@
       "tool": "mesh.hair"
     },
     {
+      "key": "host_command:hair_import_custom",
+      "gap": "not_built",
+      "milestone": "P13 follow-up after alpha.7: allow-list hair_import_custom in the Mesh Editor helper and give mesh.hair an import_custom {path} action"
+    },
+    {
       "key": "host_command:hair_texture",
       "tool": "mesh.hair"
     },
