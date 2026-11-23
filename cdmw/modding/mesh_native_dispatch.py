@@ -23,6 +23,7 @@ from uuid import uuid4
 from cdmw.core.common import ProcessTimeoutExpired
 from cdmw.core.streaming_json import read_json, write_json
 from cdmw.modding.mesh_deformer import MeshFaceDeleteResult, MeshPartSplitResult
+from cdmw.modding.mesh_native_attr_tokens import restore_native_report, tokenize_native_payload
 from cdmw.modding.mesh_native_core_constants import (
     Face,
     NATIVE_MESH_CORE_BACKEND_ID,
@@ -67,6 +68,8 @@ def _run_native_mesh_core_service_job(
     timeout_seconds: float,
 ) -> dict[str, object] | None:
     session_command = str(command or "").strip().lower() == "mesh-editor-session-json"
+    # A Part's material presentation travels as a token (mesh_native_attr_tokens).
+    payload = tokenize_native_payload(payload)
     # Uploads scale with every affected vertex. Use the resident service's
     # existing file-job route; its pipe carries only paths and acknowledgements.
     if session_command and payload.get("command") != "morph_upload":
@@ -123,6 +126,7 @@ def _run_native_mesh_core_service_job(
                 _LAST_NATIVE_JOB_REJECTION[0] = detail
             note_failure(f"resident status {status or 'missing'}: {detail or 'no message'}")
             return None
+        report = restore_native_report(report)
         _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:
@@ -148,6 +152,7 @@ def _run_native_mesh_core_service_inline_job(
     timeout_seconds: float,
 ) -> dict[str, object] | None:
     _LAST_NATIVE_JOB_REJECTION[0] = ""
+    payload = tokenize_native_payload(payload)  # idempotent: a token stays a token
     def note_failure(reason: str, *, exc_info: bool = False) -> None:
         _note_native_job_failure(command, reason, binary=binary, payload=payload,
                                  timeout_seconds=timeout_seconds, exc_info=exc_info)
@@ -188,6 +193,7 @@ def _run_native_mesh_core_service_inline_job(
                 f"inline status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
             )
             return None
+        report = restore_native_report(report)
         _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:
@@ -275,6 +281,7 @@ def _run_native_mesh_core_job(
         _note_native_job_failure(command, reason, binary=binary, payload=payload,
                                  timeout_seconds=timeout_seconds, stderr=stderr, exc_info=exc_info)
 
+    payload = tokenize_native_payload(payload)
     job_root = Path(tempfile.mkdtemp(prefix="cdmw_mesh_core_"))
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
@@ -338,6 +345,7 @@ def _run_native_mesh_core_job(
                 f"native status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
             )
             return None
+        report = restore_native_report(report)
         _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:

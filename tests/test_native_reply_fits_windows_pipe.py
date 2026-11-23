@@ -1,11 +1,11 @@
 """The mesh-core service writes an ordinary reply whole into its stdout pipe (2026-11-23).
 
 With Windows' default 4 KiB pipe the service wrote a reply one buffer at a time, and
-the client took each piece only when it had the GIL again. The Demenissian Council
-Robes' 370 KiB Morph state, made by the core in 10 ms, took over 5 s to read while
-Browse's preview and texture threads were busy; its query was given up and the first
-selection waited behind the late reply. The pipe now holds a whole reply, so it is
-read in one piece.
+the client took each piece only when it had the GIL again: the Demenissian Council
+Robes' 370 KiB Morph state, made by the core in 10 ms, took 5-6 s to read beside three
+busy Python threads (measured outside the app). The pipe now holds an ordinary reply
+whole, so it is read in one piece. (In the app the replies were 40 MB, from material
+attributes that now travel as tokens; see test_native_material_attrs_travel_as_tokens.)
 
 A stand-in service writes a 2 MiB reply and only then marks a file; the test waits for
 the mark without reading stdout, so the write must not block on the pipe.

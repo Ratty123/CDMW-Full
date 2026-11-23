@@ -45,10 +45,12 @@ def _native_backend_id() -> str:
 
 #: The Windows stdout pipe holds a whole ordinary reply. With the default 4 KiB pipe the
 #: service wrote a reply one buffer at a time, and the reader took each piece only once
-#: it had the GIL again: a 370 KiB Morph state that the core made in 10 ms took over 5 s
-#: to read while three Python threads were busy (Mesh Editor open of the Demenissian
-#: Council Robes, beside Browse's preview and texture work, 2026-11-23), and its query
-#: was given up. Memory is used only by bytes waiting in the pipe.
+#: it had the GIL again: a 370 KiB Morph state that the core made in 10 ms took 5-6 s to
+#: read beside three busy Python threads (measured outside the app on the Demenissian
+#: Council Robes, 2026-11-23). In the app those replies were 40 MB, from the Parts'
+#: material attributes, which now travel as tokens (mesh_native_attr_tokens); a reply
+#: larger than this pipe still works, a buffer at a time. Memory is used only by bytes
+#: waiting in the pipe.
 _WINDOWS_STDOUT_PIPE_BYTES = 8 * 1024 * 1024
 
 
