@@ -364,6 +364,9 @@ class MeshEditorTabShellMixin(
         self._discard_queued_archive_session_open()
         self.close_standalone_session()
         self._release_reusable_archive_material_context()
+        release_warmups = getattr(self, "_release_editor_command_warmups", None)
+        if callable(release_warmups):
+            release_warmups(force=True)
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
             dispatcher.request_stop()

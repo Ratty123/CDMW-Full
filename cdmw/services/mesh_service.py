@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 import logging
 import hashlib
 import math
@@ -1561,10 +1562,48 @@ class _MeshServiceSessionLayerCore(
         session.mesh_layer_autosave_timer = timer
         timer.start()
 
+    @contextmanager
+    def foreground_request(self, session_id: str):
+        """Run an editor request the user is waiting for; the session's autosave waits.
+
+        The autosave starts 0.75 s after an edit and holds the session's export lock
+        while it exports the resident mesh and writes the recovery point. With Browse
+        busy, an edit's own reply often took longer than that, so the autosave took
+        the lock first and the reply waited for the whole save: 4 s of a 13 s
+        transform on the Demenissian Council Robes (2026-11-23). A save already
+        running is not stopped, since a cancelled native export closes the resident
+        session.
+        """
+
+        session = self._sessions.get(str(session_id))
+        if session is None:
+            yield
+            return
+        with _FOREGROUND_REQUESTS_LOCK:
+            session.foreground_requests += 1
+        try:
+            yield
+        finally:
+            with _FOREGROUND_REQUESTS_LOCK:
+                session.foreground_requests = max(0, session.foreground_requests - 1)
+                resume = (session.foreground_requests == 0 and session.mesh_layer_autosave_after_foreground
+                          and not session.closed)
+                if resume:
+                    session.mesh_layer_autosave_after_foreground = False
+            if resume:
+                timer = threading.Timer(0.25, self._start_mesh_layer_autosave, args=(session.session_id,))
+                timer.daemon = True
+                session.mesh_layer_autosave_timer = timer
+                timer.start()
+
     def _start_mesh_layer_autosave(self, session_id: str) -> None:
         session = self._sessions.get(str(session_id))
         if session is None or session.closed:
             return
+        with _FOREGROUND_REQUESTS_LOCK:
+            if session.foreground_requests > 0:
+                session.mesh_layer_autosave_after_foreground = True  # foreground_request starts it
+                return
         running = session.mesh_layer_autosave_thread
         if running is not None and running.is_alive():
             if session.mesh_layer_autosave_stop_event is not None:
@@ -2236,6 +2275,10 @@ class _MeshServiceSessionLayerCore(
 
 #: A private worker action: the window's layer commands, run off its thread.
 GEOMETRY_LAYER_WORKER_ACTION = "_geometry_layer_command"
+
+
+#: Guards each session's foreground-request count and its deferred autosave.
+_FOREGROUND_REQUESTS_LOCK = threading.Lock()
 
 
 @dataclass(slots=True)

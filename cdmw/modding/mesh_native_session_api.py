@@ -20,6 +20,7 @@ from cdmw.modding.mesh_native_report_application import _refresh_mesh_totals
 from cdmw.modding.mesh_native_report_edits import _apply_mesh_edit_report
 from cdmw.modding.mesh_native_dispatch import _note_native_job_failure
 from cdmw.modding.mesh_native_session_payloads import _native_mesh_editor_selection_payload
+from cdmw.modding.mesh_native_core_temp_paths import release_native_preview_delta_dir
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 
 
@@ -848,8 +849,34 @@ def export_native_mesh_editor_session_to_mesh(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 10.0,
 ) -> bool:
+    """Read the resident session's geometry back into ``mesh``.
+
+    Every Part's payloads (15 files each) go into one folder that is removed once
+    they are read. Each payload used to be its own pre-created temp file that
+    nothing removed, and every create and read released the GIL: on the 22-part
+    Demenissian Council Robes one sync took 0.4 s alone but 13 s beside three busy
+    Python threads, and thousands of payloads piled up in TEMP (2026-11-23).
+    """
+
     if not isinstance(mesh, ParsedMesh):
         return False
+    output_dir = Path(_native_preview_delta_output_dir())
+    try:
+        return _export_native_mesh_editor_session_into(
+            mesh, session_id, output_dir, stop_event=stop_event, timeout_seconds=timeout_seconds,
+        )
+    finally:
+        release_native_preview_delta_dir(output_dir)
+
+
+def _export_native_mesh_editor_session_into(
+    mesh: ParsedMesh,
+    session_id: str,
+    output_dir: Path,
+    *,
+    stop_event: threading.Event | None,
+    timeout_seconds: float,
+) -> bool:
     summary = export_native_mesh_editor_session_snapshot(
         session_id,
         stop_event=stop_event,
@@ -886,23 +913,23 @@ def export_native_mesh_editor_session_to_mesh(
         job_submeshes.append(
             {
                 "index": submesh_index,
-                "vertices_output_path": _native_preview_delta_output_path("_editor_snapshot_vertices.bin"),
-                "faces_output_path": _native_preview_delta_output_path("_editor_snapshot_faces.bin"),
-                "source_face_indices_output_path": _native_preview_delta_output_path("_editor_snapshot_source_faces.bin"),
-                "normals_output_path": _native_preview_delta_output_path("_editor_snapshot_normals.bin"),
-                "uvs_output_path": _native_preview_delta_output_path("_editor_snapshot_uvs.bin"),
-                "tangents_output_path": _native_preview_delta_output_path("_editor_snapshot_tangents.bin"),
-                "tangent_signs_output_path": _native_preview_delta_output_path("_editor_snapshot_tangent_signs.bin"),
-                "bone_counts_output_path": _native_preview_delta_output_path("_editor_snapshot_bone_counts.bin"),
-                "bone_indices_output_path": _native_preview_delta_output_path("_editor_snapshot_bone_indices.bin"),
-                "bone_weights_output_path": _native_preview_delta_output_path("_editor_snapshot_bone_weights.bin"),
-                "source_vertex_map_output_path": _native_preview_delta_output_path("_editor_snapshot_source_vertex_map.bin"),
-                "source_vertex_offsets_output_path": _native_preview_delta_output_path("_editor_snapshot_source_vertex_offsets.bin"),
+                "vertices_output_path": str(output_dir / f"{submesh_index:05d}_vertices.bin"),
+                "faces_output_path": str(output_dir / f"{submesh_index:05d}_faces.bin"),
+                "source_face_indices_output_path": str(output_dir / f"{submesh_index:05d}_source_faces.bin"),
+                "normals_output_path": str(output_dir / f"{submesh_index:05d}_normals.bin"),
+                "uvs_output_path": str(output_dir / f"{submesh_index:05d}_uvs.bin"),
+                "tangents_output_path": str(output_dir / f"{submesh_index:05d}_tangents.bin"),
+                "tangent_signs_output_path": str(output_dir / f"{submesh_index:05d}_tangent_signs.bin"),
+                "bone_counts_output_path": str(output_dir / f"{submesh_index:05d}_bone_counts.bin"),
+                "bone_indices_output_path": str(output_dir / f"{submesh_index:05d}_bone_indices.bin"),
+                "bone_weights_output_path": str(output_dir / f"{submesh_index:05d}_bone_weights.bin"),
+                "source_vertex_map_output_path": str(output_dir / f"{submesh_index:05d}_source_vertex_map.bin"),
+                "source_vertex_offsets_output_path": str(output_dir / f"{submesh_index:05d}_source_vertex_offsets.bin"),
                 # Topology provenance rides back as three matched binary payloads.
                 # The native side publishes them only when the contract is valid.
-                "vertex_origin_offsets_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_offsets.bin"),
-                "vertex_origin_parents_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_parents.bin"),
-                "vertex_origin_weights_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_weights.bin"),
+                "vertex_origin_offsets_output_path": str(output_dir / f"{submesh_index:05d}_vertex_origin_offsets.bin"),
+                "vertex_origin_parents_output_path": str(output_dir / f"{submesh_index:05d}_vertex_origin_parents.bin"),
+                "vertex_origin_weights_output_path": str(output_dir / f"{submesh_index:05d}_vertex_origin_weights.bin"),
             }
         )
     report = export_native_mesh_editor_session_snapshot(

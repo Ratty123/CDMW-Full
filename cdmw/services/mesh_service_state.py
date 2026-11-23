@@ -285,6 +285,10 @@ class _MeshEditSession:
     mesh_layer_autosave_requested_key: tuple[int, int] = (-1, -1)
     mesh_layer_autosave_saved_key: tuple[int, int] = (-1, -1)
     mesh_layer_autosave_error: str = ""
+    # Editor requests the user is waiting for (Mesh Editor protocol requests). An
+    # autosave due while one runs starts after it instead (2026-11-23).
+    foreground_requests: int = 0
+    mesh_layer_autosave_after_foreground: bool = False
     mesh_layer_loaded_generation: str = ""
     # P14: where this state sits in the draft's history journal, and what the
     # steps since the last journal record were.

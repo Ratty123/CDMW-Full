@@ -75,6 +75,9 @@ _STALE_EDITOR_SESSION_SECONDS = 24 * 60 * 60
 #: in Browse Archives until the editor is ready or fails. The shell takes it
 #: before the mesh loads; the tab releases it.
 MESH_EDITOR_OPEN_WARMUP_HOLD = object()
+#: How long the editor stays idle after a command before Browse's warm-ups resume, so a
+#: run of gestures does not resume and pause them between each one.
+EDITOR_COMMAND_WARMUP_IDLE_MS = 1500
 _WARMUP_HOLD_LIMIT_MS = 120_000
 
 
@@ -506,6 +509,44 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         archive = self._background_warmup_owner()
         if archive is not None:
             release_warmups_for_mesh_editor_open(archive)
+
+    def _hold_warmups_for_editor_command(self) -> None:
+        """Pause Browse's warm-ups while an editor command the user waits for runs.
+
+        Finder thumbnails, Item Finder icons and Create New Item's preload ran
+        through every edit once the editor was ready. On a fresh profile they keep
+        several Python threads busy for minutes, and each native reply, autosave and
+        file read of the edit waited for Python's lock behind them: a transform on
+        the Demenissian Council Robes took 10-14 s (2026-11-23). The open already
+        pauses them; commands now do too, until the editor has been idle a moment.
+        """
+
+        archive = self._background_warmup_owner()
+        if archive is None:
+            return
+        token = getattr(self, "_editor_command_warmup_token", None)
+        if token is None:
+            token = self._editor_command_warmup_token = object()
+        archive.hold_background_warmups(token)
+        self._editor_command_warmups_held = True
+
+    def _release_warmups_after_editor_command(self) -> None:
+        if getattr(self, "_editor_command_warmups_held", False):
+            QTimer.singleShot(EDITOR_COMMAND_WARMUP_IDLE_MS, self, self._release_editor_command_warmups)
+
+    def _release_editor_command_warmups(self, *, force: bool = False) -> None:
+        if not getattr(self, "_editor_command_warmups_held", False):
+            return
+        if not force and getattr(self, "standalone_rust_protocol_thread", None) is not None:
+            return  # a later command is running; its end releases them
+        self._editor_command_warmups_held = False
+        archive = self._background_warmup_owner()
+        release = getattr(archive, "release_background_warmups", None)
+        if callable(release):
+            try:
+                release(self._editor_command_warmup_token)
+            except RuntimeError:  # the window closed first
+                pass
 
     def _start_selected_mesh_editor(self, controller: object) -> None:
         if self._defer_rust_editor_for_material_context(controller):

@@ -1828,10 +1828,20 @@ def _with_pinned_session_root(method):
     return wrapped
 
 
+def _foreground_shadow_request(session):
+    """The shadow session's autosave waits for this request (MeshService.foreground_request)."""
+
+    service = getattr(session, "shadow_service", None)
+    begin = getattr(service, "foreground_request", None)
+    if not callable(begin):
+        return nullcontext()
+    return begin(str(getattr(session, "shadow_session_id", "") or ""))
+
+
 def _with_protocol_lock(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
-        with self._protocol_lock:
+        with self._protocol_lock, _foreground_shadow_request(self):
             try:
                 return method(self, *args, **kwargs)
             except BaseException:

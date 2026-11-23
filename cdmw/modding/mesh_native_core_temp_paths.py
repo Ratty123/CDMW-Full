@@ -102,6 +102,18 @@ def release_native_preview_delta_path(path: str | Path) -> bool:
     return True
 
 
+def release_native_preview_delta_dir(path: str | Path) -> bool:
+    """Remove one app-owned output folder and everything the helper wrote in it."""
+
+    candidate = Path(path)
+    with _native_preview_delta_paths_lock:
+        if candidate not in _native_preview_delta_dirs:
+            return False
+        _native_preview_delta_dirs.discard(candidate)
+    shutil.rmtree(candidate, ignore_errors=True)
+    return True
+
+
 def cleanup_native_preview_delta_paths(time_budget_seconds: float | None = None) -> int:
     """Delete tracked delta payloads, optionally under a time budget.
 

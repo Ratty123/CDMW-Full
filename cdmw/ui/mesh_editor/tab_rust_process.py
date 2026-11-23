@@ -1344,6 +1344,9 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_protocol_status = None
         if event.get("event") != "vertex_inspect":
             self._set_rust_status(self._rust_busy_message(event))
+            hold_warmups = getattr(self, "_hold_warmups_for_editor_command", None)
+            if callable(hold_warmups):
+                hold_warmups()
         thread.start()
 
     @staticmethod
@@ -1477,6 +1480,9 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_protocol_thread = None
         self.standalone_rust_protocol_worker = None
         self.standalone_rust_active_event = None
+        release_warmups = getattr(self, "_release_warmups_after_editor_command", None)
+        if callable(release_warmups):
+            release_warmups()
         status = getattr(self, "standalone_rust_protocol_status", None)
         self.standalone_rust_protocol_status = None
         if status is not None:
