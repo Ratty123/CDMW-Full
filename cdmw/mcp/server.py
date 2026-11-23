@@ -204,8 +204,10 @@ class _RpcError(Exception):
 class McpServer:
     """The tool table behind the MCP methods; one instance serves every session."""
 
-    def __init__(self, table: ToolTable, context: object, *, policy=None, audit=None, jobs=None) -> None:
+    def __init__(self, table: ToolTable, context: object, *, policy=None, audit=None, jobs=None,
+                 activity=None) -> None:
         self.editor_history_lock = threading.RLock()
+        from cdmw.mcp.activity import ActivityFeed
         from cdmw.mcp.approvals import ApprovalPolicy
         from cdmw.mcp.audit import AuditLog
         from cdmw.mcp.jobs import JobRegistry
@@ -216,6 +218,12 @@ class McpServer:
         self.policy = policy or ApprovalPolicy(getattr(context, "settings", None))
         self.audit = audit or AuditLog()
         self.jobs = jobs or JobRegistry()
+        #: What the drawer's AI Connection tab shows: every audit line, connections and finished jobs.
+        self.activity = activity or ActivityFeed()
+        if getattr(self.audit, "feed", None) is None:
+            self.audit.feed = self.activity
+        if getattr(self.jobs, "on_finished", None) is None:
+            self.jobs.on_finished = self.activity.job_finished
         self.pages = PageStore()
         #: How long a worker call may take and still answer directly (tests shorten it).
         self.quick_result_s: float | None = None
@@ -227,19 +235,24 @@ class McpServer:
         from cdmw.mcp.transport import recv_json, send_json
 
         session = McpSession(self, lambda message: send_json(conn, message))
-        while True:
-            try:
-                message = recv_json(conn)
-            except (EOFError, OSError, RuntimeError):
-                # RuntimeError: multiprocessing's answer to a read cancelled by stop().
-                break
-            except ValueError:
-                session.send({"jsonrpc": "2.0", "id": None, "error": {"code": PARSE_ERROR, "message": "Not JSON."}})
-                continue
-            session.receive(message)
-        with session._lock:
-            for cancel in session.in_flight.values():
-                cancel.set()
+        self.activity.connected()
+        try:
+            while True:
+                try:
+                    message = recv_json(conn)
+                except (EOFError, OSError, RuntimeError):
+                    # RuntimeError: multiprocessing's answer to a read cancelled by stop().
+                    break
+                except ValueError:
+                    session.send({"jsonrpc": "2.0", "id": None,
+                                  "error": {"code": PARSE_ERROR, "message": "Not JSON."}})
+                    continue
+                session.receive(message)
+        finally:
+            with session._lock:
+                for cancel in session.in_flight.values():
+                    cancel.set()
+            self.activity.disconnected(session.client)
 
     # ----- methods -------------------------------------------------------------
     def dispatch(self, session: McpSession, method: str, params: dict, cancel: threading.Event) -> object:
@@ -280,6 +293,7 @@ class McpServer:
         session.protocol = wanted if wanted in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
         info = params.get("clientInfo") if isinstance(params.get("clientInfo"), dict) else {}
         session.client = str(info.get("name") or "MCP client")[:80]
+        self.activity.client_named(session.client)
         return {
             "protocolVersion": session.protocol,
             "capabilities": {"tools": {"listChanged": False}, "resources": {"listChanged": False},
@@ -331,6 +345,10 @@ class McpServer:
         except ToolError as error:
             outcome.update(result=error.code, message=error.message)
             return _tool_error(error)
+        except Exception as exc:
+            # The client gets an internal error; the log must not call it ok.
+            outcome.update(result=FAILED, message=f"{type(exc).__name__}: {exc}")
+            raise
         finally:
             job = call.job
             given = params.get("arguments") if isinstance(params.get("arguments"), dict) else None
@@ -449,9 +467,9 @@ class McpServer:
         job = self.jobs.start(call, execute, game_folder=game_folder)
         job.paged = tool.paged
         if job.wait(self.quick_result_s if self.quick_result_s is not None else QUICK_RESULT_S):
+            call.job = None  # answered directly, result or error: no job to follow
             if job.error is not None:
                 raise job.error
-            call.job = None  # answered directly: no job to follow
             return job.result
         return {"job": job.id, "state": job.state, "tool": tool.wire,
                 "message": "This takes a while. Follow it with app_job, or stop it with app_cancel_job."}

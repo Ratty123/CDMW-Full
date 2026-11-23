@@ -1,4 +1,4 @@
-"""Collapsed-by-default Activity and Current Tool Log drawer."""
+"""Collapsed-by-default Activity, Current Tool Log and AI Connection drawer."""
 
 from __future__ import annotations
 
@@ -18,12 +18,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.ai_connections.activity_model import AiActivityModel, ai_activity_model
 from cdmw.ui.shell.compact.activity import ActivityHistory, ToolLogAdapter
+from cdmw.ui.shell.compact.ai_connection_tab import AiConnectionView
 from cdmw.ui.log_view import LiveLogBinding
 
 
 class CompactActivityDrawer(QFrame):
-    def __init__(self, history: ActivityHistory, parent: QWidget | None = None) -> None:
+    def __init__(self, history: ActivityHistory, parent: QWidget | None = None, *,
+                 ai_activity: AiActivityModel | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("CompactActivityDrawer")
         self.setMinimumHeight(168)
@@ -78,6 +81,9 @@ class CompactActivityDrawer(QFrame):
         self.tool_log_stack.addWidget(self.tool_log_empty_label)
         self.tool_log_stack.addWidget(self.tool_log_view)
         self.tabs.addTab(self.tool_log_stack, "Current Tool Log")
+        model = ai_activity or ai_activity_model() or AiActivityModel(self)
+        self.ai_connection_view = AiConnectionView(model)
+        self.tabs.addTab(self.ai_connection_view, "AI Connection")
         layout.addWidget(self.tabs, stretch=1)
 
         self.clear_button.clicked.connect(self._clear_current_view)
@@ -85,7 +91,14 @@ class CompactActivityDrawer(QFrame):
         self.tabs.currentChanged.connect(self._activity_tab_changed)
         history.changed.connect(self._schedule_activity_refresh)
         history.cleared.connect(self._clear_activity_text)
+        model.changed.connect(self._update_action_state)
         self._update_action_state()
+
+    def _current_is_activity(self) -> bool:
+        return self.tabs.currentWidget() is self.activity_view
+
+    def _current_is_ai_connection(self) -> bool:
+        return self.tabs.currentWidget() is self.ai_connection_view
 
     def _schedule_activity_refresh(self, _event: object) -> None:
         self._activity_dirty = True
@@ -93,12 +106,12 @@ class CompactActivityDrawer(QFrame):
         # Status bursts can contain hundreds of messages in a single GUI turn.
         # Keep the full history, but render it at most once per refresh interval
         # and only while the Activity page is actually on screen.
-        if self.isVisible() and self.tabs.currentIndex() == 0 and not self._refresh_timer.isActive():
+        if self.isVisible() and self._current_is_activity() and not self._refresh_timer.isActive():
             self._refresh_timer.start()
 
     def _refresh_activity_text(self) -> None:
         self._refresh_timer.stop()
-        if not self._activity_dirty or not self.isVisible() or self.tabs.currentIndex() != 0:
+        if not self._activity_dirty or not self.isVisible() or not self._current_is_activity():
             return
         self.activity_view.setPlainText(self._history.formatted_text())
         self._activity_dirty = False
@@ -182,15 +195,18 @@ class CompactActivityDrawer(QFrame):
         return False
 
     def _clear_current_view(self) -> None:
-        if self.tabs.currentIndex() == 0:
+        if self._current_is_activity():
             self._history.clear()
+        elif self._current_is_ai_connection():
+            self.ai_connection_view.clear()
         else:
             self._tool_adapter.clear()
             self._update_tool_log_empty_state()
 
     def _copy_current_view(self) -> None:
-        if self.tabs.currentIndex() == 0:
-            text = self._history.formatted_text()
+        if self._current_is_activity() or self._current_is_ai_connection():
+            text = (self._history.formatted_text() if self._current_is_activity()
+                    else self.ai_connection_view.text())
             app = QApplication.instance()
             if app is not None:
                 app.clipboard().setText(text)
@@ -198,8 +214,9 @@ class CompactActivityDrawer(QFrame):
             self._tool_adapter.copy()
 
     def _update_action_state(self, *_args: object) -> None:
-        if self.tabs.currentIndex() == 0:
-            has_text = bool(self._history.events)
+        if self._current_is_activity() or self._current_is_ai_connection():
+            has_text = (bool(self._history.events) if self._current_is_activity()
+                        else self.ai_connection_view.has_rows())
             self.clear_button.setEnabled(has_text)
             self.copy_button.setEnabled(has_text)
             return

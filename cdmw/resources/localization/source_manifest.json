@@ -172,12 +172,32 @@
       ]
     },
     {
+      "key": "    + {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "    Matched far from the template's surface ({value_0} target(s)); check how it bends.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/import_details.py",
           "line": 39,
           "sink": "note"
+        }
+      ]
+    },
+    {
+      "key": "    ~ {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -215,9 +235,34 @@
       "key": "  (none)",
       "origins": [
         {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        },
+        {
           "path": "tools/placement_studio/move_operation.py",
           "line": 254,
           "sink": "python-return:review_lines"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         },
         {
           "path": "tools/placement_studio/window_carry.py",
@@ -313,6 +358,11 @@
           "path": "tools/placement_studio/move_operation.py",
           "line": 254,
           "sink": "python-return:review_lines"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -343,6 +393,16 @@
           "path": "tools/placement_studio/move_operation.py",
           "line": 254,
           "sink": "python-return:review_lines"
+        }
+      ]
+    },
+    {
+      "key": "  ERROR  {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 148,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -980,9 +1040,34 @@
           "sink": "setPlainText"
         },
         {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        },
+        {
           "path": "tools/placement_studio/move_operation.py",
           "line": 254,
           "sink": "python-return:review_lines"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -6262,6 +6347,16 @@
       "manual": true
     },
     {
+      "key": "AI Connection",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/drawer.py",
+          "line": 86,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
       "key": "AI Connections (MCP)",
       "origins": [
         {
@@ -7541,7 +7636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 67,
+          "line": 70,
           "sink": "addTab"
         },
         {
@@ -7566,7 +7661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 66,
+          "line": 69,
           "sink": "setPlaceholderText"
         }
       ]
@@ -11582,6 +11677,26 @@
       ]
     },
     {
+      "key": "An AI app connected",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 177,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "An AI app is connected, since {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 204,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "An ItemInfo layout error can follow a game patch that changes item records; small patches do not always need a CDMW update. Check for CDMW and item-mod updates. Copy error report includes the source table and reader details. An unknown layout can also mean an outdated mod or damaged data.",
       "origins": [
         {
@@ -12382,6 +12497,16 @@
       ]
     },
     {
+      "key": "Animation donors:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Animation files ({value_0})",
       "origins": [
         {
@@ -12458,6 +12583,26 @@
           "path": "cdmw/ui/shell/problem_report_catalog.py",
           "line": 93,
           "sink": "python-data:REPORT_TOOLS"
+        }
+      ]
+    },
+    {
+      "key": "Animation target families",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Animation targets:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -12638,6 +12783,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 693,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Another AI app was refused: one AI app at a time can connect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 185,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -16948,6 +17103,16 @@
           "path": "tools/format_explorer/tab.py",
           "line": 241,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Arguments",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -22152,6 +22317,16 @@
       ]
     },
     {
+      "key": "Borrowed-character clips: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Both",
       "origins": [
         {
@@ -26538,6 +26713,16 @@
           "path": "cdmw/ui/new_item/shader_controls_editor.py",
           "line": 45,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Called {value_0} times in a row with the same arguments and result, last at {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 170,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -35566,7 +35751,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 53,
+          "line": 56,
           "sink": "QPushButton"
         },
         {
@@ -39782,6 +39967,16 @@
       ]
     },
     {
+      "key": "Confirm before continuing",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 148,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Confirm clearing PNG / DDS output folders before Start",
       "origins": [
         {
@@ -39993,6 +40188,26 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 605,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Connected: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 175,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Connected: {value_0}, since {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 202,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -41271,7 +41486,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 55,
+          "line": 58,
           "sink": "QPushButton"
         },
         {
@@ -44491,7 +44706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 80,
+          "line": 83,
           "sink": "addTab"
         }
       ]
@@ -48072,6 +48287,26 @@
       ]
     },
     {
+      "key": "Descriptor rows changed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Descriptor rows changed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Descriptor-side body/socket/material context near this HKX shape; read-only and ignored on import.",
       "origins": [
         {
@@ -48163,6 +48398,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 243,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Destination: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -49548,6 +49793,16 @@
           "path": "cdmw/ui/new_item/item_behavior_editor.py",
           "line": 24,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Disconnected: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 181,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -51793,6 +52048,16 @@
           "path": "cdmw/ui/model_preview_settings_dialog.py",
           "line": 724,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Duration",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -56267,6 +56532,16 @@
       "manual": true
     },
     {
+      "key": "Equipment: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Erase",
       "origins": [
         {
@@ -57352,6 +57627,26 @@
       ]
     },
     {
+      "key": "Excluded earlier operations: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Excluded free-form edits (not part of any operation): {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Excluded legacy packages (preserved for rebuilding):\n{value_0}",
       "origins": [
         {
@@ -57568,6 +57863,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 362,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Existing shared sockets modified: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -62968,6 +63273,16 @@
           "path": "cdmw/ui/archive_browser/dmm_added_files.py",
           "line": 416,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Files by extension",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -78842,6 +79157,16 @@
       "manual": true
     },
     {
+      "key": "In-game behavior: Unverified",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "In-game mesh companion preparation cancelled.",
       "origins": [
         {
@@ -84787,6 +85112,16 @@
       ]
     },
     {
+      "key": "Job",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Join another animation",
       "origins": [
         {
@@ -88383,6 +88718,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 208,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Linked parts: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -101352,6 +101697,16 @@
       ]
     },
     {
+      "key": "Mounted clips: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Mounted files: {value_0} across {value_1} mod(s) | Overlaps: {value_2}",
       "origins": [
         {
@@ -104432,6 +104787,16 @@
       ]
     },
     {
+      "key": "New child sockets: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "New item",
       "origins": [
         {
@@ -104973,6 +105338,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
           "line": 163,
           "sink": "python-return:_workflow_rule_summary"
+        }
+      ]
+    },
+    {
+      "key": "No AI app has called a tool yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 94,
+          "sink": "QLabel"
         }
       ]
     },
@@ -107131,12 +107506,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 70,
+          "line": 73,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 164,
+          "line": 177,
           "sink": "setText"
         }
       ]
@@ -109737,6 +110112,16 @@
       ]
     },
     {
+      "key": "No {value_0}: nothing to compare the files against.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "No. Start with visible color, UI, or emissive textures. Normals, packed masks, vectors, height maps, and displacement maps should usually stay preserve-first unless you know the family.",
       "origins": [
         {
@@ -110457,6 +110842,26 @@
       ]
     },
     {
+      "key": "Not connected. AI connections are off; turn them on in Settings > AI connections.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 208,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Not connected. Waiting for an AI app to connect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 206,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "Not editable",
       "origins": [
         {
@@ -110558,6 +110963,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Not parsed (carried whole)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -111816,7 +112231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/controller.py",
-          "line": 92,
+          "line": 108,
           "sink": "python-return:status_text"
         },
         {
@@ -112131,7 +112546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/controller.py",
-          "line": 95,
+          "line": 111,
           "sink": "python-return:status_text"
         }
       ]
@@ -112141,7 +112556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/controller.py",
-          "line": 97,
+          "line": 113,
           "sink": "python-return:status_text"
         }
       ]
@@ -112171,7 +112586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/controller.py",
-          "line": 95,
+          "line": 111,
           "sink": "python-return:status_text"
         }
       ]
@@ -112181,7 +112596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/ai_connections/controller.py",
-          "line": 97,
+          "line": 113,
           "sink": "python-return:status_text"
         }
       ]
@@ -113182,6 +113597,16 @@
       ]
     },
     {
+      "key": "Open Log File",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 75,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Open Loose Socket XML To Compare",
       "origins": [
         {
@@ -113983,6 +114408,16 @@
           "path": "cdmw/ui/texture_workflow/editor_canvas.py",
           "line": 929,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "Open ai-calls.log, the AI call log this tab shows.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 77,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -116077,6 +116512,16 @@
       ]
     },
     {
+      "key": "Operations: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Optional",
       "origins": [
         {
@@ -116538,6 +116983,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 291,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Orientation sources:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -118987,6 +119442,16 @@
       ]
     },
     {
+      "key": "Package blocked",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 148,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Package compatibility and required capabilities are checked on admission; game and save compatibility need separate validation.",
       "origins": [
         {
@@ -119172,6 +119637,16 @@
       "manual": true
     },
     {
+      "key": "Package scope",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Package service is not configured.",
       "origins": [
         {
@@ -119243,6 +119718,11 @@
           "path": "cdmw/workers/archive_preview_workers.py",
           "line": 459,
           "sink": "ArchivePreviewResult"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -125263,6 +125743,16 @@
           "path": "tools/placement_studio/move_workspace.py",
           "line": 263,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Preparation evidence: Unverified (legacy or unchecked operation)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -145453,6 +145943,11 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 240,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -151528,6 +152023,16 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 358,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Scope mismatches",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -165367,6 +165872,16 @@
       "manual": true
     },
     {
+      "key": "Socket definitions",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 110,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Socket descriptor contains named socket transforms.",
       "origins": [
         {
@@ -165403,6 +165918,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 780,
           "sink": "setDetailedText"
+        }
+      ]
+    },
+    {
+      "key": "Socket files changed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -174743,6 +175268,26 @@
           "path": "cdmw/services/new_item_painting_preview.py",
           "line": 194,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "The AI Connection tab of the Workspace Activity drawer shows the same calls as they happen: whether an AI app is connected, which one and since when, and for each call the tool, a summary of its arguments, its result or error and how long it took. A job that a call started shows when it ends. The same call failing the same way several times in a row is one row with a count, so a loop of retries stands out, and failed calls are marked. Clear empties the tab, not the log, and Open Log File opens the log.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1133,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app disconnected",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 183,
+          "sink": "translate_active_ui_text"
         }
       ]
     },
@@ -184686,7 +185231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 167,
+          "line": 180,
           "sink": "setText"
         }
       ]
@@ -185273,6 +185818,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 226,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Time",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -186028,6 +186583,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1364,
           "sink": "_add_tool_setting_row"
+        }
+      ]
+    },
+    {
+      "key": "Tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 87,
+          "sink": "setHeaderLabels"
         }
       ]
     },
@@ -196387,6 +196952,16 @@
       ]
     },
     {
+      "key": "Warnings accepted:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 118,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Warnings:",
       "origins": [
         {
@@ -199446,7 +200021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/drawer.py",
-          "line": 49,
+          "line": 52,
           "sink": "QLabel"
         }
       ]
@@ -208505,6 +209080,11 @@
           "sink": "emit"
         },
         {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 194,
+          "sink": "setData"
+        },
+        {
           "path": "cdmw/workers/archive_preview_native.py",
           "line": 1225,
           "sink": "ArchivePreviewResult"
@@ -216433,6 +217013,11 @@
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 663,
           "sink": "_result"
+        },
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 85,
+          "sink": "python-return:result_text"
         },
         {
           "path": "cdmw/ui/archive_browser/appearance_composite.py",
@@ -229382,6 +229967,16 @@
       ]
     },
     {
+      "key": "{value_0} events came faster than this tab could show them and were left out. The AI call log has every call.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 212,
+          "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0} events have no fields CDMW can change yet. Their timing is under Timing.",
       "origins": [
         {
@@ -230552,6 +231147,16 @@
       ]
     },
     {
+      "key": "{value_0} matches the files.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "{value_0} matches · {value_1} shown",
       "origins": [
         {
@@ -230673,6 +231278,21 @@
           "path": "tools/placement_studio/window_armour.py",
           "line": 350,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} ms",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 113,
+          "sink": "python-return:line"
+        },
+        {
+          "path": "cdmw/ui/shell/compact/ai_connection_tab.py",
+          "line": 165,
+          "sink": "setText"
         }
       ]
     },
@@ -233852,6 +234472,16 @@
       ]
     },
     {
+      "key": "{value_0}: cancelled after {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 98,
+          "sink": "python-return:job_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: cannot decode the EyeCover source texture.",
       "origins": [
         {
@@ -233938,6 +234568,36 @@
           "path": "cdmw/services/independent_item_compatibility.py",
           "line": 96,
           "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: done in {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 96,
+          "sink": "python-return:job_text"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: failed after {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 102,
+          "sink": "python-return:job_text"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: failed after {value_1}: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 101,
+          "sink": "python-return:job_text"
         }
       ]
     },
@@ -234297,6 +234957,16 @@
       ]
     },
     {
+      "key": "{value_0}: still running",
+      "origins": [
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 93,
+          "sink": "python-return:job_text"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: taken out of the mod",
       "origins": [
         {
@@ -234468,6 +235138,11 @@
           "path": "cdmw/services/new_item_shader_controls.py",
           "line": 98,
           "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/ui/ai_connections/activity_model.py",
+          "line": 86,
+          "sink": "python-return:result_text"
         },
         {
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
@@ -235084,6 +235759,11 @@
     {
       "key": "{value_0}: {value_1} — {value_2}",
       "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 141,
+          "sink": "python-return:render"
+        },
         {
           "path": "tools/placement_studio/move_file_model.py",
           "line": 104,
