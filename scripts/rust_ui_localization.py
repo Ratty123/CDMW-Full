@@ -17,7 +17,7 @@ RUST_UI_DIRECTORY = Path("tools/rust_mesh_lab/apps/cdmw_mesh_lab/src")
 RUST_UI_FILES = (
     "cdmw_ui.rs", "cdmw_hair.rs", "cdmw_history.rs", "cdmw_rig.rs", "cdmw_cloth.rs", "cdmw_cloth_paint.rs", "cdmw_collision_volumes.rs", "cdmw_handoff.rs", "cdmw_jiggle.rs", "cdmw_jiggle/weapon.rs",
     "cdmw_vertex_inspector.rs", "cdmw_islands.rs", "cdmw_emission.rs", "cdmw_bend.rs",
-    "cdmw_shader_controls.rs", "viewport.rs", "camera.rs",
+    "cdmw_shader_controls.rs", "cdmw_material_colours.rs", "viewport.rs", "camera.rs",
     "main.rs", "cdmw_ui/delete_guidance.rs", "cdmw_ui/keyboard.rs", "cdmw_ui/morph_authoring.rs",
     "cdmw_ui/morph_body_controls.rs", "cdmw_ui/morph_outfit_workflows.rs",
     "cdmw_ui/morph_workflow.rs", "cdmw_ui/refit_diagnostics.rs",

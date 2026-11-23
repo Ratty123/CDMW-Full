@@ -9577,6 +9577,8 @@ class RustMeshAuthoringSession:
         state["emission"] = emission_ui_state(self, state["replacement"])
         from cdmw.services.mesh_shader_controls import shader_controls_ui_state
         state["shader_controls"] = shader_controls_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_material_colours import material_colours_ui_state
+        state["material_colours"] = material_colours_ui_state(self, state["replacement"], state["shader_controls"])
         from cdmw.services.mesh_rust_cloth import cloth_ui_state, physics_detection_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth_guides import guide_authoring_ui_state

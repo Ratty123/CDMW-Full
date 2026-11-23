@@ -3643,13 +3643,6 @@ impl LabApplication {
                 actions.push(UiAction::FrameSelected);
             }
         });
-        ui.add_enabled(
-            false,
-            Button::new(crate::localization::tr("Material Colour")).wrap(),
-        )
-        .on_disabled_hover_text(crate::localization::tr(
-            "Material Colour is deliberately unavailable in the Mesh Editor product contract",
-        ));
         cdmw_section(
             ui,
             "cdmw-overlay-appearance",
@@ -5702,7 +5695,7 @@ impl LabApplication {
                                 ui.ctx().data_mut(|data| data.insert_temp(panel_id, true));
                             }
                         });
-                        if ["translucency", "emission", "shader_controls"]
+                        if ["translucency", "emission", "shader_controls", "material_colours"]
                             .iter()
                             .any(|key| self.cdmw_state.get(*key).is_some())
                         {
@@ -5711,6 +5704,7 @@ impl LabApplication {
                                 egui::Frame::group(ui.style()).show(ui, |ui| {
                                     ui.set_width(ui.available_width());
                                     *open |= self.draw_cdmw_translucency(ui, actions);
+                                    *open |= self.draw_cdmw_material_colours(ui, actions);
                                     *open |= self.draw_cdmw_emission(ui, actions);
                                     *open |= self.draw_cdmw_shader_controls(ui, actions);
                                 });
@@ -5753,6 +5747,7 @@ impl LabApplication {
         let mut rows = vec![cdmw_panel_title_width(ui, "Inspector"), parts];
         for (key, title) in [
             ("translucency", "Translucency (experimental)"),
+            ("material_colours", "Material colours"),
             ("emission", "Glow (experimental)"),
             ("shader_controls", "Shader experiments"),
         ] {
