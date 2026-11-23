@@ -182,3 +182,98 @@ def test_panel_lists_each_parts_colour_rows_its_sharers_and_why_it_is_blocked():
     assert "imported materials" in first["blocked"] and second["blocked"] == "" and third["material_colours"] is None
     session.mesh_format = "pam"
     assert material_colours_ui_state(authoring, replacement, shader)["reason"].startswith("Material colours require a PAC")
+
+
+PAC = FIXTURE.parents[5] / "model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0109.pac"
+
+
+def test_rows_before_the_first_edit_come_from_the_preview_parameters_by_their_exact_names():
+    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
+    from cdmw.services.mesh_material_colours import _rows_for
+    from cdmw.services.shader_controls_preview import source_inputs
+
+    bindings = _parse_archive_model_sidecar_texture_bindings(_text(), sidecar_path=SIDECAR)
+    handle = tuple(binding for binding in bindings if HANDLE in (binding.submesh_name or binding.part_name or ""))
+    values, _ = source_inputs(SimpleNamespace(preview_material_texture_inputs=handle), handle[0].owner_slot_index)
+    rows = _rows_for([{"rows": [{"kind": "", "name": name, "value": str(value)} for name, value in values.items()]}])
+    assert [row["name"] for row in rows][:6] == ["_tintColorR", "_tintColorG", "_tintColorB",
+                                                 "_scratchTintColorR", "_scratchTintColorG", "_scratchTintColorB"]
+    assert rows[1] == {"name": "_tintColorG", "label": "Tint (green mask)", "original": "#5F5858", "alpha": 0xEB}
+
+
+def _session_with(colours, **extra):
+    from cdmw.modding.mesh_parser import parse_pac
+    from cdmw.services.mesh_replacement_import import commit_replacement, initial_replacement_state, mesh_with_part_ids
+    from cdmw.services.mesh_service import MeshService
+
+    data = PAC.read_bytes()
+    mesh = parse_pac(data, TARGET)
+    mesh._cdmw_original_data = data
+    service = MeshService()
+    sid = service.open_edit_session(mesh).session_id
+    snapshot = service.capture_export_snapshot(sid)
+    state = initial_replacement_state(snapshot, None, (ReplacementFile(SIDECAR, FIXTURE.read_bytes()),))
+    # The PAC names the part CD_PHM_01_Sword_Handle_0109; the wrapper is lower case.
+    handle = [part.name for part in snapshot.mesh.submeshes].index("CD_PHM_01_Sword_Handle_0109")
+    parts = tuple(replace(part, material_colours=colours, **extra) if part.target_index == handle else part
+                  for part in state.parts)
+    state = replace(state, parts=parts, revision=1)
+    commit_replacement(service, snapshot, mesh_with_part_ids(snapshot, state), state, label="Edit material colours")
+    return service, sid
+
+
+def test_build_mod_output_of_a_real_session_carries_the_colours_and_undo_removes_them():
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+
+    service, sid = _session_with((("_tintColorR", "#102030"),))
+    try:
+        output = prepare_replacement_output(service.capture_export_snapshot(sid))
+        (sidecar,) = [file for file in output.companion_files if file.path.casefold() == SIDECAR.casefold()]
+        text, _ = decode_pac_xml_payload(sidecar.data)
+        colours = wrapper_colours(text)[0]
+        assert colours[HANDLE.casefold()]["_tintColorR"] == "#102030ff"
+        assert colours[GUARD.casefold()] == wrapper_colours(_text())[0][GUARD.casefold()]
+        service.undo(sid)
+        assert service.capture_export_snapshot(sid).replacement_state is None
+    finally:
+        service.close_edit_session(sid)
+
+
+def test_colours_are_written_before_the_translucency_bake_reads_the_material(monkeypatch):
+    import cdmw.services.mesh_translucency as translucency
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+
+    seen = []
+
+    def capture(state, original, companion_files, *, stop_event=None):
+        seen.extend(file for file in companion_files if file.path.casefold() == SIDECAR.casefold())
+        return tuple(companion_files)
+
+    monkeypatch.setattr(translucency, "build_translucency_files", capture)
+    service, sid = _session_with((("_tintColorR", "#102030"),), translucency=(0.02, 0.3))
+    try:
+        prepare_replacement_output(service.capture_export_snapshot(sid))
+        # The bake composes the part's layers from this text, so it must already carry the new tint.
+        assert seen
+        for sidecar in seen:
+            text, _ = decode_pac_xml_payload(sidecar.data)
+            assert wrapper_colours(text)[0][HANDLE.casefold()]["_tintColorR"] == "#102030ff"
+    finally:
+        service.close_edit_session(sid)
+
+
+def test_a_draft_with_colours_and_an_appended_palette_reopens(tmp_path, monkeypatch):
+    from cdmw.services import mesh_replacement_draft as draft
+    import cdmw.modding.pac_palette_extension as palette
+
+    class Extension:
+        def to_dict(self):
+            return {"marker": True}
+
+    monkeypatch.setattr(palette.PacPaletteExtension, "from_dict", classmethod(lambda cls, value: ("extension", value)))
+    state = replace(_state(material_colours=(("_tintColorR", "#123456"),)), palette_extension=Extension())
+    generation = tmp_path / "generation"
+    generation.mkdir()
+    payload = draft.save_replacement_state(state, tmp_path, generation)
+    assert payload["version"] == 18 and payload["palette_extension"] == {"marker": True}
+    assert draft.load_replacement_state(payload, tmp_path).palette_extension == ("extension", {"marker": True})

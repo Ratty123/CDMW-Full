@@ -110,7 +110,7 @@ def _load_replacement_state(payload, project_root):
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     extension = None
-    if payload["version"] == 16 or (payload["version"] == 17 and "palette_extension" in payload):
+    if payload["version"] == 16 or (payload["version"] >= 17 and "palette_extension" in payload):
         from cdmw.modding.pac_palette_extension import PacPaletteExtension
         extension = PacPaletteExtension.from_dict(payload.get("palette_extension"))
     elif "palette_extension" in payload:

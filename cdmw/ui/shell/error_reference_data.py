@@ -46794,7 +46794,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement texture request.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 423
+      "cdmw/services/mesh_shader_controls.py": 425
     }
   },
   {
@@ -57754,7 +57754,7 @@ MESSAGE_REFERENCE = [
     "message": "Shader dependencies exceed the 512 MiB snapshot limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 471
+      "cdmw/services/mesh_shader_controls.py": 473
     }
   },
   {
@@ -58919,7 +58919,7 @@ MESSAGE_REFERENCE = [
     "message": "Texture sides must be powers of two between 4 and 8192; this image is {width}x{height}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 401
+      "cdmw/services/mesh_shader_controls.py": 403
     }
   },
   {
@@ -59393,7 +59393,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture file does not exist.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 386
+      "cdmw/services/mesh_shader_controls.py": 388
     }
   },
   {
@@ -59401,7 +59401,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture file exceeds the 256 MiB limit.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 388
+      "cdmw/services/mesh_shader_controls.py": 390
     }
   },
   {
@@ -59409,7 +59409,7 @@ MESSAGE_REFERENCE = [
     "message": "The chosen texture is not a DDS or a readable image file.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 398
+      "cdmw/services/mesh_shader_controls.py": 400
     }
   },
   {
@@ -59650,7 +59650,7 @@ MESSAGE_REFERENCE = [
     "message": "The image could not be encoded as DDS. Choose a DDS file instead.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 412
+      "cdmw/services/mesh_shader_controls.py": 414
     }
   },
   {
@@ -60171,7 +60171,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader mask is unavailable: {path}. Reopen this mesh from Browse Archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls.py": 467
+      "cdmw/services/mesh_shader_controls.py": 469
     }
   },
   {
@@ -60179,7 +60179,7 @@ MESSAGE_REFERENCE = [
     "message": "The shader preview mask is missing: {path}. Reopen this mesh from Browse Archives.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_shader_controls_preview.py": 107
+      "cdmw/services/mesh_shader_controls_preview.py": 109
     }
   },
   {
@@ -73111,7 +73111,7 @@ MESSAGE_REFERENCE = [
     "message": "{name}: multiple source material variants need separate shader previews.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_shader_controls_preview.py": 63
+      "cdmw/services/mesh_shader_controls_preview.py": 65
     }
   },
   {
@@ -94227,7 +94227,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate replacement companion: {file.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 493
+      "cdmw/services/mesh_replacement_output.py": 494
     }
   },
   {
@@ -95309,7 +95309,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement companion: {file.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 491
+      "cdmw/services/mesh_replacement_output.py": 492
     }
   },
   {
@@ -96622,7 +96622,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material has no target mapping: {lod_part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 471
+      "cdmw/services/mesh_replacement_output.py": 472
     }
   },
   {
@@ -96630,7 +96630,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 465
+      "cdmw/services/mesh_replacement_output.py": 466
     }
   },
   {
@@ -96638,7 +96638,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD writer changed the required section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 483
+      "cdmw/services/mesh_replacement_output.py": 484
     }
   },
   {
@@ -97320,7 +97320,7 @@ MESSAGE_REFERENCE = [
     "message": "Required companion {paired.path} could not be rebuilt: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 485
+      "cdmw/services/mesh_replacement_output.py": 486
     }
   },
   {
