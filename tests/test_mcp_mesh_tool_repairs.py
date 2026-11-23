@@ -280,3 +280,68 @@ def test_export_and_import_replacement_wait_for_the_editor_and_say_how_it_went(a
     assert pending is not None and pending["sources"] and pending["targets"], pending
     cancelled = mcp.ok("mesh_replacement_cancel")
     assert cancelled["done"] and mcp.ok("mesh_replacement_state")["pending"] is None
+
+
+# ----- 7. Geometry channels ----------------------------------------------------------------
+def test_geometry_reads_skinning_tangents_colours_extra_uvs_morphs_and_refuses_other_lods(answered) -> None:
+    editor, mcp = answered, answered.mcp
+    service, session_id = editor.host.shadow_service, editor.host.shadow_session_id
+    part = service._session(session_id).working_mesh.submeshes[0]
+    count = len(part.vertices)
+
+    def rows(what, **more):
+        return mcp.ok("mesh_geometry", {"part": 0, "what": what, "limit": 500, **more})
+
+    indices = rows("bone_indices")
+    assert indices["rows"] == [list(row) for row in part.bone_indices][:500] and indices["total"] == count
+    # Slots, not bones: with no skeleton attached the reason is said, not a guess.
+    assert "palette" in indices or "palette_reason" in indices
+    weights = rows("bone_weights")
+    assert weights["rows"][0] == pytest.approx(list(part.bone_weights[0]))
+    tangents = rows("tangents")
+    assert tangents["total"] == len(part.tangents)
+    colours = rows("vertex_colors")
+    if not part.vertex_colors:
+        assert colours["rows"] == [] and "not decoded" in colours["message"]
+    assert mcp.error("mesh_geometry", {"part": 0, "what": "uv_sets"})["code"] == "not_found"
+    assert mcp.error("mesh_geometry", {"part": 0, "what": "morph_targets", "morph": "smile"})["code"] == "not_found"
+    saved = (dict(part.uv_sets), dict(part.morph_targets))
+    part.uv_sets[1] = [(0.5, 0.25)] * count
+    part.morph_targets["smile"] = [(0.0, 0.0, 0.01)] * count
+    try:
+        summary = mcp.ok("mesh_geometry", {"part": 0})
+        assert summary["extra_uv_sets"] == [1] and summary["morphs"] == ["smile"] and summary["lod"] == 0
+        assert rows("uv_sets", uv_set=1)["rows"][0] == pytest.approx([0.5, 0.25])
+        smile = rows("morph_targets", morph="smile")
+        assert smile["morph"] == "smile" and smile["rows"][0] == pytest.approx([0.0, 0.0, 0.01])
+    finally:
+        part.uv_sets.clear()
+        part.uv_sets.update(saved[0])
+        part.morph_targets.clear()
+        part.morph_targets.update(saved[1])
+    # The shown LOD is the working edit; a PAC's other LODs are not decoded, and that is said.
+    assert mcp.ok("mesh_geometry", {"part": 0, "lod": 0})["vertices"] == count
+    other = mcp.error("mesh_geometry", {"part": 0, "lod": 1})
+    assert other["code"] == "unavailable" and "PAMLOD" in other["message"]
+
+
+def test_a_pamlods_other_levels_are_read_from_the_file_as_stored() -> None:
+    from cdmw.mcp.errors import ToolError
+    from cdmw.mcp.mesh_tools import _lod_parts
+    from cdmw.modding.mesh_parser import parse_pamlod
+    from tests.static_mesh_fixtures import shipped_pamlod
+
+    data = shipped_pamlod(version=4, packed=False)
+    stored = parse_pamlod(data, "object/stone.pamlod")
+    assert len(stored.lod_levels) > 1
+    shown = SimpleNamespace(submeshes=stored.lod_levels[0], lod_levels=[], format="pamlod", path="object/stone.pamlod")
+    service = SimpleNamespace(working_mesh=lambda _sid: shown,
+                              _session=lambda _sid: SimpleNamespace(original_data=data))
+    view = SimpleNamespace(lod_index=0, mesh_format="pamlod")
+    parts, source = _lod_parts(service, "s", view, 0)
+    assert source == "working" and parts == list(stored.lod_levels[0])
+    parts, source = _lod_parts(service, "s", view, 1)
+    assert source == "file" and [len(p.vertices) for p in parts] == [len(p.vertices) for p in stored.lod_levels[1]]
+    with pytest.raises(ToolError) as refused:
+        _lod_parts(service, "s", view, len(stored.lod_levels) + 3)
+    assert refused.value.code == "not_found"

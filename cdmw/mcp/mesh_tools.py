@@ -33,7 +33,8 @@ NO_EDITOR = "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives
 NOT_READY = "The Mesh Editor is still preparing this mesh; mesh_state says when it is ready."
 BUSY = "The Mesh Editor is working on the last request; try again in a moment."
 OPEN_TIMEOUT_S = 60.0
-GEOMETRY = ("summary", "vertices", "triangles", "uvs", "normals", "selection")
+GEOMETRY = ("summary", "vertices", "triangles", "uvs", "normals", "tangents", "vertex_colors", "uv_sets",
+            "bone_indices", "bone_weights", "morph_targets", "selection")
 _PART = {"type": "integer", "minimum": 0, "description": "A part's number, as mesh_state lists it."}
 
 
@@ -322,35 +323,97 @@ def _textures(session, mesh, view, owners) -> dict[str, object] | None:
 
 
 # ----- mesh.geometry --------------------------------------------------------------------
+def _palette(session, part) -> dict[str, object]:
+    """How a part's bone indices (palette slots) name skeleton bones, as Vertex Parameters reads them."""
+
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+
+    skeleton = getattr(session, "skeleton", None)
+    bones = tuple(getattr(skeleton, "bones", ()) or ())
+    data = bytes(getattr(session, "original_data", b"") or b"")
+    if not bones:
+        return {"palette_reason": "No skeleton is attached, so the slots are not resolved to bones."}
+    if str(getattr(session.working_mesh, "format", "") or "").lower() != "pac" or not data:
+        return {"palette_reason": "Bone slots are resolved to bones for PAC files only."}
+    try:
+        palette = tuple(resolve_pac_bone_palette(data, skeleton))
+    except (ValueError, IndexError, TypeError) as exc:
+        return {"palette_reason": str(exc) or "The PAC bone palette is not resolved."}
+    if not palette:
+        return {"palette_reason": "The linked skeleton does not resolve the PAC bone palette."}
+    used = sorted({slot for row in part.bone_indices for slot in row})
+    rows = []
+    for slot in used:
+        ordinal = palette[slot] if 0 <= slot < len(palette) else -1
+        bone = bones[ordinal] if 0 <= ordinal < len(bones) else None
+        rows.append({"slot": slot, "bone": getattr(bone, "index", None), "name": getattr(bone, "name", None)})
+    return {"palette": rows}
+
+
+def _lod_parts(service, session_id, view, lod: int | None):
+    """(the parts at ``lod``, where they come from). The shown LOD is the working edit; another is read
+    from the file as stored (PAMLOD keeps every level; PAC and PAM files decode only the shown one)."""
+
+    shown = int(view.lod_index)
+    mesh = service.working_mesh(session_id)
+    if lod is None or lod == shown:
+        return list(getattr(mesh, "submeshes", ()) or ()), "working"
+    levels = list(getattr(mesh, "lod_levels", ()) or ())
+    if 0 <= lod < len(levels) and levels[lod]:
+        return list(levels[lod]), "working"
+    fmt = str(getattr(view, "mesh_format", "") or getattr(mesh, "format", "") or "").lower()
+    data = bytes(getattr(service._session(session_id), "original_data", b"") or b"")
+    if fmt == "pamlod" and data:
+        from cdmw.modding.mesh_parser import parse_pamlod
+
+        stored = parse_pamlod(data, str(getattr(mesh, "path", "") or ""), lod_level=lod)
+        levels = list(stored.lod_levels or ())
+        if 0 <= lod < len(levels) and levels[lod]:
+            return list(levels[lod]), "file"
+        raise ToolError(NOT_FOUND, f"This file has LODs 0 to {max(0, len(levels) - 1)}.")
+    raise ToolError(UNAVAILABLE, f"The Mesh Editor shows LOD {shown}; a {fmt.upper() or 'mesh'} file's other LODs "
+                                 "are not decoded here. Only a PAMLOD's stored levels can be read.")
+
+
 def _geometry(call) -> dict[str, object]:
     facts, session = _session_of(call)
     if session is None:
         raise ToolError(UNAVAILABLE, NO_EDITOR)
     service, session_id = session.shadow_service, session.shadow_session_id
+    a = call.arguments
+    lod = a.get("lod")
     try:
         view = service.session_view(session_id)
-        mesh = service.working_mesh(session_id)
+        parts, source_of = _lod_parts(service, session_id, view, None if lod is None else int(lod))
     except (KeyError, RuntimeError) as exc:
         raise ToolError(UNAVAILABLE, str(exc) or NOT_READY) from None
-    parts = list(getattr(mesh, "submeshes", ()) or ())
-    index = int(call.arguments["part"])
+    index = int(a["part"])
     if not 0 <= index < len(parts):
         raise ToolError(NOT_FOUND, f"The mesh has parts 0 to {len(parts) - 1}.")
     part = parts[index]
-    what = str(call.arguments.get("what") or "summary")
-    head = {"part": index, "name": str(part.name or ""), "what": what, "revision": int(view.revision)}
+    what = str(a.get("what") or "summary")
+    head = {"part": index, "name": str(part.name or ""), "what": what, "revision": int(view.revision),
+            "lod": int(view.lod_index) if lod is None else int(lod)}
+    if source_of == "file":
+        head["source"] = "file"
+        head["note"] = "This LOD is read from the file as stored; edits in the Mesh Editor are on the shown LOD."
     if what == "summary":
         weights = [len(row) for row in part.bone_weights]
         return {**head, "material": str(part.material or ""), "texture": str(part.texture or ""),
                 "vertices": len(part.vertices), "triangles": len(part.faces), "bounds": _bounds(part.vertices),
                 "uv_sets": 1 + len(part.uv_sets) if part.uvs else len(part.uv_sets),
+                "extra_uv_sets": sorted(int(key) for key in part.uv_sets),
                 "has_normals": bool(part.normals), "has_tangents": bool(part.tangents),
                 "has_vertex_colours": bool(part.vertex_colors),
                 "skinned": bool(part.bone_indices),
                 "bones": len({bone for row in part.bone_indices for bone in row}),
                 "most_weights_per_vertex": max(weights) if weights else 0,
-                "morphs": sorted(part.morph_targets)}
+                "morphs": sorted(part.morph_targets),
+                "lod_shown": int(view.lod_index)}
     if what == "selection":
+        if source_of == "file":
+            raise ToolError(INVALID_ARGUMENTS, "The selection is on the shown LOD; leave out 'lod'.")
+
         def of(field):
             return next((list(items) for owner, items in getattr(view.selection, field, ()) or ()
                          if int(owner) == index), [])
@@ -358,9 +421,37 @@ def _geometry(call) -> dict[str, object]:
         return {**head, "whole_part": index in set(view.selection.source_indices),
                 "vertices": of("vertices_by_submesh"), "faces": of("faces_by_submesh"),
                 "edges": [list(edge) for edge in of("edges_by_submesh")]}
-    source = {"vertices": part.vertices, "triangles": part.faces, "uvs": part.uvs, "normals": part.normals}[what]
+    if what == "uv_sets":
+        number = int(a.get("uv_set") or 1)
+        if number not in part.uv_sets:
+            listed = sorted(int(key) for key in part.uv_sets)
+            raise ToolError(NOT_FOUND, f"Part {index} has extra UV sets {listed}." if listed else (
+                f"Part {index} has no UV set beyond UV0: a game file's UV1 is not decoded here, and an "
+                "imported model carries extra sets only when its file has them."))
+        return {**head, "uv_set": number, "rows": [list(row) for row in part.uv_sets[number]]}
+    if what == "morph_targets":
+        name = str(a.get("morph") or "")
+        if name not in part.morph_targets:
+            raise ToolError(NOT_FOUND, f"Part {index} has the morphs {sorted(part.morph_targets)}; give 'morph'."
+                            if part.morph_targets else f"Part {index} has no morph targets.")
+        # Row n is vertex n's offset from its rest position.
+        return {**head, "morph": name, "weight": part.morph_weights.get(name),
+                "rows": [list(row) for row in part.morph_targets[name]]}
+    source = {"vertices": part.vertices, "triangles": part.faces, "uvs": part.uvs, "normals": part.normals,
+              "tangents": part.tangents, "vertex_colors": part.vertex_colors, "bone_indices": part.bone_indices,
+              "bone_weights": part.bone_weights}[what]
+    extra: dict[str, object] = {}
+    if what == "bone_indices":
+        # Palette slots, not skeleton bones: say which bone each slot is.
+        extra = _palette(service._session(session_id), part) if source_of == "working" else {}
+    if not source and what in ("tangents", "vertex_colors", "bone_indices", "bone_weights"):
+        extra["message"] = {
+            "tangents": "This part has no tangents (PAM and PAMLOD files store none).",
+            "vertex_colors": "This part has no decoded vertex colours: a game file's colour bytes are not decoded "
+                             "here; an imported model carries them when its file has them.",
+        }.get(what, "This part is not skinned.")
     # Row n is vertex n (or triangle n: its three vertex numbers).
-    return {**head, "rows": [list(row) for row in source]}
+    return {**head, **extra, "rows": [list(row) for row in source]}
 
 
 # ----- acting ----------------------------------------------------------------------------
@@ -885,10 +976,18 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.geometry", family="mesh", title="Mesh geometry",
              description="One part's geometry in the shown document: 'summary' (counts, bounds, UV sets, "
                          "skinning, morphs), 'vertices' (positions; row n is vertex n), 'triangles' (three "
-                         "vertex numbers each), 'uvs', 'normals', or 'selection' (the selected vertex, face and "
-                         "edge numbers of this part).",
+                         "vertex numbers each), 'uvs' (UV0), 'normals', 'tangents', 'vertex_colors' (RGBA), "
+                         "'uv_sets' (an extra UV set, UV1 and up: 'uv_set'), 'bone_indices' (each vertex's "
+                         "palette slots, with 'palette' naming the skeleton bone of each slot), 'bone_weights' "
+                         "(each vertex's weights, in the same order), 'morph_targets' (one morph's per-vertex "
+                         "offsets: 'morph', as the summary lists them), or 'selection' (the selected vertex, face "
+                         "and edge numbers of this part). 'lod' reads another LOD: the shown one is the working "
+                         "edit; another is a PAMLOD's level as stored in the file.",
              input_schema=object_schema({"part": _PART, "what": {"type": "string", "enum": list(GEOMETRY),
-                                                                  "default": "summary"}}, ["part"]),
+                                                                  "default": "summary"},
+                                         "uv_set": {"type": "integer", "minimum": 1, "maximum": 7, "default": 1},
+                                         "morph": {"type": "string", "maxLength": 256},
+                                         "lod": {"type": "integer", "minimum": 0, "maximum": 15}}, ["part"]),
              effect=READ, route="service:MeshService.working_mesh", handler=_geometry, runs_on=ON_WORKER,
              paged="rows"),
         Tool(name="mesh.open", family="mesh", title="Open in Mesh Editor",

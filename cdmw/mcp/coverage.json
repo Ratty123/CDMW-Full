@@ -802,7 +802,7 @@
     {
       "id": "mesh.geometry",
       "area": "Mesh Editor",
-      "what": "A part's vertices, triangles, UVs, normals and selection",
+      "what": "A part's vertices, triangles, UVs (and extra UV sets), normals, tangents, vertex colours, bone indices and weights, morph target offsets and selection, on the shown LOD or a PAMLOD's stored level",
       "class": "read",
       "tool": "mesh.geometry"
     },
