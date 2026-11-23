@@ -189,7 +189,7 @@ PANEL_COMMANDS: dict[str, tuple[str, ...]] = {
     ),
     "replacement": (
         "cloth", "collision_volumes", "compare", "emission", "fit", "guides", "include", "islands", "jiggle",
-        "physics_profile", "reset", "shader_controls", "translucency", "weapon_collisions",
+        "material_colours", "physics_profile", "reset", "shader_controls", "translucency", "weapon_collisions",
     ),
     "rig": (
         "adjust_weight", "normalize_weights", "select_bone", "transfer_weights",
@@ -391,7 +391,8 @@ def _panels(call) -> dict[str, object]:
 #: The host state's sections the panels draw from, returned by default.
 PANEL_SECTIONS = ("skeleton", "rig_influence", "morph_refit", "geometry_layers", "cloth", "cloth_guides", "cloth_paint",
                   "jiggle", "physics", "physics_profiles", "collision_volumes", "weapon_collisions", "replacement",
-                  "shader_controls", "emission", "translucency", "hair", "mesh_islands", "vertex_parameters")
+                  "shader_controls", "material_colours", "emission", "translucency", "hair", "mesh_islands",
+                  "vertex_parameters")
 
 _PANEL_TOOLS = (
     ("rig", "mesh.weights", "Weights",
@@ -419,7 +420,9 @@ _PANEL_TOOLS = (
      "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
     ("replacement", "mesh.part_options", "Part options",
      "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
-     "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), emission, "
+     "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), material_colours "
+     "(Material colours: {part_ids, colours: {row: '#RRGGBB'}} or {part_ids, reset: true}, changing the tint and "
+     "dye rows mesh_panels lists under material_colours; parts sharing the material change together), emission, "
      "translucency, jiggle, physics_profile, collision_volumes, weapon_collisions, cloth, guides, islands, "
      "include {part_ids, included}; and Import Replacement's fit, compare and reset."),
 )
@@ -631,7 +634,8 @@ def mesh_edit_tools() -> list[Tool]:
         Tool(name="mesh.panels", family="mesh", title="Mesh Editor panels",
              description="What the shown document's panels show, as the editor is given them: skeleton and "
                          "bone influence, morph_refit, geometry_layers, cloth, jiggle, physics, collisions, "
-                         "replacement (with each part's id), shader_controls, emission, translucency, hair, "
+                         "replacement (with each part's id), shader_controls, material_colours (each part's "
+                         "colour rows with original and alpha, and its edits), emission, translucency, hair, "
                          "mesh_islands. 'sections' picks some; 'available' lists them all.",
              input_schema=object_schema({"sections": {"type": "array", "maxItems": 32,
                                                       "items": {"type": "string", "maxLength": 64}}}),

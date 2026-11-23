@@ -314,10 +314,11 @@ def _history_list(call):
 def texture_tools() -> list[Tool]:
     from cdmw.mcp.texture_edits import POINTS, TEXT, TOOL_SETTINGS, edit_tools
     from cdmw.mcp.texture_files import file_tools
+    from cdmw.mcp.texture_mesh_tools import texture_mesh_tools
     from cdmw.mcp.texture_pixels import pixel_tools
 
     return [
-        *edit_tools(), *pixel_tools(), *file_tools(),
+        *edit_tools(), *pixel_tools(), *file_tools(), *texture_mesh_tools(),
         Tool(name="textures.state", family="textures", title="Texture Editor state",
              description="Read the selected editor's texture, layers, tool, history and sharing state. "
                          "The editors field reports docked and tool independently.",

@@ -412,5 +412,11 @@
     "symbol": "SpeedPrefabsWorkspace._fill_start_combo",
     "source": "preset:{value_0}",
     "reason": "Combo box data identity of a starting point; the visible choice label is shown separately."
+  },
+  {
+    "path": "cdmw/ui/shell/session_recorder.py",
+    "symbol": "SessionRecorder.eventFilter",
+    "source": "wheel",
+    "reason": "Machine-readable input event kind written to the session recording, never displayed."
   }
 ]

@@ -833,6 +833,8 @@ class TextureEditorTab(
         selection_actions.addWidget(self.selection_to_mask_button, 3, 0)
         selection_actions.addWidget(self.selection_from_mask_button, 3, 1)
         selection_layout.addLayout(selection_actions)
+        # The Mesh Editor's docked copy adds Select From Mesh Selection here.
+        self.selection_actions_layout = selection_actions
         self.selection_section = CollapsibleSection("Selection", selection_body, expanded=False)
         right_layout.addWidget(self.selection_section)
 

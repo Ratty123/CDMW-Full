@@ -269,7 +269,7 @@ def run_replacement_command(authoring, command, args, stop_event):
     snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     entry = args.get("_archive_entry")
     dependencies = ()
-    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls"}:
+    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls", "replacement_material_colours"}:
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(entry, args.get("_archive_dependencies"), stop_event)
         if authoring.neutral_appearance is not None:
@@ -341,6 +341,9 @@ def run_replacement_command(authoring, command, args, stop_event):
     elif command == "replacement_shader_controls":
         from cdmw.services.mesh_shader_controls import set_shader_controls
         result = set_shader_controls(authoring, snapshot, args, entry=entry, dependencies=dependencies, stop_event=stop_event)
+    elif command == "replacement_material_colours":
+        from cdmw.services.mesh_material_colours import set_material_colours
+        result = set_material_colours(authoring, snapshot, args, entry=entry, dependencies=dependencies, stop_event=stop_event)
     elif command == "replacement_emission":
         from cdmw.services.mesh_emission import set_emission
         result = set_emission(authoring, snapshot, args, entry=entry, dependencies=dependencies, stop_event=stop_event)

@@ -56,7 +56,8 @@ from cdmw.ui.mesh_editor.shared_texture_check import CHECKING_TEXT
 LAUNCH_ORIGIN = "mesh_editor"
 EMPTY_TEXT = "Double-click a texture in the Textures panel to edit it here."
 #: The Texture Editor sections that edit the texture; the rest stay out.
-_SECTIONS = ("tool_settings_section", "layers_section", "adjustments_section", "history_section")
+_SECTIONS = ("tool_settings_section", "selection_section", "layers_section", "adjustments_section",
+             "history_section")
 #: The Mesh Editor's own Undo and Redo keys (the Rust editor's defaults for session.undo
 #: and session.redo in shortcuts.rs); keys the user gave those commands replace them.
 MESH_STEP_KEYS = {"undo": ("Ctrl+Z",), "redo": ("Ctrl+Shift+Z", "Ctrl+Y")}
@@ -236,6 +237,8 @@ class MeshEditorTextureTools(QDockWidget):
     """The panel holds no texture any more (the mesh closed, or another one loads)."""
     close_requested = Signal()
     """The panel's own close (Close Editor, or the title bar's) was pressed."""
+    status_message = Signal(str, bool)
+    """A line for the Mesh Editor's status bar (text, True for a refusal or failure)."""
 
     def __init__(self, parent: QWidget | None = None, *, settings: object = None, base_dir: Path | None = None,
                  editor_factory: Callable[[QWidget], QWidget] | None = None) -> None:
@@ -265,6 +268,17 @@ class MeshEditorTextureTools(QDockWidget):
         self._ui_font: QFont | None = None
         #: Monotonic counter bumped on ``show_empty`` to invalidate late async opens.
         self._open_generation = 0
+        #: Set by the tab: the Mesh Editor session (or None), and the Textures panel's parts
+        #: for a texture (source hash, game path) -> part numbers.
+        self.mesh_session_reader: Callable[[], object] | None = None
+        self.texture_parts_reader: Callable[[str, str], Iterable[int]] | None = None
+        #: What Select From Mesh Selection last said ("" when nothing yet).
+        self.mesh_selection_text = ""
+        from cdmw.ui.mesh_editor.texture_mesh_selection_flow import MeshSelectionToTexture
+
+        self.mesh_selection = MeshSelectionToTexture(self)
+        self.mesh_selection.reported.connect(self._show_mesh_selection)
+        self.select_from_mesh_button: QPushButton | None = None
 
         body = QWidget(self)
         body.setObjectName("MeshEditorTextureTools")
@@ -318,6 +332,11 @@ class MeshEditorTextureTools(QDockWidget):
         self.sharing_label.setObjectName("HintLabel")
         self.sharing_label.setVisible(False)
         status.addWidget(self.sharing_label, 1)
+        # What Select From Mesh Selection did, or why it could not.
+        self.mesh_selection_label = ElidedLabel(self.status_bar)
+        self.mesh_selection_label.setObjectName("HintLabel")
+        self.mesh_selection_label.setVisible(False)
+        status.addWidget(self.mesh_selection_label, 1)
         self.status_bar.setVisible(False)
         layout.addWidget(self.status_bar)
         self.setWidget(body)
@@ -347,6 +366,8 @@ class MeshEditorTextureTools(QDockWidget):
         open_source = getattr(editor, "open_source_path", None)
         if callable(open_source):
             open_source(Path(target.source_path), binding=binding)
+        if self.select_from_mesh_button is not None:
+            self.select_from_mesh_button.setEnabled(True)
         self.show()
         self.raise_()
         self.texture_opened.emit()
@@ -366,6 +387,11 @@ class MeshEditorTextureTools(QDockWidget):
         self.sharing_text = ""
         self.sharing_label.setText("")
         self.set_kept_text("")
+        self.mesh_selection.cancel()
+        self.mesh_selection_text = ""
+        self.mesh_selection_label.setText("")
+        if self.select_from_mesh_button is not None:
+            self.select_from_mesh_button.setEnabled(False)
         self._show_warning_marker()
         self._show_status()
         self.emptied.emit()
@@ -402,7 +428,23 @@ class MeshEditorTextureTools(QDockWidget):
     def _show_status(self) -> None:
         self.kept_label.setVisible(bool(self.kept_text))
         self.sharing_label.setVisible(bool(self.sharing_text))
-        self.status_bar.setVisible(bool(self.kept_text or self.sharing_text))
+        self.mesh_selection_label.setVisible(bool(self.mesh_selection_text))
+        self.status_bar.setVisible(bool(self.kept_text or self.sharing_text or self.mesh_selection_text))
+
+    def select_from_mesh(self) -> bool:
+        """Select From Mesh Selection: the faces selected in the 3D view, as pixels of this
+        texture, combined with its selection by the selection Mode. False when refused."""
+
+        return self.mesh_selection.start()
+
+    def _show_mesh_selection(self, text: str, refused: bool) -> None:
+        self.mesh_selection_text = str(text or "")
+        self.mesh_selection_label.setText(self.mesh_selection_text)
+        _restyle(self.mesh_selection_label, "WarningText" if refused else "HintLabel")
+        if self.select_from_mesh_button is not None:
+            self.select_from_mesh_button.setEnabled(not self.mesh_selection.busy)
+        self._show_status()
+        self.status_message.emit(self.mesh_selection_text, bool(refused))
 
     def set_shown_live_sources(self, sources: Iterable[str]) -> None:
         """The editor said which textures an edit shows on (B item 6): the open one's
@@ -634,6 +676,21 @@ class MeshEditorTextureTools(QDockWidget):
             if section is not None:
                 section.setParent(rail)
                 rail_layout.addWidget(section)
+        actions = getattr(editor, "selection_actions_layout", None)
+        if actions is not None:
+            # Only here, beside the model: the 3D selection, as a selection on this texture.
+            button = QPushButton("Select From Mesh Selection")
+            button.setObjectName("EditorPanelButton")
+            button.setToolTip(
+                "Select the pixels the faces selected in the 3D view cover on this texture, by the selection "
+                "Mode above. Whole parts selected in the Parts list count with all of their faces. UVs outside "
+                "0-1 wrap, as the model repeats the texture."
+            )
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            button.setEnabled(getattr(editor, "document", None) is not None)
+            button.clicked.connect(lambda _checked=False: self.select_from_mesh())
+            actions.addWidget(button, actions.rowCount(), 0, 1, 2)
+            self.select_from_mesh_button = button
         rail_layout.addStretch(1)
         rail_scroll = QScrollArea()
         rail_scroll.setObjectName("EditorSidebarScroll")

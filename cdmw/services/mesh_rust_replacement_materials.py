@@ -15,11 +15,22 @@ from cdmw.services.mesh_replacement_materials import _sidecar_text, material_bin
 from cdmw.services.mesh_rust_preview_package import conserve_preview_core_material_graph
 
 
+def _has_material_edit(part):
+    return (part.translucency is not None or part.emission is not None or part.shader_controls is not None
+            or bool(part.material_colours))
+
+
+def _without_material_edits(part):
+    return replace(part, translucency=None, translucency_surface=None, emission=None, shader_controls=None,
+                   material_colours=())
+
+
 def replacement_material_key(mesh, state):
-    if any(part.translucency is not None or part.emission is not None or part.shader_controls is not None for part in state.parts):
-        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None, shader_controls=None) for part in state.parts))
+    if any(_has_material_edit(part) for part in state.parts):
+        source = replace(state, parts=tuple(_without_material_edits(part) for part in state.parts))
         return hashlib.sha256(repr((replacement_material_key(mesh, source), bound_part_indices(mesh, state),
-                                   [(p.part_id, p.translucency, p.translucency_surface, p.emission, p.shader_controls) for p in state.parts])).encode()).hexdigest()[:32]
+                                   [(p.part_id, p.translucency, p.translucency_surface, p.emission, p.shader_controls,
+                                     p.material_colours) for p in state.parts])).encode()).hexdigest()[:32]
     has_imported = any(part.material_choice == "imported" for part in state.parts)
     has_dds_companion = any(str(file.path or "").replace("\\", "/").casefold().endswith(".dds") for file in state.companion_files)
     if not has_imported and not has_dds_companion:
@@ -251,8 +262,11 @@ def _apply_restaged_textures_to_payload(payload, levels, ordered, added, added_p
         graph["materials"] = [row for row in graph["materials"] if (row["lod_index"], row["material_index"]) not in owners]
 
 
-def _bake_edited_native_layers(authoring, mesh, payload, owners, stop_event):
-    """Material controls consume the same composed maps as before GPU layers."""
+def _bake_edited_native_layers(authoring, mesh, payload, owners, stop_event, colours=None):
+    """Material controls consume the same composed maps as before GPU layers.
+
+    ``colours`` maps (lod, material index) to that part's edited material colours.
+    """
     from cdmw.services.mesh_rust_authoring import (
         _mesh_lods, _mesh_texture_payloads, _mesh_material_presentations, _RustMaterialSynthesisState,
     )
@@ -266,7 +280,9 @@ def _bake_edited_native_layers(authoring, mesh, payload, owners, stop_event):
     local = copy.copy(mesh)
     ordered = sorted(owners)
     levels = _mesh_lods(mesh)
-    local.submeshes = [copy.copy(levels[lod][index]) for lod, index in ordered]
+    from cdmw.services.mesh_material_colours import recolour_preview_parameters
+    local.submeshes = [recolour_preview_parameters(copy.copy(levels[lod][index]), (colours or {}).get((lod, index)))
+                       for lod, index in ordered]
     local.lod_levels = [local.submeshes]
     for part in local.submeshes:
         part.preview_native_material_overrides = dict(part.preview_native_material_overrides)
@@ -463,8 +479,8 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         _RustMaterialSynthesisState, _mesh_material_presentations,
     )
     key = replacement_material_key(mesh, state)
-    if key not in authoring.archive_refit_material_cache and any(part.translucency is not None or part.emission is not None or part.shader_controls is not None for part in state.parts):
-        source = replace(state, parts=tuple(replace(part, translucency=None, translucency_surface=None, emission=None, shader_controls=None) for part in state.parts))
+    if key not in authoring.archive_refit_material_cache and any(_has_material_edit(part) for part in state.parts):
+        source = replace(state, parts=tuple(_without_material_edits(part) for part in state.parts))
         source_key = stage_replacement_materials(authoring, mesh, source, stop_event)
         payload = copy.deepcopy(authoring.archive_refit_material_cache[source_key])
         indices = bound_part_indices(mesh, state)
@@ -475,9 +491,18 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         bindings = material_binding_names(state)
         names = {material_binding_name(mesh.submeshes[index], bindings): value
                  for index, value in rules.items()}
+        # A part whose maps are composed again also takes its edited colours into that bake.
+        from cdmw.domain.mesh.material_colours import colours_to_dict
+        edited_colours = {indices[part.part_id]: colours_to_dict(part.material_colours)
+                          for part in state.parts if part.material_colours}
+        colour_names = {material_binding_name(mesh.submeshes[index], bindings): value
+                        for index, value in edited_colours.items()}
         _bake_edited_native_layers(authoring, mesh, payload,
             {(lod, index) for lod, level in enumerate(_mesh_lods(mesh)) for index, part in enumerate(level)
-             if (rules.get(index) if lod == 0 else names.get(material_binding_name(part, bindings))) is not None}, stop_event)
+             if (rules.get(index) if lod == 0 else names.get(material_binding_name(part, bindings))) is not None}, stop_event,
+            colours={(lod, index): value for lod, level in enumerate(_mesh_lods(mesh)) for index, part in enumerate(level)
+                     if (value := (edited_colours.get(index) if lod == 0
+                                   else colour_names.get(material_binding_name(part, bindings)))) is not None})
         for lod_index, level in enumerate(_mesh_lods(mesh)):
             for index, part in enumerate(level):
                 value = rules.get(index) if lod_index == 0 else names.get(material_binding_name(part, bindings))
@@ -495,6 +520,9 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
             from cdmw.services.mesh_shader_controls_preview import stage_shader_preview
             stage_shader_preview(authoring, mesh, state, payload, presentations, stop_event)
         payload.update(key=key, material_presentations=list(presentations.values()))
+        if any(part.material_colours for part in state.parts):
+            from cdmw.services.mesh_material_colours import stage_colour_preview
+            stage_colour_preview(mesh, state, payload)
         # The bake and the shader preview replaced graph rows and textures.
         conserve_preview_core_material_graph(payload)
         authoring.archive_refit_material_cache[key] = payload

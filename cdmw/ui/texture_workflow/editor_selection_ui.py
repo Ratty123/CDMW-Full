@@ -192,6 +192,28 @@ class TextureEditorSelectionUiMixin:
             )
         self._refresh_ui()
 
+    def apply_mask_selection(self, mask: object, *, combine_mode: str | None = None,
+                             history_label: str = "Select From Mesh") -> bool:
+        """Combine a 0-255 mask the texture's size with the selection, by the selection Mode
+        (or ``combine_mode``): one Undo step, as a Rect or Lasso selection is."""
+
+        if self.document is None:
+            return False
+        from cdmw.domain.textures.editor_selection import apply_texture_editor_mask_selection
+
+        before_document = dataclasses.replace(self.document)
+        mode = str(combine_mode or self.current_tool_settings.selection_combine_mode or "replace")
+        self.document = apply_texture_editor_mask_selection(self.document, mask, combine_mode=mode)
+        self._record_history_change(
+            history_label,
+            before_document=before_document,
+            before_layer_pixels={},
+            kind="selection_update",
+            tracked_layer_ids=[],
+        )
+        self._refresh_ui()
+        return True
+
     def copy_selection_to_clipboard(self) -> bool:
         selection_state = texture_editor_active_layer_selection_payload_state(
             self.document,
