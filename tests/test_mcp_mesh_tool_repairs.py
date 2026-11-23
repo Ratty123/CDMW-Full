@@ -251,6 +251,97 @@ def test_an_archive_path_answers_the_refit_and_cloth_pickers_without_opening_the
     assert not getattr(ui, "_archive_refit_picker_active", False)
 
 
+
+def test_a_refit_choice_is_prepared_by_the_real_dependency_provider(tmp_path) -> None:
+    """The Refit picker's own provider resolves the file and its dependency set: the
+    choice is what the picker would return, and the provider is released afterwards."""
+
+    import time
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.domain.archives.catalogue import ArchiveAssociationResult, ArchiveDurableIdentity, ArchiveEntryRef
+    from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+    from cdmw.ui.mesh_editor import host_archive_choice
+
+    class Service(_LookupService):
+        progress = Signal(str, object)
+
+        def __init__(self, catalogue) -> None:
+            super().__init__(catalogue)
+            self.current_session = SimpleNamespace(session_id=SESSION)
+            self.asked: list[str] = []
+
+        def find_association_candidates(self, request, *, ui_generation: int) -> str:
+            self.asked.append("association")
+            return "association-1"
+
+        def prepare_entries(self, request, *, ui_generation: int, dmm_overlay: bool = True) -> str:
+            self.asked.append("prepare")
+            self.prepare_request = request
+            return "prepare-1"
+
+    pamt, paz = tmp_path / "0.pamt", tmp_path / "0.paz"
+    pamt.write_bytes(b"owned catalogue")
+    paz.write_bytes(b"owned archive")
+    body = replace(_dto(7, "character/model/cd_phm_00_body.pac"), source_pamt=str(pamt), paz_file=str(paz),
+                   identity=ArchiveDurableIdentity("character/model/cd_phm_00_body.pac", str(pamt).casefold(), 0, 700))
+    target = _dto(9, "character/model/cd_cloak.pac")
+    service = Service([body, target])
+
+    class Tab(QWidget):
+        def window(self):  # noqa: D401 - the owner, as a detached tab's window gives it
+            return owner
+
+    owner = SimpleNamespace(archive=SimpleNamespace(archive_catalogue_service=service, archive_remote_bridge=_Bridge()))
+    tab = Tab()
+    tab._current_target_entry = lambda: ArchiveCatalogueService.compatibility_entry(target)
+    box: dict[str, object] = {}
+    app = QApplication.instance()
+
+    def pump(until, timeout=10.0):
+        deadline = time.monotonic() + timeout
+        while not until() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.002)
+        assert until(), box
+
+    try:
+        host_archive_choice.start(tab, host_archive_choice.REFIT_COMMAND, "body", body.path,
+                                  on_done=lambda choice: box.update(choice=choice),
+                                  on_failed=lambda message: box.update(error=message))
+        pump(lambda: "association" in service.asked or "error" in box)
+        service.result_ready.emit("association-1", "find_association_candidates",
+                                  ArchiveAssociationResult(SESSION, 7, (), 0, False))
+        pump(lambda: "prepare" in service.asked or "error" in box)
+        payload = b"owned source " * 4
+        source = tmp_path / "7.pac"
+        source.write_bytes(payload)
+        prepared = PrepareEntryResult(ArchiveEntryRef(SESSION, 7, body.identity, body.path), str(source),
+                                      len(payload), hashlib.sha256(payload).hexdigest(), "owned fixture")
+        service.result_ready.emit("prepare-1", "prepare_entry",
+                                  PrepareEntriesResult(SESSION, (prepared,), 1, 1, len(payload)))
+        pump(lambda: "choice" in box or "error" in box)
+        assert "error" not in box, box
+        choice = box["choice"]
+        assert choice.role == "body" and choice.path == body.path
+        context = choice.arguments["_archive_dependencies"]
+        assert context.selected_entry.path == body.path and context.remote
+        assert choice.arguments["_archive_entry"] is context.selected_entry
+        # The provider is released once the choice is made, and nothing is left running.
+        from PySide6.QtCore import QEvent
+
+        # deleteLater runs once the event loop has it; the app's loop does, the test flushes it.
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+        assert all(type(child).__name__ != "ArchiveRemotePreviewDependencyProvider" for child in tab.children())
+    finally:
+        tab.deleteLater()
+        app.processEvents()
+
+
 # ----- 3. Layers: Copy ------------------------------------------------------------------
 def test_a_layer_copy_sent_by_name_copies_the_current_selection(answered) -> None:
     editor, mcp = answered, answered.mcp
