@@ -17785,7 +17785,7 @@
     "exported texture binding did not resolve in its sidecar/MTL contract: {value_0}": "dışa aktarılan doku bağlama yardımcı dosya/MTL sözleşmesinde çözümlenmedi: {value_0}",
     "exports the look Khione95's Character Creator mod gives Kliff as one FBX per part (body, head, hair and beard), each with the face shape its game prefab gives it. It reads the mod's files in": "Khione95'in Character Creator modunun Kliff'e verdiği görünümü parça başına bir FBX (gövde, baş, saç ve sakal) olarak, her birini oyun prefabriğinin verdiği yüz şekliyle dışa aktarır. Modun dosyalarını şu konumdan okur:",
     "exports the selected models as FBX files, each with the face shape the selected appearance gives it. Choose an output folder; the next export starts there.": "seçili modelleri, her birine seçili görünümün verdiği yüz şekliyle FBX dosyaları olarak dışa aktarır. Bir çıktı klasörü seçin; sonraki dışa aktarma oradan başlar.",
-    "exports use the player skeleton for the NPC's race and body. A few pieces still ask you to choose a skeleton.": "olarak dışa aktarılırken NPC'nin ırkı ve vücut tipine uygun oyuncu iskeleti kullanılır. Az sayıda parça için hâlâ iskelet seçmeniz gerekir.",
+    "exports use the player skeleton for the NPC's race and body. A few pieces have no rig: no skeleton in the game holds all of their bones, so they can be exported only without a skeleton or weights.": "olarak dışa aktarılırken NPC'nin ırkı ve vücut tipine uygun oyuncu iskeleti kullanılır. Az sayıda parçanın rig'i yoktur: oyundaki hiçbir iskelet tüm kemiklerini içermez, bu yüzden yalnızca iskelet ve ağırlıklar olmadan dışa aktarılabilirler.",
     "exposure": "maruz kalma",
     "extent": "kapsam",
     "extra": "Ek",

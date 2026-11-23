@@ -17785,7 +17785,7 @@
     "exported texture binding did not resolve in its sidecar/MTL contract: {value_0}": "내보낸 텍스처 바인딩이 사이드카/MTL 계약에서 확인되지 않았습니다. {value_0}",
     "exports the look Khione95's Character Creator mod gives Kliff as one FBX per part (body, head, hair and beard), each with the face shape its game prefab gives it. It reads the mod's files in": "은(는) Khione95의 Character Creator 모드가 Kliff에게 주는 외형을 파츠(몸, 머리, 헤어, 수염)마다 FBX 하나로, 각각 게임 프리팹이 주는 얼굴 형태와 함께 내보냅니다. 모드 파일은",
     "exports the selected models as FBX files, each with the face shape the selected appearance gives it. Choose an output folder; the next export starts there.": "선택한 모델을 FBX 파일로 내보내며, 각 모델에는 선택한 외형이 주는 얼굴 형태가 적용됩니다. 출력 폴더를 선택하면 다음 내보내기는 그 폴더에서 시작됩니다.",
-    "exports use the player skeleton for the NPC's race and body. A few pieces still ask you to choose a skeleton.": "로 내보내면 NPC의 종족과 체형에 맞는 플레이어 스켈레톤을 사용합니다. 일부 파트는 여전히 스켈레톤을 골라야 합니다.",
+    "exports use the player skeleton for the NPC's race and body. A few pieces have no rig: no skeleton in the game holds all of their bones, so they can be exported only without a skeleton or weights.": "로 내보내면 NPC의 종족과 체형에 맞는 플레이어 스켈레톤을 사용합니다. 일부 파트는 게임의 어떤 스켈레톤에도 본이 모두 들어 있지 않아 리그가 없으므로 스켈레톤과 가중치 없이만 내보낼 수 있습니다.",
     "exposure": "노출",
     "extent": "범위",
     "extra": "추가",

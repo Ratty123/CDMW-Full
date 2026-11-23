@@ -17785,7 +17785,7 @@
     "exported texture binding did not resolve in its sidecar/MTL contract: {value_0}": "匯出的紋理綁定未在其附屬檔案/MTL 合約中解析：{value_0}",
     "exports the look Khione95's Character Creator mod gives Kliff as one FBX per part (body, head, hair and beard), each with the face shape its game prefab gives it. It reads the mod's files in": "會將 Khione95 的 Character Creator 模組賦予 Kliff 的外觀匯出為每個部件（身體、頭部、髮型和鬍鬚）一個 FBX，每個都帶有遊戲預製件賦予它的臉型。它從",
     "exports the selected models as FBX files, each with the face shape the selected appearance gives it. Choose an output folder; the next export starts there.": "將所選模型匯出為 FBX 檔案，每個模型都帶有所選外觀賦予它的臉型。選擇一個輸出資料夾；下次匯出會從該資料夾開始。",
-    "exports use the player skeleton for the NPC's race and body. A few pieces still ask you to choose a skeleton.": "匯出時會使用該 NPC 種族和體型的玩家骨架。少數零件仍須選擇骨架。",
+    "exports use the player skeleton for the NPC's race and body. A few pieces have no rig: no skeleton in the game holds all of their bones, so they can be exported only without a skeleton or weights.": "匯出時會使用該 NPC 種族和體型的玩家骨架。少數零件沒有骨架：遊戲中沒有任何骨架包含它們的全部骨骼，因此只能在不帶骨架和權重的情況下匯出。",
     "exposure": "曝光",
     "extent": "範圍",
     "extra": "額外",

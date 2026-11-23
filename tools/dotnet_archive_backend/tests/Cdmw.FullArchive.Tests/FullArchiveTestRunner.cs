@@ -42,6 +42,7 @@ internal static class FullArchiveTestRunner
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
+            ("preview_npc_armour_rigs", PreviewNpcArmourRigsAsync),
             ("concurrent_preview_preparation", PreviewPreparationTests.ConcurrentAsync),
             ("preview_preparation_wait_cancellation", PreviewPreparationTests.CancellationAsync),
             ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
@@ -114,7 +115,7 @@ internal static class FullArchiveTestRunner
         if (previewDependenciesOnly)
         {
             tests = tests.Where(static test => test.Name is "preview_association_and_prepare_batch"
-                or "preview_material_dependency_closure" or "preview_material_dependency_bounds"
+                or "preview_npc_armour_rigs" or "preview_material_dependency_closure" or "preview_material_dependency_bounds"
                 or "preview_pbd_material_dependencies" or "preview_animation_references").ToArray();
         }
         var failures = new List<string>();
@@ -1083,6 +1084,71 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
             DeleteDirectory(exportRoot);
+        }
+    }
+
+    private static async Task PreviewNpcArmourRigsAsync()
+    {
+        // NPC equipment ships no PAB and its prefabs name none. The bounded preview
+        // set must carry the player rig of the NPC's race, and for orc, dwarf and
+        // goblin families the player body descriptor that names a human rig, or a
+        // rigged export of the piece has nothing to verify its palette against.
+        await using var fixture = await SyntheticArchiveFixture.CreateNpcArmourRigsAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("preview-npc-rigs-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var session = sessions.GetRequired(handle.SessionId);
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            var entries = Enumerable.Range(0, checked((int)handle.EntryCount)).Select(index => session.ReadEntry(index)).ToArray();
+            async Task<HashSet<string>> SetOf(string stem)
+            {
+                var piece = entries.Single(entry => entry.Path.EndsWith($"/{stem}.pac", StringComparison.Ordinal));
+                var association = await lookup.FindAssociationCandidatesAsync(
+                    new ArchiveAssociationRequest(handle.SessionId, piece.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(!association.Truncated, $"{stem} preview set was truncated");
+                return association.Candidates.Select(static entry => entry.Path).ToHashSet(StringComparer.Ordinal);
+            }
+            const string phm = "character/model/1_pc/1_phm/phm_01.pab";
+            const string phw = "character/model/1_pc/2_phw/phw_01.pab";
+            const string ppdm = "character/model/1_pc/19_ppdm/ppdm_01.pab";
+
+            var human = await SetOf("cd_nhm_00_so_ub_10335").ConfigureAwait(false);
+            Require(human.Contains(phm) && !human.Contains(phw) && !human.Contains(ppdm)
+                && human.Contains("character/prefab/1_pc/01_phm/nude/phm_00_nude_00_0001.prefabdata_xml"),
+                "human NPC armour lost the human male rig or took another race's");
+
+            var orc = await SetOf("cd_nom_00_so_ub_00001").ConfigureAwait(false);
+            Require(orc.Contains(phm) && !orc.Contains(phw)
+                && orc.Contains("character/prefab/1_pc/05_pom/nude/pom_00_nude_00_0001.prefabdata_xml"),
+                "orc NPC armour lost the rig its player family's body descriptor names");
+
+            var dwarfWoman = await SetOf("cd_ndw_00_so_ub_00001").ConfigureAwait(false);
+            Require(dwarfWoman.Contains(phw) && !dwarfWoman.Contains(phm)
+                && dwarfWoman.Contains("character/prefab/1_pc/08_pdw/nude/cd_pdw_00_nude_00_0001.prefabdata_xml"),
+                "dwarf woman NPC armour lost the rig its player family's body descriptor names");
+
+            var tallWoman = await SetOf("cd_ntw_00_so_ub_10001").ConfigureAwait(false);
+            Require(tallWoman.Contains(phw) && !tallWoman.Contains(phm)
+                && tallWoman.Contains("character/prefab/1_pc/02_phw/nude/phw_00_nude_00_0001.prefabdata_xml"),
+                "tall woman NPC armour lost the human female rig");
+
+            var demon = await SetOf("cd_ndem_00_so_ub_20003").ConfigureAwait(false);
+            Require(demon.Contains(phm) && demon.Contains(ppdm) && !demon.Contains(phw)
+                && demon.Contains("character/prefab/1_pc/01_phm/nude/phm_00_nude_00_0001.prefabdata_xml"),
+                "demon NPC armour lost the human male or demon rig");
+
+            var unknown = await SetOf("cd_nxx_00_so_ub_00001").ConfigureAwait(false);
+            Require(!unknown.Contains(phm) && !unknown.Contains(phw) && !unknown.Any(static path => path.Contains("/nude/")),
+                "an NPC family with no player family took an unrelated rig");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
         }
     }
 

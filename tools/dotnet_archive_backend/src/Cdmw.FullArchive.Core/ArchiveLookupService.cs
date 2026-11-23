@@ -680,6 +680,20 @@ public sealed class ArchiveLookupService(
                 Add(segment);
             }
         }
+        var parts = path.Split('/');
+        var (playerFamily, playerFolders) = PlayerFamilyForModel(parts);
+        if (playerFamily.Length > 0 && parts[2] == "3_npc")
+        {
+            // NPC equipment ships no PAB: it is worn by NPCs built on the player
+            // rig of their race (nhm on phm_01, ntm on ptm_01). Orc, dwarf and
+            // goblin rigs are named only by their player family's body
+            // descriptor, added below.
+            Add(playerFamily + "_01");
+            foreach (var rig in NpcExtraPlayerRigs.GetValueOrDefault(parts[3].Split('_', 2)[1], []))
+            {
+                Add(rig);
+            }
+        }
         Add("identityskeleton");
         var incomplete = false;
         foreach (var basename in basenames)
@@ -689,37 +703,86 @@ public sealed class ArchiveLookupService(
                 ids,
                 cancellationToken);
         }
-        // Heads can name only a PABC, while the family's base-body descriptor
-        // names a shared rig (for example a dwarf woman's phw_01.pab). Keep that
-        // descriptor in the bounded closure so its references are prepared too.
-        // The mesh resolver still verifies the PAC palette against the PAB.
-        var parts = path.Split('/');
-        if (parts.Length >= 5 && parts[2] == "1_pc")
+        // Heads and NPC equipment can name no skeleton, while the player family's
+        // base-body descriptor names a shared rig (for example a dwarf woman's
+        // phw_01.pab). Keep that descriptor in the bounded closure so its rig is
+        // prepared too. The mesh resolver still verifies the PAC palette against
+        // the PAB and settles rig ties with the descriptor.
+        foreach (var folder in playerFolders)
         {
-            var familyParts = parts[3].Split('_', 2);
-            if (familyParts.Length == 2 && int.TryParse(familyParts[0], out var familyNumber)
-                && familyParts[1].Length is >= 2 and <= 5 && familyParts[1].All(char.IsLetter))
+            foreach (var prefix in new[] { "", "cd_" })
             {
-                foreach (var folder in new[] { parts[3], $"{familyNumber:D2}_{familyParts[1]}" }.Distinct())
+                var descriptors = new HashSet<long>();
+                incomplete |= AddExactPathMatches(index,
+                    $"character/prefab/1_pc/{folder}/nude/{prefix}{playerFamily}_00_nude_00_0001.prefabdata_xml",
+                    descriptors, cancellationToken);
+                foreach (var descriptorId in descriptors)
                 {
-                    foreach (var prefix in new[] { "", "cd_" })
-                    {
-                        var descriptors = new HashSet<long>();
-                        incomplete |= AddExactPathMatches(index,
-                            $"character/prefab/1_pc/{folder}/nude/{prefix}{familyParts[1]}_00_nude_00_0001.prefabdata_xml",
-                            descriptors, cancellationToken);
-                        foreach (var descriptorId in descriptors)
-                        {
-                            if (ids.Contains(descriptorId)) continue;
-                            if (ids.Count >= MaximumPreviewLookupResults) { incomplete = true; break; }
-                            ids.Add(descriptorId);
-                            familySkeletonDescriptorIds.Add(descriptorId);
-                        }
-                    }
+                    if (ids.Contains(descriptorId)) continue;
+                    if (ids.Count >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                    ids.Add(descriptorId);
+                    familySkeletonDescriptorIds.Add(descriptorId);
                 }
             }
         }
         return incomplete;
+    }
+
+    /// <summary>
+    /// NPC families without a player family of the same name, and the player family
+    /// (with its prefab folder) whose body they wear. Keep in step with
+    /// <c>npc_player_family</c> in <c>cdmw/modding/skeleton_parser.py</c>.
+    /// </summary>
+    private static readonly Dictionary<string, (string Family, string Folder)> NpcPlayerFamilyAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ndem"] = ("phm", "01_phm"),
+            ["ntw"] = ("phw", "02_phw"),
+        };
+
+    /// <summary>
+    /// Further player rigs an NPC family's equipment can be skinned to. Some demon
+    /// gear carries the PDEM calf bones that only ppdm_01.pab holds.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> NpcExtraPlayerRigs =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ndem"] = ["ppdm_01"],
+        };
+
+    /// <summary>
+    /// The player family whose body descriptor names the rig of a model under
+    /// <c>character/model/1_pc</c> or <c>character/model/3_npc</c>, with the prefab
+    /// folders it can sit in (prefab folders pad the family number), or none.
+    /// </summary>
+    private static (string Family, string[] Folders) PlayerFamilyForModel(string[] parts)
+    {
+        if (parts.Length < 5 || parts[2] is not ("1_pc" or "3_npc"))
+        {
+            return ("", []);
+        }
+        var familyParts = parts[3].Split('_', 2);
+        if (familyParts.Length != 2 || !int.TryParse(familyParts[0], out var number)
+            || familyParts[1].Length is < 2 or > 5 || !familyParts[1].All(char.IsLetter))
+        {
+            return ("", []);
+        }
+        var family = familyParts[1];
+        if (parts[2] == "1_pc")
+        {
+            return (family, new[] { parts[3], $"{number:D2}_{family}" }.Distinct().ToArray());
+        }
+        if (NpcPlayerFamilyAliases.TryGetValue(family, out var alias))
+        {
+            return (alias.Family, [alias.Folder]);
+        }
+        if (family[0] is not ('n' or 'N'))
+        {
+            return ("", []);
+        }
+        // NPC and player families share their number: 5_nom is worn on 05_pom's body.
+        var player = "p" + family[1..];
+        return (player, new[] { $"{number}_{player}", $"{number:D2}_{player}" }.Distinct().ToArray());
     }
 
     private static bool ShouldScanPreviewReferences(ArchiveEntryDto entry, long selectedEntryId)

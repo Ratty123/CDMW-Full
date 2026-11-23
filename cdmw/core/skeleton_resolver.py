@@ -22,6 +22,10 @@ class SkeletonResolveCandidate:
     reason: str = ""
     bone_count: int = 0
     palette_hits: int = 0
+    #: For a rig that does not hold the whole PAC palette: how many of the palette's
+    #: ``palette_size`` bones it lacks (its nearest palette when there are several).
+    palette_misses: int = 0
+    palette_size: int = 0
 
 
 @dataclass(frozen=True)
@@ -180,6 +184,13 @@ def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes, *, palettes=None
         if len(sequence) > len(best_sequence):
             best_sequence = sequence
     return len(best_sequence)
+
+
+def _nearest_palette_misses(skeleton: Skeleton, palettes) -> tuple[int, int]:
+    """(bones missing, palette length) for the palette this skeleton comes closest to."""
+    hashes = {int(getattr(bone, "name_hash", 0) or 0) for bone in tuple(getattr(skeleton, "bones", ()) or ())}
+    return min(((sum(1 for value in palette if value not in hashes), len(palette)) for palette in palettes if palette),
+               default=(0, 0))
 
 
 def _candidate_entry_for_path(candidates: Sequence[ArchiveEntry], path: str) -> Optional[ArchiveEntry]:
@@ -1043,6 +1054,7 @@ def resolve_skeleton_for_model(
 
         bone_count = 0
         palette_hits = 0
+        palette_misses = palette_size = 0
         if read_entry_data is not None:
             try:
                 skeleton = parse_pab(read_entry_data(entry), entry.path)
@@ -1050,6 +1062,8 @@ def resolve_skeleton_for_model(
                 if not bone_count:
                     raise ValueError(f"PAB contains no parsed bones: {entry.path}")
                 palette_hits = _skeleton_palette_hits(skeleton, pac_data, palettes=palettes)
+                if palettes and not palette_hits:
+                    palette_misses, palette_size = _nearest_palette_misses(skeleton, palettes)
                 if 0 < palette_hits < _SHORT_PALETTE and not _short_palette_rig_is_near(candidate_path, model_path):
                     reasons.append(f"{palette_hits} palette bone hash(es) in an unrelated rig")
                     palette_hits = 0
@@ -1069,6 +1083,8 @@ def resolve_skeleton_for_model(
                 reason=", ".join(reasons) or "candidate",
                 bone_count=bone_count,
                 palette_hits=palette_hits,
+                palette_misses=palette_misses,
+                palette_size=palette_size,
             )
         )
 

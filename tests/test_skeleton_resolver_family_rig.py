@@ -138,5 +138,139 @@ def test_npc_families_without_a_player_twin_use_the_body_their_appearances_wear(
     from cdmw.modding.skeleton_parser import npc_player_family
 
     assert npc_player_family("nhm") == "phm" and npc_player_family("ntm") == "ptm"
-    assert npc_player_family("ndem") == "phm"
+    assert npc_player_family("ndem") == "phm" and npc_player_family("ntw") == "phw"
     assert npc_player_family("") == "" and npc_player_family("phm") == ""
+
+
+NPC_DEMON_TOP = "character/model/3_npc/18_ndem/armor_south/9_upperbody/cd_ndem_00_so_ub_20003.pac"
+PPDM = "character/model/1_pc/19_ppdm/ppdm_01.pab"
+FAIRY = "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_bd_forestfairy/cd_m0001_00_bd_forestfairy.pab"
+HUMAN_MALE_NUDE = "character/prefab/1_pc/01_phm/nude/phm_00_nude_00_0001.prefabdata_xml"
+
+
+def _resolve_palette(model: str, rigs: dict[str, tuple[int, ...]], palette: tuple[int, ...],
+                     descriptors: dict[str, bytes], monkeypatch):
+    """Resolve with per-rig bone hashes, as the worker's bounded set delivers them."""
+    monkeypatch.setattr(skeleton_resolver, "pac_bone_palette_candidates", lambda _data: (palette,))
+    monkeypatch.setattr(skeleton_resolver, "parse_pab", lambda _data, path: SimpleNamespace(
+        bones=tuple(SimpleNamespace(name_hash=value) for value in rigs[path]), path=path))
+    entries = [_entry(path) for path in (model, *rigs, *descriptors)]
+    by_path = {entry.path: (entry,) for entry in entries}
+    by_basename = {Path(entry.path).name: (entry,) for entry in entries}
+    return skeleton_resolver.resolve_skeleton_for_model(
+        entries[0], (), archive_entries_by_normalized_path=by_path, archive_entries_by_basename=by_basename,
+        pac_data=b"PAR \x00", read_entry_data=lambda entry: descriptors.get(entry.path, b"PAR "))
+
+
+def test_demon_npc_armor_offers_the_demon_player_rig_too():
+    from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames
+
+    names = iter_pab_candidate_basenames(NPC_DEMON_TOP)
+    assert "phm_01.pab" in names and "ppdm_01.pab" in names
+    assert "ppdm_01.pab" not in iter_pab_candidate_basenames(NPC_HUMAN_TOP)
+
+
+def test_demon_npc_armor_with_demon_calves_takes_the_demon_rig(monkeypatch):
+    # The PDEM calf bones are only in ppdm_01 and in one creature's rig. The demon rig
+    # is a named candidate of the family, so it wins the full-palette tie.
+    body, calves = tuple(range(1, 74)), (901, 902)
+    selected, report = _resolve_palette(
+        NPC_DEMON_TOP, {PHM: body, PPDM: body + calves, FAIRY: body + calves}, body + calves,
+        {HUMAN_MALE_NUDE: _nude("1_pc/1_phm/phm_01.pab")}, monkeypatch)
+
+    assert selected is not None and selected.path == PPDM, report
+    assert not report.blocking_errors
+
+
+def test_ordinary_demon_npc_armor_keeps_the_body_its_appearances_wear(monkeypatch):
+    # Both player rigs hold every bone; the human male body descriptor settles the tie.
+    body = tuple(range(1, 74))
+    selected, report = _resolve_palette(
+        NPC_DEMON_TOP.replace("20003", "20001"), {PHM: body, PPDM: body + (901, 902)}, body,
+        {HUMAN_MALE_NUDE: _nude("1_pc/1_phm/phm_01.pab")}, monkeypatch)
+
+    assert selected is not None and selected.path == PHM, report
+    assert report.confidence == "family_descriptor"
+
+
+@pytest.mark.parametrize(("model", "descriptor", "rig"), [
+    # Orc, dwarf and goblin NPCs wear the human rigs; only the player family's body
+    # descriptor names them, so the worker delivers that descriptor with the rig.
+    ("character/model/3_npc/5_nom/armor_south/9_upperbody/cd_nom_00_so_ub_00001.pac",
+     "character/prefab/1_pc/05_pom/nude/pom_00_nude_00_0001.prefabdata_xml", PHM),
+    ("character/model/3_npc/8_ndw/armor_south/9_upperbody/cd_ndw_00_so_ub_00001.pac",
+     "character/prefab/1_pc/08_pdw/nude/cd_pdw_00_nude_00_0001.prefabdata_xml", PHW),
+    ("character/model/3_npc/15_ntw/armor_south/9_upperbody/cd_ntw_00_so_ub_10001.pac",
+     "character/prefab/1_pc/02_phw/nude/phw_00_nude_00_0001.prefabdata_xml", PHW),
+])
+def test_npc_armor_resolves_in_the_workers_bounded_set(monkeypatch, model, descriptor, rig):
+    # The bounded set holds the named rig and identityskeleton, never every PAB.
+    body = tuple(range(1, 40))
+    identity = "character/identityskeleton.pab"
+    selected, report = _resolve_palette(
+        model, {rig: body, identity: (1, 2)}, body, {descriptor: _nude(rig.removeprefix("character/model/"))}, monkeypatch)
+
+    assert selected is not None and selected.path == rig, report
+    assert not report.blocking_errors
+
+
+def test_a_refused_lookup_says_which_rigs_it_checked_and_what_they_lack(monkeypatch):
+    # Eight human NPC pieces name a bone or two that no rig in the game holds. The
+    # refusal names the rigs actually checked and how close each came, not every
+    # file name the lookup searched for, most of which do not exist.
+    from cdmw.core.archive_mesh_export import _checked_skeletons_detail
+
+    body = tuple(range(1, 67))
+    identity = "character/identityskeleton.pab"
+    selected, report = _resolve_palette(
+        NPC_HUMAN_TOP, {PHM: body[:-2], identity: (1, 2)}, body,
+        {HUMAN_MALE_NUDE: _nude("1_pc/1_phm/phm_01.pab")}, monkeypatch)
+
+    assert selected is None
+    by_path = {candidate.path: candidate for candidate in report.candidates}
+    assert (by_path[PHM].palette_misses, by_path[PHM].palette_size) == (2, 66)
+    assert _checked_skeletons_detail(report) == (
+        "\nSkeletons checked: phm_01.pab (lacks 2 of the model's 66 bones), "
+        "identityskeleton.pab (lacks 64 of the model's 66 bones)")
+
+
+def test_a_model_its_nearest_rig_almost_fits_is_told_it_has_no_rig(monkeypatch):
+    # Those eight pieces are refused, and the message says why: the model has no rig.
+    from cdmw.core import archive_mesh_export
+
+    body = tuple(range(1, 67))
+    report = _resolve_palette(NPC_HUMAN_TOP, {PHM: body[:-2], "character/identityskeleton.pab": (1, 2)}, body,
+                              {}, monkeypatch)
+    monkeypatch.setattr(archive_mesh_export, "resolve_skeleton_for_model", lambda *a, **k: report)
+    monkeypatch.setattr("cdmw.core.archive_extraction.read_archive_entry_data", lambda *_a, **_k: (b"", False, ""))
+    selected, detail, _attempted, _report = archive_mesh_export._find_matching_skeleton_entry(_entry(NPC_HUMAN_TOP))
+
+    assert selected is None
+    assert detail == (
+        "This model has no rig: no skeleton holds all of the bones it is skinned to. "
+        "The closest, phm_01.pab, lacks 2 of its 66 bones. "
+        "It can be exported only without a skeleton, so it will have no skin weights.")
+
+
+def test_a_rig_that_was_not_found_is_not_called_missing(monkeypatch):
+    # Only a far-off skeleton was checked: the model's own rig was not in the set,
+    # which is a lookup failure, not proof that the model has no rig.
+    from cdmw.core import archive_mesh_export
+
+    body = tuple(range(1, 67))
+    report = _resolve_palette(NPC_HUMAN_TOP, {"character/identityskeleton.pab": (1, 2)}, body, {}, monkeypatch)
+    monkeypatch.setattr(archive_mesh_export, "resolve_skeleton_for_model", lambda *a, **k: report)
+    monkeypatch.setattr("cdmw.core.archive_extraction.read_archive_entry_data", lambda *_a, **_k: (b"", False, ""))
+    _selected, detail, _attempted, _report = archive_mesh_export._find_matching_skeleton_entry(_entry(NPC_HUMAN_TOP))
+
+    assert detail.startswith("No candidate skeleton resolves the PAC bone palette.")
+    assert "no rig" not in detail
+    assert "identityskeleton.pab (lacks 64 of the model's 66 bones)" in detail
+
+
+def test_a_lookup_that_found_no_rig_file_says_what_it_looked_for():
+    from cdmw.core.archive_mesh_export import _checked_skeletons_detail
+    from cdmw.core.skeleton_resolver import SkeletonResolveReport
+
+    report = SkeletonResolveReport(model_path=NPC_HUMAN_TOP, attempted_paths=("a.pab", "b.pab"))
+    assert _checked_skeletons_detail(report) == "\nNo skeleton file was found. Looked for: a.pab, b.pab"

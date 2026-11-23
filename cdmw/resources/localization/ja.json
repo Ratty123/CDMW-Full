@@ -17785,7 +17785,7 @@
     "exported texture binding did not resolve in its sidecar/MTL contract: {value_0}": "エクスポートされたテクスチャ バインディングがサイドカー/MTL コントラクトで解決されませんでした: {value_0}",
     "exports the look Khione95's Character Creator mod gives Kliff as one FBX per part (body, head, hair and beard), each with the face shape its game prefab gives it. It reads the mod's files in": "は、Khione95 の MOD「Character Creator」が Kliff に与える外見を、パーツ（体、頭部、髪、ひげ）ごとに 1 つの FBX として、それぞれゲームのプレハブが与える顔の形状付きでエクスポートします。MOD のファイルの読み取り元は",
     "exports the selected models as FBX files, each with the face shape the selected appearance gives it. Choose an output folder; the next export starts there.": "選択したモデルを FBX ファイルとして書き出します。各モデルには、選択した外見が与える顔の形が適用されます。出力フォルダーを選ぶと、次回の書き出しはそのフォルダーから始まります。",
-    "exports use the player skeleton for the NPC's race and body. A few pieces still ask you to choose a skeleton.": "でエクスポートすると、NPC の種族と体型に合ったプレイヤー用のスケルトンが使われます。一部のパーツではスケルトンの選択が必要です。",
+    "exports use the player skeleton for the NPC's race and body. A few pieces have no rig: no skeleton in the game holds all of their bones, so they can be exported only without a skeleton or weights.": "でエクスポートすると、NPC の種族と体型に合ったプレイヤー用のスケルトンが使われます。一部のパーツは、ゲーム内のどのスケルトンにもすべてのボーンが含まれていないためリグがなく、スケルトンとウェイトなしでしかエクスポートできません。",
     "exposure": "露出",
     "extent": "範囲",
     "extra": "追加",

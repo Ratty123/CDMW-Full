@@ -201,6 +201,37 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    /// <summary>
+    /// NPC equipment that ships no PAB, the player rigs it is worn on, and the
+    /// player families' body descriptors that name those rigs (as the game spells
+    /// them, in capitals for some families).
+    /// </summary>
+    public static async Task<SyntheticArchiveFixture> CreateNpcArmourRigsAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-npc-rigs-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        static byte[] Nude(string rig) => Encoding.UTF8.GetBytes($"<BodyPrefabData><SkeletonName FileName=\"{rig}\"/></BodyPrefabData>");
+        await BuildPackageAsync(root, "0009",
+        [
+            ("character/model/3_npc/1_nhm/armor_south/9_upperbody/cd_nhm_00_so_ub_10335.pac", "PAC human NPC"u8.ToArray()),
+            ("character/model/3_npc/5_nom/armor_south/9_upperbody/cd_nom_00_so_ub_00001.pac", "PAC orc NPC"u8.ToArray()),
+            ("character/model/3_npc/8_ndw/armor_south/9_upperbody/cd_ndw_00_so_ub_00001.pac", "PAC dwarf woman NPC"u8.ToArray()),
+            ("character/model/3_npc/15_ntw/armor_south/9_upperbody/cd_ntw_00_so_ub_10001.pac", "PAC tall woman NPC"u8.ToArray()),
+            ("character/model/3_npc/18_ndem/armor_south/9_upperbody/cd_ndem_00_so_ub_20003.pac", "PAC demon NPC"u8.ToArray()),
+            ("character/model/3_npc/3_nxx/armor_south/9_upperbody/cd_nxx_00_so_ub_00001.pac", "PAC unknown NPC family"u8.ToArray()),
+            ("character/identityskeleton.pab", "PAB identity"u8.ToArray()),
+            ("character/model/1_pc/1_phm/phm_01.pab", "PAB human male"u8.ToArray()),
+            ("character/model/1_pc/2_phw/phw_01.pab", "PAB human female"u8.ToArray()),
+            ("character/model/1_pc/19_ppdm/ppdm_01.pab", "PAB demon"u8.ToArray()),
+            ("character/prefab/1_pc/01_phm/nude/phm_00_nude_00_0001.prefabdata_xml", Nude("1_pc/1_phm/PHM_01.pab")),
+            ("character/prefab/1_pc/02_phw/nude/phw_00_nude_00_0001.prefabdata_xml", Nude("1_pc/2_phw/PHW_01.pab")),
+            ("character/prefab/1_pc/05_pom/nude/pom_00_nude_00_0001.prefabdata_xml", Nude("1_pc/1_phm/PHM_01.pab")),
+            ("character/prefab/1_pc/08_pdw/nude/cd_pdw_00_nude_00_0001.prefabdata_xml", Nude("1_pc/2_phw/phw_01.pab")),
+        ]).ConfigureAwait(false);
+        return fixture;
+    }
+
     public static async Task<SyntheticArchiveFixture> CreateOpaquePayloadsAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-opaque-{Guid.NewGuid():N}");

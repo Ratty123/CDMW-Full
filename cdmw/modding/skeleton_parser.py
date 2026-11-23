@@ -303,9 +303,15 @@ def is_skeleton_file(path: str) -> bool:
     return os.path.splitext(path.lower())[1] == ".pab"
 
 
-#: NPC families without a player family of the same name. Their appearances
-#: wear the human male body (``phm_00_nude_*``).
-_NPC_PLAYER_FAMILY_ALIASES = {"ndem": "phm"}
+#: NPC families without a player family of the same name, and the player body
+#: they wear: demon men the human male's (``phm_00_nude_*``), tall women the
+#: human female's. Keep in step with ``NpcPlayerFamilyAliases`` in the archive
+#: worker's ``ArchiveLookupService.cs``.
+_NPC_PLAYER_FAMILY_ALIASES = {"ndem": "phm", "ntw": "phw"}
+
+#: Further player rigs an NPC family's equipment can be skinned to. Some demon
+#: gear carries the PDEM calf bones that only ``ppdm_01.pab`` holds.
+_NPC_EXTRA_PLAYER_RIGS = {"ndem": ("ppdm",)}
 
 
 def npc_player_family(npc_family: str) -> str:
@@ -364,6 +370,8 @@ def iter_pab_candidate_basenames(pac_path: str) -> tuple[str, ...]:
             # same race (phm_01, phw_01, ptm_01) and ship no .pab of their own.
             if "3_npc" in path_parts and npc_player_family(class_match.group(1)):
                 _append(f"{npc_player_family(class_match.group(1))}_01")
+                for rig in _NPC_EXTRA_PLAYER_RIGS.get(class_match.group(1), ()):
+                    _append(f"{rig}_01")
         if re.match(r"^cd_m\d{4}_", part):
             _append(part)
     if "character/model/1_pc/" in normalized_path:

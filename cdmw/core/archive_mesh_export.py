@@ -315,17 +315,61 @@ def _find_matching_skeleton_entry(
     )
     if skeleton_entry is not None:
         return skeleton_entry, "", tuple(report.attempted_paths), report
-    detail = (
-        report.blocking_errors[0]
-        if report.blocking_errors
-        else f"Could not resolve a matching PAB skeleton for {entry.path}."
+    detail = _no_rig_detail(report) or (
+        (report.blocking_errors[0]
+         if report.blocking_errors
+         else f"Could not resolve a matching PAB skeleton for {entry.path}.")
+        + _checked_skeletons_detail(report)
     )
-    if report.attempted_paths:
-        preview = ", ".join(report.attempted_paths[:5])
-        if len(report.attempted_paths) > 5:
-            preview += " ..."
-        detail += f"\nTried: {preview}"
     return None, detail, tuple(report.attempted_paths), report
+
+
+def _no_rig_detail(report: SkeletonResolveReport) -> str:
+    """Why a model whose bone list no checked skeleton holds has no rig to export with.
+
+    A few NPC pieces name a bone or two that no skeleton in the game contains, so
+    even their race's rig cannot carry their weights. That is the model, not a
+    lookup that could be retried.
+    """
+
+    near = [candidate for candidate in report.candidates if candidate.palette_size and candidate.palette_misses]
+    if not near or any(candidate.palette_hits for candidate in report.candidates):
+        return ""
+    closest = min(near, key=lambda candidate: (candidate.palette_misses, candidate.path))
+    missing = closest.palette_misses
+    if missing * 10 > closest.palette_size:
+        # Far from every checked skeleton: the model's own rig was not found, which
+        # says nothing about whether it has one.
+        return ""
+    name = PurePosixPath(str(closest.path).replace("\\", "/")).name
+    return (
+        "This model has no rig: no skeleton holds all of the bones it is skinned to. "
+        f"The closest, {name}, lacks {missing} of its {closest.palette_size} bone{'s' if closest.palette_size != 1 else ''}. "
+        "It can be exported only without a skeleton, so it will have no skin weights."
+    )
+
+
+def _checked_skeletons_detail(report: SkeletonResolveReport, limit: int = 5) -> str:
+    """The skeleton files a refused lookup actually checked, or the names it found none of.
+
+    The searched names are not proof that a file was there: listing them as "tried"
+    once implied that a rig had been checked and rejected when it was never found.
+    """
+
+    checked = sorted(report.candidates, key=lambda candidate: (
+        candidate.palette_misses if candidate.palette_size else 1 << 30, candidate.path))
+    if checked:
+        def describe(candidate) -> str:
+            name = PurePosixPath(str(candidate.path).replace("\\", "/")).name
+            if candidate.palette_size:
+                return f"{name} (lacks {candidate.palette_misses} of the model's {candidate.palette_size} bones)"
+            return name
+        preview = ", ".join(describe(candidate) for candidate in checked[:limit])
+        return f"\nSkeletons checked: {preview}" + (" ..." if len(checked) > limit else "")
+    if report.attempted_paths:
+        preview = ", ".join(report.attempted_paths[:limit]) + (" ..." if len(report.attempted_paths) > limit else "")
+        return f"\nNo skeleton file was found. Looked for: {preview}"
+    return ""
 
 
 def _appearance_fbx_mesh(
