@@ -1148,6 +1148,77 @@ def test_without_a_full_preview_within_the_minute_it_opens_as_before(tmp_path, m
     assert harness._mesh_editor_full_preview_wait is None
 
 
+# Fredric, 2026-11-23: mesh_open presses Open the moment the row is current, while Browse
+# still shows the last file's preview. The editor found no package of this file and baked
+# every layer of the Demenissian Council Robes into one 256 px map per part.
+
+
+def _building_harness(tmp_path: Path, monkeypatch):
+    entry = _entry(tmp_path)
+    other = _entry(tmp_path, "other.pac", offset=8)
+    shown = _package(tmp_path / "shown", other, textured=True)  # the last file's preview
+    harness = _LaunchHarness(entry, shown)
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="other-model", dotnet_preview_package_path=str(shown), quality_tier="full")
+    harness.archive_preview_request_entry = entry  # selecting the row started its preview
+    harness.archive_preview_worker = object()
+    timers: list[object] = []
+    monkeypatch.setattr("cdmw.ui.mesh_editor.shell_bridge.QTimer.singleShot",
+                        lambda _ms, callback: timers.append(callback))
+    return entry, harness, timers
+
+
+def test_an_open_before_browse_shows_the_file_waits_for_its_preview(tmp_path, monkeypatch) -> None:
+    from cdmw.ui.mesh_editor.shell_bridge import WAITING_FOR_FULL_PREVIEW_TEXT
+
+    entry, harness, timers = _building_harness(tmp_path, monkeypatch)
+    harness._launch_archive_mesh_editor_for_entry(entry)
+
+    assert harness.opened == [] and harness.texture_requests == []
+    assert harness.statuses[-1][0] == WAITING_FOR_FULL_PREVIEW_TEXT
+    timers.pop()()  # the worker is still building: look again
+    assert harness.opened == [] and len(timers) == 1
+
+    own = _package(tmp_path / "own", entry, textured=True)
+    harness.archive_preview_worker = None
+    harness.archive_isolated_renderer_active_package = own
+    harness.current_archive_preview_result = SimpleNamespace(
+        preview_model="own-model", dotnet_preview_package_path=str(own), quality_tier="full")
+    with patch("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+               return_value=_Lease()):
+        timers.pop()()
+    assert len(harness.opened) == 1
+    _opened_entry, kwargs = harness.opened[0]
+    assert kwargs["material_package_path"] == str(own)
+    assert kwargs["material_preview_model"] == "own-model"
+    assert harness.texture_requests == []
+
+
+def test_only_browse_building_this_file_holds_the_open(tmp_path, monkeypatch) -> None:
+    entry, harness, _timers = _building_harness(tmp_path, monkeypatch)
+    assert harness._archive_preview_building_for(entry)
+
+    # A scheduled request counts as building before its worker starts.
+    harness.archive_preview_worker = None
+    harness.scheduled_archive_preview_request = (3, entry, False, False)
+    assert harness._archive_preview_building_for(entry)
+    harness.scheduled_archive_preview_request = None
+    assert not harness._archive_preview_building_for(entry)  # nothing is being built
+
+    harness.archive_preview_worker = object()
+    # A texture request has its own hand-off to the editor.
+    harness._archive_texture_request_loading = True
+    assert not harness._archive_preview_building_for(entry)
+    harness._archive_texture_request_loading = False
+    # Browse previews another file: nothing of this one is on its way.
+    harness.archive_preview_request_entry = _entry(tmp_path, "third.pac", offset=16)
+    assert not harness._archive_preview_building_for(entry)
+    # A rebuild of the file Browse already shows (a DMM toggle) does not hold an open.
+    harness.archive_preview_request_entry = entry
+    harness.archive_isolated_renderer_active_package = _package(tmp_path / "own", entry, textured=True)
+    assert not harness._archive_preview_building_for(entry)
+
+
 def test_an_interim_texture_result_is_never_handed_to_the_editor(tmp_path) -> None:
     entry = _entry(tmp_path)
     geometry = _package(tmp_path / "geometry", entry, textured=False)

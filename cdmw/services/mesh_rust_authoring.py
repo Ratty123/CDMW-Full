@@ -5387,6 +5387,7 @@ def _mesh_synthesized_texture_overrides(
     stop_event: threading.Event | None,
     synthesis_state: _RustMaterialSynthesisState,
     protected_keys: frozenset[tuple[int, int, str]] = frozenset(),
+    bake_layers_at_canvas: bool = False,
 ) -> dict[tuple[int, int, str], Path]:
     """Prepare independent materials in bounded batches, retaining owner order."""
     lods = _mesh_lods(mesh)
@@ -5405,7 +5406,7 @@ def _mesh_synthesized_texture_overrides(
         return _mesh_synthesized_texture_overrides_serial(
             mesh, synthesis_root, expected_root_identity=expected_root_identity,
             stop_event=stop_event, synthesis_state=synthesis_state, protected_keys=protected_keys,
-            budget=budget,
+            budget=budget, bake_layers_at_canvas=bake_layers_at_canvas,
         )
     _raise_if_texture_copy_cancelled(stop_event)
     _validate_rust_material_synthesis_tree(synthesis_root, expected_root_identity)
@@ -5440,6 +5441,7 @@ def _mesh_synthesized_texture_overrides(
                                          if lod == lod_index and owner in owners),
                 # A job running alone admits its materials one at a time.
                 budget=budget if solo else None,
+                bake_layers_at_canvas=bake_layers_at_canvas,
             )
             return local, local_state
         finally:
@@ -5516,6 +5518,7 @@ def _mesh_synthesized_texture_overrides_serial(
     synthesis_state: _RustMaterialSynthesisState,
     protected_keys: frozenset[tuple[int, int, str]] = frozenset(),
     budget: _RustMaterialSynthesisBudget | None = None,
+    bake_layers_at_canvas: bool = False,
 ) -> dict[tuple[int, int, str], Path]:
     """Compile authoritative PAC graphs and encode only renderer-safe channels.
 
@@ -5583,6 +5586,7 @@ def _mesh_synthesized_texture_overrides_serial(
                 # Only resolved channels are read below; per-layer maps and
                 # packaged copies would just occupy the aggregate limit.
                 resolved_outputs_only=True,
+                bake_layers_at_canvas=bake_layers_at_canvas,
             )
         except RunCancelled as exc:
             raise RustMeshCancellationError(
@@ -5806,6 +5810,7 @@ def _mesh_texture_payloads(
     material_package_path: object = "",
     preview_texture_overrides: Mapping[tuple[int, int, str], Path] | None = None,
     enable_material_synthesis: bool = True,
+    bake_layers_at_canvas: bool = False,
 ) -> list[dict[str, object]]:
     lods = _mesh_lods(mesh)
     material_synthesis = synthesis_state or _RustMaterialSynthesisState()
@@ -5852,6 +5857,7 @@ def _mesh_texture_payloads(
                     stop_event=stop_event,
                     synthesis_state=material_synthesis,
                     protected_keys=frozenset(),
+                    bake_layers_at_canvas=bake_layers_at_canvas,
                 )
                 synthesized.update(canonical)
                 generated_binding_count = 0
@@ -7840,6 +7846,62 @@ def _prepare_shadow_mesh_materials(
     return preview_material_binding_count, texture_unavailable_reason
 
 
+def _bind_item_set_file_preview_core_materials(
+    mesh,
+    contexts,
+    authoritative_service,
+    authoritative_session_id: str,
+    session_root: Path,
+    stop_event,
+):
+    """Give one file of a view-only set open, ``contexts[0]``, its Preview Core layers.
+
+    Opened from an Item Finder set (Browse's Mesh button with the set in scope), the
+    files had no material package: Browse's is the whole set's, so the editor resolved
+    their materials itself and baked every tiled layer into one 256 px map per part
+    (Fredric, 2026-11-23). The editable file and each reference piece are bound as an
+    editable set binds its pieces: from Browse's set package, else from the file's own
+    Preview Core job. Returns that binding's lease, which the caller holds while the
+    layers are read, or None when neither binds; the mesh's materials stay as they were.
+    """
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.services.mesh_item_set_editing import (
+        item_set_material_cache,
+        lookup_item_set_browse_material_package,
+    )
+    from cdmw.services.mesh_preview_material_source import (
+        bind_item_set_piece_from_preview_core_package,
+        load_preview_core_set_package,
+        prepare_item_set_material_source,
+    )
+
+    if not contexts:
+        return None
+    cache = item_set_material_cache(Path(session_root))
+    try:
+        package_path = lookup_item_set_browse_material_package(authoritative_service, authoritative_session_id)
+        set_package = (
+            load_preview_core_set_package(package_path, cache_root=cache, stop_event=stop_event)
+            if package_path else None
+        )
+        try:
+            lease = bind_item_set_piece_from_preview_core_package(mesh, contexts[0], set_package, stop_event)
+        finally:
+            if set_package is not None:
+                set_package.lease.release()  # the piece holds its own lease
+        if lease is None:
+            lease = prepare_item_set_material_source(
+                mesh, contexts[0], cache, stop_event, require_existing_inputs=False,
+            )
+    except (RunCancelled, RustMeshCancellationError):
+        raise
+    except Exception:
+        _LOGGER.warning("item_set_primary_preview_core_binding_failed path=%s", getattr(mesh, "path", ""),
+                        exc_info=True)
+        return None
+    return lease
+
+
 def _configure_shadow_session_seed(
     shadow_service: MeshService,
     shadow_view,
@@ -7958,10 +8020,13 @@ class RustMeshAuthoringSession:
     #: Which set files open read-only and why, said before the editor shows (P5).
     item_set_budget_notice: str = ""
     prepared_item_set_materials: object | None = field(default=None, repr=False)
+    #: A view-only set open's editable file: the lease on the Preview Core package its
+    #: parts' layers are read from, held while the session lives.
+    item_set_primary_material_lease: object | None = field(default=None, repr=False)
     # The first morph query runs beside manifest writing; state_payload takes it.
     morph_state_prefetch: tuple[threading.Thread, dict[str, object]] | None = field(default=None, repr=False)
     #: Milliseconds per stage of the open, for the runtime record (P4 V3).
-    open_stage_ms: dict[str, float] = field(default_factory=dict, repr=False)
+    open_stage_ms: dict[str, float | str] = field(default_factory=dict, repr=False)
     #: P4 V3: the editor opens before the morph query, which holds the native
     #: service for about two seconds; ``query_deferred_morph_state`` sends it later.
     defer_morph_state: bool = field(default=False, repr=False)
@@ -8078,12 +8143,24 @@ class RustMeshAuthoringSession:
                 and (replacement_state is None or replacement_state.neutral_appearance is None)
             )
             preview_material_binding_count = 0
+            # A view-only set open binds its editable file as an editable set binds
+            # its pieces; an editable set does that itself below.
+            bind_set_primary = bool(item_set_contexts) and not edit_item_set
+            item_set_primary_lease = None
             if materials_after_open:
                 pass
             elif geometry_layer_seed.get("archive_refit_context") is None:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
                     shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
                 )
+                if bind_set_primary:
+                    item_set_primary_lease = _bind_item_set_file_preview_core_materials(
+                        shadow_mesh, item_set_contexts, authoritative_service, authoritative_session_id,
+                        session_root, stop_event,
+                    )
+                    if item_set_primary_lease is not None:
+                        preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
+                        texture_unavailable_reason = ""
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
@@ -8196,6 +8273,14 @@ class RustMeshAuthoringSession:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
                     adopted, preview_context, texture_unavailable_reason, stop_event,
                 )
+                if bind_set_primary:
+                    item_set_primary_lease = _bind_item_set_file_preview_core_materials(
+                        adopted, item_set_contexts, authoritative_service, authoritative_session_id,
+                        session_root, stop_event,
+                    )
+                    if item_set_primary_lease is not None:
+                        preview_material_binding_count = count_dotnet_own_material_bindings(adopted)
+                        texture_unavailable_reason = ""
                 mark("shadow_materials_after_open")
             if neutral_appearance is not None:
                 shadow_session = shadow_service._session(shadow_view.session_id)
@@ -8259,6 +8344,7 @@ class RustMeshAuthoringSession:
                 bounded_item_set_references=bounded_item_set_references,
                 item_set_budget_notice=item_set_budget_notice,
                 prepared_item_set_materials=prepared_item_set_materials,
+                item_set_primary_material_lease=item_set_primary_lease,
                 handoff_target=str(getattr(authoritative_session, "handoff_target", "") or ""),
             )
             if authoritative_morph_root is not None:
@@ -9106,6 +9192,9 @@ class RustMeshAuthoringSession:
                     stop_event=stop_event,
                     synthesis_state=material_synthesis,
                     material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
+                    # The editor shows its parts up close: a tiled layer of a part with no
+                    # Preview Core graph keeps the canvas's density (2026-11-23).
+                    bake_layers_at_canvas=True,
                 )
                 material_presentations = _mesh_material_presentations(
                     prepared_material_mesh,

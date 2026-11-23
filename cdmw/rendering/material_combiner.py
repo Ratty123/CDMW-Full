@@ -650,6 +650,7 @@ def combine_preview_material(
             color_blending_tints=color_blending_tints,
             preserve_base_alpha=preserve_base_alpha,
             cancelled=cancelled,
+            bake_layers_at_canvas=settings.bake_layers_at_canvas,
         )
         if synthesized_source:
             base_source = synthesized_source

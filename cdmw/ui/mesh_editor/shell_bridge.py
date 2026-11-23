@@ -593,6 +593,36 @@ class MeshEditorShellBridgeMixin:
                 return candidate
         return None
 
+    def _record_set_package_lookup(self, entry: ArchiveEntry, textured_package: object, set_package: object) -> None:
+        """Say in the runtime record whether a set open found Browse's set package, and if
+        not, where the lookup stopped: without it every file builds its own materials."""
+
+        recorder = getattr(self, "_record_runtime_event", None)
+        if not callable(recorder):
+            return
+        archive = self.archive
+        active = getattr(archive, "archive_isolated_renderer_active_package", None)
+        has_textures = getattr(archive, "_archive_active_package_has_textures", None)
+        facts: dict[str, object] = {
+            "path": str(getattr(entry, "path", "") or ""),
+            "set_package": str(set_package or ""),
+            "textured_package": str(textured_package or ""),
+            "active_package": str(active or ""),
+        }
+        try:
+            facts["active_has_textures"] = bool(has_textures()) if callable(has_textures) else None
+            if active:
+                native = native_material_package_for_rust_preview(Path(active)) or Path(active)
+                facts["active_native_package"] = str(native)
+                facts["active_matches_entry"] = self._mesh_editor_package_matches_archive_entry(native, entry)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            facts["lookup_error"] = f"{type(exc).__name__}: {exc}"
+        current = getattr(archive, "_current_archive_entry", lambda: None)()
+        requested = getattr(archive, "archive_preview_request_entry", None)
+        facts["current_entry"] = str(getattr(current, "path", "") or "")
+        facts["requested_entry"] = str(getattr(requested, "path", "") or "")
+        recorder("mesh_editor_set_package_lookup", **facts)
+
     def _defer_rust_mesh_editor_for_archive_textures(
         self,
         entry: ArchiveEntry,
@@ -604,10 +634,11 @@ class MeshEditorShellBridgeMixin:
             return False
         if getattr(self, "_mesh_editor_full_preview_given_up", None) == identity:
             self._mesh_editor_full_preview_given_up = None
-        elif self._archive_preview_interim_for(entry):
-            # Browse shows a quick preview and is building the full one. A texture
-            # load now would replace that build and hand the editor a package without
-            # the material graph: grey cloth, the occlusion map taken as colour. Wait.
+        elif self._archive_preview_interim_for(entry) or self._archive_preview_building_for(entry):
+            # Browse shows a quick preview and is building the full one, or has not
+            # shown this file yet. A texture load now would replace that build and hand
+            # the editor a package without the material graph: grey cloth, the occlusion
+            # map taken as colour, or every layer baked into one 256 px map. Wait.
             self._wait_for_full_archive_preview(entry, identity)
             return True
         if self._mesh_editor_active_textured_package_for_entry(entry) is not None:
@@ -659,6 +690,35 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(current, ArchiveEntry) or archive_entry_identity_key(current) != archive_entry_identity_key(entry):
             return False
         return _interim_preview(getattr(self.archive, "current_archive_preview_result", None))
+
+    def _archive_preview_building_for(self, entry: ArchiveEntry) -> bool:
+        """Browse is building its first preview of ``entry`` and still shows another file's.
+
+        Selecting a row starts its preview at once but keeps the last result on screen
+        until the new one arrives, so an open pressed in between (mesh_open does it the
+        moment the row is current) found no package of this file and the editor fell
+        back to its own materials: every layer baked into one 256 px map per part
+        (Fredric, 2026-11-23, Demenissian Council Robes). A texture request has its own
+        hand-off and is left to it.
+        """
+
+        archive = self.archive
+        key = archive_entry_identity_key(entry)
+        current = getattr(archive, "_current_archive_entry", lambda: None)()
+        requested = getattr(archive, "archive_preview_request_entry", None)
+        if not (
+            isinstance(current, ArchiveEntry) and archive_entry_identity_key(current) == key
+            and isinstance(requested, ArchiveEntry) and archive_entry_identity_key(requested) == key
+        ):
+            return False
+        if bool(getattr(archive, "_archive_texture_request_loading", False)):
+            return False
+        building = (
+            getattr(archive, "archive_preview_worker", None) is not None
+            or getattr(archive, "scheduled_archive_preview_request", None) is not None
+            or getattr(archive, "pending_archive_preview_request", None) is not None
+        )
+        return building and self._mesh_editor_active_textured_package_for_entry(entry) is None
 
     def _disconnect_full_archive_preview_wait(self) -> None:
         deadline_timer = getattr(self, "_mesh_editor_full_preview_deadline_timer", None)
@@ -775,7 +835,7 @@ class MeshEditorShellBridgeMixin:
             self._mesh_editor_full_preview_wait = None
             self._cancel_preloaded_mesh_editor_session()
             return
-        still_interim = self._archive_preview_interim_for(entry)
+        still_interim = self._archive_preview_interim_for(entry) or self._archive_preview_building_for(entry)
         if still_interim and time.monotonic() < float(wait.get("deadline", 0.0)):
             active_worker = getattr(self.archive, "archive_preview_worker", None)
             connected_worker = wait.get("worker") if isinstance(wait, dict) else None
@@ -1488,22 +1548,23 @@ class MeshEditorShellBridgeMixin:
         if item_set_contexts:
             # The browser package combines several PACs. Keep the single-file
             # material context empty so single-file priming never borrows combined
-            # owners; for an editable set, retain Browse's conserved Preview Core
-            # set package (with a cache lease) so prepare_editable_item_set can
-            # bind each piece directly from it.
-            if session_options.get("edit_item_set"):
-                find_set_package = getattr(self, "_mesh_editor_active_set_package_for_contexts", None)
-                set_package = (
-                    find_set_package(
-                        entry,
-                        item_set_contexts,
-                        textured_package=textured_package,
-                    )
-                    if callable(find_set_package)
-                    else None
+            # owners; retain Browse's conserved Preview Core set package (with a
+            # cache lease) so each editable file binds directly from it: every
+            # piece of an editable set, and the one file of a view-only set open
+            # (Browse's Mesh button with an Item Finder set in scope).
+            find_set_package = getattr(self, "_mesh_editor_active_set_package_for_contexts", None)
+            set_package = (
+                find_set_package(
+                    entry,
+                    item_set_contexts,
+                    textured_package=textured_package,
                 )
-                if set_package is not None:
-                    item_set_material_package_path = str(set_package)
+                if callable(find_set_package)
+                else None
+            )
+            if set_package is not None:
+                item_set_material_package_path = str(set_package)
+            self._record_set_package_lookup(entry, textured_package, set_package)
             material_preview_model = None
             material_package_path = ""
             material_source_identity = None

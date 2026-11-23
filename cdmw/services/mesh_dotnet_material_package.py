@@ -1083,6 +1083,7 @@ def _synthesize_dotnet_material_channels(
     cancelled: Callable[[], bool] | None,
     support_map_max_dimension: int = 256,
     requested_output_channels: frozenset[str] | None = None,
+    bake_layers_at_canvas: bool = False,
 ) -> tuple[dict[str, str], dict[str, object], tuple[str, ...]]:
     inputs = _package_synthesis_inputs(source, raw_contract)
     normalized_requested_outputs = (
@@ -1196,6 +1197,7 @@ def _synthesize_dotnet_material_channels(
                 requested_output_channels=normalized_requested_outputs,
                 base_output_available=not base_output_requested,
                 layered_base_only=_source_base_comes_from_layers(source),
+                bake_layers_at_canvas=bake_layers_at_canvas,
             ),
             cancelled=cancelled,
         )
@@ -1360,6 +1362,7 @@ def _dotnet_submesh_material_payload(
     support_map_max_dimension: int = 256,
     requested_output_channels: frozenset[str] | None = None,
     synthesis_admission: Callable[[int, object], bool] | None = None,
+    bake_layers_at_canvas: bool = False,
     resolved_outputs_only: bool = False,
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
@@ -1411,6 +1414,7 @@ def _dotnet_submesh_material_payload(
                     cancelled=cancelled,
                     support_map_max_dimension=support_map_max_dimension,
                     requested_output_channels=requested_output_channels,
+                    bake_layers_at_canvas=bake_layers_at_canvas,
                 )
                 if resolved_outputs_only:
                     _discard_unresolved_synthesis_outputs(output_dir, resolved_channels)
@@ -1614,6 +1618,7 @@ def compile_mesh_dotnet_material_manifest(
     ] | None = None,
     synthesis_admission: Callable[[int, object], bool] | None = None,
     resolved_outputs_only: bool = False,
+    bake_layers_at_canvas: bool = False,
 ) -> dict[str, object]:
     """Compile the canonical initial/resident .NET material manifest.
 
@@ -1675,6 +1680,7 @@ def compile_mesh_dotnet_material_manifest(
                 cancelled=cancelled,
                 support_map_max_dimension=support_map_max_dimension,
                 requested_output_channels=requested_output_channels,
+                bake_layers_at_canvas=bake_layers_at_canvas,
                 synthesis_admission=synthesis_admission,
                 resolved_outputs_only=resolved_outputs_only,
             )

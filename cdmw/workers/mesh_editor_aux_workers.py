@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shutil
 import threading
 import time
@@ -55,6 +56,9 @@ from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.static_mesh_scene_frame import selection_pivot_source_from_mesh
 from cdmw.modding.static_mesh_scene_frame import build_authoritative_static_scene_frame
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,6 +373,9 @@ class MeshArchiveMaterialContextWorker(QObject):
         entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         sidecar_entries_by_texture_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
         sidecar_entries_by_texture_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+        native_dependencies: object | None = None,
+        native_cache_root: Path | str | None = None,
+        support_texture_max_dimension: int = 0,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -377,6 +384,15 @@ class MeshArchiveMaterialContextWorker(QObject):
         self.material_package_path = (
             Path(material_package_path) if material_package_path else None
         )
+        # Opt-in: with the open's dependency context the worker builds the entry's own
+        # Preview Core package when none was handed in, instead of the Python resolver
+        # that feeds every tiled layer to the 256 px bake (2026-11-23).
+        self.native_dependencies = native_dependencies
+        self.native_cache_root = Path(native_cache_root) if native_cache_root else None
+        # The size of support maps the archive resolver prepares; 0 keeps the shared
+        # 256 px. The editor's own resolver asks for its synthesis size: its materials
+        # are composed from these maps (Archive Refit's use of this worker keeps 256).
+        self.support_texture_max_dimension = max(0, int(support_texture_max_dimension or 0))
         self.entries_by_normalized_path = entries_by_normalized_path or {}
         self.entries_by_basename = entries_by_basename or {}
         self.sidecar_entries_by_texture_path = sidecar_entries_by_texture_path or {}
@@ -630,6 +646,50 @@ class MeshArchiveMaterialContextWorker(QObject):
         # to ``context_resolved`` so the package and its lease cannot be lost.
         self.resolved.emit(self.request_id, preview_model)
 
+    def _publish_own_preview_core_package(self) -> bool:
+        """Build and publish the entry's Preview Core package; False leaves the old route.
+
+        Runs only when the caller handed in the open's dependency context. A job that
+        fails, or a graph the editor cannot draw, falls through to the archive resolver
+        as before.
+        """
+        context = self.native_dependencies
+        if context is None or self.native_cache_root is None:
+            return False
+        entry_matching = getattr(context, "entry_matching", None)
+        if not callable(entry_matching) or entry_matching(self.entry) is None:
+            return False
+        from cdmw.services.mesh_preview_material_source import (
+            run_preview_core_job_for_context,
+        )
+        from cdmw.services.mesh_rust_preview_package import (
+            _validated_preview_core_source,
+        )
+
+        try:
+            result = run_preview_core_job_for_context(self.entry, context, self.native_cache_root, self.stop_event)
+        except Exception:
+            if not self.stop_event.is_set():
+                _LOGGER.warning("mesh_editor_own_preview_core_job_failed path=%s", self.entry.path, exc_info=True)
+            return False
+        if self.stop_event.is_set() or not bool(getattr(result, "succeeded", False)):
+            return False
+        package = Path(str(getattr(result, "package_path", "") or ""))
+        try:
+            manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+            _validated_preview_core_source(package, manifest)
+        except (OSError, ValueError) as exc:
+            _LOGGER.warning("mesh_editor_own_preview_core_graph_unusable path=%s reason=%s", self.entry.path, exc)
+            return False
+        previous = self.material_package_path
+        self.material_package_path = package
+        model = self._native_package_material_model()
+        if model is None or not self._native_material_graph_ready:
+            self.material_package_path = previous
+            return False
+        self._publish_resolved_context(model, self.material_package_path)
+        return True
+
     @Slot()
     def run(self) -> None:
         try:
@@ -644,6 +704,10 @@ class MeshArchiveMaterialContextWorker(QObject):
                 # material parameters and layer graph. Reuse those exact inputs
                 # and their DDS lease, including after a Rust cache hit.
                 self._publish_resolved_context(native_fallback, self.material_package_path)
+                return
+            if native_fallback is None and self._publish_own_preview_core_package():
+                return
+            if self.stop_event.is_set():
                 return
             try:
                 result = build_archive_preview_result(
@@ -660,6 +724,7 @@ class MeshArchiveMaterialContextWorker(QObject):
                     quality_tier="full",
                     enable_hkx_visual_preview=False,
                     stop_event=self.stop_event,
+                    support_texture_max_dimension=self.support_texture_max_dimension,
                 )
             except Exception:
                 if self.stop_event.is_set():

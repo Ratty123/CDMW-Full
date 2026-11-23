@@ -159,6 +159,7 @@ def _apply_pac_layer_sampling_transform(
     *,
     flip_vertical: bool = False,
     cancelled: Callable[[], bool] | None = None,
+    output_size: Optional[QSize] = None,
 ) -> QImage:
     """Bake the shader's repeat-sampled PAC layer UV transform into an image.
 
@@ -167,6 +168,13 @@ def _apply_pac_layer_sampling_transform(
     image y = 1 - v, so the same sampling needs the Y offset and the rotation
     with the opposite sign. Centred, unrotated and half-turn transforms agree
     either way.
+
+    The bake covers the whole part, so a tile repeated N times across it keeps
+    only 1/N of its pixels per repeat at the tile's own size. ``output_size``
+    bakes straight onto the composite's canvas instead (the Mesh Editor's
+    Demenissian Council Robes kept 25 px per repeat of a 14x tile, 2026-11-23);
+    the tile is first reduced to what one repeat can show, so the denser
+    sampling does not alias.
     """
 
     transform = _pac_layer_sampling_transform(input_item)
@@ -177,6 +185,17 @@ def _apply_pac_layer_sampling_transform(
         return image
 
     scale_x, scale_y, offset_x, offset_y, angle = transform
+    out_width, out_height = width, height
+    if output_size is not None and int(output_size.width()) > 0 and int(output_size.height()) > 0:
+        out_width, out_height = int(output_size.width()), int(output_size.height())
+        # Pixels one repeat covers on the canvas; a tile larger than that is reduced
+        # first (a box filter, as mip selection would), then sampled bilinearly.
+        repeat_width = max(1, int(round(out_width * max(scale_x, 1e-5))))
+        repeat_height = max(1, int(round(out_height * max(scale_y, 1e-5))))
+        if repeat_width < width or repeat_height < height:
+            image = image.scaled(min(width, repeat_width), min(height, repeat_height),
+                                 Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            width, height = int(image.width()), int(image.height())
     if flip_vertical:
         offset_y = -offset_y
         angle = -angle
@@ -185,9 +204,9 @@ def _apply_pac_layer_sampling_transform(
     cosine = math.cos(angle)
     sine = math.sin(angle)
     source = image.convertToFormat(QImage.Format.Format_RGBA8888)
-    result = QImage(width, height, QImage.Format.Format_RGBA8888)
+    result = QImage(out_width, out_height, QImage.Format.Format_RGBA8888)
     source_view, source_stride = _image_rgba8888_view(source, width, height)
-    result_view, result_stride = _image_rgba8888_write_view(result, width, height)
+    result_view, result_stride = _image_rgba8888_write_view(result, out_width, out_height)
     numpy = _numpy_module()
 
     if numpy is not None and source_view is not None and result_view is not None:
@@ -198,14 +217,14 @@ def _apply_pac_layer_sampling_transform(
                 buffer=source_view,
                 strides=(source_stride, 4, 1),
             )
-            output_x = (numpy.arange(width, dtype=numpy.float64) + 0.5) / float(width)
-            for row_start in range(0, height, _NUMPY_ROW_CHUNK):
+            output_x = (numpy.arange(out_width, dtype=numpy.float64) + 0.5) / float(out_width)
+            for row_start in range(0, out_height, _NUMPY_ROW_CHUNK):
                 _raise_if_material_combiner_cancelled(cancelled)
-                row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
+                row_count = min(_NUMPY_ROW_CHUNK, out_height - row_start)
                 output_y = (
                     numpy.arange(row_start, row_start + row_count, dtype=numpy.float64)
                     + 0.5
-                ) / float(height)
+                ) / float(out_height)
                 centered_x = (output_x[None, :] - 0.5 - offset_x) / scale_x
                 centered_y = (output_y[:, None] - 0.5 + offset_y) / scale_y
                 sample_u = numpy.mod(
@@ -246,7 +265,7 @@ def _apply_pac_layer_sampling_transform(
                     numpy,
                     result_view,
                     result_stride,
-                    width,
+                    out_width,
                     row_start,
                     row_count,
                     4,
@@ -292,12 +311,12 @@ def _apply_pac_layer_sampling_transform(
             )
         return QColor(*values)
 
-    result = QImage(width, height, QImage.Format.Format_RGBA8888)
-    for y in range(height):
+    result = QImage(out_width, out_height, QImage.Format.Format_RGBA8888)
+    for y in range(out_height):
         _raise_if_material_combiner_cancelled(cancelled)
-        output_v = (y + 0.5) / float(height)
-        for x in range(width):
-            output_u = (x + 0.5) / float(width)
+        output_v = (y + 0.5) / float(out_height)
+        for x in range(out_width):
+            output_u = (x + 0.5) / float(out_width)
             centered_x = (output_u - 0.5 - offset_x) / scale_x
             centered_y = (output_v - 0.5 + offset_y) / scale_y
             sample_u = (centered_x * cosine) - (centered_y * sine) + 0.5
@@ -607,6 +626,22 @@ def _apply_albedo_selector_dye(
     return target, color_blending_seed_applied
 
 
+def _layer_bake_size(image: QImage, item: object, canvas: QSize) -> Optional[QSize]:
+    """The size to bake a tiled layer at: the canvas, but no denser than the tile itself.
+
+    None keeps the layer's own size (no repeat, or a canvas no larger than the layer).
+    """
+    transform = _pac_layer_sampling_transform(item)
+    if transform is None or not canvas.isValid() or image.isNull():
+        return None
+    scale_x, scale_y = max(transform[0], 1e-5), max(transform[1], 1e-5)
+    width = min(int(canvas.width()), int(math.ceil(int(image.width()) / scale_x)))
+    height = min(int(canvas.height()), int(math.ceil(int(image.height()) / scale_y)))
+    if width <= int(image.width()) and height <= int(image.height()):
+        return None
+    return QSize(max(width, int(image.width())), max(height, int(image.height())))
+
+
 def _generate_synthesized_albedo_map(
     base_image: QImage,
     layer_inputs: Sequence[PreviewMaterialTextureInput],
@@ -622,6 +657,7 @@ def _generate_synthesized_albedo_map(
     preserve_base_alpha: bool = False,
     prefer_largest_source_domain: bool = False,
     cancelled: Callable[[], bool] | None = None,
+    bake_layers_at_canvas: bool = False,
 ) -> Tuple[str, str]:
     _raise_if_material_combiner_cancelled(cancelled)
     prepared_base = (
@@ -638,13 +674,8 @@ def _generate_synthesized_albedo_map(
         prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
         if prepared.isNull():
             continue
-        prepared = _apply_pac_layer_sampling_transform(
-            prepared,
-            item,
-            flip_vertical=flip_vertical,
-            cancelled=cancelled,
-        )
-        source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
+        # The repeat transform is baked below, once the canvas size is known.
+        source_layers.append((item, prepared))
     color_blending_mask = QImage()
     if color_blending_mask_input is not None and len(color_blending_tints) >= 3:
         color_blending_mask = _image_reader(
@@ -673,6 +704,29 @@ def _generate_synthesized_albedo_map(
         if prepared.isNull():
             continue
         prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+
+    # Bake each layer's repeat transform onto the canvas the composite will have, so a
+    # tiled layer keeps the canvas's density rather than its own tile size, then
+    # scaled up (the soft fabric of the Mesh Editor's fallback, 2026-11-23). A canvas
+    # no larger than the layer keeps the layer's own size, as before.
+    canvas = _largest_meaningful_image_size([
+        prepared_base,
+        *(image for _item, image in source_layers),
+        color_blending_mask,
+        *(tuple(prepared_masks.values()) if prefer_largest_source_domain else ()),
+    ])
+    baked_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
+    for item, image in source_layers:
+        _raise_if_material_combiner_cancelled(cancelled)
+        baked = _apply_pac_layer_sampling_transform(
+            image,
+            item,
+            flip_vertical=flip_vertical,
+            cancelled=cancelled,
+            output_size=_layer_bake_size(image, item, canvas) if bake_layers_at_canvas else None,
+        )
+        baked_layers.append((item, baked.convertToFormat(QImage.Format.Format_RGBA8888)))
+    source_layers = baked_layers
 
     target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
     target, width, height, layer_start = _initialize_synthesized_albedo_target(

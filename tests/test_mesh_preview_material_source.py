@@ -179,7 +179,8 @@ def test_edited_new_item_material_enters_existing_compositor(tmp_path, monkeypat
     assert "preview_core_material_graph" not in json.loads(output.manifest_path.read_text())
 
 
-@pytest.mark.parametrize("outcome", ["bound", "foreign", "cancelled", "unsupported", "incomplete"])
+@pytest.mark.parametrize("outcome", ["bound", "foreign", "cancelled", "unsupported", "incomplete",
+                                     "unconserved"])
 def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, monkeypatch, outcome):
     import threading
     from cdmw.domain.cancellation import RunCancelled
@@ -196,10 +197,14 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
     mesh = SimpleNamespace(path=entry.path, lod_levels=[], submeshes=parts)
     stop = threading.Event()
     calls, leases = [], []
-    if outcome == "foreign":
+    if outcome in ("foreign", "unconserved"):
         path = package / "manifest.json"
         payload = json.loads(path.read_text())
-        payload["source_path"] = "character/other.pac"
+        if outcome == "foreign":
+            payload["source_path"] = "character/other.pac"
+        else:
+            # One declared texture the job could not resolve (2026-11-23).
+            payload["material_conservation"]["conserved"] = False
         path.write_text(json.dumps(payload))
     if outcome == "incomplete":
         # Demenissian Council Robes' upper body: a declared normal map the game lacks
@@ -238,7 +243,7 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
         if outcome == "unsupported":
             assert retained is None and not leases
             assert all(unedited_preview_core_material_source(part) is None for part in parts)
-        elif outcome == "incomplete":
+        elif outcome in ("incomplete", "unconserved"):
             # The piece falls back to the CPU compositor; the set still opens.
             assert retained is None
             assert len(leases) == 1 and not leases[0].active
@@ -252,6 +257,58 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
             finally:
                 retained.lease.release()
     assert calls == [entry]
+
+
+def test_set_source_job_gets_the_game_folder_and_archive_index_as_browse_does(tmp_path, monkeypatch):
+    """Without them a technique's default texture cannot be found, so a file that declares a
+    texture the game lacks got no conserved graph and its set did not open (2026-11-23)."""
+    import threading
+
+    from cdmw.rendering import native_preview_core
+    from cdmw.services import mesh_preview_material_source as owner
+
+    game = tmp_path / "Crimson Desert"
+    (game / "0009").mkdir(parents=True)
+    (game / "0009" / "0.pamt").write_bytes(b"")
+    entry = SimpleNamespace(path="character/robe.pac", pamt_path=game / "0009" / "0.pamt")
+    index = tmp_path / "index" / "archive.adx"
+    index.parent.mkdir()
+    index.write_bytes(b"index")
+    configured = tmp_path / "Configured Game"
+    configured.mkdir()
+    context = SimpleNamespace(selected_entry=entry, entries=(entry,), remote=True, archive_index_path=str(index),
+                              archive_package_root=str(configured),
+                              entry_matching=lambda selected: entry if selected is entry else None)
+    parts = [SimpleNamespace(material="robe", preview_material_texture_inputs=(SimpleNamespace(confidence="sidecar"),),
+                             preview_native_material_overrides={})]
+    mesh = SimpleNamespace(path=entry.path, lod_levels=[], submeshes=parts)
+    jobs = []
+
+    def native(_selected, **kwargs):
+        jobs.append(kwargs)
+        return SimpleNamespace(succeeded=False, package_path="")
+
+    monkeypatch.setattr(native_preview_core, "run_native_preview_core_preview_job", native)
+    assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
+    # The catalogue's game folder, as Browse's job uses the configured one.
+    assert jobs[0]["package_root"] == configured
+    assert jobs[0]["archive_index_path"] == index
+
+    # Without it, the game folder found from the entry's own archive files.
+    jobs.clear()
+    context.archive_package_root = ""
+    assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
+    assert jobs[0]["package_root"] == game.resolve()
+
+    # A context from elsewhere (no index, an entry without a package path) passes neither.
+    jobs.clear()
+    bare = SimpleNamespace(path="character/robe.pac")
+    context = SimpleNamespace(selected_entry=bare, entries=(bare,), remote=True,
+                              entry_matching=lambda selected: bare if selected is bare else None)
+    assert owner.prepare_item_set_material_source(
+        SimpleNamespace(path=bare.path, lod_levels=[], submeshes=parts), context, tmp_path / "cache",
+        threading.Event()) is None
+    assert jobs[0]["package_root"] is None and jobs[0]["archive_index_path"] is None
 
 
 def test_set_source_draws_the_variant_its_items_prefab_selects(tmp_path, monkeypatch):

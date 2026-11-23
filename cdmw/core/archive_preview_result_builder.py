@@ -192,7 +192,11 @@ def build_archive_preview_result(
     preview_track_index: int = 0,
     prefer_gpu_texture: bool = False,
     stop_event: Optional[threading.Event] = None,
+    support_texture_max_dimension: int = 0,
 ) -> ArchivePreviewResult:
+    """``support_texture_max_dimension`` overrides the shared support-map preview size
+    (0 keeps it). The Mesh Editor's own resolver raises it: its materials are composed
+    from these maps, and at 256 px every part came out as one 256 px texture."""
     normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
     if entry is None:
         return ArchivePreviewResult(
@@ -1602,6 +1606,7 @@ def build_archive_preview_result(
                             sidecar_texts_by_basename=sidecar_texts_by_basename,
                             support_slots=normalized_support_texture_slots,
                             stop_event=stop_event,
+                            support_max_dimension=support_texture_max_dimension,
                         )
                     )
                     add_timing("model_support_texture_attach_s", attach_started_at)

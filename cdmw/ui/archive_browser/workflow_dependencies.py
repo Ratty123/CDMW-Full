@@ -30,6 +30,11 @@ class ArchiveWorkflowDependencyContext:
     entries_by_basename: Mapping[str, Sequence[ArchiveEntry]]
     remote: bool
     material_contexts: tuple[MeshArchiveMaterialContext, ...] = ()
+    #: The catalogue session's archive index and game folder, when the entries came
+    #: from it. A Preview Core job of these entries reads them, as Browse's does, to
+    #: find a technique's default texture that the bounded entries cannot list.
+    archive_index_path: str = ""
+    archive_package_root: str = ""
 
     def material_context_for(self, entry: ArchiveEntry) -> MeshArchiveMaterialContext | None:
         return next((context for context in self.material_contexts

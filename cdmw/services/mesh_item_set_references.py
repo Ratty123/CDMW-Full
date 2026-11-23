@@ -4,6 +4,30 @@ from concurrent.futures import ThreadPoolExecutor, wait
 import threading
 
 
+def _bind_reference_piece_materials(session, entry, context, mesh, prepared, stop_event):
+    """Bind a reference piece's Preview Core layers, or its resolved materials when none bind.
+
+    The leases go into ``prepared``, which is cleared once the piece's files are copied
+    into the session.
+    """
+    from cdmw.services.mesh_rust_authoring import (
+        _bind_item_set_file_preview_core_materials,
+    )
+    from cdmw.workers.mesh_archive_refit_worker import attach_archive_refit_materials
+
+    lease = _bind_item_set_file_preview_core_materials(
+        mesh, (context,), session.authoritative_service, session.authoritative_session_id,
+        session.root, stop_event,
+    )
+    if lease is not None:
+        prepared["_preview_core_lease"] = lease
+        return
+    prepared["_archive_preview_lease"], _ = attach_archive_refit_materials(
+        entry, context, mesh, stop_event,
+        physics_profile_context=prepared.get("_archive_physics_profile_context"),
+    )
+
+
 def prepare_item_set_references(session, contexts, stop_event, progress=None):
     # This runs inside MeshRustSessionPrepareWorker, never on the UI thread.
     from cdmw.services import mesh_rust_authoring as authoring
@@ -34,8 +58,13 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
         session._raise_if_cancelled(stop_event)
         entry = context.selected_entry
         bounded = bounded_map.get(entry.identity)
+        # A view-only set's other files draw Browse's layers, as its editable file does:
+        # their own resolved materials baked every tiled layer into one 256 px map
+        # (the soft jabot frills of the Demenissian Council Robes, 2026-11-23).
+        native_layers = bounded is None and not editing_set
         prepared = ({} if bounded is not None else prepare_archive_refit_source(
-            {"_archive_entry": entry, "_archive_dependencies": context, "_skip_roundtrip": True},
+            {"_archive_entry": entry, "_archive_dependencies": context, "_skip_roundtrip": True,
+             **({"_skip_materials": True} if native_layers else {})},
             stop_event,
         ))
         try:
@@ -51,6 +80,8 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
             if editing_set and bounded is None:
                 from cdmw.services.mesh_item_set_budget import _reference_mesh
                 mesh = _reference_mesh(mesh)
+            if native_layers:
+                _bind_reference_piece_materials(session, entry, context, mesh, prepared, stop_event)
             return index, entry, mesh, prepared
         except BaseException:
             prepared.clear()
@@ -103,7 +134,7 @@ def prepare_item_set_references(session, contexts, stop_event, progress=None):
                 synthesis = authoring._RustMaterialSynthesisState()
                 textures = [] if editing_set else authoring._mesh_texture_payloads(
                     session.root, mesh, expected_root_identity=session.root_identity,
-                    stop_event=stop_event, synthesis_state=synthesis,
+                    stop_event=stop_event, synthesis_state=synthesis, bake_layers_at_canvas=True,
                 )
                 presentations = authoring._mesh_material_presentations(
                     mesh, generated_overrides=synthesis.presentation_overrides)

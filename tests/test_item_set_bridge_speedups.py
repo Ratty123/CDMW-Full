@@ -257,7 +257,12 @@ def _write_two_piece_set_package(root: Path, upper_entry: ArchiveEntry, lower_en
     return package
 
 
-def test_shell_bridge_retains_conserved_set_package_and_lease_for_edit_item_set(tmp_path: Path) -> None:
+# The view-only open is Browse's Mesh button with an Item Finder set in scope: it baked
+# every layer into one 256 px map per part until it got the set package too (2026-11-23).
+@pytest.mark.parametrize("edit_item_set", [True, False], ids=["editable_set", "view_only_set"])
+def test_shell_bridge_retains_conserved_set_package_and_lease_for_every_set_open(
+    tmp_path: Path, edit_item_set: bool,
+) -> None:
     upper = _entry(tmp_path, "upper.pac", offset=0)
     lower = _entry(tmp_path, "lower.pac", offset=64)
     set_package = _write_two_piece_set_package(tmp_path / "set_pkg", upper, lower, material_name="armor_mat")
@@ -273,14 +278,15 @@ def test_shell_bridge_retains_conserved_set_package_and_lease_for_edit_item_set(
             upper,
             upper_ctx,
             item_set_contexts=(upper_ctx, lower_ctx),
-            edit_item_set=True,
+            **({"edit_item_set": True} if edit_item_set else {}),
         )
     _, kwargs = shell.opened[0]
     # Single-file material fields stay empty so single-file priming never borrows combined owners.
     assert kwargs["material_package_path"] == ""
     assert kwargs["material_preview_model"] is None
     assert not kwargs["material_context_verified_for_rust"]
-    # Browse's conserved set package and its lease are forwarded for prepare_editable_item_set.
+    # Browse's conserved set package and its lease are forwarded, so each editable
+    # file binds its Preview Core layers from it.
     assert kwargs["item_set_material_package_path"] == str(set_package)
     assert kwargs["material_package_lease"] is lease
 
@@ -441,6 +447,46 @@ def test_bind_item_set_piece_accepts_the_archive_workers_prepared_textures(tmp_p
         loaded.lease.release()
 
 
+def test_bind_item_set_piece_uses_browse_layers_whose_dds_lie_in_the_catalogue_store(tmp_path: Path) -> None:
+    """Browse's packages name their DDS in the catalogue's prepared-file store, outside the
+    package. The piece takes the package's layers anyway, as a single-file open does, instead
+    of running its own Preview Core job (about 2 s a file, 2026-11-23)."""
+    upper = _entry(tmp_path, "upper.pac", offset=0)
+    lower = _entry(tmp_path, "lower.pac", offset=64)
+    set_package = _write_two_piece_set_package(tmp_path / "pkg", upper, lower, material_name="armor_mat")
+    store = tmp_path / "cache" / "index" / "c2" / "x" / "g" / "1" / "p" / "ab"
+    store.mkdir(parents=True)
+    stored = store / "helmet_base.dds"
+    (set_package / "helmet_base.dds").replace(stored)
+    manifest_path = set_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for batch in manifest["batches"]:
+        batch["dds_textures"]["base"]["source_path"] = str(stored)
+        batch["material_layers"][0]["diffuse_source"] = str(stored)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    loaded = load_preview_core_set_package(set_package)
+    assert loaded is not None
+    try:
+        part = SimpleNamespace(material="armor_mat", preview_native_material_overrides={})
+        mesh = SimpleNamespace(path=upper.path, lod_levels=[], submeshes=[part])
+        retained = bind_item_set_piece_from_preview_core_package(
+            mesh, SimpleNamespace(selected_entry=upper), loaded, threading.Event())
+        assert retained is not None
+        assert unedited_preview_core_material_source(part) is not None
+        assert not getattr(part, "preview_texture_dds_path", "")  # the refused base path stays empty
+        retained.lease.release()
+
+        # A layer source that is really gone still sends the piece back, untouched.
+        stored.unlink()
+        gone = SimpleNamespace(material="armor_mat", preview_native_material_overrides={"orig": True})
+        assert bind_item_set_piece_from_preview_core_package(
+            SimpleNamespace(path=upper.path, lod_levels=[], submeshes=[gone]),
+            SimpleNamespace(selected_entry=upper), loaded, threading.Event()) is None
+        assert gone.preview_native_material_overrides == {"orig": True}
+    finally:
+        loaded.lease.release()
+
+
 def test_rebase_reports_only_texture_files_that_are_missing(tmp_path: Path) -> None:
     from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
     from cdmw.services.mesh_rust_authoring import _rebase_rust_preview_texture_paths
@@ -464,6 +510,85 @@ def test_rebase_reports_only_texture_files_that_are_missing(tmp_path: Path) -> N
     assert rebase(outside) != ""
     assert rebase(outside, tolerate_external_files=True) == ""
     assert rebase(tmp_path / "gone.dds", tolerate_external_files=True) != ""
+
+
+class _Service:
+    """A weak-referenceable stand-in for the authoritative MeshService."""
+
+
+def _view_only_primary(tmp_path: Path):
+    upper = _entry(tmp_path, "upper.pac", offset=0)
+    lower = _entry(tmp_path, "lower.pac", offset=64)
+    set_package = _write_two_piece_set_package(tmp_path / "pkg", upper, lower, material_name="armor_mat")
+    part = SimpleNamespace(material="armor_mat", preview_native_material_overrides={"kept": 1})
+    mesh = SimpleNamespace(path=upper.path, lod_levels=[], submeshes=[part])
+    context = SimpleNamespace(selected_entry=upper)
+    return set_package, part, mesh, context, tmp_path / "mesh_editor_sessions" / "s1"
+
+
+def test_view_only_set_open_binds_its_file_from_browses_set_package(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.services import mesh_preview_material_source
+    from cdmw.services.mesh_rust_authoring import (
+        _bind_item_set_file_preview_core_materials,
+    )
+
+    set_package, part, mesh, context, root = _view_only_primary(tmp_path)
+    service = _Service()
+    register_item_set_browse_material_package(service, "s1", set_package)
+    monkeypatch.setattr(mesh_preview_material_source, "prepare_item_set_material_source",
+                        lambda *_a, **_k: pytest.fail("Browse's set package binds the file"))
+    lease = _bind_item_set_file_preview_core_materials(mesh, (context,), service, "s1", root, threading.Event())
+    try:
+        assert lease is not None and lease.lease.active
+        source = unedited_preview_core_material_source(part)
+        assert source is not None and Path(source["package"]) == set_package.resolve()
+    finally:
+        lease.lease.release()
+
+
+def test_view_only_set_open_falls_back_to_the_files_own_preview_core_job(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.services import mesh_preview_material_source
+    from cdmw.services.mesh_rust_authoring import (
+        _bind_item_set_file_preview_core_materials,
+    )
+
+    _set_package, _part, mesh, context, root = _view_only_primary(tmp_path)
+    calls = []
+
+    def native_job(target, piece, cache, stop_event, *, require_existing_inputs=True):
+        calls.append((target, piece, require_existing_inputs))
+        return "native-lease"
+
+    monkeypatch.setattr(mesh_preview_material_source, "prepare_item_set_material_source", native_job)
+    # Nothing registered: Browse had not finished the set's preview.
+    assert _bind_item_set_file_preview_core_materials(
+        mesh, (context,), _Service(), "s1", root, threading.Event()) == "native-lease"
+    assert calls == [(mesh, context, False)]
+
+
+def test_a_failed_preview_core_job_keeps_the_materials_resolved_before(tmp_path: Path, monkeypatch) -> None:
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.services import mesh_preview_material_source
+    from cdmw.services.mesh_rust_authoring import (
+        _bind_item_set_file_preview_core_materials,
+    )
+
+    _set_package, part, mesh, context, root = _view_only_primary(tmp_path)
+
+    def failing(*_args, **_kwargs):
+        raise ValueError("Direct preview requires a conserved Preview Core material graph.")
+
+    monkeypatch.setattr(mesh_preview_material_source, "prepare_item_set_material_source", failing)
+    assert _bind_item_set_file_preview_core_materials(
+        mesh, (context,), _Service(), "s1", root, threading.Event()) is None
+    assert part.preview_native_material_overrides == {"kept": 1}
+
+    def cancelled(*_args, **_kwargs):
+        raise RunCancelled("Item set loading cancelled")
+
+    monkeypatch.setattr(mesh_preview_material_source, "prepare_item_set_material_source", cancelled)
+    with pytest.raises(RunCancelled):
+        _bind_item_set_file_preview_core_materials(mesh, (context,), _Service(), "s1", root, threading.Event())
 
 
 # ---------------------------------------------------------------------------
@@ -633,6 +758,29 @@ def test_concurrent_item_set_preparation_dispatches_4_slots_and_preserves_order(
     ]
 
 
+@pytest.mark.parametrize("session_id", ["session-a", "session-b"], ids=["same_session", "other_session"])
+def test_prepared_set_contexts_carry_the_catalogue_archive_index(session_id: str) -> None:
+    """Each file's Preview Core job reads the archive index to find a technique's default
+    texture, as Browse's does; it is the index of the session the entries came from."""
+    _app()
+    service = _MockService()
+    service.current_session = SimpleNamespace(session_id="session-a", index_path="C:/cache/index/archive.adx",
+                                              package_root="C:/Game")
+    preparation = ItemSetEditorPreparation(service)
+    member = _dto(1, "robe.pac")
+    ready: list[tuple] = []
+    preparation.ready.connect(ready.append)
+    assert preparation.start(ArchiveCatalogueService.compatibility_entry(member), (member,))
+    # The catalogue may reload while the files prepare: another session's index is not theirs.
+    service.current_session = SimpleNamespace(session_id=session_id, index_path="C:/cache/index/archive.adx",
+                                              package_root="C:/Game")
+    _complete_request(service, "association-1", "prepare-2", member)
+    assert len(ready) == 1
+    same = session_id == "session-a"
+    assert ready[0][0].archive_index_path == ("C:/cache/index/archive.adx" if same else "")
+    assert ready[0][0].archive_package_root == ("C:/Game" if same else "")
+
+
 def test_concurrent_item_set_preparation_failure_cancels_all_other_inflight_slots() -> None:
     _app()
     service = _MockService()
@@ -754,7 +902,10 @@ def test_prepared_context_cache_reuses_and_invalidates_and_switch_caches_pieces(
     assert len(preparation._context_cache) == MAX_PREPARED_CONTEXT_CACHE
 
 
-def test_tab_session_runtime_forwards_set_package_and_releases_lease_on_close(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("edit_item_set", [True, False], ids=["editable_set", "view_only_set"])
+def test_tab_session_runtime_forwards_set_package_and_releases_lease_on_close(
+    tmp_path: Path, monkeypatch, edit_item_set: bool,
+) -> None:
     from cdmw.services.mesh_service import MeshService
     from cdmw.workers.mesh_editor_aux_workers import MeshArchiveSessionLoadResult
     from tests.test_mesh_editor_direct_mode import _mesh
@@ -763,6 +914,7 @@ def test_tab_session_runtime_forwards_set_package_and_releases_lease_on_close(tm
     app = _app()
     tab = _tab(tmp_path)
     monkeypatch.setattr(tab, "_ensure_standalone_live_stroke_dispatcher", lambda: None)
+    monkeypatch.setattr(tab, "_start_archive_material_context_resolution", lambda *_args: False)
     monkeypatch.setattr("cdmw.ui.mesh_editor.tab.native_mesh_core_available", lambda: False)
 
     entry = _entry(tmp_path, "upper.pac")
@@ -791,7 +943,7 @@ def test_tab_session_runtime_forwards_set_package_and_releases_lease_on_close(tm
                 entry,
                 archive_dependencies=context,
                 item_set_contexts=(context,),
-                edit_item_set=True,
+                edit_item_set=edit_item_set,
                 item_set_material_package_path=package_path,
                 material_package_lease=lease,
             )

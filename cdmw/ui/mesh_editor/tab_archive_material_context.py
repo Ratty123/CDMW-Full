@@ -14,6 +14,12 @@ ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS = 150
 ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS = 1_200
 
 
+def _editor_support_map_dimension() -> int:
+    from cdmw.services.mesh_rust_authoring import _synthesis_max_dimension
+
+    return _synthesis_max_dimension()
+
+
 class MeshEditorArchiveMaterialContextMixin:
     def _archive_texture_indexes(
         self,
@@ -139,6 +145,28 @@ class MeshEditorArchiveMaterialContextMixin:
         )
         self.status_message_requested.emit(message, True)
 
+    def _own_preview_core_build_inputs(self, entry: _tab.ArchiveEntry) -> tuple[object | None, Path | None]:
+        """The open's dependency context and job cache, when the resolver may build its own package.
+
+        Only a single-file open of a catalogue entry: a set open binds each file itself
+        (a second job here would only lengthen it), and an entry outside its prepared
+        dependencies keeps the archive resolver.
+        """
+        dependencies = getattr(self, "archive_session_dependencies", None)
+        if (
+            dependencies is None
+            or tuple(getattr(self, "item_set_contexts", ()) or ())
+            or not bool(getattr(dependencies, "remote", False))
+            or getattr(getattr(dependencies, "selected_entry", None), "identity", None) != entry.identity
+        ):
+            return None, None
+        owned_root = getattr(self, "standalone_rust_owned_root", None)
+        if owned_root is None:
+            return None, None
+        from cdmw.services.mesh_item_set_editing import preview_core_job_cache_root
+
+        return dependencies, preview_core_job_cache_root(Path(owned_root))
+
     def _start_archive_material_context_resolution(
         self,
         entry: _tab.ArchiveEntry | None = None,
@@ -171,6 +199,7 @@ class MeshEditorArchiveMaterialContextMixin:
         self.archive_material_context_request_id += 1
         request_id = self.archive_material_context_request_id
         self.archive_material_context_request_identity = target_entry.identity
+        native_dependencies, native_cache_root = self._own_preview_core_build_inputs(target_entry)
         worker = _tab.MeshArchiveMaterialContextWorker(
             request_id,
             target_entry,
@@ -180,6 +209,11 @@ class MeshEditorArchiveMaterialContextMixin:
             entries_by_basename=basename_index,
             sidecar_entries_by_texture_path=sidecar_path_index,
             sidecar_entries_by_texture_basename=sidecar_basename_index,
+            native_dependencies=native_dependencies,
+            native_cache_root=native_cache_root,
+            # The editor composes these maps into its materials: at the shared 256 px
+            # support size every part came out as one 256 px texture (2026-11-23).
+            support_texture_max_dimension=_editor_support_map_dimension(),
         )
         thread = QThread(self)
         worker.moveToThread(thread)

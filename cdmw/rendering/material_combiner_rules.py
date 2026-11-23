@@ -30,6 +30,10 @@ class MaterialPreviewCombinerSettings:
     # Preview Core resolved no base for this material and takes its visible color from the
     # layers. A PAC overlay bound as a layer must then not stand in for the base.
     layered_base_only: bool = False
+    # Bake each tiled layer at the composite's canvas size (up to its own density)
+    # rather than at its tile size: sharper fabric, about 15x the bake time per layer.
+    # Only the Mesh Editor's material synthesis asks for it.
+    bake_layers_at_canvas: bool = False
 
 
 @dataclass(frozen=True, slots=True)

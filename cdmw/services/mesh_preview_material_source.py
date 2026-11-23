@@ -451,6 +451,7 @@ def bind_item_set_piece_from_preview_core_package(
         apply_dotnet_native_material_batch_binding,
     )
     from cdmw.services.mesh_rust_authoring import _mesh_lods, _rebase_rust_preview_texture_paths
+    from cdmw.services.mesh_rust_preview_package import preview_core_missing_material_source
 
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     if set_package is None:
@@ -537,10 +538,12 @@ def bind_item_set_piece_from_preview_core_package(
                 restore_parts()
                 lease.release()
                 return None
-        # Browse's set package draws the archive worker's prepared files, which are
-        # outside its lease. The piece is bound to the package's Preview Core
-        # materials below, which carry those textures, as a single-file open is;
-        # only a texture file that is gone refuses the piece.
+        # Browse's set package draws the archive worker's prepared files (the
+        # catalogue's store), which are outside its lease. Refusing them sent every
+        # piece to its own Preview Core job (about 2 s a file, 2026-11-23). The piece
+        # is bound to the package's Preview Core materials below, which carry those
+        # textures, as a single-file open is: the refused base paths are left empty,
+        # and only a layer source that is really gone sends the piece back.
         _rebased, unavailable_reason = _rebase_rust_preview_texture_paths(
             mesh,
             set_package.package,
@@ -548,7 +551,9 @@ def bind_item_set_piece_from_preview_core_package(
             extra_texture_roots=set_package.extra_texture_roots,
             tolerate_external_files=True,
         )
-        if unavailable_reason:
+        if unavailable_reason and preview_core_missing_material_source(
+            set_package.package, {"batches": [batch for _part, batch in matched_pairs]},
+        ):
             restore_parts()
             lease.release()
             return None
@@ -643,6 +648,47 @@ def _item_set_piece_package_root(entry, context) -> Path | None:
     return None
 
 
+def run_preview_core_job_for_context(entry, context, cache_root, stop_event):
+    """Build ``entry``'s Preview Core package from its dependency context, as Browse's preview does.
+
+    Returns the job's attempt; ``succeeded`` and ``package_path`` say what it made.
+    """
+    from cdmw.models import ModelPreviewRenderSettings
+    from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
+    from cdmw.workers.archive_preview_native import (
+        native_preview_core_timeout_seconds,
+        native_preview_model_property_indices,
+    )
+
+    settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    # The item's prefab picks the file's material variant, as Browse's preview
+    # of the same context does; without it the core falls back to variant 0.
+    dependencies = tuple(context.entries)
+    # The game folder and archive index, as Browse's job gets them. A declared
+    # texture the game lacks falls back to its technique's default, which the
+    # bounded entries never list; without these the core cannot look it up, the
+    # graph is not conserved and the set did not open (Demenissian Council Robes,
+    # cd_phw_00_ub_02_0130_02_n.dds, 2026-11-23). The catalogue's own game folder
+    # comes first, as Browse's job uses the configured one; otherwise the game
+    # folder found from the piece's archive files (which also finds DLC files').
+    root_text = str(getattr(context, "archive_package_root", "") or "").strip()
+    package_root = (
+        Path(root_text) if root_text and Path(root_text).is_dir()
+        else _item_set_piece_package_root(entry, context)
+    )
+    index_text = str(getattr(context, "archive_index_path", "") or "").strip()
+    archive_index_path = Path(index_text) if index_text and Path(index_text).is_file() else None
+    return run_native_preview_core_preview_job(
+        entry, cache_root=Path(cache_root), render_settings=settings,
+        dependency_entries=dependencies, dependency_entries_complete=bool(context.remote),
+        archive_index_path=archive_index_path,
+        model_property_indices=native_preview_model_property_indices(
+            dependencies, stop_event, model_paths=(entry.path,)),
+        package_root=package_root,
+        timeout_seconds=native_preview_core_timeout_seconds(settings), stop_event=stop_event,
+    )
+
+
 def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, require_existing_inputs: bool = True):
     """Resolve one original PAC's graph on the existing set preparation worker.
 
@@ -652,16 +698,11 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, r
     """
     from types import SimpleNamespace
     from cdmw.domain.cancellation import raise_if_cancelled
-    from cdmw.models import ModelPreviewRenderSettings
-    from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
     from cdmw.rendering.native_preview_package_cache import acquire_native_preview_package_cache_lease_for_path
     from cdmw.services.mesh_archive_refit import ArchiveRefitPreviewLease
     from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
     from cdmw.services.mesh_rust_authoring import _rebase_rust_preview_texture_paths, _submesh_has_material_synthesis_inputs
     from cdmw.services.mesh_rust_preview_package import _validated_preview_core_source
-    from cdmw.workers.archive_preview_native import (
-        native_preview_core_timeout_seconds, native_preview_model_property_indices,
-    )
 
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     direct_native = bool(getattr(mesh, "_cdmw_item_set_direct_native_materials", False))
@@ -671,18 +712,7 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, r
     normalize = lambda value: str(value or "").replace("\\", "/").casefold()
     if normalize(mesh.path) != normalize(entry.path) or context.entry_matching(entry) is None:
         raise ValueError("Item set dependencies do not match the selected mesh")
-    settings = ModelPreviewRenderSettings(use_textures_by_default=True)
-    # The item's prefab picks the file's material variant, as Browse's preview
-    # of the same context does; without it the core falls back to variant 0.
-    dependencies = tuple(context.entries)
-    result = run_native_preview_core_preview_job(
-        entry, cache_root=Path(cache_root), render_settings=settings,
-        dependency_entries=dependencies, dependency_entries_complete=bool(context.remote),
-        model_property_indices=native_preview_model_property_indices(
-            dependencies, stop_event, model_paths=(entry.path,)),
-        package_root=_item_set_piece_package_root(entry, context),
-        timeout_seconds=native_preview_core_timeout_seconds(settings), stop_event=stop_event,
-    )
+    result = run_preview_core_job_for_context(entry, context, cache_root, stop_event)
     raise_if_cancelled(stop_event, "Item set loading cancelled")
     if not result.succeeded:
         # Unsupported native inputs retain the existing bounded CPU compositor.
@@ -703,12 +733,21 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, r
             # As with unsupported native inputs above: this piece keeps the bounded
             # CPU compositor instead of failing every other piece's open.
             findings = tuple(conservation.get("findings", ()) or ()) if isinstance(conservation, Mapping) else ()
-            _LOGGER.warning("Item set piece %s has an incomplete Preview Core material graph (%s); "
-                            "its materials are prepared without it.", entry.path,
-                            findings[0] if findings else "no finding reported")
+            # A log line, not UI text: no string literal beside the format, which the
+            # localization manifest would collect as a key.
+            _LOGGER.warning("Item set piece %s has an incomplete Preview Core material graph %s; "
+                            "its materials are prepared without it.", entry.path, list(findings[:3]))
             lease.release()
             return None
-        _validated_preview_core_source(package, manifest)
+        try:
+            _validated_preview_core_source(package, manifest)
+        except ValueError as exc:
+            # A graph the editor cannot draw (one texture it could not resolve, say)
+            # costs this file its layers, not the whole set its open: the caller
+            # falls back for this file, as for an unsupported job above.
+            _LOGGER.warning("item_set_preview_core_graph_unusable path=%s reason=%s", entry.path, exc)
+            lease.release()
+            return None
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         apply_dotnet_native_material_batch_bindings(mesh, manifest["batches"])
         # Discard old CPU-preview paths outside this graph's declared resources.

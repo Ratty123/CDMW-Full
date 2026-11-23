@@ -25,7 +25,7 @@ ITEM_SET_PREPARATION_WORKERS = 4
 
 
 #: Milliseconds per step of the last set preparation, for the runtime record (P4 V4).
-LAST_ITEM_SET_PREPARATION_MS: dict[str, float] = {}
+LAST_ITEM_SET_PREPARATION_MS: dict[str, float | str] = {}
 
 
 def item_set_material_cache(session_root: Path) -> Path:
@@ -36,9 +36,15 @@ def item_set_material_cache(session_root: Path) -> Path:
     packages; a cache of the sessions' own otherwise (sessions in temp).
     """
 
+    return preview_core_job_cache_root(Path(session_root).parent)
+
+
+def preview_core_job_cache_root(sessions: Path) -> Path:
+    """The Preview Core cache for jobs the editor runs, given its sessions folder."""
+
     from cdmw.services.cache_layout import runtime_cache_layout
 
-    sessions = Path(session_root).parent
+    sessions = Path(sessions)
     if sessions.name == "mesh_editor_sessions":
         native = runtime_cache_layout(sessions.parent).native_preview_root
         if native.is_dir():
@@ -234,7 +240,7 @@ def prepare_editable_item_set(
     """Called only by the existing cancellable session preparation worker."""
     import time as _time
 
-    timings: dict[str, float] = {}
+    timings: dict[str, float | str] = {}
     started = _time.perf_counter()
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.mesh_item_set_budget import pop_budget_neutral_meshes, prepare_item_set_budget
@@ -274,7 +280,14 @@ def prepare_editable_item_set(
     )
     if browse_set_package is not None:
         timings["browse_package_load_ms"] = round((_time.perf_counter() - package_started) * 1000.0, 1)
+    # Where each file's layers came from, for the open's runtime record: Browse's set
+    # package (no job), the file's own Preview Core job, or neither.
+    timings["browse_package_registered"] = int(bool(resolved_browse_package))
+    timings["browse_package_loaded"] = int(browse_set_package is not None)
     _set_head_companion_cache(contexts)
+
+    def record_source(name, from_browse, native_lease):
+        timings[f"piece_layers:{name}"] = "browse" if from_browse else ("job" if native_lease is not None else "none")
 
     def prepare_primary():
         native_lease = (
@@ -284,8 +297,10 @@ def prepare_editable_item_set(
             if browse_set_package is not None
             else None
         )
+        from_browse = native_lease is not None
         if native_lease is None:
             native_lease = prepare_item_set_material_source(material_mesh, contexts[0], material_cache, stop_event)
+        record_source(contexts[0].selected_entry.basename, from_browse, native_lease)
         if native_lease is None and not any(
             getattr(part, "preview_material_texture_inputs", ()) for part in material_mesh.submeshes
         ):
@@ -316,8 +331,10 @@ def prepare_editable_item_set(
             if browse_set_package is not None
             else None
         )
+        from_browse = native_lease is not None
         if native_lease is None:
             native_lease = prepare_item_set_material_source(source.mesh, context, material_cache, stop_event)
+        record_source(context.selected_entry.basename, from_browse, native_lease)
         preview_lease = prepared.get("_archive_preview_lease")
         if native_lease is None and prepared.get("_archive_materials_skipped"):
             preview_lease, _ = attach_archive_refit_materials(

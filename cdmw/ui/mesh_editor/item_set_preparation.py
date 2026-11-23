@@ -344,9 +344,13 @@ class ItemSetEditorPreparation(QObject):
                 or snapshot.session_id != member.session_id or snapshot.entry_id != member.entry_id):
             self._failed(slot_index, generation, "This choice has incomplete or ambiguous dependencies.")
             return
+        session = getattr(self._service, "current_session", None)
+        same_session = getattr(session, "session_id", None) == snapshot.session_id
         context = ArchiveWorkflowDependencyContext(
             snapshot.selected_entry, snapshot.entries, snapshot.entries_by_normalized_path,
             snapshot.entries_by_basename, True,
+            archive_index_path=str(getattr(session, "index_path", "") or "") if same_session else "",
+            archive_package_root=str(getattr(session, "package_root", "") or "") if same_session else "",
         )
         self._resolved_contexts[member_index] = context
         key = _prepared_context_cache_key(

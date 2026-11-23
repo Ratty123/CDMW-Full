@@ -206,7 +206,7 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
         )
         if (
             carries_current_package_lease
-            and edit_item_set
+            and item_set_contexts
             and not str(item_set_material_package_path or "").strip()
         ):
             item_set_material_package_path = getattr(self, "item_set_material_package_path", "")
@@ -457,7 +457,8 @@ class MeshEditorSessionMixin(MeshEditorDraftChoiceMixin, MeshEditorArchiveMateri
             result.skeleton_resolution_reason if result.source_skeleton is None else "",
         )
         item_set_package_path = str(getattr(self, "item_set_material_package_path", "") or "").strip()
-        if bool(getattr(self, "edit_item_set", False)) and item_set_package_path:
+        # An editable set binds every piece from it, a view-only set open its one file.
+        if item_set_package_path and getattr(self, "item_set_contexts", ()):
             from cdmw.services.mesh_item_set_editing import register_item_set_browse_material_package
 
             register_item_set_browse_material_package(

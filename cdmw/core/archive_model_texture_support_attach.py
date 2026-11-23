@@ -73,6 +73,8 @@ class _SupportAttachmentState:
     sidecar_texts_by_basename: Optional[Dict[str, Tuple[str, ...]]]
     support_slots: Tuple[str, ...]
     stop_event: Optional[threading.Event]
+    #: The preview size of support maps and material inputs; 0 keeps the shared setting.
+    support_max_dimension: int = 0
     preview_cache: Dict[str, str] = field(default_factory=dict)
     exact_assigned: Dict[str, int] = field(default_factory=dict)
     fallback_assigned: Dict[str, int] = field(default_factory=dict)
@@ -100,12 +102,16 @@ def _support_sidecar_texts(state: _SupportAttachmentState, texture_path: str) ->
     return texts
 
 
+def _support_dimension(state: _SupportAttachmentState) -> int:
+    return int(state.support_max_dimension or _config.MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)
+
+
 def _support_preview_path(state: _SupportAttachmentState, entry: ArchiveEntry, slot: str) -> str:
     key = f"{_normalize_model_texture_reference(entry.path)}|{slot}"
     if key not in state.preview_cache:
         state.preview_cache[key] = _public_preview_path(
             entry,
-            max_dimension=_config.MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION,
+            max_dimension=_support_dimension(state),
             slot_kind=slot,
             stop_event=state.stop_event,
         )
@@ -474,7 +480,7 @@ def _collect_and_prefetch_support_bindings(state: _SupportAttachmentState, bindi
     for binding in bindings:
         raise_if_cancelled(state.stop_event)
         _collect_support_binding(state, binding, seen_global)
-    dimension = int(_config.MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)
+    dimension = _support_dimension(state)
     requests = [(item[1], slot, dimension) for (slot, _key), item in state.exact_resolved.items()]
     requests.extend((item[1], slot, dimension) for slot, values in state.global_bindings.items() for item in values)
     requests.extend(
@@ -793,6 +799,7 @@ def _attach_model_support_texture_preview_paths(
     sidecar_texts_by_basename: Optional[Dict[str, Tuple[str, ...]]] = None,
     support_slots: Sequence[str] = ("normal", "material", "height", "emissive"),
     stop_event: Optional[threading.Event] = None,
+    support_max_dimension: int = 0,
 ) -> List[str]:
     if model_preview is None or not model_preview.meshes:
         return []
@@ -810,6 +817,7 @@ def _attach_model_support_texture_preview_paths(
         sidecar_texts_by_basename=sidecar_texts_by_basename,
         support_slots=slots,
         stop_event=stop_event,
+        support_max_dimension=max(0, int(support_max_dimension or 0)),
         exact_assigned={slot: 0 for slot in slots}, fallback_assigned={slot: 0 for slot in slots},
         exact_examples={slot: [] for slot in slots}, fallback_examples={slot: [] for slot in slots},
         ordered_keys={slot: {} for slot in slots}, ordered_assigned={slot: 0 for slot in slots},
