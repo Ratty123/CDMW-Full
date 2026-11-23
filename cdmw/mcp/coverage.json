@@ -1203,6 +1203,64 @@
       "tool": "mesh.islands"
     },
     {
+      "id": "mesh.open_file",
+      "area": "Mesh Editor",
+      "what": "Open a mesh file from disk (.pac, .pam, .pamlod, .obj, .glb, .fbx)",
+      "class": "edit",
+      "tool": "mesh.open_file"
+    },
+    {
+      "id": "mesh.open_piece",
+      "area": "Mesh Editor",
+      "what": "Open one piece of a worn set on its own, without the set as references",
+      "class": "edit",
+      "tool": "mesh.open_piece"
+    },
+    {
+      "id": "mesh.close_document",
+      "area": "Mesh Editor",
+      "what": "Close a document tab, shown, inactive or parked",
+      "class": "destructive",
+      "tool": "mesh.close_document"
+    },
+    {
+      "id": "mesh.switch_piece",
+      "area": "Mesh Editor",
+      "what": "Switch editable piece of a set opened with its reference pieces",
+      "class": "edit",
+      "tool": "mesh.switch_piece"
+    },
+    {
+      "id": "mesh.history_jump",
+      "area": "Mesh Editor",
+      "what": "Jump the History list to an entry (Undo from here, Restore through here)",
+      "class": "edit",
+      "tool": "mesh.history_jump"
+    },
+    {
+      "id": "mesh.reference_pieces",
+      "area": "Mesh Editor",
+      "what": "Show or hide a set's reference pieces in the view",
+      "class": "edit",
+      "tool": "mesh.reference_pieces"
+    },
+    {
+      "id": "mesh.lod_switch",
+      "area": "Mesh Editor",
+      "what": "Switch the LOD being edited",
+      "class": "edit",
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-24: a CDMW session edits the LOD CDMW opened it with (the session's source LOD); the editor offers no LOD switch for it. The LOD menu belongs to the standalone mesh lab."
+    },
+    {
+      "id": "mesh.edit_in_browse",
+      "area": "Browse Archives",
+      "what": "Edit in place in Browse Archives' view, and Promote to tab",
+      "class": "edit",
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-24: editing in Browse's view is switched off (owner's decision of 2026-11-15, EDIT_IN_BROWSE_ENABLED); Open in Mesh Editor opens the Mesh Editor tab, which mesh_open does."
+    },
+    {
       "id": "hair.tools",
       "area": "Hair Tools",
       "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
