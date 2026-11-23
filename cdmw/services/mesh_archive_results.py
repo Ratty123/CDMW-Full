@@ -177,13 +177,18 @@ def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, ou
             if previous is not None and previous[1] != companion.data:
                 raise ValueError("Edited assets contain conflicting companion files.")
             outputs[candidate.identity] = (candidate, companion.data)
-    if is_item_set(snapshot.archive_refit_context) and snapshot.archive_refit_context.material_colours:
-        from cdmw.services.mesh_material_colours import item_set_colour_files
-        for candidate, _original, data in item_set_colour_files(snapshot.archive_refit_context, stop_event):
+    if is_item_set(snapshot.archive_refit_context) and (
+            snapshot.archive_refit_context.material_colours or snapshot.archive_refit_context.emissions):
+        from cdmw.services.mesh_material_colours import item_set_material_files
+        for owner, candidate, _original, data, extras in item_set_material_files(snapshot.archive_refit_context, stop_event):
             if candidate.identity in outputs:
                 raise ValueError(f"Edited assets contain conflicting companion files: {candidate.path}")
             outputs[candidate.identity] = (candidate, data)
             changed_materials = True
+            for file in extras:
+                added_entry = replace(owner.entry, path=file.path, offset=0, comp_size=0, orig_size=len(file.data))
+                added.add(added_entry.identity)
+                outputs[added_entry.identity] = (added_entry, file.data)
     entries.update({identity: candidate for identity, (candidate, _data) in outputs.items()})
     if len(entries) > MAX_RESULT_ENTRIES:
         raise ValueError("The edited result exceeds the 8,192-entry dependency limit.")

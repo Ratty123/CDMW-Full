@@ -40,7 +40,7 @@ def prepare_replacement_event(tab, session, event):
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
-    if event.get("command") == "replacement_material_colours":
+    if event.get("command") in {"replacement_material_colours", "replacement_emission"}:
         # A set's other files are found through the loaded archives' index.
         args["_archive_index_source"] = _resident_archive_source(owner)
     if state is None:

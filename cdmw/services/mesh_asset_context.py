@@ -50,6 +50,8 @@ class MeshAssetContext:
     # Each edited piece's .pac_xml as the archive had it when its colours were first
     # changed: (asset_id, ArchiveEntry, bytes). Build Mod and drafts need no archive.
     material_colour_files: tuple[tuple[str, object, bytes], ...] = ()
+    # Glow of a set's pieces: ((asset_id, folded wrapper name, EmissionChoice), ...).
+    emissions: tuple[tuple[str, str, object], ...] = ()
 
     @property
     def draft_identity(self) -> str:

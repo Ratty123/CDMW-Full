@@ -80,12 +80,23 @@ def build_emission_files(state, original, companion_files, *, stop_event=None):
 
 
 def emission_ui_state(authoring, replacement):
+    from cdmw.services.mesh_asset_context import is_item_set
+
     session = authoring.shadow_service._session(authoring.shadow_session_id)
-    reason = replacement["reason"]
+    context = getattr(session, "archive_refit_context", None)
+    item_set = is_item_set(context)
+    # A set refuses Import Replacement, not Glow: its pieces keep their own files.
+    reason = "" if item_set else replacement["reason"]
     if session.mesh_format != "pac":
         reason = "Glow editing requires a PAC and its material sidecar."
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before changing the material shader."
+    if item_set:
+        from cdmw.services.mesh_material_colours import set_material_key
+        saved = {f"{asset}|{material}": choice for asset, material, choice in context.emissions}
+        return {"available": not reason, "reason": reason, "parts": [
+            {**part, "emission": saved[set_material_key(part)].to_dict() if set_material_key(part) in saved else None}
+            for part in replacement["parts"]]}
     bindings = {part.part_id: part for part in session.replacement_state.parts} if session.replacement_state else {}
     return {"available": not reason, "reason": reason, "parts": [
         {**part, "emission": bindings[part["id"]].emission.to_dict()
