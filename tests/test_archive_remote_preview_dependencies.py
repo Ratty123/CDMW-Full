@@ -279,6 +279,36 @@ def test_a_worn_set_keeps_pieces_its_wearer_wears_together() -> None:
     assert worn_set_members(helm, ((_KUKU_HELM_SCOPE[0][1], (_MODEL + "other.pac",)),)) == helm[2:4]
 
 
+def test_a_worn_set_leaves_out_a_model_found_by_name_in_a_slot_its_prefab_fills() -> None:
+    """Fredric, 2026-11-23: Item Finder drew Demeniss Honor Armor (item 111147) as two
+    armours. Its prefab `cd_m0001_00_so_phm_ub_31067.prefab` lists the 31066 pieces and a
+    belt, as the game's files read 2026-11-23; `ub_31067.pac`, another armour's breastplate,
+    was in the scope only by the item's icon name and was drawn over `ub_31066.pac`."""
+    from cdmw.domain.archives.item_sets import worn_set_members
+
+    south = _MODEL + "2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/"
+    upper = _sized(250001, south + "9_upperbody/cd_m0001_00_so_phm_ub_31066.pac", 549000)
+    lower = _sized(250002, south + "10_lowerbody/cd_m0001_00_so_phm_lb_31066.pac", 169000)
+    belt = _sized(250003, _MODEL + "1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_belt_00_0001.pac", 140000)
+    shoulder = _sized(250004, south + "14_sho/cd_m0001_00_so_phm_sho_31066.pac", 242000)
+    by_name = _sized(250005, south + "9_upperbody/cd_m0001_00_so_phm_ub_31067.pac", 1300000)
+    scope = (by_name, upper, lower, belt, shoulder)
+    prefab = (_listing(_PREFAB + "2_mon/cd_m0001_00_twofeet/cd_m0001_01_phm/armor_south/"
+                       "cd_m0001_00_so_phm_ub_31067.prefab", upper, lower, belt, shoulder),)
+
+    assert worn_set_members(scope) == (by_name, upper, shoulder, lower, belt)  # Without the prefab.
+    assert worn_set_members(scope, prefab) == (upper, shoulder, lower, belt)
+    # Another model no prefab lists still stays, even in a slot the prefab fills:
+    # Angler's Pack (item 950042) names only its bag's prefab, and the strap is worn too.
+    cloak = _sized(250006, south + "19_cloak/cd_m0001_00_so_phm_cloak_31067.pac", 300000)
+    assert worn_set_members((*scope, cloak), prefab) == (upper, cloak, shoulder, lower, belt)
+    pack = (_sized(243071, _MODEL + "1_pc/1_phm/armor/18_acc/cd_phm_14_bag_0003.pac", 3384569),
+            _sized(242962, _MODEL + "1_pc/1_phm/armor/18_acc/cd_phm_00_bag_belt_0003.pac", 182931))
+    assert worn_set_members(pack, (
+        _listing(_PREFAB + "1_pc/01_phm/armor/18_acc/cd_phm_14_bag_0003.prefab", pack[0]),
+    )) == pack
+
+
 def test_item_set_scope_reads_the_item_s_prefabs_in_its_own_order() -> None:
     from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult
     from cdmw.domain.archives.item_sets import worn_set_members
