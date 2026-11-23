@@ -33,8 +33,10 @@ def stage_shader_preview(authoring, mesh, state, payload, presentations, stop_ev
                             and not selected_names[name].force
                             and equipment_glass_needs_bake(shader, {*values, *textures})):
                         baked_names.add(name)
+    from cdmw.services.mesh_material_colours import build_material_colour_files
+    coloured = build_material_colour_files(state, original, state.companion_files, stop_event=stop_event)
     files.update({file.path.replace("\\", "/").casefold(): file
-                  for file in build_shader_control_files(state, original, state.companion_files, stop_event=stop_event)})
+                  for file in build_shader_control_files(state, original, coloured, stop_event=stop_event)})
     materials = {}
     for path, file in files.items():
         if path.endswith((".pac_xml", ".pami")):

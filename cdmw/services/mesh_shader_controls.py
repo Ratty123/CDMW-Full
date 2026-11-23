@@ -366,7 +366,9 @@ def set_shader_controls(authoring, snapshot, args, *, entry, dependencies, stop_
         return authoring.shadow_service.session_view(authoring.shadow_session_id)
     state = replace(state, parts=parts, revision=state.revision + 1)
     original = parse_mesh(snapshot.original_data, state.target_path)
-    prepared = build_shader_control_files(state, original, state.companion_files, stop_event=stop_event)
+    from cdmw.services.mesh_material_colours import build_material_colour_files
+    coloured = build_material_colour_files(state, original, state.companion_files, stop_event=stop_event)
+    prepared = build_shader_control_files(state, original, coloured, stop_event=stop_event)
     if value is not None:
         state = _capture_control_textures(state, original, prepared, args.get("_archive_dependencies"), stop_event)
     mesh = mesh_with_part_ids(snapshot, state)

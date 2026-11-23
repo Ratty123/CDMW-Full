@@ -184,6 +184,8 @@ fn diagnostics_render_current_body_and_layer_measurements_with_sample_limits() -
     }
     ui.click("Lowest sampled gaps")?;
     ui.reveal("Part 1, vertex 7: body distance 0.000500")?;
+    // The two rows can sit either side of the panel's scroll edge; reveal each.
+    ui.reveal("Part 1, vertex 7 → Part 2: layer gap 0.003000")?;
     assert!(painted_text(&ui).contains("Part 1, vertex 7 → Part 2: layer gap 0.003000"));
     assert!(!has_host_command(&ui.last_actions, "refit_diagnostics"));
     Ok(())

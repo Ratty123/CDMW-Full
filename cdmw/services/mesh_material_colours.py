@@ -167,8 +167,8 @@ def set_material_colours(authoring, snapshot, args, *, entry, dependencies, stop
     # Prove the export can write it before it becomes an Undo step.
     original = parse_mesh(snapshot.original_data, state.target_path)
     from cdmw.services.mesh_shader_controls import build_shader_control_files
-    prepared = build_shader_control_files(state, original, state.companion_files, stop_event=stop_event)
-    build_material_colour_files(state, original, prepared, stop_event=stop_event)
+    prepared = build_material_colour_files(state, original, state.companion_files, stop_event=stop_event)
+    build_shader_control_files(state, original, prepared, stop_event=stop_event)
     mesh = mesh_with_part_ids(snapshot, state)
     stage_replacement_materials(authoring, mesh, state, stop_event)
     return commit_replacement(authoring.shadow_service, snapshot, mesh, state,

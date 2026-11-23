@@ -432,6 +432,10 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if not final_report.ok:
         raise ValueError("Rebuilt replacement is invalid: " + "; ".join(i.message for i in final_report.blockers))
     files = list(state.companion_files)
+    # Colours first: the translucency, glow and glass bakes below read the edited tints.
+    if any(part.material_colours for part in state.parts):
+        from cdmw.services.mesh_material_colours import build_material_colour_files
+        files = list(build_material_colour_files(state, original, files))
     if any(part.translucency is not None for part in state.parts):
         from cdmw.services.mesh_translucency import build_translucency_files
         files = list(build_translucency_files(state, original, files))
@@ -441,9 +445,6 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if any(part.shader_controls is not None for part in state.parts):
         from cdmw.services.mesh_shader_controls import build_shader_control_files
         files = list(build_shader_control_files(state, original, files))
-    if any(part.material_colours for part in state.parts):
-        from cdmw.services.mesh_material_colours import build_material_colour_files
-        files = list(build_material_colour_files(state, original, files))
     if any(part.physics_profiles for part in state.parts):
         from cdmw.services.mesh_physics_profile_output import build_physics_profile_files
         files = list(build_physics_profile_files(state, original, files))
