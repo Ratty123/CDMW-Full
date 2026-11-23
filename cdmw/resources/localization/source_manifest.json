@@ -10616,7 +10616,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 85,
+          "line": 102,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -21226,7 +21226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 85,
+          "line": 102,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -31121,7 +31121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8375,
+          "line": 8387,
           "sink": "report"
         }
       ]
@@ -34036,7 +34036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -34601,7 +34601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 85,
+          "line": 102,
           "sink": "getOpenFileName"
         },
         {
@@ -35031,7 +35031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -38116,7 +38116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 33,
+          "line": 40,
           "sink": "ValueError"
         }
       ]
@@ -53106,7 +53106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 11407,
+          "line": 11423,
           "sink": "RuntimeError"
         }
       ]
@@ -53601,7 +53601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_material_colours.py",
-          "line": 426,
+          "line": 427,
           "sink": "_push_history"
         },
         {
@@ -76991,7 +76991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 54,
+          "line": 57,
           "sink": "getOpenFileName"
         }
       ]
@@ -77331,7 +77331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 54,
+          "line": 57,
           "sink": "getOpenFileName"
         }
       ]
@@ -96726,7 +96726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9112,
+          "line": 9124,
           "sink": "done"
         }
       ]
@@ -97381,7 +97381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 54,
+          "line": 57,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -97391,7 +97391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 54,
+          "line": 57,
           "sink": "getOpenFileName"
         }
       ]
@@ -101521,7 +101521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10523,
+          "line": 10539,
           "sink": "RuntimeError"
         }
       ]
@@ -101531,7 +101531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10519,
+          "line": 10535,
           "sink": "RuntimeError"
         }
       ]
@@ -101541,7 +101541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10494,
+          "line": 10510,
           "sink": "RuntimeError"
         }
       ]
@@ -126221,7 +126221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8369,
+          "line": 8381,
           "sink": "report"
         }
       ]
@@ -126676,7 +126676,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9191,
+          "line": 9203,
           "sink": "progress"
         }
       ]
@@ -126686,7 +126686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8114,
+          "line": 8126,
           "sink": "report"
         }
       ]
@@ -126696,7 +126696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8139,
+          "line": 8151,
           "sink": "report"
         }
       ]
@@ -138152,6 +138152,16 @@
       ]
     },
     {
+      "key": "Refit's Load Body and Load Armor and Cloth's collision inputs from the game archives take the archive file the AI app names, so no picker opens; without a file the tool refuses.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1133,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Refitted armor. Choose the part matching your template. Female Armor Fit and Female Armor Module are alternative sources.",
       "origins": [
         {
@@ -145506,7 +145516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_material_colours.py",
-          "line": 426,
+          "line": 427,
           "sink": "_push_history"
         },
         {
@@ -152966,7 +152976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -156577,7 +156587,7 @@
       "manual": true
     },
     {
-      "key": "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
+      "key": "Select by numbers, move, rotate and scale, change topology, read and edit vertex values, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -176057,6 +176067,16 @@
       ]
     },
     {
+      "key": "The archive file was chosen for {value_0}, not {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 42,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The archive helper did not become ready within the startup limit. Check missing files, security blocking and the diagnostic tail.",
       "origins": [
         {
@@ -176241,7 +176261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 66,
+          "line": 69,
           "sink": "ValueError"
         }
       ]
@@ -177561,7 +177581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
-          "line": 56,
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -177581,7 +177601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 36,
+          "line": 43,
           "sink": "ValueError"
         }
       ]
@@ -178138,6 +178158,16 @@
           "path": "cdmw/ui/new_item/painting_dialog.py",
           "line": 286,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "The game archives changed after the archive file was chosen; choose it again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 44,
+          "sink": "ValueError"
         }
       ]
     },
@@ -178942,11 +178972,21 @@
       ]
     },
     {
+      "key": "The loaded archive mesh changed after the archive file was chosen.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The loaded archive mesh changed during selection",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
-          "line": 58,
+          "line": 66,
           "sink": "ValueError"
         }
       ]
@@ -179216,7 +179256,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 64,
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -181421,7 +181461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_material_colours.py",
-          "line": 411,
+          "line": 412,
           "sink": "ValueError"
         }
       ]
@@ -208331,7 +208371,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8607,
+          "line": 8619,
           "sink": "open_edit_session"
         },
         {
@@ -215261,12 +215301,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7570,
+          "line": 7582,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7668,
+          "line": 7680,
           "sink": "RuntimeError"
         }
       ]
@@ -230761,7 +230801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
-          "line": 92,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -234681,7 +234721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_material_colours.py",
-          "line": 476,
+          "line": 487,
           "sink": "ValueError"
         }
       ]
@@ -234691,7 +234731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_material_colours.py",
-          "line": 456,
+          "line": 467,
           "sink": "ValueError"
         }
       ]
