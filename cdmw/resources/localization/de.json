@@ -13377,7 +13377,7 @@
     "Select body or garment vertices, faces, or parts first.": "Wählen Sie zuerst Scheitelpunkte, Flächen oder Teile des Körpers oder der Kleidung aus.",
     "Select bound garment Parts and finish any pending sculpted slider or correction first.": "Wählen Sie gebundene Kleidungsteile aus und schließen Sie zunächst alle offenen modellierten Schieberegler oder Korrekturen ab.",
     "Select bounded relative save-member paths.": "Wählen Sie begrenzte relative Pfade zu Spielstandselementen.",
-    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.": "Per Zahlen auswählen, verschieben, drehen und skalieren, Topologie, Gewichte, Morphs, Refit, Stoff, Ebenen und Haare ändern, Kamera und Ansicht einstellen, abschließen, exportieren und den Mod erstellen.",
+    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth and layers, start Hair Tools and use its panel and motion preview, select, hide and isolate mesh islands, set the camera and view, finish, export and build the mod.": "Per Zahlen auswählen, verschieben, drehen und skalieren, Topologie, Gewichte, Morphs, Refit, Stoff und Ebenen ändern, die Haarwerkzeuge starten und ihr Panel und ihre Bewegungsvorschau nutzen, Mesh-Inseln auswählen, ausblenden und isolieren, Kamera und Ansicht einstellen, abschließen, exportieren und den Mod erstellen.",
     "Select canonical relative save-member paths using forward slashes.": "Wählen Sie kanonische relative Pfade zu Spielstandselementen mit Schrägstrichen.",
     "Select chaiNNer chain": "ChainNER-Kette auswählen",
     "Select chaiNNer executable": "ChainNER-Ausführungsdatei auswählen",

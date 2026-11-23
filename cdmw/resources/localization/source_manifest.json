@@ -28891,7 +28891,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 382,
+          "line": 385,
           "sink": "rust-presentation"
         }
       ]
@@ -70236,7 +70236,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 120,
+          "line": 123,
           "sink": "rust-presentation"
         }
       ]
@@ -83141,7 +83141,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 324,
+          "line": 327,
           "sink": "rust-presentation"
         }
       ]
@@ -83176,7 +83176,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 119,
+          "line": 122,
           "sink": "rust-presentation"
         },
         {
@@ -83266,7 +83266,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 347,
+          "line": 350,
           "sink": "rust-presentation"
         },
         {
@@ -83291,12 +83291,12 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 323,
+          "line": 326,
           "sink": "rust-presentation"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 360,
+          "line": 363,
           "sink": "rust-presentation"
         },
         {
@@ -120641,7 +120641,7 @@
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 335,
+          "line": 338,
           "sink": "rust-presentation"
         },
         {
@@ -146891,7 +146891,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 379,
+          "line": 382,
           "sink": "rust-presentation"
         }
       ]
@@ -155001,7 +155001,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 321,
+          "line": 324,
           "sink": "rust-presentation"
         },
         {
@@ -156622,7 +156622,7 @@
       "manual": true
     },
     {
-      "key": "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
+      "key": "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth and layers, start Hair Tools and use its panel and motion preview, select, hide and isolate mesh islands, set the camera and view, finish, export and build the mod.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -156931,7 +156931,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 269,
+          "line": 272,
           "sink": "rust-presentation"
         }
       ]
@@ -162171,7 +162171,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 315,
+          "line": 318,
           "sink": "rust-presentation"
         }
       ]
@@ -162611,7 +162611,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 361,
+          "line": 364,
           "sink": "rust-presentation"
         }
       ]
@@ -195601,7 +195601,7 @@
       "origins": [
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands.rs",
-          "line": 368,
+          "line": 371,
           "sink": "rust-presentation"
         },
         {

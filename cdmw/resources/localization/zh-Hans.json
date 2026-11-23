@@ -13377,7 +13377,7 @@
     "Select body or garment vertices, faces, or parts first.": "请先选择身体或服装的顶点、面或部件。",
     "Select bound garment Parts and finish any pending sculpted slider or correction first.": "请先选择已绑定的服装部件，并完成待处理的雕刻滑块或修正。",
     "Select bounded relative save-member paths.": "请选择范围受限的存档成员相对路径。",
-    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.": "按编号选择，移动、旋转和缩放，更改拓扑、权重、变形、重新适配、布料、图层和头发，设置相机和视图，完成、导出并构建模组。",
+    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth and layers, start Hair Tools and use its panel and motion preview, select, hide and isolate mesh islands, set the camera and view, finish, export and build the mod.": "按编号选择，移动、旋转和缩放，更改拓扑、权重、变形、重新适配、布料和图层，启动发型工具并使用其面板和运动预览，选择、隐藏和隔离网格岛，设置相机和视图，完成、导出并构建模组。",
     "Select canonical relative save-member paths using forward slashes.": "请选择使用正斜杠的规范存档成员相对路径。",
     "Select chaiNNer chain": "选择 chaiNNer 链",
     "Select chaiNNer executable": "选择 chaiNNer 可执行文件",
