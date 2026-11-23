@@ -587,18 +587,23 @@ _overlay: DmmMountOverlay | None = None
 
 
 def setting_enabled(settings: object) -> bool:
-    value = settings.value(SHOW_MOUNTED_MODS_SETTING, True)
+    """Whether Settings turned the overlay on; off unless the user chose it."""
+
+    value = settings.value(SHOW_MOUNTED_MODS_SETTING, False)
+    if value is None:
+        return False
     if isinstance(value, str):
-        return value.strip().casefold() not in {"false", "0", "no", "off"}
+        return value.strip().casefold() in {"true", "1", "yes", "on"}
     return bool(value)
 
 
 def current_overlay() -> DmmMountOverlay:
-    """The app's overlay, on unless Settings turned it off."""
+    """The app's overlay, off unless Settings turned it on."""
 
     global _overlay
     if _overlay is None:
         overlay = DmmMountOverlay()
+        overlay.set_enabled(False)  # an unreadable settings file keeps it off
         try:
             from cdmw.services.settings_service import app_settings
 

@@ -203,6 +203,45 @@ def test_settings_group_and_ai_tool(tmp_path, monkeypatch):
 
 
 
+def test_overlay_is_off_unless_settings_turn_it_on(tmp_path, monkeypatch):
+    from PySide6.QtCore import QSettings
+
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    assert dmm.setting_enabled(settings) is False  # never chosen
+    settings.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, "garbage")
+    assert dmm.setting_enabled(settings) is False
+    settings.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, True)
+    assert dmm.setting_enabled(settings) is True
+
+    import cdmw.services.settings_service as settings_service
+
+    def unreadable():
+        raise OSError("no settings file")
+
+    monkeypatch.setattr(settings_service, "app_settings", unreadable)
+    monkeypatch.setattr(dmm, "_overlay", None)
+    assert dmm.current_overlay().enabled is False
+    monkeypatch.setattr(dmm, "_overlay", None)
+
+
+def test_saved_on_from_the_old_default_is_turned_off_once(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    from cdmw.services.settings_service import create_settings
+
+    path = tmp_path / "CDMW.cfg"
+    old = QSettings(str(path), QSettings.Format.IniFormat)
+    old.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, True)  # saved while the box defaulted to on
+    old.sync()
+    del old
+    settings = create_settings(settings_file_path=path)
+    assert dmm.setting_enabled(settings) is False
+    settings.setValue(dmm.SHOW_MOUNTED_MODS_SETTING, True)  # the user turns it on again
+    settings.sync()
+    del settings
+    assert dmm.setting_enabled(create_settings(settings_file_path=path)) is True
+
+
 def test_settings_group_follows_the_game_folder_field_and_the_saved_choice(tmp_path, monkeypatch):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtCore import QSettings

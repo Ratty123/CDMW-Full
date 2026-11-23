@@ -1531,7 +1531,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         self.settings.setValue("appearance/preview_color_scheme", self.current_preview_color_scheme())
         self._save_compact_workspace_settings()
         self.settings.setValue("preferences/auto_load_archive_on_startup", self.auto_load_archive_checkbox.isChecked())
-        # Written with the rest, so the saved file always holds the choice the page shows (on by default).
+        # Written with the rest, so the saved file always holds the choice the page shows (off by default).
         self.settings.setValue(SHOW_MOUNTED_MODS_SETTING, self.dmm_mounted_mods_group.show_checkbox.isChecked())
         self.settings.setValue(
             "preferences/prefer_archive_cache_on_startup",

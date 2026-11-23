@@ -69,6 +69,34 @@ def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:
     return True
 
 
+DMM_MOUNTED_MODS_DEFAULT_OFF_MIGRATION_KEY = "dmm/show_mounted_mods_default_off_v1"
+
+
+def migrate_dmm_mounted_mods_default_off(settings: object) -> bool:
+    """Turn the DMM mounted-mods overlay off once.
+
+    It used to default to on, and Settings saved whatever the box showed, so a
+    stored ``True`` usually means the old default rather than a choice. Turning it
+    on again after this is kept.
+    """
+
+    try:
+        marker = str(settings.value(DMM_MOUNTED_MODS_DEFAULT_OFF_MIGRATION_KEY, "") or "").strip().lower()
+    except Exception:
+        return False
+    if marker in {"1", "true", "yes", "on"}:
+        return False
+    try:
+        settings.setValue("dmm/show_mounted_mods", False)
+        settings.setValue(DMM_MOUNTED_MODS_DEFAULT_OFF_MIGRATION_KEY, True)
+        sync = getattr(settings, "sync", None)
+        if callable(sync):
+            sync()
+    except Exception:
+        return False
+    return True
+
+
 @dataclass(slots=True)
 class SettingsService:
     settings: object | None = None
@@ -123,6 +151,7 @@ def create_settings(
     if already_migrated not in {"1", "true", "yes", "on"}:
         migrate_legacy_workspace_layout(resolved_path.parent, settings)
     migrate_model_texture_setting_to_on_demand(settings)
+    migrate_dmm_mounted_mods_default_off(settings)
     return settings
 
 
@@ -184,6 +213,8 @@ __all__ = [
     "app_settings",
     "copy_registry_values_once",
     "create_settings",
+    "DMM_MOUNTED_MODS_DEFAULT_OFF_MIGRATION_KEY",
+    "migrate_dmm_mounted_mods_default_off",
     "migrate_model_texture_setting_to_on_demand",
     "MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY",
     "prepare_settings_file",
