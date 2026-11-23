@@ -995,3 +995,64 @@ fn island_tab_uses_full_height_and_remembers_its_own_scroll() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn island_editor_control_selects_hides_isolates_and_shows_islands_by_number() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    let state = ui.application.apply_editor_control("islands", &json!({"action": "state"}));
+    assert!(state.ok);
+    assert_eq!(state.state["parts"][0]["islands"][1]["faces"], 1);
+    assert_eq!(state.state["usable"], true);
+    // Selecting island 2 selects its faces, as a click on its name does.
+    let selected = ui.application.apply_editor_control("islands", &json!({"action": "select", "part": 0, "island": 1}));
+    assert!(selected.ok, "{}", selected.message);
+    assert_eq!(selected.state["parts"][0]["islands"][1]["selected"], true);
+    assert_eq!(selected.state["parts"][0]["islands"][0]["selected"], false);
+    // Hide it in the view only; showing it again removes the same entry, never a phantom one.
+    let hidden = ui.application.apply_editor_control(
+        "islands", &json!({"action": "visibility", "part": 0, "island": 1, "visible": false}));
+    assert!(hidden.ok, "{}", hidden.message);
+    assert_eq!(hidden.state["parts"][0]["islands"][1]["shown"], false);
+    assert_eq!(hidden.state["parts"][0]["islands"][1]["included"], true);
+    assert_eq!(ui.application.mesh.as_ref().ok_or("mesh")?.viewport_hidden_faces().len(), 1);
+    let shown = ui.application.apply_editor_control(
+        "islands", &json!({"action": "visibility", "part": 0, "island": 1, "visible": true}));
+    assert!(shown.ok && ui.application.cdmw_hidden_islands.is_empty());
+    // Isolate hides every other island of the part; Show all islands brings them back.
+    let isolated = ui.application.apply_editor_control("islands", &json!({"action": "isolate", "part": 0, "island": 0}));
+    assert!(isolated.ok, "{}", isolated.message);
+    assert_eq!(isolated.state["hidden"], 1);
+    assert_eq!(isolated.state["parts"][0]["islands"][1]["shown"], false);
+    let all = ui.application.apply_editor_control("islands", &json!({"action": "show_all"}));
+    assert!(all.ok && all.state["hidden"] == 0);
+    let many = ui.application.apply_editor_control(
+        "islands", &json!({"action": "select_many", "islands": [{"part": 0, "island": 0}, {"part": 0, "island": 1}]}));
+    assert!(many.ok, "{}", many.message);
+    assert_eq!(many.state["parts"][0]["islands"][0]["selected"], true);
+    assert_eq!(many.state["parts"][0]["islands"][1]["selected"], true);
+    let colours = ui.application.apply_editor_control("islands", &json!({"action": "colours", "enabled": true}));
+    assert!(colours.ok && colours.state["island_colours"] == true, "{}", colours.message);
+    Ok(())
+}
+
+#[test]
+fn island_editor_control_refuses_what_the_list_would_not_offer() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    for (arguments, reason) in [
+        (json!({"action": "select", "part": 4, "island": 0}), "no part 4"),
+        (json!({"action": "select", "part": 0, "island": 9}), "islands 0 to 1"),
+        (json!({"action": "select", "part": 0}), "Name the island"),
+        (json!({"action": "visibility", "part": 0, "island": 0}), "needs visible"),
+        (json!({"action": "select_many"}), "needs islands"),
+        (json!({"action": "explode"}), "no action explode"),
+    ] {
+        let outcome = ui.application.apply_editor_control("islands", &arguments);
+        assert!(!outcome.ok && outcome.message.contains(reason), "{arguments}: {}", outcome.message);
+    }
+    // Outside the Edit comparison the list is disabled, and so is the control.
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("original");
+    let outcome = ui.application.apply_editor_control("islands", &json!({"action": "select", "part": 0, "island": 0}));
+    assert!(!outcome.ok && outcome.message.contains("Edit comparison"), "{}", outcome.message);
+    assert_eq!(outcome.state["usable"], false);
+    Ok(())
+}

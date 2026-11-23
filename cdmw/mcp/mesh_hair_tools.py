@@ -26,10 +26,9 @@ from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, UNAVAILABLE, ToolError
 from cdmw.mcp.names import EDIT, READ
 from cdmw.mcp.tools import ON_WORKER, Tool, object_schema
 
-ANSWER_S = 5.0
 PREPARE_S = 120.0
 SETUP_S = 180.0
-NO_EDITOR_CONTROLS = ("This Mesh Editor helper does not take Hair Tools' panel from CDMW; it is older than this "
+NO_EDITOR_CONTROLS = ("This Mesh Editor helper does not take its hair control from CDMW; it is older than this "
                       "app (host_editor_controls_v1).")
 #: The panel's own edits and settings, used by name (cdmw_hair_host.rs, HAIR_HOST_ACTIONS).
 LOCAL_ACTIONS = ("state", "select_locks", "prepare", "empty", "fill", "lock_uv", "rigid", "rebind", "convert",
@@ -69,29 +68,9 @@ def _shown(context):
 def _control(call, arguments: dict[str, object]) -> dict[str, object]:
     """Send one hair control and return its answer (ok, message, state)."""
 
-    from cdmw.mcp.mesh_tools import ready_document
-    from cdmw.ui.mesh_editor.editor_controls import editor_controls, take_editor_control_answer
+    from cdmw.mcp.editor_control import editor_control
 
-    context = call.context
-
-    def send() -> int:
-        tab = ready_document(context)
-        if "hair" not in editor_controls(tab):
-            raise ToolError(UNAVAILABLE, NO_EDITOR_CONTROLS)
-        token = tab.send_editor_control("hair", arguments)
-        if not token:
-            raise ToolError(FAILED, "The Mesh Editor did not take the message.")
-        return token
-
-    token = context.ui_call(send)
-    deadline = time.monotonic() + ANSWER_S
-    while time.monotonic() < deadline:
-        call.check_cancelled()
-        answer = context.ui_call(lambda: take_editor_control_answer(_shown(context), token))
-        if answer is not None:
-            return answer
-        time.sleep(0.03)
-    raise ToolError(FAILED, "The Mesh Editor did not answer.")
+    return editor_control(call, "hair", arguments)
 
 
 def _local(call, action: str) -> dict[str, object]:
@@ -127,9 +106,9 @@ def _local(call, action: str) -> dict[str, object]:
 
 # ----- the panel's commands CDMW carries out ---------------------------------------------
 def _require_new_helper(call) -> None:
-    from cdmw.ui.mesh_editor.editor_controls import editor_controls
+    from cdmw.mcp.editor_control import has_control
 
-    if not call.context.ui_call(lambda: "hair" in editor_controls(_shown(call.context))):
+    if not has_control(call, "hair"):
         raise ToolError(UNAVAILABLE, NO_EDITOR_CONTROLS)
 
 

@@ -178,6 +178,9 @@ const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_hair_host.rs"),
     "
 ",
+    include_str!("cdmw_islands_host.rs"),
+    "
+",
     include_str!("cdmw_host_controls.rs")
 );
 const MAIN_SOURCE: &str = concat!(
@@ -859,6 +862,7 @@ islands.visibility|parts|"View"|UiAction::SetIslandVisibility
 islands.isolate|parts|"Isolate"|UiAction::IsolateIsland
 islands.show_all|parts|"Show all islands"|UiAction::ShowAllIslands
 islands.inclusion|parts|"replacement_islands"|UiAction::CdmwCommand
+islands.host_control|parts|fn islands_host_control|HostEvent::EditorControl
 replacement.fit|transform|"replacement_fit"|UiAction::CdmwCommand
 replacement.reset|transform|"replacement_reset"|UiAction::CdmwCommand
 replacement.preview|camera_display|"replacement_compare"|UiAction::CdmwCommand
@@ -972,6 +976,7 @@ mod tests {
         assert!(keys.contains("refit.save_setup"));
         assert!(keys.contains("refit.apply_setup"));
         assert!(keys.contains("hair.host_control"));
+        assert!(keys.contains("islands.host_control"));
         assert!(rows.iter().all(|row| {
             row.get("source_binding_verified").and_then(Value::as_bool) == Some(true)
         }));

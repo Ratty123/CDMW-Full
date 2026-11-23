@@ -1196,6 +1196,13 @@
       "tool": "mesh.export_pac"
     },
     {
+      "id": "mesh.islands_view",
+      "area": "Mesh Editor",
+      "what": "Mesh islands in the view: select one or several, show or hide, isolate, show all, island colours",
+      "class": "edit",
+      "tool": "mesh.islands"
+    },
+    {
       "id": "hair.tools",
       "area": "Hair Tools",
       "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",

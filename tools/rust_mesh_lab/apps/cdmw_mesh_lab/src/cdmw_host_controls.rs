@@ -66,6 +66,7 @@ impl LabApplication {
     pub(crate) fn apply_editor_control(&mut self, control: &str, arguments: &Value) -> ControlOutcome {
         let outcome = match control {
             "hair" => self.hair_host_control(arguments),
+            "islands" => self.islands_host_control(arguments),
             _ => ControlOutcome::refused(format!("The editor has no control {control}."), Value::Null),
         };
         self.egui_context.request_repaint();
