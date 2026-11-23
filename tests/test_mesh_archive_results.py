@@ -255,7 +255,9 @@ def test_combined_refit_keeps_each_asset_and_dependency_context(tmp_path, monkey
     textures = (tmp_path / "body.dds", tmp_path / "armor.dds")
     for path, color in zip(textures, ((200, 30, 20), (20, 30, 200)), strict=True):
         Image.new("RGBA", (4, 4), (*color, 255)).save(path)
-    source, service, editor, primary, armor, _loaded = _load_pair(tmp_path, texture_paths=textures)
+    # A verified material context names its source; the primary opens at its entry's path.
+    source, service, editor, primary, armor, _loaded = _load_pair(
+        tmp_path, texture_paths=textures, primary_mesh_path="character/model/owned-rust-exact.pac")
     try:
         _edit_both(editor)
         editor.finish(_request(editor, "finish_request", 31))
@@ -846,7 +848,10 @@ def test_continuation_transfers_verified_material_graph_without_rebinding(
         if material_context == "current":
             assert tab.archive_session_load_material_model is saved.preview_model
             assert tab.archive_material_context_package_path == str(package)
-            assert tab.archive_material_context_package_lease is not lease and not lease.active
+            # Closing the edited session keeps its verified lease to reopen it (PR 35);
+            # the next close, or shutdown, releases it.
+            assert tab.archive_material_context_package_lease is not lease
+            assert (tab.reusable_archive_material_context or {}).get("lease") is lease and lease.active
             assert tab.archive_material_context_package_lease.active and saved.package_lease.active
             assert tab.archive_material_context_verified_for_rust
             assert tab.archive_material_context_source_identity == entry.identity
@@ -883,7 +888,7 @@ def test_continuation_transfers_verified_material_graph_without_rebinding(
             assert not tab.archive_material_context_verified_for_rust
             assert not lease.active
     finally:
-        tab.close_standalone_session()
+        tab.request_shutdown()  # closes the session and releases a kept lease
         assert not lease.active
         tab.deleteLater()
         app.processEvents()

@@ -33,10 +33,13 @@ def _entry(root, name, source):
 
 def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,
                primary_appearance=None, incoming_appearance=None, role="armor", distinct_material=False,
-               edit_before_append=False):
+               edit_before_append=False, primary_mesh_path=None):
+    # ``primary_mesh_path`` opens the primary at its archive entry's path, as an
+    # archive open does; the default keeps the fixture's short name.
     source, authority, session = _open_exact_session(
         tmp_path / "session", base_texture_path=texture_paths[0] if texture_paths else None,
         neutral_appearance=primary_appearance,
+        **({"mesh_path": primary_mesh_path} if primary_mesh_path else {}),
     )
     if edit_before_append:
         from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
