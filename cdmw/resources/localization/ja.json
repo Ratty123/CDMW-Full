@@ -19485,6 +19485,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} 固有の XML アセット パス。 {value_1} は {value_2} を使用して未解決です。グラフはナビゲーション専用です。",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} 未解決のアイテムはレビューが必要です。承認されたラベルは {value_1} に保存されます。",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} は選択したオーバーレイのアイテムまたはアセットを使用しています。依存するオーバーレイを先に削除してください。",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} はラフネスとメタリックに同じテクスチャを使っているため、どちらもその赤チャンネルから始まります。通常はパックされたテクスチャかマスクです。適用する前に「ラフネス」と「メタリック」を自分で設定してください。",
     "{value_0} value": "{value_0}の値",
     "{value_0} value(s) change": "{value_0} 個の値が変わります",
     "{value_0} vertices have unnormalized weights": "{value_0} 頂点のウェイトが正規化されていません",

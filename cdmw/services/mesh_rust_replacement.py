@@ -147,11 +147,15 @@ def _build_imported_material_status(pending):
     status = {"error": pending.material_error, "textures": len(files)}
     if not pending.material_error:
         from cdmw.services.mesh_replacement_materials import (
-            helper_material_targets, imported_surface_start, untextured_material_targets)
+            helper_material_targets, imported_surface_shared_maps, imported_surface_start,
+            untextured_material_targets)
         status["surface"] = {**imported_surface_start(pending), "reason": imported_surface_support(pending),
                              # Target parts whose shader keeps its own surface (an eye);
                              # the mapping step names the ones a source is mapped to.
-                             "unsupported": imported_surface_unsupported(pending)}
+                             "unsupported": imported_surface_unsupported(pending),
+                             # Imported materials whose roughness and metallic name one
+                             # texture (often a mask from an OBJ export); the step warns.
+                             "shared_maps": imported_surface_shared_maps(pending)}
         # The mapping step warns before Apply when a part goes to one of these.
         status["helper_targets"] = sorted(helper_material_targets(pending))
         # Parts whose game material has no texture slot at all (a ghost accessory, a mold).

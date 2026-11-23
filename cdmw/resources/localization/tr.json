@@ -19485,6 +19485,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} benzersiz XML varlık yolları; {value_1}, {value_2} kullanılarak çözülmedi. Grafik yalnızca gezinme amaçlıdır.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} çözümlenmemiş öğenin incelenmesi gerekiyor. Onaylanan etiketler {value_1}'de saklanır.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0}, seçili kaplamadaki bir öğe veya varlığı kullanıyor. Önce bağımlı kaplamayı kaldırın.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0}, pürüzlülük ve metaliklik için aynı dokuyu kullanıyor, bu yüzden ikisi de onun kırmızı kanalından başlar. Bu genellikle paketlenmiş bir doku veya maskedir; uygulamadan önce \"Pürüzlülük\" ve \"Metalik\" değerlerini kendiniz ayarlayın.",
     "{value_0} value": "{value_0} değeri",
     "{value_0} value(s) change": "{value_0} değer değişiyor",
     "{value_0} vertices have unnormalized weights": "{value_0} köşeleri normalize edilmemiş ağırlıklara sahip",

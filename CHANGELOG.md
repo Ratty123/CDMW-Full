@@ -10,6 +10,11 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Changed
 
 - **Mods mounted in DMM (experimental)** is now off until you turn it on in **Mod Management > Mounted in DMM** or Settings, so Browse Archives and the editors show the game's own files by default. CDMW turns it off once for everyone who had it on from the old default; turn it on again if you want it.
+- **Import Replacement** with **Imported Materials & Textures** now warns when an OBJ names the same texture for roughness and metallic (`map_Pr` and `map_Pm`). Blender's OBJ export does this with packed or mask textures, and the Roughness and Metallic sliders then started from the mask, which can look like a dark mirror. Set both sliders yourself when you see the warning.
+
+### Fixed
+
+- **Browse Archives** fills in the **Item Name** column once item names are ready. Before, files listed before the names finished loading kept an empty column, and scrolling or other work in CDMW could restart the name loading again and again, so names sometimes arrived very late or never, even after Refresh or a restart.
 
 ### Docs
 

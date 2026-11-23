@@ -19489,6 +19489,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "Chemin(s) d'actif XML unique {value_0} ; {value_1} non résolu à l'aide de {value_2}. Le graphique est uniquement destiné à la navigation.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "Les éléments {value_0} non résolus doivent être examinés. Les étiquettes approuvées sont stockées dans {value_1}.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} utilise un objet ou une ressource de la superposition sélectionnée. Retirez d’abord la superposition dépendante.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} utilise la même texture pour la rugosité et le métallique, donc les deux partent de son canal rouge. Il s'agit généralement d'une texture combinée ou d'un masque ; réglez vous-même « Rugosité » et « Métallique » avant d'appliquer.",
     "{value_0} value": "valeur {value_0}",
     "{value_0} value(s) change": "{value_0} valeur(s) modifiée(s)",
     "{value_0} vertices have unnormalized weights": "Les sommets {value_0} ont des poids non normalisés",

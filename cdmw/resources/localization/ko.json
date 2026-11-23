@@ -19485,6 +19485,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} 고유한 XML 자산 경로; {value_1}는 {value_2}를 사용하여 해결되지 않았습니다. 그래프는 탐색 전용입니다.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} 해결되지 않은 항목을 검토해야 합니다. 승인된 라벨은 {value_1}에 저장됩니다.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0}은(는) 선택한 오버레이의 아이템 또는 에셋을 사용합니다. 종속된 오버레이를 먼저 제거하세요.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0}은(는) 거칠기와 금속성에 같은 텍스처를 사용하므로 둘 다 그 텍스처의 빨강 채널에서 시작합니다. 보통 패킹된 텍스처나 마스크입니다. 적용하기 전에 '거칠기'와 '금속성'을 직접 설정하세요.",
     "{value_0} value": "{value_0} 값",
     "{value_0} value(s) change": "값 {value_0}개 변경",
     "{value_0} vertices have unnormalized weights": "{value_0} 정점에 정규화되지 않은 가중치 있음",

@@ -6,6 +6,7 @@ from dataclasses import replace
 from collections import defaultdict
 import hashlib
 import io
+import os
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -884,6 +885,32 @@ def _source_surface_inputs(pending):
                 entry[key] = None
         result[material] = entry
     return result
+
+
+def imported_surface_shared_maps(pending):
+    """Imported materials whose roughness and metalness read the same channel of one file.
+
+    An OBJ cannot say which channel a map comes from, so an exporter that follows
+    a node chain back to its image (Blender splits a packed or mask texture with
+    Separate Color) can name one texture for both ``map_Pr`` and ``map_Pm``. Both
+    then read its red channel, and the sliders start from a mask instead of a
+    surface. The mapping step warns about these names before Apply.
+    """
+    names = {}
+    for part in pending.source.mesh.submeshes:
+        name = str(part.material or part.name or "").strip()
+        names.setdefault(_folded(name), name)
+    try:
+        inputs = _source_surface_inputs(pending)
+    except (OSError, ValueError):
+        return []
+    shared = []
+    for material, entry in inputs.items():
+        roughness, metallic = entry["roughness"], entry["metallic"]
+        if (roughness and metallic and roughness[0] == "map" == metallic[0] and roughness[2] == metallic[2]
+                and os.path.normcase(os.path.abspath(roughness[1])) == os.path.normcase(os.path.abspath(metallic[1]))):
+            shared.append(names.get(material, material))
+    return sorted(shared, key=str.casefold)
 
 
 def imported_surface_defaults(pending):

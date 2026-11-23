@@ -19487,6 +19487,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.",
     "{value_0} value": "{value_0} value",
     "{value_0} value(s) change": "{value_0} value(s) change",
     "{value_0} vertices have unnormalized weights": "{value_0} vertices have unnormalized weights",

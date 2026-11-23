@@ -19491,6 +19491,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} уникальные пути к активам XML; {value_1} не решен с помощью {value_2}. График предназначен только для навигации.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} неразрешенные вопросы требуют проверки. Утвержденные этикетки хранятся в {value_1}.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} использует предмет или ресурс выбранного оверлея. Сначала удалите зависимый оверлей.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} использует одну и ту же текстуру для шероховатости и металличности, поэтому обе начинают с её красного канала. Обычно это упакованная текстура или маска; задайте «Шероховатость» и «Металличность» сами перед применением.",
     "{value_0} value": "Значение {value_0}",
     "{value_0} value(s) change": "Изменяемых значений: {value_0}",
     "{value_0} vertices have unnormalized weights": "Вершины {value_0} имеют ненормализованные веса.",

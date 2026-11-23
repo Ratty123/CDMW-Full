@@ -19485,6 +19485,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} 獨特的 XML 資產路徑；使用 {value_2} 未解決 {value_1}。該圖僅用於導航。",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} 未解決的項目需要審核。批准的標籤儲存在{value_1}中。",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} 使用了所選疊加層中的物品或資源。請先移除相依的疊加層。",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} 的粗糙度和金屬度使用同一張紋理，因此兩者都從它的紅色通道開始。這通常是打包紋理或遮罩；請在套用前自行設定「粗糙度」和「金屬度」。",
     "{value_0} value": "{value_0} 值",
     "{value_0} value(s) change": "{value_0} 個值變更",
     "{value_0} vertices have unnormalized weights": "{value_0} 頂點具有未正規化的權重",

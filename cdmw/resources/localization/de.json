@@ -19487,6 +19487,7 @@
     "{value_0} unique XML asset path(s); {value_1} unresolved using {value_2}. The graph is navigation-only.": "{value_0} eindeutige XML Asset-Pfade; {value_1} wurde mit {value_2} nicht gelöst. Die Grafik dient nur der Navigation.",
     "{value_0} unresolved item(s) need review. Approved labels are stored in {value_1}.": "{value_0} ungelöste Elemente müssen überprüft werden. Genehmigte Etiketten werden in {value_1} gespeichert.",
     "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.": "{value_0} verwendet einen Gegenstand oder eine Ressource aus dem ausgewählten Overlay. Entfernen Sie zuerst das abhängige Overlay.",
+    "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.": "{value_0} verwendet dieselbe Textur für Rauheit und Metallisch, daher beginnen beide mit ihrem Rotkanal. Meist ist das eine gepackte Textur oder eine Maske; stellen Sie „Rauheit“ und „Metallisch“ vor dem Anwenden selbst ein.",
     "{value_0} value": "{value_0}-Wert",
     "{value_0} value(s) change": "{value_0} Wert(e) ändern sich",
     "{value_0} vertices have unnormalized weights": "{value_0}-Scheitelpunkte haben nicht normalisierte Gewichte",

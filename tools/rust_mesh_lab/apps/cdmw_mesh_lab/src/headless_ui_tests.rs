@@ -6413,6 +6413,29 @@ fn integrated_replacement_imported_materials_send_roughness_and_metallic() -> Te
 }
 
 #[test]
+fn integrated_replacement_surface_warns_when_one_texture_is_both_maps() -> TestResult {
+    // Blender's OBJ export of a DD2 helm named its mask for map_Pr and map_Pm,
+    // so both sliders started from the mask's red channel: a dark mirror.
+    let warning = "Iron_mat uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.";
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = replacement_pending_with_materials(json!({
+        "error": "", "textures": 1,
+        "surface": {"roughness": 0.26, "metallic": 0.26, "reason": "", "shared_maps": ["Iron_mat"]},
+    }));
+    ui.settle_layout();
+    assert!(ui.label_rect(warning).is_none());
+    ui.click("Imported Materials & Textures")?;
+    ui.reveal(warning)?;
+    ui.application.cdmw_state["replacement"]["pending"]["materials"]["surface"]["shared_maps"] = json!([]);
+    ui.settle_layout();
+    assert!(ui.reveal(warning).is_err());
+    Ok(())
+}
+
+#[test]
 fn integrated_replacement_surface_is_disabled_for_unsupported_materials() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

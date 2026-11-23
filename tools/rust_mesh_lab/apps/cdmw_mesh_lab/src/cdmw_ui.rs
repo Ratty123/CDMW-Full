@@ -5991,6 +5991,18 @@ impl LabApplication {
                         }).response;
                         if surface_reason.is_empty() {
                             ui.small(crate::localization::tr("Roughness and Metallic start from the imported model's own maps or values, or from the game part's surface. Move one to set a single surface for the whole import."));
+                            // An OBJ cannot name a channel, so an export can give one
+                            // packed or mask texture as both map_Pr and map_Pm.
+                            let shared: Vec<&str> = surface["shared_maps"].as_array()
+                                .map(|names| names.iter().filter_map(|name| name.as_str()).collect())
+                                .unwrap_or_default();
+                            if !shared.is_empty() {
+                                let materials = shared.join(", ");
+                                ui.colored_label(
+                                    ui.visuals().warn_fg_color,
+                                    crate::localization::tr(format!("{materials} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.")),
+                                );
+                            }
                             if !skipped.is_empty() {
                                 let parts = skipped.join(", ");
                                 ui.small(crate::localization::tr(format!("Roughness and Metallic do not apply to {parts}, whose material shader keeps its own surface.")));

@@ -562,6 +562,29 @@ def test_imported_surface_defaults_read_the_models_own_values(editor, tmp_path, 
     assert imported_surface_defaults(pending) == expected
 
 
+@pytest.mark.parametrize("mtl, expected", [
+    # Blender's OBJ export of a DD2 helm named its mask texture for both maps.
+    ("map_Pr mask.png\nmap_Pm mask.png\n", ["imported"]),
+    ("map_Pr rough.png\nmap_Pm metal.png\n", []),
+    ("Pr 0.5\nPm 0.5\n", []),
+    ("", []),
+])
+def test_imported_surface_flags_one_texture_named_for_roughness_and_metallic(editor, tmp_path, mtl, expected):
+    from cdmw.services.mesh_replacement_materials import imported_surface_shared_maps
+    from cdmw.services.mesh_rust_replacement import imported_material_status
+    for name in ("mask", "rough", "metal"):
+        Image.new("RGB", (4, 4), (60, 120, 255)).save(tmp_path / f"{name}.png")
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshCloth_Ver2")
+    model.with_suffix(".mtl").write_text("newmtl imported\nKd 1 1 1\nmap_Kd color.dds\n" + mtl)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    assert imported_surface_shared_maps(pending) == expected
+    assert imported_material_status(pending)["surface"]["shared_maps"] == expected
+
+
 def _snapshot_with_material_labels(snapshot, labels):
     from cdmw.modding.mesh_parser import parse_mesh
 

@@ -1180,6 +1180,15 @@ packed as R 255, G roughness, B metal in the game `_sp` format (BC1, full mips);
 Ver2 wrappers take their mean as layer R. The stock wyvern body `_sp` averages
 G 0.47 and B 0.22 (B is a flat 57 on body, head and wings).
 
+An OBJ cannot name a channel, so Blender's exporter writes the image a node chain
+starts from: a packed or mask texture split with Separate Color comes out as the
+same file for `map_Pr` and `map_Pm`, and both read its red channel. A DD2 helm
+exported this way named its dye mask for both and started at 0.26 roughness and
+metal, a dark mirror. `imported_surface_shared_maps` lists such materials (same
+file and channel for both); the status sends them as `surface.shared_maps` and the
+mapping step warns under the sliders. The values are kept: only the user knows
+what the texture holds.
+
 Each model-property variant is handled on its own, wrapper by wrapper
 (`edit_material_variants_indexed`): one part can use a different shader and a
 different game texture in each variant. In the stock south-faction armour

@@ -3018,6 +3018,7 @@
   "{value_0} source vertices before welding; maximum 1,024 guides across all parts.",
   "{value_0} symmetry has no paired eligible vertices here · {value_1} unmatched vertices remain untouched",
   "{value_0} target garments",
+  "{value_0} uses the same texture for roughness and metallic, so both start from its red channel. That is usually a packed or mask texture; set Roughness and Metallic yourself before applying.",
   "{value_0} value",
   "{value_0} vertices have unnormalized weights",
   "{value_0} vertices use more than six bones; a game vertex holds six. Choose Reduce to Six Influences, or limit influences to six in Blender.",
