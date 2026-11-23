@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 
@@ -573,3 +574,157 @@ def test_manual_structure_retry_leaves_uncached_archive_paging_available() -> No
     _drain_events()
     _, page, _ = service.latest("fetch_page")
     assert page.page_start == 4 and page.query_id == "query-a"
+
+
+def _named(entry: ArchiveEntryDto, name: str) -> ArchiveEntryDto:
+    return replace(entry, known_name=name, exact_name=name)
+
+
+def test_item_names_landing_after_rows_refetch_the_loaded_flat_pages() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=16)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    session, handle = _open_flat(service, controller)
+    _drain_events()
+    assert model.data(model.index(0, 1)) == "-"
+    fetches_before = sum(1 for call in service.calls if call[1] == "fetch_page")
+
+    assert controller.refresh_item_names("other-session") == "skipped"
+    assert controller.refresh_item_names(session.session_id) == "pages"
+    _drain_events()
+    page_requests = [call for call in service.calls if call[1] == "fetch_page"]
+    assert len(page_requests) == fetches_before + 1
+    page_id, page_request, _ = service.latest("fetch_page")
+    assert page_request.page_start == 0
+    # The old copy stays on screen until the refetched page lands.
+    assert model.data(model.index(0, 0)) == "file_0.pac"
+    named_rows = (
+        _named(_entry(0), "Iron Sword"),
+        _named(_entry(1), "Oak Shield"),
+    )
+    service.complete(
+        page_id,
+        ArchivePage(session.session_id, handle.query_id, handle.generation, handle.total_matches, 0, named_rows),
+    )
+    assert model.data(model.index(0, 1)) == "Iron Sword"
+    assert model.data(model.index(1, 1)) == "Oak Shield"
+
+
+def test_item_names_rerun_a_text_query_that_was_evaluated_without_names() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=16)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    session, _handle = _open_flat(service, controller)
+    text_query = ArchiveQuery(session.session_id, include_text="sword", view_mode=ArchiveViewMode.FLAT)
+    controller.apply_query(text_query)
+    query_id, _query, generation = service.latest("create_query")
+    service.complete(query_id, ArchiveQueryHandle(session.session_id, "query-text", generation, 1))
+    page_id, _page, _ = service.latest("fetch_page")
+    service.complete(page_id, ArchivePage(session.session_id, "query-text", generation, 1, 0, (_entry(0),)))
+    queries_before = sum(1 for call in service.calls if call[1] == "create_query")
+
+    assert controller.refresh_item_names(session.session_id) == "requery"
+    queries = [call for call in service.calls if call[1] == "create_query"]
+    assert len(queries) == queries_before + 1
+    assert queries[-1][2].include_text == "sword"
+
+
+def test_item_names_landing_while_a_query_is_staged_are_applied_after_it_publishes() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=16)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    session, _handle = _open_flat(service, controller)
+    controller.apply_query(ArchiveQuery(session.session_id, view_mode=ArchiveViewMode.FLAT))
+    assert controller.refresh_item_names(session.session_id) == "deferred"
+    query_id, _query, generation = service.latest("create_query")
+    service.complete(query_id, ArchiveQueryHandle(session.session_id, "query-b", generation, 2))
+    page_id, _page, _ = service.latest("fetch_page")
+    service.complete(page_id, ArchivePage(session.session_id, "query-b", generation, 2, 0, (_entry(0), _entry(1))))
+    fetches_after_publish = sum(1 for call in service.calls if call[1] == "fetch_page")
+    _drain_events()
+    assert sum(1 for call in service.calls if call[1] == "fetch_page") > fetches_after_publish
+
+
+def test_item_names_refresh_folder_rows_in_place_without_collapsing_the_tree() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(child_page_size=32)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    controller.open_archive("C:/game", query=ArchiveQuery("", view_mode=ArchiveViewMode.FOLDERS))
+    open_id, _request, generation = service.latest("open_archive")
+    service.complete(open_id, _session())
+    query_id, _query, _ = service.latest("create_query")
+    service.complete(query_id, ArchiveQueryHandle("session-a", "folders", generation, 2))
+    children_id, _children_request, _ = service.latest("fetch_children")
+    files = (_entry(4, path="model/sword.pac"), _entry(5, path="model/shield.pac"))
+    service.complete(
+        children_id,
+        ArchiveChildrenResult(
+            "session-a",
+            "folders",
+            tuple(ArchiveChildNode(entry.path, entry.path.rsplit("/", 1)[-1], False, 1, entry) for entry in files),
+            False,
+            total_children=2,
+        ),
+    )
+    assert model.rowCount() == 2
+    assert model.data(model.index(0, 1)) == "-"
+
+    assert controller.refresh_item_names("session-a") == "tree"
+    lookup_id, lookup, _ = service.latest("resolve_entries")
+    assert tuple(sorted(lookup.entry_ids)) == (4, 5)
+    service.batch(lookup_id, ArchiveLookupResult("session-a", (_named(files[0], "Iron Sword"),), 2, False))
+    service.complete(lookup_id, ArchiveLookupResult("session-a", (_named(files[1], "Oak Shield"),), 2, False))
+    assert model.rowCount() == 2
+    assert model.data(model.index(0, 1)) == "Iron Sword"
+    assert model.data(model.index(1, 1)) == "Oak Shield"
+
+    # A failed refresh is quiet: only the Item Name column was being updated.
+    failures: list[str] = []
+    controller.requestFailed.connect(lambda kind, _error: failures.append(kind))
+    assert controller.refresh_item_names("session-a") == "tree"
+    retry_id, _lookup, _ = service.latest("resolve_entries")
+    service.fail(retry_id, RuntimeError("worker restarted"))
+    assert failures == []
+    assert model.data(model.index(0, 1)) == "Iron Sword"
+
+
+def test_item_names_landing_during_an_open_are_applied_once_it_publishes() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=16)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    controller.open_archive("C:/game", query=ArchiveQuery("", view_mode=ArchiveViewMode.FLAT))
+    open_id, _payload, generation = service.latest("open_archive")
+    opened = _session()
+    service.complete(open_id, opened)
+    # A cached name index can land before the first page of a fresh open.
+    assert controller.current_session is None
+    assert controller.refresh_item_names(opened.session_id, allow_requery=False) == "deferred"
+    query_id, _query, _ = service.latest("create_query")
+    handle = ArchiveQueryHandle(opened.session_id, "query-open", generation, 2)
+    service.complete(query_id, handle)
+    page_id, _page, _ = service.latest("fetch_page")
+    service.complete(page_id, ArchivePage(opened.session_id, "query-open", generation, 2, 0, (_entry(0), _entry(1))))
+    fetches_after_publish = sum(1 for call in service.calls if call[1] == "fetch_page")
+    _drain_events()
+    assert sum(1 for call in service.calls if call[1] == "fetch_page") > fetches_after_publish
+
+
+def test_item_names_do_not_rerun_a_text_query_when_the_caller_forbids_it() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=16)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    session, _handle = _open_flat(service, controller)
+    controller.apply_query(ArchiveQuery(session.session_id, include_text="sword", view_mode=ArchiveViewMode.FLAT))
+    query_id, _query, generation = service.latest("create_query")
+    service.complete(query_id, ArchiveQueryHandle(session.session_id, "query-text", generation, 1))
+    page_id, _page, _ = service.latest("fetch_page")
+    service.complete(page_id, ArchivePage(session.session_id, "query-text", generation, 1, 0, (_entry(0),)))
+    queries_before = sum(1 for call in service.calls if call[1] == "create_query")
+    assert controller.refresh_item_names(session.session_id, allow_requery=False) == "pages"
+    assert sum(1 for call in service.calls if call[1] == "create_query") == queries_before

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
+import time
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
@@ -30,6 +31,8 @@ _VISIBLE_ICON_BATCH_SIZE = 24
 _BACKGROUND_ICON_BATCH_SIZE = 8
 _MEMORY_ICON_LIMIT = 96
 _SEARCH_CACHE_LIMIT = 4
+# How long the item-name build waits for an idle moment before it starts anyway.
+_BUILD_START_PATIENCE_SECONDS = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +58,10 @@ class RemoteItemFinderWarmupController(QObject):
     iconsFailed = Signal(str, object)
     catalogueFailed = Signal(object)
     catalogueReady = Signal()
+    # The worker attaches item names to rows as it serves them, so rows fetched
+    # before the name index landed show none. Emitted once per built index with
+    # its session id, for the Archive Browser to fetch its loaded rows again.
+    itemNamesReady = Signal(str)
     delayNotice = Signal(str)
 
     def __init__(
@@ -75,6 +82,7 @@ class RemoteItemFinderWarmupController(QObject):
         self._fingerprint = ""
         self._ui_generation = 0
         self._state = "idle"
+        self._scheduled_at = 0.0
         self._failed_operation = None
         self._catalogue_ready = False
         self._initial_search_complete = False
@@ -146,6 +154,7 @@ class RemoteItemFinderWarmupController(QObject):
         self._fingerprint = session.fingerprint
         self._ui_generation = int(ui_generation)
         self._state = "scheduled"
+        self._scheduled_at = time.monotonic()
         self._initial_request = self._saved_search_request(session.session_id)
         self._continue_timer.start(0)
 
@@ -197,11 +206,15 @@ class RemoteItemFinderWarmupController(QObject):
         for request_id, request in tuple(self._requests.items()):
             if request.kind == "icons" and self._priority_icon_ids.intersection(request.item_ids):
                 continue
+            if request.kind == "build":
+                # The item-name build runs in the archive worker, not on Python's
+                # lock, and a cancelled cold build throws its work away. Cancelling
+                # it on every scroll or settings save could keep the Item Name
+                # column empty for as long as the user kept working.
+                continue
             self._requests.pop(request_id)
             self._service.cancel(request_id)
-            if request.kind == "build":
-                self._state = "scheduled"
-            elif request.kind == "icons":
+            if request.kind == "icons":
                 self._inflight_icon_ids.difference_update(request.item_ids)
                 self._queue_icon_ids(request.item_ids, priority=False)
         for thread, handle in tuple(self._threads.items()):
@@ -308,7 +321,10 @@ class RemoteItemFinderWarmupController(QObject):
         if self._closing or not self._session_id or self._requests or self._threads:
             return
         if self._state == "scheduled":
-            if not self._background_work_allowed():
+            waited = time.monotonic() - self._scheduled_at
+            if not self._background_work_allowed() and waited < _BUILD_START_PATIENCE_SECONDS:
+                # The build runs in the archive worker, so it only waits for a quiet
+                # moment for a while; steady scrolling must not hold back item names.
                 self._schedule_continue(250)
                 return
             self._start_catalogue_build()
@@ -508,6 +524,7 @@ class RemoteItemFinderWarmupController(QObject):
                 return
             self._catalogue_ready = True
             self.catalogueReady.emit()
+            self.itemNamesReady.emit(self._session_id)
             self._schedule_continue(0)
             return
         if tracked.kind in {"initial_search", "catalogue_page"} and isinstance(result, ItemCatalogSearchResult):

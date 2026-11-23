@@ -14,7 +14,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
-- **Browse Archives** fills in the **Item Name** column once item names are ready. Before, files listed before the names finished loading kept an empty column, and scrolling or other work in CDMW could restart the name loading again and again, so names sometimes arrived very late or never, even after Refresh or a restart.
+- **Browse Archives** fills in the **Item Name** column once item names are ready. Before, files listed before the names finished loading kept an empty column, and scrolling or other work in CDMW could restart the name loading again and again, so names sometimes arrived very late or never, even after Refresh or a restart. A name search or a first preview could also swap the full name list for a smaller one, leaving thousands of models (many of them `.pac` files reached through prefabs) without a name.
+- **Browse Archives** no longer shows a long list of unrelated item names (Kliff coupons, House keys, Goyen and Kairos armour and others) on some house, door and window models.
 
 ### Docs
 

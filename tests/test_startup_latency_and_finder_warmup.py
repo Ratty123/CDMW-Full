@@ -381,6 +381,81 @@ def test_remote_item_finder_warmup_restarts_after_failure_on_new_start(tmp_path)
         app.processEvents()
 
 
+def test_remote_item_finder_warmup_keeps_the_name_build_across_ui_activity(tmp_path) -> None:
+    app = _app()
+    settings = create_settings(settings_file_path=tmp_path / "item-warmup-pause.cfg")
+    service = _FakeCatalogueService()
+    allowed = [True]
+    warmup = RemoteItemFinderWarmupController(service, settings, background_allowed=lambda: allowed[0])
+    names_ready: list[str] = []
+    warmup.itemNamesReady.connect(names_ready.append)
+    try:
+        session = ArchiveSessionHandle("session-p", str(tmp_path), "fp-p", 10, 1, True)
+        warmup.start(session, ui_generation=1)
+        warmup._continue_warmup()
+        assert service.name_builds == [("session-p", 1)]
+
+        # Scrolling, a settings save or a Mesh Editor hold pauses background work.
+        # The worker-side name build must survive it rather than start over.
+        allowed[0] = False
+        warmup.pause_background()
+        warmup.pause_background()
+        assert service.cancelled == []
+        warmup._continue_warmup()
+        assert service.name_builds == [("session-p", 1)]
+
+        # The result lands while still paused: names are announced at once, while
+        # the Finder's own searches wait for the UI to go idle.
+        service.result_ready.emit(
+            "name-build-1",
+            "build_name_index",
+            BuildNameIndexResult("session-p", True, False, 10, 5, 15),
+        )
+        assert names_ready == ["session-p"]
+        warmup._continue_warmup()
+        assert service.item_searches == []
+
+        allowed[0] = True
+        warmup.resume_background()
+        warmup._continue_warmup()
+        assert len(service.item_searches) == 1
+        assert names_ready == ["session-p"]
+
+        # Invalidating (a new root, shutdown) still cancels a build in flight.
+        warmup.start(ArchiveSessionHandle("session-q", str(tmp_path), "fp-q", 10, 1, True), ui_generation=2)
+        warmup._continue_warmup()
+        assert service.name_builds[-1] == ("session-q", 2)
+        warmup.invalidate()
+        assert "name-build-2" in service.cancelled
+    finally:
+        warmup.request_shutdown()
+        app.processEvents()
+
+
+def test_remote_item_finder_name_build_starts_after_bounded_wait_for_idle(tmp_path, monkeypatch) -> None:
+    from cdmw.ui.archive_browser import remote_finder_warmup
+
+    app = _app()
+    settings = create_settings(settings_file_path=tmp_path / "item-warmup-patience.cfg")
+    service = _FakeCatalogueService()
+    clock = [100.0]
+    monkeypatch.setattr(remote_finder_warmup.time, "monotonic", lambda: clock[0])
+    warmup = RemoteItemFinderWarmupController(service, settings, background_allowed=lambda: False)
+    try:
+        warmup.start(ArchiveSessionHandle("session-w", str(tmp_path), "fp-w", 10, 1, True), ui_generation=1)
+        warmup._continue_warmup()
+        clock[0] += 9.0
+        warmup._continue_warmup()
+        assert service.name_builds == []
+        # Someone scrolling non-stop never gives an idle moment; names still come.
+        clock[0] += 1.5
+        warmup._continue_warmup()
+        assert service.name_builds == [("session-w", 1)]
+    finally:
+        warmup.request_shutdown()
+        app.processEvents()
+
+
 @pytest.mark.parametrize("language", ["en", "es", "de"])
 def test_builtin_documentation_builds_through_the_lazy_dispatcher(language) -> None:
     """Help > Documentation without a browser builds every topic from the window's mixin."""

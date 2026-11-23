@@ -272,6 +272,21 @@ class ArchiveRemoteWindowBridge(QObject):
 
 
 
+    def refresh_item_names(self, session_id: str) -> str:
+        """Show item names that arrived after the loaded rows were fetched.
+
+        Running the query again would mark unapplied filter edits as applied and
+        disturb an Item Finder scope, so then only the loaded rows are refreshed.
+        """
+        archive = getattr(self._window, "archive", self._window)
+        allow_requery = not (
+            bool(getattr(archive, "archive_filters_dirty", False))
+            or bool(getattr(archive, "archive_remote_query_pending", False))
+            or self.item_set_active
+            or self._item_scope_selection_generation is not None
+        )
+        return self._controller.refresh_item_names(str(session_id), allow_requery=allow_requery)
+
     def apply_current_query(self) -> None:
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._clear_item_set_scope()

@@ -11,7 +11,8 @@ public sealed class ArchiveNameIndexService(
     NativeArchiveCore native)
 {
     // 6: DLC ItemInfo, StringInfo and item names are merged in.
-    private const int FileVersion = 6;
+    // 7: StringInfo no longer maps the next row's leading zero bytes to an icon stem.
+    private const int FileVersion = 7;
     private static readonly byte[] Magic = "CDMWNAM5"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -23,8 +24,7 @@ public sealed class ArchiveNameIndexService(
     {
         var session = sessions.GetRequired(sessionId);
         var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
-        session.SetNameIndex(index);
-        return index;
+        return session.SetNameIndex(index);
     }
 
     /// <summary>True when the index is already resident for this session.</summary>
@@ -36,7 +36,27 @@ public sealed class ArchiveNameIndexService(
     /// load from the cold build, which walks every entry in the archive.
     /// </summary>
     public bool IsPublished(string sessionId) =>
-        File.Exists(Path.Combine(sessions.GetRequired(sessionId).GenerationPath, "names.bin"));
+        HasCurrentHeader(Path.Combine(sessions.GetRequired(sessionId).GenerationPath, "names.bin"));
+
+    /// <summary>
+    /// A file from an older version is rebuilt, not read back, so it does not count:
+    /// treating it as a cheap load would stall a preview on the cold build.
+    /// </summary>
+    private static bool HasCurrentHeader(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            Span<byte> head = stackalloc byte[12];
+            if (stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false) < head.Length) return false;
+            return head[..Magic.Length].SequenceEqual(Magic)
+                && BitConverter.ToInt32(head[Magic.Length..]) == FileVersion;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     private Task<ArchiveNameIndex> GetIndexAsync(
         ArchiveSession session,

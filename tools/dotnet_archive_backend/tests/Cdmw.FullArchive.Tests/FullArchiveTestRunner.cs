@@ -108,7 +108,8 @@ internal static class FullArchiveTestRunner
         if (itemCatalogueOnly)
         {
             tests = tests.Where(static test => test.Name.StartsWith("item_catalogue_", StringComparison.Ordinal)
-                || test.Name == "current_item_names_and_mount_order").ToArray();
+                || test.Name == "current_item_names_and_mount_order"
+                || test.Name == "archive_name_index").ToArray();
         }
         if (previewDependenciesOnly)
         {
@@ -1951,6 +1952,19 @@ internal static class FullArchiveTestRunner
             Require(
                 itemCatalogueDependency.KnownName == "Synthetic Blade",
                 "the item catalogue name index dropped the prefab-resolved model name");
+
+            // A late stand-alone warm-up (a `name:` query, a preview's background
+            // build) must keep serving the catalogue's richer index, not swap in
+            // names.bin's smaller map.
+            Require(session.TryGetNameIndex(out var catalogueIndex) && catalogueIndex is not null,
+                "the item catalogue did not publish a name index");
+            var lateWarm = await new ArchiveNameIndexService(sessions, cache, native)
+                .WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+            Require(
+                ReferenceEquals(lateWarm, catalogueIndex)
+                    && session.TryGetNameIndex(out var afterLateWarm)
+                    && ReferenceEquals(afterLateWarm, catalogueIndex),
+                "a late stand-alone name warm-up replaced the item catalogue's name index");
         }
         finally
         {

@@ -760,3 +760,36 @@ def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
     assert open_calls[-1][1]["use_default_ignored_folders"] is False
     configured_folders.append("Added later")
     assert open_calls[-1][1]["ignored_folders"] == ("Extras/Old", "My backups")
+
+
+def test_item_names_only_rerun_the_query_when_that_cannot_disturb_the_user() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window)
+    calls: list[tuple[str, bool]] = []
+    bridge._controller.refresh_item_names = (  # type: ignore[method-assign]
+        lambda session_id, *, allow_requery: calls.append((session_id, allow_requery)) or "pages"
+    )
+
+    assert bridge.refresh_item_names("session-a") == "pages"
+    # Unapplied filter edits would be stamped as applied by a requery.
+    window.archive_filters_dirty = True
+    bridge.refresh_item_names("session-a")
+    window.archive_filters_dirty = False
+    # A query the user is waiting for, or an Item Finder scope, is left alone too.
+    window.archive_remote_query_pending = True
+    bridge.refresh_item_names("session-a")
+    window.archive_remote_query_pending = False
+    bridge.item_set_active = True
+    bridge.refresh_item_names("session-a")
+    bridge.item_set_active = False
+    bridge._item_scope_selection_generation = 4
+    bridge.refresh_item_names("session-a")
+
+    assert calls == [
+        ("session-a", True),
+        ("session-a", False),
+        ("session-a", False),
+        ("session-a", False),
+        ("session-a", False),
+    ]

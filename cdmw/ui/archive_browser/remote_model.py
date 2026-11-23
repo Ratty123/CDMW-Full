@@ -318,6 +318,11 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         start = int(page.page_start)
         self._queued_pages.discard(start)
         self._inflight_pages.discard(start)
+        if start in self._pages:
+            # A page fetched again (for example once item names are known) must
+            # not keep showing the columns built from its previous copy.
+            for row in self._pages[start]:
+                self._row_cache.pop((int(row.entry_id), True), None)
         self._pages[start] = tuple(page.rows)
         self._pages.move_to_end(start)
         while len(self._pages) > self._page_cache_limit:
@@ -327,6 +332,65 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
             last = self.index(start + len(page.rows) - 1, self.columnCount() - 1)
             self.dataChanged.emit(first, last, [])
         return True
+
+    def refetch_loaded_pages(self) -> int:
+        """Fetch every loaded flat page again; its rows stay on screen until the copy lands."""
+        handle = self._handle
+        if self._requests_suspended or handle is None or self._view_mode is not ArchiveViewMode.FLAT:
+            return 0
+        starts = [
+            start
+            for start in self._pages
+            if start not in self._queued_pages and start not in self._inflight_pages
+        ]
+        if not starts:
+            return 0
+        self._queued_pages.update(starts)
+        if not self._page_dispatch_scheduled:
+            self._page_dispatch_scheduled = True
+            QTimer.singleShot(0, self, self._dispatch_queued_pages)
+        return len(starts)
+
+    def loaded_tree_entry_ids(self, limit: int = 4096) -> tuple[int, ...]:
+        """Entry ids of the file rows a folder or category view has loaded."""
+        if self._view_mode is ArchiveViewMode.FLAT:
+            return ()
+        ids: list[int] = []
+        for node in self._nodes_by_key.values():
+            if node.entry is not None:
+                ids.append(int(node.entry.entry_id))
+                if len(ids) >= limit:
+                    break
+        return tuple(ids)
+
+    def replace_tree_entries(self, entries: tuple[ArchiveEntryDto, ...] | list[ArchiveEntryDto]) -> int:
+        """Swap refreshed copies of loaded tree file rows in place, keeping expansion."""
+        handle = self._handle
+        if handle is None or self._view_mode is ArchiveViewMode.FLAT:
+            return 0
+        by_id = {
+            int(entry.entry_id): entry
+            for entry in entries
+            if entry.session_id == handle.session_id
+        }
+        if not by_id:
+            return 0
+        last_column = self.columnCount() - 1
+        changed = 0
+        for node in tuple(self._nodes_by_key.values()):
+            current = node.entry
+            if current is None:
+                continue
+            fresh = by_id.get(int(current.entry_id))
+            if fresh is None or fresh.path != current.path:
+                continue
+            node.entry = fresh
+            self._row_cache.pop((int(current.entry_id), False), None)
+            index = self._index_for_node(node)
+            if index.isValid():
+                self.dataChanged.emit(index, index.siblingAtColumn(last_column), [])
+            changed += 1
+        return changed
 
     def reject_page(self, page_start: int) -> None:
         start = self._page_start(page_start)

@@ -20,6 +20,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveQuery,
     ArchiveQueryHandle,
     ArchiveSessionHandle,
+    ArchiveSortField,
     ArchiveViewMode,
     archive_durable_identity_key,
 )
@@ -95,6 +96,8 @@ class ArchiveRemoteCatalogueController(QObject):
         self._structure_inflight: set[_StructureChildrenFetch] = set()
         self._selection_identity: ArchiveDurableIdentity | None = None
         self._pending_selection_row: int | None = None
+        self._names_refresh_pending = ""
+        self._names_refresh_allow_requery = True
         self._actions_safe = True
         service.result_ready.connect(self._handle_result)
         service.batch_ready.connect(self._handle_batch)
@@ -161,6 +164,57 @@ class ArchiveRemoteCatalogueController(QObject):
         self._staged = _StagedQuery(generation, session, current)
         self._submit_query(self._staged)
         return generation
+
+    def refresh_item_names(self, session_id: str, *, allow_requery: bool = True) -> str:
+        """Show item names the worker learned after the loaded rows were fetched.
+
+        The worker fills the name fields as it serves rows, so rows fetched before
+        the name index landed show none until they are fetched again. Returns what
+        was done: "requery", "pages", "tree", "deferred" or "skipped".
+        """
+        staged = self._staged
+        if staged is not None:
+            # An open, Refresh or filter change is being prepared, and its query
+            # may predate the names (a cached index lands within moments of an
+            # open). Check again once it is published.
+            if staged.session.session_id == str(session_id) or (
+                self._current_session is not None and self._current_session.session_id == str(session_id)
+            ):
+                self._names_refresh_pending = str(session_id)
+                self._names_refresh_allow_requery = bool(allow_requery)
+                return "deferred"
+            return "skipped"
+        session = self._current_session
+        if session is None or session.session_id != str(session_id):
+            return "skipped"
+        query = self._current_query
+        handle = self._model.query_handle
+        if query is None or handle is None:
+            return "skipped"
+        if allow_requery and _query_depends_on_names(query):
+            # Text terms and name sorts were evaluated without names, so which
+            # rows match, and their order, can change: run the query again.
+            self.apply_query(query, selection_identity=self._selection_identity)
+            return "requery"
+        if query.view_mode is ArchiveViewMode.FLAT:
+            return "pages" if self._model.refetch_loaded_pages() else "skipped"
+        entry_ids = self._model.loaded_tree_entry_ids()
+        if not entry_ids:
+            return "skipped"
+        try:
+            request_id = self._service.resolve_entries(
+                ArchiveLookupRequest(
+                    session.session_id,
+                    ArchiveLookupKind.ENTRY_IDS,
+                    entry_ids=entry_ids,
+                    limit=len(entry_ids),
+                ),
+                ui_generation=self._generation,
+            )
+        except Exception:
+            return "skipped"
+        self._requests[request_id] = _TrackedRequest("names_refresh", self._generation)
+        return "tree"
 
     def set_selection_identity(self, identity: ArchiveDurableIdentity | None) -> None:
         self._selection_identity = identity
@@ -330,6 +384,13 @@ class ArchiveRemoteCatalogueController(QObject):
         if staged.query.view_mode is ArchiveViewMode.FLAT and handle.total_matches > 0:
             self._model.request_visible_rows(0, min(handle.total_matches - 1, self._model.page_size - 1))
         self._restore_selection(handle)
+        pending_names, self._names_refresh_pending = self._names_refresh_pending, ""
+        if pending_names:
+            allow = self._names_refresh_allow_requery
+            QTimer.singleShot(
+                0,
+                lambda current=pending_names, allow=allow: self.refresh_item_names(current, allow_requery=allow),
+            )
 
     def _request_facets_if_current(self, handle: ArchiveQueryHandle) -> None:
         if handle.generation == self._generation and self._model.query_handle == handle and self._staged is None:
@@ -534,6 +595,9 @@ class ArchiveRemoteCatalogueController(QObject):
         if tracked.kind == "facets" and isinstance(result, ArchiveFacetsResult):
             self.facetsReady.emit(result)
             return
+        if tracked.kind == "names_refresh" and isinstance(result, ArchiveLookupResult):
+            self._model.replace_tree_entries(result.entries)
+            return
         if tracked.kind == "selection" and isinstance(result, ArchiveLookupResult):
             selection = tracked.payload
             if isinstance(selection, _SelectionRequest):
@@ -588,6 +652,9 @@ class ArchiveRemoteCatalogueController(QObject):
     ) -> None:
         current = tracked or self._requests.pop(request_id, None)
         if current is None or current.generation != self._generation:
+            return
+        if current.kind == "names_refresh":
+            # Only the Item Name column was being refreshed; the rows are intact.
             return
         self._failed_operation = (request_id, current, self._staged)
         if current.kind == "structure_children":
@@ -657,6 +724,14 @@ class ArchiveRemoteCatalogueController(QObject):
 
     def _handle_batch(self, request_id: str, _operation: str, result: object) -> None:
         tracked = self._requests.get(request_id)
+        if (
+            tracked is not None
+            and tracked.generation == self._generation
+            and tracked.kind == "names_refresh"
+            and isinstance(result, ArchiveLookupResult)
+        ):
+            self._model.replace_tree_entries(result.entries)
+            return
         if (
             tracked is None
             or tracked.generation != self._generation
@@ -742,6 +817,22 @@ class ArchiveRemoteCatalogueController(QObject):
             return
         self._actions_safe = normalized
         self.actionsSafeChanged.emit(normalized)
+
+
+_NAME_SORT_FIELDS = frozenset({
+    ArchiveSortField.KNOWN_NAME,
+    ArchiveSortField.EXACT_NAME,
+    ArchiveSortField.NAME_EVIDENCE,
+})
+
+
+def _query_depends_on_names(query: ArchiveQuery) -> bool:
+    """True when item names can change which rows a query matches, or their order."""
+    # Technical suffixes are DDS file-name patterns (such as `_n.dds`) that no item
+    # name contains, so they do not make a query depend on names.
+    if str(query.include_text or "").strip() or str(query.exclude_text or "").strip():
+        return True
+    return bool(query.sort_active and query.sort_field in _NAME_SORT_FIELDS)
 
 
 def _fetch_matches_handle(fetch: object, handle: ArchiveQueryHandle) -> bool:

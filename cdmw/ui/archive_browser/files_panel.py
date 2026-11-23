@@ -114,6 +114,9 @@ class ArchiveFilesPanelMixin:
         self.archive_item_names_failure_panel.retryRequested.connect(self.archive_item_finder_warmup_controller.retry_failed_operation)
         self.archive_item_finder_warmup_controller.catalogueFailed.connect(self._handle_archive_item_names_failure)
         self.archive_item_finder_warmup_controller.catalogueReady.connect(self.archive_item_names_failure_panel.clear)
+        self.archive_item_finder_warmup_controller.itemNamesReady.connect(
+            self.archive_remote_bridge.refresh_item_names
+        )
         self.archive_item_finder_warmup_controller.delayNotice.connect(self.shell.set_status_message)
         archive_files_layout.addWidget(self.archive_item_names_failure_panel)
         self.archive_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)

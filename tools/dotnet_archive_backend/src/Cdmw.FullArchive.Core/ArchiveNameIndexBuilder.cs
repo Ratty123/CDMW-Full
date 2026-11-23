@@ -412,7 +412,11 @@ internal static class ArchiveNameIndexBuilder
                     var modelStem = NormalizeModelStem(text[prefix.Length..]);
                     if (modelStem.StartsWith("cd_", StringComparison.OrdinalIgnoreCase))
                     {
-                        hashes[ReadUInt32(data, checked(position + 4 + (int)stringLength))] = modelStem;
+                        // Every row is keyed by the hash of its own text, written before
+                        // the text. The four bytes after the text belong to the next row
+                        // (zero in the current tables), so reading them as this row's key
+                        // mapped 0 to the table's last icon stem and gave every ItemInfo
+                        // row a bogus related model.
                         hashes[HashLittle(Encoding.UTF8.GetBytes(text), NameHashSeed)] = modelStem;
                         hashes[HashLittle(Encoding.UTF8.GetBytes(modelStem), NameHashSeed)] = modelStem;
                     }

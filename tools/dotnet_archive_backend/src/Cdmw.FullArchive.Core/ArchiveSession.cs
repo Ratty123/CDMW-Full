@@ -10,6 +10,7 @@ public sealed class ArchiveSession : IDisposable
     private readonly LinkedList<CompiledArchiveQuery> _queryLru = new();
     private readonly ArchiveGenerationLease _generation;
     private ArchiveNameIndex? _nameIndex;
+    private readonly object _nameIndexGate = new();
     private readonly object _nameColumnGate = new();
     private NameColumn? _nameColumn;
     private ArchiveItemCatalog? _itemCatalog;
@@ -58,7 +59,25 @@ public sealed class ArchiveSession : IDisposable
         return Volatile.Read(ref _nameIndex)?.Enrich(entry) ?? entry;
     }
 
-    internal void SetNameIndex(ArchiveNameIndex index) => Volatile.Write(ref _nameIndex, index);
+    /// <summary>
+    /// Publishes the stand-alone name index unless the item catalogue's index is
+    /// already in place, and returns the index the session serves. The catalogue's
+    /// index also names the models its items reach through prefabs, thousands more
+    /// file stems; a late stand-alone warm-up (a <c>name:</c> query, a preview's
+    /// background build) must not swap it for the smaller map.
+    /// </summary>
+    internal ArchiveNameIndex SetNameIndex(ArchiveNameIndex index)
+    {
+        lock (_nameIndexGate)
+        {
+            if (Volatile.Read(ref _itemCatalog) is not null && Volatile.Read(ref _nameIndex) is { } catalogueIndex)
+            {
+                return catalogueIndex;
+            }
+            Volatile.Write(ref _nameIndex, index);
+            return index;
+        }
+    }
 
     /// <summary>
     /// The name fields <see cref="ArchiveNameIndex.Enrich"/> gives each entry, resolved
@@ -117,8 +136,11 @@ public sealed class ArchiveSession : IDisposable
 
     internal void SetCatalogue(ArchiveNameIndex index, ArchiveItemCatalog catalog)
     {
-        Volatile.Write(ref _nameIndex, index);
-        Volatile.Write(ref _itemCatalog, catalog);
+        lock (_nameIndexGate)
+        {
+            Volatile.Write(ref _nameIndex, index);
+            Volatile.Write(ref _itemCatalog, catalog);
+        }
     }
 
     internal bool TryGetItemCatalog(out ArchiveItemCatalog? catalog)

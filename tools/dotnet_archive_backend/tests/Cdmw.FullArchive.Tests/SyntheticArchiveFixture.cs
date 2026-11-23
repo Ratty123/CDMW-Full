@@ -317,9 +317,21 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             internalName: "Item_Marni_Laser_Helm",
             localizationId,
             exactModelHash,
-            relatedModelHash);
-        var stringInfo = BuildStringInfo("Icon_Prefab_cd_marni_laser_hel_0001", relatedModelHash);
-        var localization = BuildLocalization(localizationId, "Synthetic Blade");
+            relatedModelHash)
+            // A second item that shares the helm's name tokens but references no
+            // model. Its row holds zero bytes, as every real row does; nothing may
+            // read that as a StringInfo key and give it the helm's models.
+            .Concat(BuildItemInfo(
+                itemId: 1235,
+                internalName: "Item_Marni_Laser_Boots",
+                "12345679",
+                0x77777777,
+                0x88888888))
+            .ToArray();
+        var stringInfo = BuildStringInfo("Icon_Prefab_cd_marni_laser_hel_0001");
+        var localization = BuildLocalization(localizationId, "Synthetic Blade")
+            .Concat(BuildLocalization("12345679", "Synthetic Boots"))
+            .ToArray();
 
         await BuildPackageAsync(
             root,
@@ -759,13 +771,23 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return output.ToArray();
     }
 
-    private static byte[] BuildStringInfo(string value, uint storedHash)
+    /// <summary>
+    /// StringInfo rows as the current game writes them: four zero bytes, the key
+    /// (the text's hash), one zero byte, the length, then the text. The next row
+    /// therefore starts with zero bytes right after the text.
+    /// </summary>
+    private static byte[] BuildStringInfo(params string[] values)
     {
         using var output = new MemoryStream();
-        var bytes = Encoding.UTF8.GetBytes(value);
-        WriteUInt32(output, checked((uint)bytes.Length));
-        output.Write(bytes);
-        WriteUInt32(output, storedHash);
+        foreach (var value in values.Append("Trailing_Row"))
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            WriteUInt32(output, 0);
+            WriteUInt32(output, Cdmw.FullArchive.Core.ArchiveNameIndexBuilder.ModelNameHash(value));
+            output.WriteByte(0);
+            WriteUInt32(output, checked((uint)bytes.Length));
+            output.Write(bytes);
+        }
         return output.ToArray();
     }
 
