@@ -113,12 +113,10 @@ def material_colours_ui_state(authoring, replacement, shader_state):
     sources = {row["id"]: row for row in shader_state.get("parts", ())}
 
     def material_of(part):
-        name = str(sources.get(part["id"], {}).get("source", {}).get("part", "") or "")
         if item_set:
             # Pieces of a set can reuse a wrapper name; the piece is part of the identity.
-            name = name or str(part.get("name", "")).strip().casefold()
-            return f"{part.get('asset_id', '')}|{name}"
-        return name
+            return set_material_key(part)
+        return str(sources.get(part["id"], {}).get("source", {}).get("part", "") or "")
 
     shared = {}
     for part in replacement["parts"]:
@@ -134,8 +132,11 @@ def material_colours_ui_state(authoring, replacement, shader_state):
         elif binding is not None and binding.shader_controls is not None and binding.shader_controls.rebuild:
             blocked = "Shader experiments rewrite this material with its own rows. Turn off the rewrite to change its colours."
         saved = set_colours.get(material) if item_set else (binding.material_colours if binding is not None else ())
+        rows = _rows_for(source.get("authored"))
+        if item_set and not rows:
+            rows = _captured_set_rows(session.archive_refit_context, material)
         parts.append({**part, "material": material, "shared": shared.get(material, [part["id"]]) if material else [part["id"]],
-                      "rows": _rows_for(source.get("authored")), "blocked": blocked,
+                      "rows": rows, "blocked": blocked,
                       "material_colours": colours_to_dict(saved) if saved else None})
     return {"available": not reason, "reason": reason, "parts": parts}
 
@@ -350,58 +351,94 @@ def stage_colour_preview(mesh, state, payload):
 
 # ----- item sets ------------------------------------------------------------------------
 # A set (Open set in Mesh Editor, or ticked Scene parts) has no replacement state: its
-# pieces keep their own files. Their colour edits live in the set context, keyed by the
-# piece (asset id) and the folded wrapper name, and Build Mod patches each piece's .pac_xml.
+# pieces keep their own files. Material colours and Glow edits of its pieces live in the
+# set context, keyed by the piece (asset id) and the folded wrapper name, with each edited
+# piece's .pac_xml captured once; Build Mod writes that file through the same writers a
+# single file uses (colours, then Glow).
+
+def _captured_set_rows(context, material):
+    """A set part's colour rows from its piece's captured material file, when there is one."""
+    from cdmw.core.material_colours import wrapper_colours
+    from cdmw.domain.pac_xml_editor import decode_pac_xml_payload
+
+    asset, _, name = material.partition("|")
+    data = next((data for owner, _entry, data in context.material_colour_files if owner == asset), None)
+    if data is None:
+        return []
+    try:
+        variants = wrapper_colours(decode_pac_xml_payload(data)[0])
+    except ValueError:
+        return []
+    return _rows_for([{"rows": [{"kind": "Color", "name": row, "value": value} for row, value in variant[name].items()]}
+                      for variant in variants if name in variant])
+
+
+def set_material_key(part_row):
+    """``"<asset id>|<folded material name>"`` for a set part row of the replacement state."""
+    name = str(part_row.get("set_material") or part_row.get("name", "")).strip().casefold()
+    return f"{part_row.get('asset_id', '')}|{name}"
+
+
+def _set_rows(rows, context, invalid, foreign, twice):
+    if not isinstance(rows, list) or len(rows) > 4096:
+        raise ValueError(invalid)
+    assets = {asset.asset_id for asset in context.assets}
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict) or row.get("asset") not in assets or not isinstance(row.get("material"), str):
+            raise ValueError(foreign)
+        key = (row["asset"], row["material"].strip().casefold())
+        if key in seen:
+            raise ValueError(twice)
+        seen.add(key)
+        yield key, row
+
 
 def load_item_set_colours(rows, context):
     """The set context's colour edits from a draft, checked against the set's pieces."""
-
-    if not isinstance(rows, list) or len(rows) > 4096:
-        raise ValueError("Item set draft has invalid material colours")
-    assets = {asset.asset_id for asset in context.assets}
-    result = {}
-    for row in rows:
-        if not isinstance(row, dict) or row.get("asset") not in assets or not isinstance(row.get("material"), str):
-            raise ValueError("Item set draft material colours name a piece that is not in the set")
-        key = (row["asset"], row["material"].strip().casefold())
-        if key in result:
-            raise ValueError("Item set draft lists a material's colours twice")
-        result[key] = normalize_material_colours(row.get("colours"))
+    result = {key: normalize_material_colours(row.get("colours")) for key, row in _set_rows(
+        rows, context, "Item set draft has invalid material colours",
+        "Item set draft material colours name a piece that is not in the set",
+        "Item set draft lists a material's colours twice")}
     return tuple(sorted((asset, material, colours) for (asset, material), colours in result.items()))
 
 
-def set_item_set_material_colours(authoring, args):
-    """Material colours for a set's piece: one Undo step, kept in the set context."""
-    from cdmw.services.mesh_rust_replacement import replacement_ui_state
-    from cdmw.services.mesh_shader_controls import shader_controls_ui_state
+def load_item_set_emissions(rows, context):
+    """The set context's Glow edits from a draft."""
+    from cdmw.domain.mesh.emission import EmissionChoice
+    result = {key: EmissionChoice.from_dict(row.get("emission")) for key, row in _set_rows(
+        rows, context, "Item set draft has invalid glow settings",
+        "Item set draft glow settings name a piece that is not in the set",
+        "Item set draft lists a material's glow twice")}
+    return tuple((asset, material, value) for (asset, material), value in sorted(result.items(), key=lambda item: item[0]))
 
-    service, session_id = authoring.shadow_service, authoring.shadow_session_id
-    replacement = replacement_ui_state(authoring)
-    ui = material_colours_ui_state(authoring, replacement, shader_controls_ui_state(authoring, replacement))
-    if not ui["available"]:
-        raise ValueError(ui["reason"])
+
+def _edited_assets(context):
+    return ({asset for asset, _material, _value in context.material_colours}
+            | {asset for asset, _material, _value in getattr(context, "emissions", ())})
+
+
+def _set_part_keys(ui, args, unselected, invalid_reset):
     parts = {part["id"]: part for part in ui["parts"]}
     keys = args.get("part_ids")
     if (not isinstance(keys, (list, tuple)) or not keys or any(not isinstance(key, str) for key in keys)
             or len(set(keys)) != len(keys) or not set(keys) <= set(parts)):
-        raise ValueError("Select at least one material part for material colours.")
+        raise ValueError(unselected)
     reset = args.get("reset", False)
     if type(reset) is not bool:
-        raise ValueError("Invalid material colour reset request.")
-    value = () if reset else normalize_material_colours(args.get("colours"))
-    if not reset:
-        available = {row["name"].casefold() for key in keys for row in parts[key]["rows"]}
-        unknown = [name for name, _ in value if name.casefold() not in available]
-        if unknown:
-            raise ValueError("The selected material has no colour row named " + ", ".join(unknown) + ".")
-    materials = {tuple(parts[key]["material"].split("|", 1)) for key in keys}
+        raise ValueError(invalid_reset)
+    return parts, keys, reset
+
+
+def _commit_set_edit(authoring, args, owners, update, label, *, capture):
+    """Capture the edited pieces' material files, prove the write, record one Undo step."""
+    service, session_id = authoring.shadow_service, authoring.shadow_session_id
     session = service._session(session_id)
     context = session.archive_refit_context
     # Read each edited piece's material file once, before the lock, and prove the
     # write works now rather than at Build Mod.
     files = {asset: (entry, data) for asset, entry, data in context.material_colour_files}
-    if not reset:
-        owners = {owner for owner, _material in materials}
+    if capture:
         for asset in context.assets:
             if asset.asset_id in owners and asset.asset_id not in files:
                 _owner, entry, data = _capture_set_colour_file(
@@ -410,28 +447,84 @@ def set_item_set_material_colours(authoring, args):
     with session.export_lock:
         if session.archive_refit_context is not context:
             raise ValueError("The set changed while its material file was read. Try again.")
-        current = {(asset, material): colours for asset, material, colours in context.material_colours}
-        for material in materials:
-            if reset:
-                current.pop(material, None)
-            else:
-                current[material] = value
-        colours = tuple(sorted((asset, material, rows) for (asset, material), rows in current.items()))
-        if colours == context.material_colours:
+        edited = update(context)
+        if edited == context:
             return service.session_view(session_id)
-        kept = {asset for asset, _material, _rows in colours}
-        edited = replace(context, material_colours=colours, material_colour_files=tuple(
+        kept = _edited_assets(edited)
+        edited = replace(edited, material_colour_files=tuple(
             (asset, entry, data) for asset, (entry, data) in sorted(files.items(), key=lambda item: item[0])
             if asset in kept))
-        item_set_colour_files(edited)
-        service._push_history(session, prefer_native=True, action="item_set_material_colours",
-                              label="Restore material colours" if reset else "Edit material colours")
+        item_set_material_files(edited)
+        service._push_history(session, prefer_native=True, action="item_set_material_edit", label=label)
         session.undo_stack[-1].restore_archive_refit_context = True
         session.undo_stack[-1].archive_refit_context = context
         session.archive_refit_context = edited
         session.revision += 1
         service._schedule_mesh_layer_autosave(session)
     return service.session_view(session_id)
+
+
+def set_item_set_material_colours(authoring, args):
+    """Material colours for a set's piece: one Undo step, kept in the set context."""
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+    from cdmw.services.mesh_shader_controls import shader_controls_ui_state
+
+    replacement = replacement_ui_state(authoring)
+    ui = material_colours_ui_state(authoring, replacement, shader_controls_ui_state(authoring, replacement))
+    if not ui["available"]:
+        raise ValueError(ui["reason"])
+    parts, keys, reset = _set_part_keys(ui, args, "Select at least one material part for material colours.",
+                                        "Invalid material colour reset request.")
+    value = () if reset else normalize_material_colours(args.get("colours"))
+    if not reset:
+        available = {row["name"].casefold() for key in keys for row in parts[key]["rows"]}
+        unknown = [name for name, _ in value if name.casefold() not in available]
+        if unknown:
+            raise ValueError("The selected material has no colour row named " + ", ".join(unknown) + ".")
+    materials = {tuple(parts[key]["material"].split("|", 1)) for key in keys}
+
+    def update(context):
+        current = {(asset, material): colours for asset, material, colours in context.material_colours}
+        for material in materials:
+            if reset:
+                current.pop(material, None)
+            else:
+                current[material] = value
+        return replace(context, material_colours=tuple(
+            sorted((asset, material, rows) for (asset, material), rows in current.items())))
+
+    return _commit_set_edit(authoring, args, {owner for owner, _ in materials}, update,
+                            "Restore material colours" if reset else "Edit material colours", capture=not reset)
+
+
+def set_item_set_emission(authoring, args):
+    """Glow for a set's piece: ``{part_ids, emission}`` or ``{part_ids, reset: true}``."""
+    from cdmw.domain.mesh.emission import EmissionChoice
+    from cdmw.services.mesh_emission import emission_ui_state
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+
+    ui = emission_ui_state(authoring, replacement_ui_state(authoring))
+    if not ui["available"]:
+        raise ValueError(ui["reason"])
+    parts, keys, reset = _set_part_keys(ui, args, "Select at least one material part for glow.",
+                                        "Invalid glow reset request.")
+    value = None if reset else EmissionChoice.from_dict(args.get("emission"))
+    if value is not None:
+        value.validate()
+    materials = {tuple(set_material_key(parts[key]).split("|", 1)) for key in keys}
+
+    def update(context):
+        current = {(asset, material): choice for asset, material, choice in context.emissions}
+        for material in materials:
+            if reset:
+                current.pop(material, None)
+            else:
+                current[material] = value
+        return replace(context, emissions=tuple(
+            (asset, material, choice) for (asset, material), choice in sorted(current.items(), key=lambda item: item[0])))
+
+    return _commit_set_edit(authoring, args, {owner for owner, _ in materials}, update,
+                            "Restore material glow" if reset else "Edit material glow", capture=not reset)
 
 
 def _set_sidecar_path(entry):
@@ -470,52 +563,96 @@ def _capture_set_colour_file(asset, dependencies, stop_event=None, *, index_sour
     return asset.asset_id, matches[0], bytes(data)
 
 
-def item_set_colour_files(context, stop_event=None):
-    """[(ArchiveEntry, original bytes, patched bytes)] for each set piece with colour edits."""
+def item_set_material_files(context, stop_event=None):
+    """Per edited set piece: (asset, sidecar entry, original bytes, written bytes, new files).
+
+    Colours are written first, then Glow through the single-file Glow writer, so a
+    piece's material file carries both. New files are the generated glow textures a
+    wrapper without its own glow map needs.
+    """
     from cdmw.core.material_colours import rewrite_material_colours
+    from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementFile, ReplacementPart
     from cdmw.domain.pac_xml_editor import decode_pac_xml_payload
 
     files = {asset: (entry, data) for asset, entry, data in context.material_colour_files}
     result = []
     for asset in context.assets:
-        choices = {material: colours_to_dict(colours) for owner, material, colours in context.material_colours
+        colours = {material: colours_to_dict(rows) for owner, material, rows in context.material_colours
                    if owner == asset.asset_id}
-        if not choices:
+        glows = {material: choice for owner, material, choice in getattr(context, "emissions", ())
+                 if owner == asset.asset_id}
+        if not colours and not glows:
             continue
         raise_if_cancelled(stop_event)
         if asset.asset_id not in files:
             raise ValueError(f"{asset.entry.basename}: its material file was not captured. "
                              "Reopen the set from Browse Archives to change its colours.")
-        entry, data = files[asset.asset_id]
-        text, source_format = decode_pac_xml_payload(data)
-        text = rewrite_material_colours(text, choices)
-        result.append((entry, data, source_format.bom + text.encode(source_format.encoding)))
+        entry, original = files[asset.asset_id]
+        written, extras = original, ()
+        if colours:
+            text, source_format = decode_pac_xml_payload(written)
+            written = source_format.bom + rewrite_material_colours(text, colours).encode(source_format.encoding)
+        if glows:
+            from cdmw.core.pac_xml_standard_material import find_material_wrappers, wrapper_key
+            from cdmw.services.mesh_emission import build_emission_files
+
+            text, _ = decode_pac_xml_payload(written)
+            names = {wrapper_key(row.submesh_name) for row in find_material_wrappers(text)}
+            mesh = asset.source.mesh
+
+            def glow_for(part):
+                return glows.get(material_binding_name(part, names),
+                                 glows.get(str(part.name or part.material or "").strip().casefold()))
+
+            state = MeshReplacementState(
+                str(asset.entry.path), "0" * 64,
+                tuple(ReplacementPart(f"set:{index}", index, emission=glow_for(part))
+                      for index, part in enumerate(mesh.submeshes)),
+                dependencies=(ReplacementFile(str(entry.path), written),))
+            built = build_emission_files(state, mesh, (), stop_event=stop_event)
+            sidecar = str(entry.path).replace("\\", "/").casefold()
+            written = next(file.data for file in built if file.path.replace("\\", "/").casefold() == sidecar)
+            extras = tuple(file for file in built if file.path.replace("\\", "/").casefold() != sidecar)
+        result.append((asset, entry, original, written, extras))
     return result
 
 
+def item_set_colour_files(context, stop_event=None):
+    """[(sidecar entry, original bytes, written bytes)] for each edited set piece."""
+    return [(entry, original, written) for _asset, entry, original, written, _extras
+            in item_set_material_files(context, stop_event)]
+
+
 def stage_item_set_colour_preview(authoring, mesh, context, base_key):
-    """The material key the editor should draw for a set with colour edits."""
+    """The material key the editor should draw for a set with colour or Glow edits."""
     import hashlib
     from cdmw.services.mesh_asset_context import ASSET_ATTRIBUTE
     from cdmw.services.mesh_rust_authoring import _atomic_write_payload, _mesh_lods
     from cdmw.services.mesh_rust_preview_package import conserve_preview_core_material_graph
+    from cdmw.services.mesh_rust_replacement_materials import _bake_edited_native_layers
     from cdmw.services.mesh_shader_controls import _owner_slot
     from cdmw.services.shader_controls_preview import source_inputs
 
     cache, references = authoring.archive_refit_material_cache, authoring.archive_refit_material_references
     if base_key not in cache:
         return base_key
+    emissions = tuple(getattr(context, "emissions", ()))
     key = base_key
-    if context.material_colours:
-        key = hashlib.sha256(repr((base_key, context.material_colours)).encode()).hexdigest()[:32]
+    if context.material_colours or emissions:
+        identity = (base_key, context.material_colours,
+                    tuple((asset, material, choice.to_dict()) for asset, material, choice in emissions))
+        key = hashlib.sha256(repr(identity).encode()).hexdigest()[:32]
     if key not in cache:
         payload = copy.deepcopy(cache[base_key])
         payload["key"] = key
         edits = {f"{asset}|{material}": colours_to_dict(colours) for asset, material, colours in context.material_colours}
-        owners, present = {}, {}
+        glows = {f"{asset}|{material}": choice for asset, material, choice in emissions}
+        owners, glow_owners, present = {}, {}, {}
         for lod_index, level in enumerate(_mesh_lods(mesh)):
             for index, part in enumerate(level):
                 owner = f"{getattr(part, ASSET_ATTRIBUTE, '')}|{(part.name or part.material or '').strip().casefold()}"
+                if owner in glows:
+                    glow_owners[(lod_index, index)] = owner
                 if owner not in edits:
                     continue
                 owners[(lod_index, index)] = owner
@@ -525,10 +662,24 @@ def stage_item_set_colour_preview(authoring, mesh, context, base_key):
         for owner, colours in edits.items():
             if not present.get(owner):
                 present[owner] = tuple(colours)
+        if glow_owners:
+            # As for a single file: glowing parts draw from composed maps, with their colours.
+            _bake_edited_native_layers(authoring, mesh, payload, set(glow_owners), None,
+                                       colours={slot: edits[owner] for slot, owner in owners.items()
+                                                if slot in glow_owners})
         recolour_preview_graph(payload, owners, present, edits)
+        presentations = {(row["lod_index"], row["material_index"]): row for row in payload.get("material_presentations", ())}
+        for (lod_index, index), owner in glow_owners.items():
+            choice = glows[owner]
+            row = presentations.setdefault((lod_index, index), {"lod_index": lod_index, "material_index": index})
+            row["emissive_color"] = list(choice.color)
+            row["emissive_intensity"] = choice.intensity
+            row["emission_animation"] = list(choice.animation.factors())
+            row["emission_reveal"] = list(choice.rgb.factors()) if choice.rgb is not None else [0.0, 1.0, 0.0, -1.0]
+        payload["material_presentations"] = list(presentations.values())
         conserve_preview_core_material_graph(payload)
         cache[key] = payload
-    # The base needs a file too, so restoring every colour switches the editor back.
+    # The base needs a file too, so restoring every edit switches the editor back.
     for cache_key in dict.fromkeys((base_key, key)):
         if cache_key not in references:
             references[cache_key] = _atomic_write_payload(

@@ -1284,8 +1284,11 @@
   "Island {value_0} · {value_1} faces",
   "Isolate",
   "Item set",
+  "Item set draft glow settings name a piece that is not in the set",
+  "Item set draft has invalid glow settings",
   "Item set draft has invalid material colours",
   "Item set draft lists a material's colours twice",
+  "Item set draft lists a material's glow twice",
   "Item set draft material colours name a piece that is not in the set",
   "Item set · original game files",
   "Iterations",
@@ -1614,7 +1617,7 @@
   "Open body region selection",
   "Open garment influence selection",
   "Open in Texture Editor",
-  "Open one piece separately before importing a replacement",
+  "Open one piece on its own for this. A set opened together offers Material colours, Glow and Include.",
   "Open selection for Morph & Refit",
   "Open the Parts list when hovering a visible surface. Turn off to keep closed panels closed.",
   "Opened {value_0} read-only indexes with {value_1} entries",
@@ -3087,5 +3090,6 @@
   "{value_0}: {value_1}\nMaterial: {value_2}",
   "{value_0}:{value_1}",
   "{value_0}|missing",
+  "{value_0}|{value_1}",
   "{value_0}|{value_1}|{value_2}|{value_3}|{value_4}"
 ]

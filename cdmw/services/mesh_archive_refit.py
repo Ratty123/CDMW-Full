@@ -286,9 +286,11 @@ def save_archive_refit_context(context, project_root, stop_event):
                if is_item_set(context) else {}),
             **({"material_colours": [{"asset": asset, "material": material, "colours": dict(colours)}
                                      for asset, material, colours in context.material_colours],
+                "emissions": [{"asset": asset, "material": material, "emission": choice.to_dict()}
+                              for asset, material, choice in context.emissions],
                 "material_colour_files": [_save_colour_file(asset, entry, data, project_root)
                                           for asset, entry, data in context.material_colour_files]}
-               if is_item_set(context) and context.material_colours else {})}
+               if is_item_set(context) and (context.material_colours or context.emissions) else {})}
 
 
 def _entry_payload(entry):
@@ -388,9 +390,10 @@ def load_archive_refit_context(payload, project_root):
     context = ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral",
         workflow="item_set" if payload["format"] == "cdmw_item_set_v1" else "refit",
         excluded_part_ids=frozenset(str(value) for value in payload.get("excluded_parts", ())))
-    if "material_colours" in payload:
-        from cdmw.services.mesh_material_colours import load_item_set_colours
-        context = replace(context, material_colours=load_item_set_colours(payload["material_colours"], context),
+    if "material_colours" in payload or "emissions" in payload:
+        from cdmw.services.mesh_material_colours import load_item_set_colours, load_item_set_emissions
+        context = replace(context, material_colours=load_item_set_colours(payload.get("material_colours", []), context),
+                          emissions=load_item_set_emissions(payload.get("emissions", []), context),
                           material_colour_files=_load_colour_files(payload.get("material_colour_files", []), context,
                                                                    Path(project_root)))
     if is_item_set(context) and context.draft_identity != payload.get("source_identity"):

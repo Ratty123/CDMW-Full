@@ -75,8 +75,12 @@ def _check(value: object, schema: Mapping[str, object], where: str) -> None:
         properties = dict(schema.get("properties") or {})
         for name in schema.get("required") or ():
             if name not in value:
-                raise ToolError(INVALID_ARGUMENTS, f"{where}.{name} is required" if where != "arguments"
-                                else f"{name} is required")
+                message = f"{where}.{name} is required" if where != "arguments" else f"{name} is required"
+                # Say what it may be, so a client that probes with {} learns the choices at once.
+                choices = (properties.get(name) or {}).get("enum") if isinstance(properties.get(name), Mapping) else None
+                if choices:
+                    message += ": one of " + ", ".join(str(choice) for choice in choices)
+                raise ToolError(INVALID_ARGUMENTS, message)
         if schema.get("additionalProperties") is False:
             extra = sorted(set(value) - set(properties))
             if extra:

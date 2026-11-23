@@ -9610,7 +9610,8 @@ class RustMeshAuthoringSession:
         else:
             from cdmw.services.mesh_asset_context import is_item_set
             if is_item_set(shadow_session.archive_refit_context) and (
-                    shadow_session.archive_refit_context.material_colours or material_key in self.archive_refit_material_references):
+                    shadow_session.archive_refit_context.material_colours or shadow_session.archive_refit_context.emissions
+                    or material_key in self.archive_refit_material_references):
                 from cdmw.services.mesh_material_colours import stage_item_set_colour_preview
                 material_key = stage_item_set_colour_preview(
                     self, shadow_session.working_mesh, shadow_session.archive_refit_context, material_key)
@@ -10353,9 +10354,9 @@ class RustMeshAuthoringSession:
             )
         from cdmw.services.mesh_asset_context import is_item_set
         if is_item_set(shadow_session.archive_refit_context) and command in {"import_editable_package", "refit_load_mesh"}:
-            raise RustMeshValidationError("Open one piece separately before loading a Refit source"
-                                          if command == "refit_load_mesh" else
-                                          "Open one piece separately before importing a replacement")
+            if command == "refit_load_mesh":
+                raise RustMeshValidationError("Open one piece separately before loading a Refit source")
+            raise RustMeshValidationError("Open one piece separately before importing a replacement")
         if shadow_session.archive_refit_context is not None and not is_item_set(shadow_session.archive_refit_context) and command in {
             "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
         }:
