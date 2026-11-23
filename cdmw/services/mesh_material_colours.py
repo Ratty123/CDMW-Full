@@ -404,7 +404,8 @@ def set_item_set_material_colours(authoring, args):
         owners = {owner for owner, _material in materials}
         for asset in context.assets:
             if asset.asset_id in owners and asset.asset_id not in files:
-                _owner, entry, data = _capture_set_colour_file(asset, args.get("_archive_dependencies"))
+                _owner, entry, data = _capture_set_colour_file(
+                    asset, args.get("_archive_dependencies"), index_source=args.get("_archive_index_source"))
                 files[asset.asset_id] = (entry, data)
     with session.export_lock:
         if session.archive_refit_context is not context:
@@ -437,8 +438,14 @@ def _set_sidecar_path(entry):
     return str(entry.path).replace("\\", "/").casefold().replace("/model/", "/modelproperty/", 1) + "_xml"
 
 
-def _capture_set_colour_file(asset, dependencies, stop_event=None):
-    """(asset_id, ArchiveEntry, bytes) of a set piece's .pac_xml, read from the archive context."""
+def _capture_set_colour_file(asset, dependencies, stop_event=None, *, index_source=None):
+    """(asset_id, ArchiveEntry, bytes) of a set piece's .pac_xml.
+
+    The file is looked up in the archive context the edit came with, then in the
+    piece's own preview dependencies, then in the loaded archives' index: a set's
+    other files (lower body, accessories, ``_sub01`` pieces) are rarely in the
+    first file's dependency list.
+    """
     from cdmw.core.archive_extraction import read_archive_entry_data
 
     path = _set_sidecar_path(asset.entry)
@@ -452,6 +459,10 @@ def _capture_set_colour_file(asset, dependencies, stop_event=None):
                             if str(item.path).replace("\\", "/").casefold() == path)
         if matches:
             break
+    if not matches and index_source is not None:
+        entry = index_source.open(stop_event).active_entry(path)
+        if entry is not None:
+            matches = (entry,)
     if not matches:
         raise ValueError(f"{asset.entry.basename}: its material file was not found in the archive. "
                          "Reopen the set from Browse Archives to change its colours.")

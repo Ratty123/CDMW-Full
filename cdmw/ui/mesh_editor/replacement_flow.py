@@ -40,6 +40,9 @@ def prepare_replacement_event(tab, session, event):
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
+    if event.get("command") == "replacement_material_colours":
+        # A set's other files are found through the loaded archives' index.
+        args["_archive_index_source"] = _resident_archive_source(owner)
     if state is None:
         args["_archive_entry"] = target
         # The set this session was opened with. Browse Archives keeps only its last
@@ -65,6 +68,20 @@ def prepare_replacement_event(tab, session, event):
     if tab._current_target_entry().identity != target.identity:
         raise ValueError("The archive target changed during replacement selection.")
     return {**event, "arguments": args}
+
+
+def _resident_archive_source(owner):
+    """The loaded archives' index, captured on the UI thread for a worker to open; None if not loaded."""
+    from pathlib import Path
+    from cdmw.core.archive_resident_index import ResidentArchiveSource
+
+    archive = getattr(owner, "archive", None)
+    catalogue = getattr(archive, "archive_catalogue_service", None)
+    root_edit = getattr(archive, "archive_package_root_edit", None)
+    root = str(root_edit.text() or "").strip() if root_edit is not None else ""
+    if catalogue is None or not root:
+        return None
+    return ResidentArchiveSource.capture(catalogue, Path(root))
 
 
 def _blender_for(tab, fbx_path):

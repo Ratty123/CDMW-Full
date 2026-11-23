@@ -137,3 +137,54 @@ def test_the_panel_is_open_in_a_set_and_keeps_each_piece_s_materials_apart(monke
     assert first["material"] == "asset-a|handle" and second["material"] == "asset-b|handle"
     assert first["shared"] == ["a:0"] and second["shared"] == ["b:0"]
     assert first["material_colours"] == {"_tintColorR": "#102030"} and second["material_colours"] is None
+
+
+def test_the_set_draft_autosave_and_reload_keep_the_colours(coloured_set, tmp_path):
+    from cdmw.services.mesh_layer_project_service import load_mesh_layer_project
+
+    case = coloured_set
+    _apply(case, colours={"_tintColorR": "#102030"})
+    session = case.service._session(case.key)
+    session.mesh_layer_project_path = tmp_path / "draft" / "mesh_layer_project.json"
+    case.service._save_mesh_layer_project_locked(session)
+    loaded = load_mesh_layer_project(case.service.working_mesh(case.key), session.mesh_layer_project_path,
+                                     expected_source_asset_sha256=session.mesh_asset_source_hash)
+    assert loaded is not None
+    assert loaded["archive_refit_context"].material_colours == session.archive_refit_context.material_colours
+
+
+def test_a_piece_outside_the_first_file_s_dependencies_is_found_in_the_archive_index(coloured_set):
+    # The lower body, accessories and _sub01 pieces of a set are not in the first file's
+    # dependency list; their material file comes from the loaded archives' index.
+    case = coloured_set
+    asked = []
+
+    class Index:
+        def active_entry(self, path):
+            asked.append(path)
+            return case.sidecar if path == case.sidecar.path else None
+
+    source = SimpleNamespace(open=lambda _stop=None: Index())
+    case.colours.set_item_set_material_colours(case.authoring, {
+        "part_ids": [case.part_id], "colours": {"_tintColorR": "#102030"},
+        "_archive_dependencies": SimpleNamespace(entries_by_normalized_path={}),
+        "_archive_index_source": source})
+    context = case.service._session(case.key).archive_refit_context
+    assert asked == [case.sidecar.path]
+    assert [entry.path for _asset, entry, _data in context.material_colour_files] == [case.sidecar.path]
+
+
+def test_without_an_index_or_dependency_the_refusal_names_the_piece(coloured_set):
+    case = coloured_set
+    with pytest.raises(ValueError, match="material file was not found in the archive"):
+        case.colours.set_item_set_material_colours(case.authoring, {
+            "part_ids": [case.part_id], "colours": {"_tintColorR": "#102030"},
+            "_archive_dependencies": SimpleNamespace(entries_by_normalized_path={})})
+
+
+def test_the_ui_captures_no_index_when_no_archives_are_loaded():
+    from cdmw.ui.mesh_editor.replacement_flow import _resident_archive_source
+
+    assert _resident_archive_source(SimpleNamespace()) is None
+    archive = SimpleNamespace(archive_catalogue_service=object(), archive_package_root_edit=SimpleNamespace(text=lambda: ""))
+    assert _resident_archive_source(SimpleNamespace(archive=archive)) is None
