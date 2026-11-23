@@ -105,8 +105,8 @@ MORPH: dict[str, dict] = {
     "set_corrections_enabled": shape({"enabled": BOOL}, ["enabled"]),
     "set_driver_region": shape({"garment_submesh_indices": _GARMENTS}, ["garment_submesh_indices"],
                                "limit the garments' binding to the selected body triangles"),
-    "set_influence": shape({"weight": {"type": "number", "minimum": 0, "maximum": 1},
-                            "garment_submesh_indices": _GARMENTS}, ["weight"],
+    "set_influence": shape({"weight": _d({"type": "number", "minimum": 0, "maximum": 1}, "Default 0."),
+                            "garment_submesh_indices": _GARMENTS}, (),
                            "refit influence of the selected garment vertices"),
     "set_macro": shape({"macro_id": NAME, "value": {"type": "number", "minimum": -100, "maximum": 100},
                         "phase": _PHASE_END}, ["macro_id", "value"], "a body control's value"),
@@ -129,7 +129,7 @@ _FIT_SETTINGS = {
     "skin_pull_percent": {"type": "number", "minimum": 0, "maximum": 100},
 }
 REFIT: dict[str, dict] = {
-    "bind": shape({"submesh_indices": _d(PARTS, "Garment parts to bind (not the driver's).")}, ["submesh_indices"]),
+    "bind": shape({"submesh_indices": _d(PARTS, "Garment parts to bind (not the driver's).")}),
     "choose_archive": shape({"role": {"type": "string", "enum": ["body", "armor"]},
                              "archive_path": _d(PATH, "The file's path in the game archives (search_archive)."),
                              "source": STRING}, ["role", "archive_path"],
@@ -153,7 +153,7 @@ REFIT: dict[str, dict] = {
     "restore_shape_preview": shape({"path": _d(PATH, "A local unbaked .pac with the same parts."),
                                     "submesh_indices": PARTS, "islands": ISLANDS}, ["path"],
                                    "preview positions restored from a matching PAC"),
-    "set_driver": shape({"submesh_indices": _d(PARTS, "The body (driver) parts.")}, ["submesh_indices"]),
+    "set_driver": shape({"submesh_indices": _d(PARTS, "The body (driver) parts.")}),
     "use_loaded_body": NONE,
 }
 
@@ -172,9 +172,9 @@ _LAYER = _d(NAME, "A layer id, as mesh_panels' geometry_layers lists it.")
 LAYER: dict[str, dict] = {
     "activate": shape({"layer_id": _LAYER}, ["layer_id"]),
     "rename": shape({"layer_id": _LAYER, "name": NAME}, ["layer_id", "name"]),
-    "visibility": shape({"layer_id": _LAYER, "visible": BOOL}, ["layer_id", "visible"]),
+    "visibility": shape({"layer_id": _LAYER, "visible": _d(BOOL, "Default true.")}, ["layer_id"]),
     "move": shape({"layer_id": _LAYER, "direction": _d({"type": "integer"}, "Negative moves up, positive down.")},
-                  ["layer_id", "direction"]),
+                  ["layer_id"]),
     "copy": shape({"target": _d({"type": "string", "enum": ["vertex", "edge", "face"]},
                                 "By default what the current selection holds.")},
                   (), "copies the current selection"),
@@ -285,7 +285,10 @@ PART: dict[str, dict] = {
                      "rule": {"type": "object", "additionalProperties": False, "required": ["below_y"],
                               "properties": {"below_y": _d({"type": ["number", "null"]},
                                                            "Only vertices below this height; null for all."),
-                                             "retained": _UNIT}},
+                                             "retained": _UNIT,
+                                             "bone_retained": _d({"type": "array", "maxItems": 0},
+                                                                 "As mesh_panels reads it; this command takes "
+                                                                 "none (use bone_slots).")}},
                      "bone_slots": _d({"type": "array", "minItems": 1, "maxItems": 4096, "items": INT},
                                       "Bone regions' slots (mesh_panels' jiggle); then below_y is null.")},
                     ["part_ids"]),

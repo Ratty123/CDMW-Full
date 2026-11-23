@@ -448,3 +448,62 @@ def test_the_tool_list_shows_each_actions_fields_and_a_wrong_field_is_refused_be
     assert mcp.ok("mesh_layers", {"action": "visibility", "arguments": {"layer_id": "base", "visible": True}})[
         "history"] is not None
     assert _commands(editor)[-1] == ("layer_visibility", {"layer_id": "base", "visible": True})
+
+
+def _sample(schema, every=False):
+    """The smallest value ``schema`` takes: required fields only (or ``every`` field), the first enum value,
+    in range."""
+
+    kinds = schema.get("type")
+    kind = next((k for k in (kinds if isinstance(kinds, list) else [kinds]) if k != "null"), "null")
+    if "enum" in schema:
+        return schema["enum"][0]
+    if kind == "object":
+        names = list(schema.get("properties") or ()) if every else list(schema.get("required") or ())
+        return {name: _sample(schema["properties"][name], every) for name in names}
+    if kind == "array":
+        item = schema.get("items") or {"type": "integer"}
+        return [_sample(item, every) for _ in range(int(schema.get("minItems", 0)))]
+    if kind == "string":
+        return "x" * max(1, int(schema.get("minLength", 1)))
+    if kind == "integer":
+        return int(schema.get("minimum", 0))
+    if kind == "number":
+        return float(schema.get("minimum", 0))
+    if kind == "boolean":
+        return False
+    return None
+
+
+#: The Python handlers that refuse unknown fields themselves: a shape listing a field they do not take
+#: shows here as their own "unsupported arguments" refusal.
+_STRICT_WORDS = ("unsupported arguments", "Unsupported vertex", "Invalid experimental shader",
+                 "Invalid island inclusion request", "Invalid guide creation request",
+                 "Choose whether to create or restore weapon colliders", "Choose a collision volume set to edit")
+
+
+@pytest.mark.parametrize("every", [False, True], ids=["required", "every-field"])
+def test_one_call_per_panel_action_passes_its_shape_and_reaches_the_host(answered, every) -> None:
+    from cdmw.mcp.mesh_panel_schemas import PANELS, PARAMS
+
+    mcp = answered.mcp
+    tools = {"rig": "mesh_weights", "morph": "mesh_morph", "refit": "mesh_refit", "cloth": "mesh_cloth",
+             "layer": "mesh_layers", "replacement": "mesh_part_options"}
+    calls = [(tools[family], {"action": action, "arguments": _sample({"type": "object", **shape}, every)})
+             for family, table in PANELS.items() for action, shape in table.items()]
+    calls += [(f"mesh_{family}", {"action": action, "params": _sample({"type": "object", **shape}, every)})
+              for family, table in PARAMS.items() for action, shape in table.items()]
+    checked = []
+    for tool, arguments in calls:
+        result = mcp.call(tool, arguments)
+        content = result["structuredContent"]
+        if result["isError"]:
+            # Refused before sending, but never by the shape check (its messages name the tool's family or
+            # the params): the archive choices need loaded archives, and Cloth's inputs are one shape at a time.
+            message = str(content["error"]["message"])
+            assert not (message.startswith("mesh ") or " params for " in message), (tool, arguments, content)
+            continue
+        status = str(content.get("status") or "")
+        assert not any(word in status for word in _STRICT_WORDS), (tool, arguments, status)
+        checked.append(tool)
+    assert len(checked) > 80
