@@ -72863,6 +72863,30 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "{job}: cancelled after {seconds}",
+    "recovery": "cancelled",
+    "sources": {
+      "cdmw/ui/ai_connections/activity_model.py": 98
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{job}: failed after {seconds}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/ai_connections/activity_model.py": 102
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{job}: failed after {seconds}: {message}",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/ai_connections/activity_model.py": 101
+    }
+  },
+  {
+    "area": "mesh",
     "message": "{key} cannot contain duplicate Part indices.",
     "recovery": "conflict",
     "sources": {
@@ -73868,7 +73892,7 @@ MESSAGE_REFERENCE = [
     "message": "AI connections could not start: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/ai_connections/controller.py": 68
+      "cdmw/ui/ai_connections/controller.py": 75
     }
   },
   {
@@ -74785,7 +74809,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not offer {method}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 257
+      "cdmw/mcp/server.py": 270
     }
   },
   {
@@ -74849,7 +74873,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no tool {name or '(none)'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 318
+      "cdmw/mcp/server.py": 332
     }
   },
   {
@@ -74857,7 +74881,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW is not running or AI connections are off.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 366
+      "cdmw/mcp/server.py": 384
     }
   },
   {
@@ -74932,7 +74956,7 @@ MESSAGE_REFERENCE = [
     "message": "Cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/mcp/jobs.py": 110,
+      "cdmw/mcp/jobs.py": 112,
       "cdmw/mcp/read_tools.py": 523,
       "cdmw/mcp/server.py": 87,
       "cdmw/ui/ai_connections/catalogue_calls.py": 101,
@@ -83809,7 +83833,7 @@ MESSAGE_REFERENCE = [
     "message": "The call's safety class could not be worked out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 395
+      "cdmw/mcp/server.py": 413
     }
   },
   {
@@ -85411,7 +85435,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no job {job_id}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/jobs.py": 130
+      "cdmw/mcp/jobs.py": 138
     }
   },
   {
@@ -92042,7 +92066,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is a command, not a tool of its own: run it with app_run_command, command {tool.command_id}.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/server.py": 369
+      "cdmw/mcp/server.py": 387
     }
   },
   {
@@ -92050,7 +92074,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is not built yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 371
+      "cdmw/mcp/server.py": 389
     }
   },
   {
@@ -107124,6 +107148,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/hair_registration.py",
     "cdmw/domain/library/scene_selection.py",
     "cdmw/mcp/action_chart_tools.py",
+    "cdmw/mcp/activity.py",
     "cdmw/mcp/bridge.py",
     "cdmw/mcp/character_finder_tools.py",
     "cdmw/mcp/control_tools.py",
@@ -107190,6 +107215,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/replace_assistant/workers.py",
     "cdmw/ui/safe_upscale_wizard.py",
     "cdmw/ui/shell/app_window.py",
+    "cdmw/ui/shell/compact/ai_connection_tab.py",
     "cdmw/ui/shell/dashboard_controller.py",
     "cdmw/ui/shell/language_controller.py",
     "cdmw/ui/shell/lazy_tool_tab.py",
@@ -108829,6 +108855,9 @@ SOURCE_COVERAGE = {
     "raise": 34,
     "report": 6
   },
+  "cdmw/mcp/activity.py": {
+    "diagnostic_field": 1
+  },
   "cdmw/mcp/app_read_tools.py": {
     "code": 1,
     "raise": 4
@@ -109041,7 +109070,7 @@ SOURCE_COVERAGE = {
   "cdmw/mcp/server.py": {
     "code": 8,
     "diagnostic_field": 1,
-    "raise": 14,
+    "raise": 15,
     "report": 10
   },
   "cdmw/mcp/settings_tools.py": {
@@ -110505,6 +110534,9 @@ SOURCE_COVERAGE = {
   "cdmw/services/workspace_layout.py": {},
   "cdmw/ui/__init__.py": {},
   "cdmw/ui/ai_connections/__init__.py": {},
+  "cdmw/ui/ai_connections/activity_model.py": {
+    "validation": 3
+  },
   "cdmw/ui/ai_connections/approval_prompt.py": {},
   "cdmw/ui/ai_connections/catalogue_calls.py": {
     "code": 2,
@@ -112322,6 +112354,9 @@ SOURCE_COVERAGE = {
   "cdmw/ui/shell/close_controller.py": {},
   "cdmw/ui/shell/compact/__init__.py": {},
   "cdmw/ui/shell/compact/activity.py": {},
+  "cdmw/ui/shell/compact/ai_connection_tab.py": {
+    "diagnostic_field": 1
+  },
   "cdmw/ui/shell/compact/config.py": {},
   "cdmw/ui/shell/compact/drawer.py": {},
   "cdmw/ui/shell/compact/icons.py": {},
