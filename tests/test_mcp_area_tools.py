@@ -260,10 +260,19 @@ def test_the_editors_commands_run_by_id_with_their_reason_and_class(mesh, settin
     assert mcp.read()["isError"] and "topology.delete_selection" not in ran
 
 
-def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp_path, settings) -> None:
+def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp_path, settings,
+                                                                      monkeypatch) -> None:
+    from cdmw.mcp import mesh_edit_tools
+
     mcp = mesh.mcp
+    # Nothing answers here, so each step waits only briefly for the helper's request
+    # (tests/test_mcp_mesh_tool_repairs.py drives them with a helper that answers).
+    monkeypatch.setattr(mesh_edit_tools, "ARRIVE_S", 0.2)
+    mcp.controller.server.quick_result_s = 30.0
     target = tmp_path / "part.obj"
-    assert mcp.ok("mesh_export", {"path": str(target)}) == {"sent": True, "path": str(target), "format": "obj"}
+    exported = mcp.ok("mesh_export", {"path": str(target)})
+    assert (exported["sent"], exported["path"], exported["format"]) == (True, str(target), "obj")
+    assert not exported["done"] and "did not send" in exported["message"]
     sent = mesh.sent[-1]
     assert (sent["event"], sent["command"]) == ("cdmw_command", "export_mesh")
     assert sent["arguments"] == {"path": str(target), "format": "obj"}
@@ -283,7 +292,11 @@ def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp
 
     state = mcp.ok("mesh_replacement_state")
     assert state["ready"] and state["supported"] and state["pending"] is None and state["parts"]
-    assert mcp.error("mesh_replacement_import", {"path": str(tmp_path / "model.fbx")})["code"] == "invalid_arguments"
+    fbx_model = tmp_path / "model.fbx"
+    fbx_model.write_bytes(b"Kaydara FBX Binary")
+    monkeypatch.setattr("cdmw.ui.new_item.blender_setting.blender_for_fbx", lambda: "")
+    no_blender = mcp.error("mesh_replacement_import", {"path": str(fbx_model)})
+    assert no_blender["code"] == "invalid_arguments" and "no Blender is chosen" in no_blender["message"]
     assert mcp.error("mesh_replacement_import", {"path": str(tmp_path / "missing.obj")})["code"] == (
         "invalid_arguments")
     assert "import one first" in mcp.error("mesh_replacement_apply")["message"]
@@ -292,6 +305,14 @@ def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp
     assert mcp.ok("mesh_replacement_import", {"path": str(model)})["sent"]
     sent = mesh.sent[-1]
     assert sent["command"] == "replacement_choose" and sent["arguments"] == {"scope": "entire", "part_ids": []}
+    # Nothing came back to use it: the path does not wait to answer the user's next Import click.
+    from cdmw.ui.mesh_editor import replacement_flow
+
+    assert replacement_flow.source_path_override is None
+    # With a Blender chosen, an FBX goes the same way; the button's own Blender chooser is not asked.
+    monkeypatch.setattr("cdmw.ui.new_item.blender_setting.blender_for_fbx", lambda: "C:/Blender/blender.exe")
+    assert mcp.ok("mesh_replacement_import", {"path": str(fbx_model)})["sent"]
+    assert mesh.sent[-1]["command"] == "replacement_choose"
     assert mcp.ok("mesh_replacement_cancel")["sent"] and mesh.sent[-1]["command"] == "replacement_cancel"
 
 

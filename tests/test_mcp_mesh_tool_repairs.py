@@ -116,3 +116,20 @@ def test_a_layer_copy_sent_by_name_copies_the_current_selection(answered) -> Non
     sent = [m for m in editor.sent if m.get("event") == "cdmw_command"][-1]
     assert (sent["command"], sent["arguments"]) == ("layer_copy", {})
     assert service._session(session_id).native_clipboard_ready, copied["status"]
+
+
+# ----- 5. Export and Import Replacement wait for the editor -------------------------------
+def test_export_and_import_replacement_wait_for_the_editor_and_say_how_it_went(answered, profile) -> None:  # noqa: F811
+    editor, mcp = answered, answered.mcp
+    exported = profile / "exchange" / "part.obj"
+    exported.parent.mkdir(parents=True, exist_ok=True)
+    result = mcp.ok("mesh_export", {"path": str(exported)})
+    assert result["sent"] and result["done"], result
+    assert exported.is_file()
+
+    imported = mcp.ok("mesh_replacement_import", {"path": str(exported)})
+    assert imported["done"], imported
+    pending = mcp.ok("mesh_replacement_state")["pending"]
+    assert pending is not None and pending["sources"] and pending["targets"], pending
+    cancelled = mcp.ok("mesh_replacement_cancel")
+    assert cancelled["done"] and mcp.ok("mesh_replacement_state")["pending"] is None

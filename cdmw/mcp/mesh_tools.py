@@ -851,6 +851,22 @@ def _settled(handler):
     return settled(handler)
 
 
+def _replacement_import(call) -> dict[str, object]:
+    """Import Replacement, waited for. The chooser's answer is used by this import only: when the
+    helper sent nothing (it refused, or was busy), the answer must not wait for the user's next click."""
+
+    from cdmw.ui.mesh_editor import replacement_flow
+
+    try:
+        return _settled(_replacement("replacement_import"))(call)
+    finally:
+        def forget() -> None:
+            if replacement_flow.source_path_override == str(Path(str(call.arguments.get("path") or ""))):
+                replacement_flow.source_path_override = None
+
+        call.context.ui_call(forget)
+
+
 def mesh_tools() -> list[Tool]:
     text = {"type": "string", "maxLength": 256}
     return [
@@ -993,10 +1009,10 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.export", family="mesh", title="Export Mesh File",
              description="Export Mesh File: the shown document's mesh as GLB, FBX or OBJ at 'path' (a new "
                          "file outside the game; the suffix picks the format), as the editor's Export menu does "
-                         "after its file chooser.",
+                         "after its file chooser. Waits for the export; the status line says how it went.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}},
                                         ["path"]),
-             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_export, runs_on=ON_CALL,
+             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_settled(_export), runs_on=ON_WORKER,
              output_paths=("path",)),
         Tool(name="mesh.replacement_state", family="mesh", title="Import Replacement state",
              description="Import Replacement in the shown document: whether it is offered and why not, the "
@@ -1005,21 +1021,23 @@ def mesh_tools() -> list[Tool]:
              input_schema=object_schema(), effect=READ, route="service:mesh_rust_replacement.replacement_ui_state",
              handler=_replacement("replacement_state"), runs_on=ON_UI),
         Tool(name="mesh.replacement_import", family="mesh", title="Import Replacement",
-             description="Import Replacement... with the mesh file at 'path' (OBJ, DAE, glTF or GLB): scope "
-                         "'entire' (Entire Mesh) or 'selected' with 'part_ids'. The model then waits in the "
-                         "mapping step: read it with mesh_replacement_state.",
+             description="Import Replacement... with the mesh file at 'path' (OBJ, DAE, glTF, GLB, or FBX "
+                         "when a Blender to read it is already chosen): scope 'entire' (Entire Mesh) or "
+                         "'selected' with 'part_ids'. Waits for the import; the model then waits in the "
+                         "mapping step: read it with mesh_replacement_state. The status line says why when "
+                         "the import was refused.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024},
                                          "scope": {"type": "string", "enum": ["entire", "selected"],
                                                    "default": "entire"},
                                          "part_ids": {"type": "array", "maxItems": 4096,
                                                       "items": {"type": "string", "maxLength": 128}}}, ["path"]),
              effect=EDIT, route="helper:cdmw_command replacement_choose",
-             handler=_replacement("replacement_import"), runs_on=ON_CALL),
+             handler=_replacement_import, runs_on=ON_WORKER),
         Tool(name="mesh.replacement_apply", family="mesh", title="Apply Replacement",
              description="Apply Replacement on the model in the mapping step: 'targets' gives each imported "
                          "part's target part id (by default the suggested ones), 'materials' is original or "
                          "imported, 'weights' the choice for a rigged model (preserve, reduce, fold, extend or "
-                         "transfer).",
+                         "transfer). One History step; returns the history before and after and the status line.",
              input_schema=object_schema({"targets": {"type": "array", "maxItems": 4096,
                                                      "items": {"type": "string", "maxLength": 128}},
                                          "fallback_target": {"type": "string", "maxLength": 128},
@@ -1028,11 +1046,11 @@ def mesh_tools() -> list[Tool]:
                                          "weights": {"type": "string", "enum": ["preserve", "reduce", "fold",
                                                                                 "extend", "transfer"]}}),
              effect=EDIT, route="helper:cdmw_command replacement_apply",
-             handler=_replacement("replacement_apply"), runs_on=ON_CALL),
+             handler=_settled(_replacement("replacement_apply")), runs_on=ON_WORKER),
         Tool(name="mesh.replacement_cancel", family="mesh", title="Cancel Import",
              description="Cancel Import in Import Replacement's mapping step.",
              input_schema=object_schema(), effect=EDIT, route="helper:cdmw_command replacement_cancel",
-             handler=_replacement("replacement_cancel"), runs_on=ON_CALL),
+             handler=_settled(_replacement("replacement_cancel")), runs_on=ON_WORKER),
     ]
 
 
