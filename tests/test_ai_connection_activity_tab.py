@@ -283,3 +283,54 @@ def test_a_real_client_shows_its_name_its_calls_and_its_departure(app, profile) 
         model.detach(server.activity)
         model.deleteLater()
     assert model.rows[-1].kind == "disconnected" and model.rows[-1].client == "pytest-client"
+
+
+def test_dropped_events_still_leave_the_status_line_right(app) -> None:
+    feed = ActivityFeed(capacity=3)
+    model = AiActivityModel()
+    feed.connected()
+    feed.client_named("Codex")
+    for index in range(10):  # the connect and name events fall out of the buffer
+        feed.call({"tool": f"t{index}", "result": "ok"})
+    model.attach(feed)
+    _pump_until(app, lambda: model.rows)
+    assert model.dropped == 9 and model.connected and model.client == "Codex"
+    model.detach(feed)
+    model.deleteLater()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="AI connections are Windows-only")
+def test_the_app_controller_and_the_drawer_share_one_model(app, profile, tmp_path) -> None:
+    from cdmw.mcp import approvals
+    from cdmw.services.settings_service import create_settings
+    from cdmw.ui.ai_connections import controller as controller_module
+    from cdmw.ui.ai_connections.activity_model import ai_activity_model
+
+    settings = create_settings(settings_file_path=tmp_path / "ai.cfg")
+    host = QWidget()
+    drawer = CompactActivityDrawer(ActivityHistory(parent=host), host)  # made before the controller, as the shell does
+    controller = controller_module.install_ai_connections(None, settings)
+    try:
+        model = ai_activity_model()
+        assert drawer.ai_connection_view.model is model is controller.activity
+        assert not model.listening
+        settings.setValue(approvals.ENABLED_KEY, True)
+        controller.apply()
+        assert model.listening
+        drawer.ai_connection_view.refresh()
+        assert drawer.ai_connection_view.status_label.text() == "Not connected. Waiting for an AI app to connect."
+        rows_before = len(model.rows)
+        controller.server.audit.record(client="c", tool="mesh.state", effect=READ, arguments={}, approval="no_prompt",
+                                       result="ok", duration_s=0.0)
+        _pump_until(app, lambda: len(model.rows) == rows_before + 1)
+        assert model.rows[-1].tool == "mesh.state"
+        assert model.log_path == controller.server.audit.path
+        settings.setValue(approvals.ENABLED_KEY, False)
+        controller.apply()
+        assert not model.listening
+    finally:
+        feed = controller.server.activity
+        controller_module.remove_ai_connections()
+        app.processEvents()
+        host.deleteLater()
+    assert feed._waker is None  # detached: the old server no longer wakes the model

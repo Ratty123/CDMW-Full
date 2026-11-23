@@ -174,6 +174,13 @@ class AiActivityModel(QObject):
         self.dropped += dropped
         if events or dropped:
             self.apply_events(events)
+        if dropped:
+            # A dropped connect, name or disconnect event would leave the status line wrong.
+            state = feed.state()
+            self.connected = bool(state.get("connected"))
+            self.client = str(state.get("client") or "") if self.connected else ""
+            self.since = _local_time(state.get("since")) if self.connected and state.get("since") else ""
+            self.changed.emit()
 
     # ----- rows -------------------------------------------------------------------------
     def clear(self) -> None:
