@@ -181,6 +181,29 @@ def test_the_first_launch_on_a_new_package_parses_its_manifest_once(tmp_path, pa
     assert len(parses) == manifest_parses, "a registered question parsed the manifest again"
 
 
+def test_a_rust_preview_finds_a_set_manifest_larger_than_8_mib(tmp_path):
+    """Demenissian Council Robes' four-file set writes a 10.4 MB Preview Core manifest.
+
+    It was read as empty, so Open set in Mesh Editor never got Browse's package."""
+    from cdmw.services.mesh_rust_contract import RUST_PREVIEW_PACKAGE
+    from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
+
+    entry = _entry(tmp_path)
+    native = tmp_path / "models" / "packages" / "native-key" / "package"
+    rust = tmp_path / "rust_wgpu_v1" / "packages" / "rust-key" / "package"
+    for package in (native, rust):
+        package.mkdir(parents=True)
+    (native.parent / "cache_entry.json").write_text(json.dumps({"cache_key": "native-key"}), encoding="utf-8")
+    payload = _manifest_for(entry)
+    payload["padding"] = "x" * (9 * 1024 * 1024)
+    (native / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
+    (rust.parent / "cache_entry.json").write_text(
+        json.dumps({"source_package": str(native), "archive_identity": "native-key"}), encoding="utf-8")
+    (rust / "manifest.json").write_text(
+        json.dumps({"schema": RUST_PREVIEW_PACKAGE, "source": {"path": entry.path}}), encoding="utf-8")
+    assert native_material_package_for_rust_preview(rust) == native.resolve()
+
+
 def test_a_layered_material_package_draws_textures_without_listing_any(tmp_path: Path) -> None:
     import json
 

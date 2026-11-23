@@ -394,6 +394,78 @@ def test_bind_item_set_piece_basename_fallback_and_missing_dds_rollback(tmp_path
         loaded.lease.release()
 
 
+def test_bind_item_set_piece_accepts_the_archive_workers_prepared_textures(tmp_path: Path) -> None:
+    """Browse's set package draws the archive worker's prepared DDS files, which live in
+    the index store outside its lease, and names each texture by its archive path.
+
+    Every piece used to be refused ("texture references were missing or outside the
+    leased package"), so Open set in Mesh Editor ran a Preview Core job per piece
+    (Demenissian Council Robes, 2026-11-23). A file that is really gone still refuses.
+    """
+
+    upper = _entry(tmp_path, "upper.pac", offset=0)
+    lower = _entry(tmp_path, "lower.pac", offset=64)
+    set_package = _write_two_piece_set_package(tmp_path / "pkg", upper, lower, material_name="armor_mat")
+    prepared = tmp_path / "cache" / "index" / "g" / "generation" / "p" / "aa" / "aa11.dds"
+    prepared.parent.mkdir(parents=True)
+    (set_package / "helmet_base.dds").replace(prepared)
+    manifest_path = set_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for batch in manifest["batches"]:
+        batch["dds_textures"]["base"]["source_path"] = str(prepared)
+        batch["dds_textures"]["material_inputs"] = [{
+            "slot": "base", "parameter_name": "_baseColorTexture", "source_path": str(prepared),
+            "archive_path": "character/texture/armor_base.dds", "available": True,
+            "direct_upload_candidate": True,
+        }]
+        batch["material_layers"][0]["diffuse_source"] = str(prepared)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    loaded = load_preview_core_set_package(set_package)
+    assert loaded is not None
+    try:
+        part = SimpleNamespace(material="armor_mat", preview_native_material_overrides={})
+        mesh = SimpleNamespace(path=lower.path, lod_levels=[], submeshes=[part])
+        retained = bind_item_set_piece_from_preview_core_package(
+            mesh, SimpleNamespace(selected_entry=lower), loaded, threading.Event())
+        assert retained is not None, "the prepared texture outside the lease refused the piece"
+        assert unedited_preview_core_material_source(part) is not None
+        retained.lease.release()
+
+        prepared.unlink()
+        gone = SimpleNamespace(material="armor_mat", preview_native_material_overrides={"orig": True})
+        gone_mesh = SimpleNamespace(path=lower.path, lod_levels=[], submeshes=[gone])
+        assert bind_item_set_piece_from_preview_core_package(
+            gone_mesh, SimpleNamespace(selected_entry=lower), loaded, threading.Event()) is None
+        assert gone.preview_native_material_overrides == {"orig": True}
+    finally:
+        loaded.lease.release()
+
+
+def test_rebase_reports_only_texture_files_that_are_missing(tmp_path: Path) -> None:
+    from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
+    from cdmw.services.mesh_rust_authoring import _rebase_rust_preview_texture_paths
+
+    package = tmp_path / "package"
+    package.mkdir()
+    owned = package / "owned.dds"
+    outside = tmp_path / "index" / "outside.dds"
+    outside.parent.mkdir()
+    for path in (owned, outside):
+        path.write_bytes(b"DDS " + bytes(124))
+
+    def rebase(source_dds_path: Path, **kwargs) -> str:
+        item = PreviewMaterialTextureInput(slot_kind="base", source_texture_path="character/texture/robe.dds",
+                                           source_dds_path=str(source_dds_path))
+        mesh = SimpleNamespace(submeshes=[SimpleNamespace(preview_material_texture_inputs=(item,))], lod_levels=[])
+        return _rebase_rust_preview_texture_paths(mesh, package, **kwargs)[1]
+
+    # The archive path beside a package-owned file is the texture's identity, not a missing file.
+    assert rebase(owned) == ""
+    assert rebase(outside) != ""
+    assert rebase(outside, tolerate_external_files=True) == ""
+    assert rebase(tmp_path / "gone.dds", tolerate_external_files=True) != ""
+
+
 # ---------------------------------------------------------------------------
 # Fix 3: Allow Item Sets to use Browse's viewport / resident GPU texture reuse
 # ---------------------------------------------------------------------------

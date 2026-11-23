@@ -43,6 +43,7 @@ from cdmw.services.mesh_rust_preview_package import (
     _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
     _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
     _PREVIEW_CORE_SCHEMA_MINIMUM,
+    _PREVIEW_MANIFEST_MAX_BYTES,
     build_rust_preview_package,
     build_rust_preview_package_from_preview_core,
     build_rust_preview_prewarm_package,
@@ -1206,8 +1207,10 @@ def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:
 
     def read_fact(path: Path, fact):
         # The manifests are megabytes and this runs on the UI thread before a
-        # Mesh Editor launch: each is parsed once while it is unchanged.
-        if path.stat().st_size > 8 * 1024 * 1024:
+        # Mesh Editor launch: each is parsed once while it is unchanged. The
+        # limit is the one Preview Core manifests are written and read under; a
+        # set's package passes 8 MiB (Demenissian Council Robes: 10.4 MB).
+        if path.stat().st_size > _PREVIEW_MANIFEST_MAX_BYTES:
             return fact({})
         return json_file_fact(path, fact, encoding="utf-8-sig")
 

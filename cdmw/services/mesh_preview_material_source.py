@@ -5,7 +5,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
 from pathlib import Path, PurePosixPath, PureWindowsPath
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _canonicalize_signature_numbers(value):
@@ -534,11 +537,16 @@ def bind_item_set_piece_from_preview_core_package(
                 restore_parts()
                 lease.release()
                 return None
+        # Browse's set package draws the archive worker's prepared files, which are
+        # outside its lease. The piece is bound to the package's Preview Core
+        # materials below, which carry those textures, as a single-file open is;
+        # only a texture file that is gone refuses the piece.
         _rebased, unavailable_reason = _rebase_rust_preview_texture_paths(
             mesh,
             set_package.package,
             stop_event=stop_event,
             extra_texture_roots=set_package.extra_texture_roots,
+            tolerate_external_files=True,
         )
         if unavailable_reason:
             restore_parts()
@@ -606,8 +614,42 @@ def native_companion_reference_mesh(mesh, package_path, cancelled=lambda: False)
     return reference
 
 
+def _item_set_piece_package_root(entry, context) -> Path | None:
+    """The game folder Browse gives Preview Core, found from the piece's own archive files.
+
+    The native core reads the shader definitions from it. Without them a texture a
+    material declares but the game lacks gets no technique default (Demenissian
+    Council Robes' upper body declares a missing normal map), and the piece's graph
+    is not conserved although Browse's own job resolves it.
+    """
+    from cdmw.domain.archives.filters import archive_entry_game_root
+    from cdmw.services.archive_environment_service import looks_like_archive_package_root
+
+    seen: set[str] = set()
+    for candidate in (entry, *tuple(getattr(context, "entries", ()) or ())):
+        pamt_path = getattr(candidate, "pamt_path", None)
+        if not pamt_path:
+            continue
+        folder = str(Path(str(pamt_path)).parent)
+        if folder in seen:
+            continue
+        seen.add(folder)
+        try:
+            root = archive_entry_game_root(candidate)
+            if root.is_dir() and looks_like_archive_package_root(root):
+                return root
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+    return None
+
+
 def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, require_existing_inputs: bool = True):
-    """Resolve one original PAC's graph on the existing set preparation worker."""
+    """Resolve one original PAC's graph on the existing set preparation worker.
+
+    Returns None when Preview Core cannot give the piece a complete graph; the
+    caller then prepares that piece's materials the bounded CPU way, so one
+    incomplete piece never stops the whole set from opening.
+    """
     from types import SimpleNamespace
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.models import ModelPreviewRenderSettings
@@ -638,6 +680,7 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, r
         dependency_entries=dependencies, dependency_entries_complete=bool(context.remote),
         model_property_indices=native_preview_model_property_indices(
             dependencies, stop_event, model_paths=(entry.path,)),
+        package_root=_item_set_piece_package_root(entry, context),
         timeout_seconds=native_preview_core_timeout_seconds(settings), stop_event=stop_event,
     )
     raise_if_cancelled(stop_event, "Item set loading cancelled")
@@ -655,6 +698,16 @@ def prepare_item_set_material_source(mesh, context, cache_root, stop_event, *, r
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if normalize(manifest.get("source_path")) != normalize(entry.path):
             raise ValueError("Item set dependencies do not match the selected mesh")
+        conservation = manifest.get("material_conservation")
+        if not isinstance(conservation, Mapping) or conservation.get("conserved") is not True:
+            # As with unsupported native inputs above: this piece keeps the bounded
+            # CPU compositor instead of failing every other piece's open.
+            findings = tuple(conservation.get("findings", ()) or ()) if isinstance(conservation, Mapping) else ()
+            _LOGGER.warning("Item set piece %s has an incomplete Preview Core material graph (%s); "
+                            "its materials are prepared without it.", entry.path,
+                            findings[0] if findings else "no finding reported")
+            lease.release()
+            return None
         _validated_preview_core_source(package, manifest)
         raise_if_cancelled(stop_event, "Item set loading cancelled")
         apply_dotnet_native_material_batch_bindings(mesh, manifest["batches"])

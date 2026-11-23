@@ -179,7 +179,7 @@ def test_edited_new_item_material_enters_existing_compositor(tmp_path, monkeypat
     assert "preview_core_material_graph" not in json.loads(output.manifest_path.read_text())
 
 
-@pytest.mark.parametrize("outcome", ["bound", "foreign", "cancelled", "unsupported"])
+@pytest.mark.parametrize("outcome", ["bound", "foreign", "cancelled", "unsupported", "incomplete"])
 def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, monkeypatch, outcome):
     import threading
     from cdmw.domain.cancellation import RunCancelled
@@ -200,6 +200,14 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
         path = package / "manifest.json"
         payload = json.loads(path.read_text())
         payload["source_path"] = "character/other.pac"
+        path.write_text(json.dumps(payload))
+    if outcome == "incomplete":
+        # Demenissian Council Robes' upper body: a declared normal map the game lacks
+        # left this piece's own graph unconserved, and the whole set open failed.
+        path = package / "manifest.json"
+        payload = json.loads(path.read_text())
+        payload["material_conservation"]["conserved"] = False
+        payload["material_conservation"]["findings"] = ["source_dds_unavailable:helmet.pac_xml:1:_normalTexture:x_n.dds"]
         path.write_text(json.dumps(payload))
     def native(selected, **kwargs):
         assert selected is entry
@@ -229,6 +237,11 @@ def test_set_source_uses_its_native_graph_and_releases_failed_leases(tmp_path, m
         retained = owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", stop)
         if outcome == "unsupported":
             assert retained is None and not leases
+            assert all(unedited_preview_core_material_source(part) is None for part in parts)
+        elif outcome == "incomplete":
+            # The piece falls back to the CPU compositor; the set still opens.
+            assert retained is None
+            assert len(leases) == 1 and not leases[0].active
             assert all(unedited_preview_core_material_source(part) is None for part in parts)
         else:
             try:
@@ -266,6 +279,39 @@ def test_set_source_draws_the_variant_its_items_prefab_selects(tmp_path, monkeyp
     assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
     # Only the drawn file is named: the job takes at most 32 selections.
     assert jobs[0]["model_property_indices"] == {census.HONOR_GUARD_LB: 32}
+
+
+def test_set_source_job_reads_shader_defaults_from_the_game_folder(tmp_path, monkeypatch):
+    """A set piece's own Preview Core job gets the game folder, as Browse's job does.
+
+    Without it the core loads no shader definitions, so a texture a material declares
+    but the game lacks gets no default and the piece's graph is not conserved
+    (Demenissian Council Robes, served from the DLC's 0009 group)."""
+    import threading
+    from cdmw.rendering import native_preview_core
+    from cdmw.services import mesh_preview_material_source as owner
+
+    game = tmp_path / "Crimson Desert"
+    groups = (game / "0009", game / "dlc" / "dlc_01" / "0009")
+    for group in groups:
+        group.mkdir(parents=True)
+        (group / "0.pamt").write_bytes(b"")
+    roots = []
+
+    def native(selected, **kwargs):
+        roots.append(kwargs.get("package_root"))
+        return SimpleNamespace(succeeded=False, package_path="")
+
+    monkeypatch.setattr(native_preview_core, "run_native_preview_core_preview_job", native)
+    for group in groups:
+        entry = SimpleNamespace(path="character/robe.pac", pamt_path=group / "0.pamt")
+        context = SimpleNamespace(selected_entry=entry, entries=(entry,), remote=True,
+                                  entry_matching=lambda selected, entry=entry: entry if selected is entry else None)
+        part = SimpleNamespace(material="robe", preview_material_texture_inputs=(SimpleNamespace(confidence="sidecar"),),
+                               preview_native_material_overrides={})
+        mesh = SimpleNamespace(path=entry.path, lod_levels=[], submeshes=[part])
+        assert owner.prepare_item_set_material_source(mesh, context, tmp_path / "cache", threading.Event()) is None
+    assert roots == [game.resolve(), game.resolve()]
 
 
 def test_replacement_material_payloads_keep_the_graph_totals_the_editor_checks(tmp_path):

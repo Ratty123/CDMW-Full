@@ -14,6 +14,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Open set in Mesh Editor** no longer stops with "Direct preview requires a conserved Preview Core material graph." for sets such as Demenissian Council Robes. The set's pieces now take their materials from the textured preview Browse Archives already shows, as **Open in Mesh Editor** on one file does. A piece that has to prepare its own materials now gets the game's default for a texture its material names but the game does not ship, as Browse Archives does; a piece that still cannot be prepared that way opens with its textures prepared the slower way instead of stopping the whole set.
 - **Browse Archives** fills in the **Item Name** column once item names are ready. Before, files listed before the names finished loading kept an empty column, and scrolling or other work in CDMW could restart the name loading again and again, so names sometimes arrived very late or never, even after Refresh or a restart. A name search or a first preview could also swap the full name list for a smaller one, leaving thousands of models (many of them `.pac` files reached through prefabs) without a name.
 - **Browse Archives** no longer shows a long list of unrelated item names (Kliff coupons, House keys, Goyen and Kairos armour and others) on some house, door and window models.
 

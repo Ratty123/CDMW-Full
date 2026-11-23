@@ -80,6 +80,7 @@ from cdmw.services.material_authority_resource_service import (
 )
 from cdmw.services.mesh_dotnet_material_bindings import (
     _DOTNET_PREVIEW_MATERIAL_ATTRS,
+    _native_archive_texture_path,
     copy_dotnet_preview_material_bindings,
     count_dotnet_own_material_bindings,
 )
@@ -3023,6 +3024,25 @@ def _package_resolved_texture_path(
     return str(resolved) if resolved.is_file() else ""
 
 
+def _is_archive_texture_identity(value: object, field_name: str, text: str) -> bool:
+    """Whether ``text`` is the texture's game archive path, not a file reference.
+
+    A native batch binding keeps the archive path (``character/texture/x.dds``) in
+    ``source_texture_path`` and the file it draws in ``source_dds_path`` or
+    ``preview_texture_path``. The rebase cannot find that archive path inside the
+    leased package, but nothing is missing: only the file fields are checked.
+    """
+
+    if field_name != "source_texture_path" or not text:
+        return False
+    if _native_archive_texture_path(text) != text.replace("\\", "/"):
+        return False
+    return any(
+        str(getattr(value, name, "") or "").strip()
+        for name in ("source_dds_path", "preview_texture_path")
+    )
+
+
 def _rebase_rust_material_input_paths(
     value: object,
     package_root: Path | None,
@@ -3030,6 +3050,7 @@ def _rebase_rust_material_input_paths(
     require_package_root: bool,
     declared_texture_paths: frozenset[str],
     owned_texture_aliases: Mapping[str, str],
+    counts_as_rejected: Callable[[str], bool] = lambda _current: True,
 ) -> tuple[object, int, int]:
     updates: dict[str, str] = {}
     rejected_count = 0
@@ -3048,7 +3069,11 @@ def _rebase_rust_material_input_paths(
         )
         if current and rebased != current:
             updates[field_name] = rebased
-            rejected_count += int(not rebased)
+            rejected_count += int(
+                not rebased
+                and not _is_archive_texture_identity(value, field_name, current)
+                and counts_as_rejected(current)
+            )
     if not updates:
         return value, 0, rejected_count
     if is_dataclass(value):
@@ -3072,8 +3097,27 @@ def _rebase_rust_preview_texture_paths(
     *,
     stop_event: threading.Event | None = None,
     extra_texture_roots: Sequence[Path] = (),
+    tolerate_external_files: bool = False,
 ) -> tuple[int, str]:
+    """Keep only texture paths the leased package owns or declares; blank the rest.
+
+    The reason names texture references that were missing or outside the lease.
+    With ``tolerate_external_files`` a reference to a file that exists outside the
+    lease is still blanked but not reported: a part bound to a Preview Core
+    material draws through that graph, which carries its own textures, as the
+    single-file open has always done with the archive worker's prepared files.
+    """
     require_package_root = bool(str(material_package_path or "").strip())
+
+    def counts_as_rejected(current: str) -> bool:
+        if not tolerate_external_files:
+            return True
+        try:
+            source = Path(current).expanduser()
+            return not (source.is_absolute() and source.is_file())
+        except (OSError, RuntimeError, ValueError):
+            return True
+
     package_root, unavailable_reason = _rust_material_package_root(
         material_package_path
     )
@@ -3118,7 +3162,7 @@ def _rebase_rust_preview_texture_paths(
                                 setattr(submesh, companion, basenames[0])
                     setattr(submesh, attribute, rebased)
                     rebased_count += 1
-                    rejected_count += int(not rebased)
+                    rejected_count += int(not rebased and counts_as_rejected(current))
             inputs = tuple(
                 getattr(submesh, "preview_material_texture_inputs", ()) or ()
             )
@@ -3133,6 +3177,7 @@ def _rebase_rust_preview_texture_paths(
                     require_package_root=require_package_root,
                     declared_texture_paths=declared_texture_paths,
                     owned_texture_aliases=owned_texture_aliases,
+                    counts_as_rejected=counts_as_rejected,
                 )
                 updated_inputs.append(updated)
                 rebased_count += count
