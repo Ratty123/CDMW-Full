@@ -272,8 +272,10 @@ def test_failed_or_cancelled_zip_never_publishes_partial_output_or_opens_folder(
     tab, _service, _session, entry, _source = accepted_cloth_edit
     root = tmp_path / "exports" / "Cloak v1.2-dmm"
     zip_path = root.with_name(root.name + ".zip")
-    opened, messages, reached = [], [], []
+    opened, messages, reached, warnings = [], [], [], []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
+    # A failed Build Mod raises a modal warning; unpatched, it waits forever.
+    monkeypatch.setattr(QMessageBox, "warning", lambda _parent, title, message: warnings.append((title, message)))
     tab.status_message_requested.connect(lambda text, error: messages.append((text, error)))
     write_zip = package._write_package_zip
     save_history = history.atomic_publish_directory
@@ -332,6 +334,10 @@ def test_failed_or_cancelled_zip_never_publishes_partial_output_or_opens_folder(
     assert reached == [failure]
     assert not any("output ready" in text for text, _error in messages)
     assert any("cancelled" in text.lower() or error for text, error in messages), messages
+    if failure in {"cancel", "history_cancel"}:
+        assert not warnings
+    else:
+        assert [title for title, _message in warnings] == ["Build Mod"]
     assert not list(root.parent.glob(".*.staging-*"))
     assert not list(history._history_root().glob(".history-*"))
 

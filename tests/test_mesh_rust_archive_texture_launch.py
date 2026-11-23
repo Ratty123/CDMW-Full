@@ -502,6 +502,9 @@ def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path
     launch._record_runtime_event = lambda *args, **kwargs: None
     monkeypatch.setattr(editor, "_ensure_standalone_live_stroke_dispatcher", lambda: None)
     monkeypatch.setattr(editor, "_start_archive_material_context_resolution", lambda *args: False)
+    # The editor executable is a gitignored build; a worktree has none, and its absence
+    # would refuse every open before this lifecycle starts.
+    monkeypatch.setattr(editor, "_rust_open_preflight_reason", lambda: "")
     monkeypatch.setattr("cdmw.ui.mesh_editor.tab.native_mesh_core_available", lambda: False)
     monkeypatch.setattr("cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package", lambda _: (True, ()))
 
@@ -573,7 +576,9 @@ def test_repeated_hidden_texture_handoffs_open_and_close_different_pacs(tmp_path
             previous_lease = lease
         assert len(set(sessions)) == 6
         assert len(archive.render_requests) == 6
-        assert controller.clear_count == 6
+        # Browse keeps showing its model while the Mesh Editor edits it (2026-11-21):
+        # the hand-off settles the texture request instead of clearing the view.
+        assert controller.clear_count == 0
     finally:
         editor.request_shutdown()
         editor.deleteLater()
