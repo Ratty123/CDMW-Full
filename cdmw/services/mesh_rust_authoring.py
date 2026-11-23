@@ -6851,14 +6851,16 @@ def _selection_from_payload(payload: object) -> MeshEditSelection:
     )
 
 
+#: The Layers list's Copy targets (copy_selection), in the order a selection's own domain is read.
+_COPY_TARGETS = ("face", "edge", "vertex")
+
+
 def _selection_domain(selection: MeshEditSelection) -> str:
     """What a selection holds, as the Layers list's Copy names it: faces, then edges, then vertices."""
 
-    if any(items for _part, items in selection.faces_by_submesh) or selection.source_indices:
-        return "face"
-    if any(items for _part, items in selection.edges_by_submesh):
-        return "edge"
-    return "vertex"
+    holds = (any(items for _part, items in selection.faces_by_submesh) or bool(selection.source_indices),
+             any(items for _part, items in selection.edges_by_submesh), True)
+    return _COPY_TARGETS[holds.index(True)]
 
 
 def _require_argument_keys(
@@ -10267,9 +10269,9 @@ class RustMeshAuthoringSession:
             selection = _selection_from_payload(given) if isinstance(given, Mapping) else None
             target = str(args.get("target", "") or "")
             if not target:
-                target = "face" if selection is not None else _selection_domain(
+                target = _COPY_TARGETS[0] if selection is not None else _selection_domain(
                     self.shadow_service.session_view(self.shadow_session_id).selection)
-            result = self.shadow_service.copy_selection(self.shadow_session_id, target=target, selection=selection)
+            result = self.shadow_service.copy_selection(self.shadow_session_id, target=str(target), selection=selection)
         elif command == "layer_paste":
             result = self.shadow_service.paste_selection(self.shadow_session_id)
         elif command.startswith("morph_") or command.startswith("refit_"):
