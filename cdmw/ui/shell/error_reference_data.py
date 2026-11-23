@@ -2494,6 +2494,7 @@ ERROR_REFERENCE = [
       "Give a file, project or archive texture path.",
       "Give an extension or a path",
       "Give at most {_MAX_CHANGES} changes in one write.",
+      "Give both x and y, or neither to read the texture selection.",
       "Give clip, blend or both.",
       "Give either edits (single values) or scale (a factor on every matching row), not both.",
       "Give either factor (with optional offsets or category) or values.",
@@ -2550,6 +2551,7 @@ ERROR_REFERENCE = [
       "The output folder does not exist: {folder}",
       "The output folder does not exist: {target}",
       "The package path must end in {PACKAGE_EXTENSION}.",
+      "The pixel lies outside the texture ({width} x {height}).",
       "The requested region extends outside the image.",
       "The set names a file twice.",
       "The value does not match the Settings control.",
@@ -2653,6 +2655,7 @@ ERROR_REFERENCE = [
       "cdmw/mcp/speed_tools.py",
       "cdmw/mcp/texture_edits.py",
       "cdmw/mcp/texture_files.py",
+      "cdmw/mcp/texture_mesh_tools.py",
       "cdmw/mcp/texture_pixels.py",
       "cdmw/mcp/texture_recolor_tools.py",
       "cdmw/mcp/texture_replace_tools.py",
@@ -101377,6 +101380,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Another texture opened while the selection was made: try again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py": 78
+    }
+  },
+  {
+    "area": "textures",
     "message": "Archive Browser is open. Could not find {normalized_path} in the loaded archive index.",
     "recovery": "missing",
     "sources": {
@@ -102305,6 +102316,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Give a mask or a pixel.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/uv_selection.py": 272
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Give both x and y, or neither to read the texture selection.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/texture_mesh_tools.py": 99
+    }
+  },
+  {
+    "area": "textures",
     "message": "Grayscale technical map gained noticeable color drift in the rebuilt preview.",
     "recovery": "internal",
     "sources": {
@@ -102761,6 +102788,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "No part of this mesh draws {texture} in LOD {lod_index}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 162
+    }
+  },
+  {
+    "area": "textures",
     "message": "No raster layer has ID {layer}.",
     "recovery": "internal",
     "sources": {
@@ -102881,6 +102916,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Nothing is selected in the 3D view. Select faces (or vertices) on the model, or a part in the Parts list, then try again.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 199
+    }
+  },
+  {
+    "area": "textures",
     "message": "Open a Mesh Editor document first.",
     "recovery": "internal",
     "sources": {
@@ -102897,10 +102940,27 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "Open a texture from the Textures panel first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py": 47
+    }
+  },
+  {
+    "area": "textures",
     "message": "Open a texture in the rail's Textures tool first.",
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/texture_tools.py": 52
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Open the mesh in the Mesh Editor first.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 148,
+      "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py": 51
     }
   },
   {
@@ -103421,6 +103481,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/ui/texture_workflow/workers.py": 82
+    }
+  },
+  {
+    "area": "textures",
+    "message": "Select From Mesh Selection failed: {exc}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py": 115
     }
   },
   {
@@ -103969,6 +104037,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The Mesh Editor session is closing.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 153
+    }
+  },
+  {
+    "area": "textures",
     "message": "The PNG exceeds 16 megapixels.",
     "recovery": "limits",
     "sources": {
@@ -104281,6 +104357,23 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The mask is not the texture's size.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/editor_selection.py": 97,
+      "cdmw/domain/textures/uv_selection.py": 279
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The mesh has parts 0 to {len(submeshes) - 1}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 182
+    }
+  },
+  {
+    "area": "textures",
     "message": "The model's material file is not readable text.",
     "recovery": "internal",
     "sources": {
@@ -104317,6 +104410,15 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_texture_authoring.py": 117
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The pixel lies outside the texture ({width} x {height}).",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/domain/textures/uv_selection.py": 284,
+      "cdmw/mcp/texture_mesh_tools.py": 106
     }
   },
   {
@@ -104401,6 +104503,22 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "textures",
+    "message": "The selected faces do not use {texture}: they are on {by_name.names(ignored)}. {texture} is used by: {by_name.names(using)}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 226
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The selected faces have no UVs on {snapshot.texture}.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 241
+    }
+  },
+  {
+    "area": "textures",
     "message": "The selected reference row is missing its source path or highlight query.",
     "recovery": "missing",
     "sources": {
@@ -104413,6 +104531,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/independent_texture_authoring.py": 65
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The selection holds no whole face: select faces, or every corner of the faces you want.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 229
     }
   },
   {
@@ -104437,6 +104563,14 @@ MESSAGE_REFERENCE = [
     "recovery": "unsupported",
     "sources": {
       "cdmw/services/independent_texture_package.py": 32
+    }
+  },
+  {
+    "area": "textures",
+    "message": "The texture has no selection: give x and y, or select pixels first.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/texture_mesh_tools.py": 116
     }
   },
   {
@@ -105727,7 +105861,7 @@ MESSAGE_REFERENCE = [
     "message": "texture pixels must be RGBA",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/texture_tools_dock.py": 179
+      "cdmw/ui/mesh_editor/texture_tools_dock.py": 180
     }
   },
   {
@@ -105880,6 +106014,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/core/texture_legacy_compat.py": 15
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{by_name.names(wanted)} do not use {texture}. It is used by: {by_name.names(using)}.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 185
     }
   },
   {
@@ -106089,6 +106231,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_draft_textures.py": 95
+    }
+  },
+  {
+    "area": "textures",
+    "message": "{texture} is a detail texture: the 3D view repeats it over the surface at its own scale, so its pixels have no one place on the model. Open the part's base colour, normal or mask texture instead.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_texture_selection.py": 141
     }
   },
   {
@@ -107211,11 +107361,13 @@ DYNAMIC_REFERENCE = {
     "cdmw/domain/textures/editor_presets.py",
     "cdmw/domain/textures/policy.py",
     "cdmw/mcp/texture_files.py",
+    "cdmw/mcp/texture_mesh_tools.py",
     "cdmw/mcp/texture_pixels.py",
     "cdmw/mcp/texture_recolor_tools.py",
     "cdmw/mcp/texture_replace_tools.py",
     "cdmw/mcp/texture_upscale_tools.py",
     "cdmw/services/mesh_live_texture_drafts.py",
+    "cdmw/services/mesh_texture_selection.py",
     "cdmw/services/texture_document_authority.py",
     "cdmw/services/texture_editor_service.py",
     "cdmw/services/texture_workflow_service.py",
@@ -107225,6 +107377,7 @@ DYNAMIC_REFERENCE = {
     "cdmw/ui/mesh_editor/resident_texture_update_queue.py",
     "cdmw/ui/mesh_editor/shared_texture_check.py",
     "cdmw/ui/mesh_editor/tab_textured_view.py",
+    "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
     "cdmw/ui/preview/texture_view.py",
     "cdmw/ui/texture_workflow/asset_authoring_panel.py",
     "cdmw/ui/texture_workflow/editor_async_task_ui.py",
@@ -108627,7 +108780,9 @@ SOURCE_COVERAGE = {
     "raise": 2
   },
   "cdmw/domain/textures/editor_raster_tools.py": {},
-  "cdmw/domain/textures/editor_selection.py": {},
+  "cdmw/domain/textures/editor_selection.py": {
+    "raise": 1
+  },
   "cdmw/domain/textures/editor_selection_masks.py": {},
   "cdmw/domain/textures/material_authority.py": {},
   "cdmw/domain/textures/material_authority_state.py": {
@@ -108658,6 +108813,9 @@ SOURCE_COVERAGE = {
   "cdmw/domain/textures/semantics.py": {},
   "cdmw/domain/textures/transparency_mask.py": {
     "raise": 6
+  },
+  "cdmw/domain/textures/uv_selection.py": {
+    "raise": 3
   },
   "cdmw/domain/virtual_loader.py": {},
   "cdmw/domain/workspace.py": {},
@@ -108929,6 +109087,11 @@ SOURCE_COVERAGE = {
     "finding": 1,
     "raise": 17,
     "report": 3
+  },
+  "cdmw/mcp/texture_mesh_tools.py": {
+    "code": 2,
+    "failure": 1,
+    "raise": 6
   },
   "cdmw/mcp/texture_pixels.py": {
     "code": 9,
@@ -110036,6 +110199,9 @@ SOURCE_COVERAGE = {
     "diagnostic_field": 2,
     "failure": 3,
     "raise": 19
+  },
+  "cdmw/services/mesh_texture_selection.py": {
+    "raise": 11
   },
   "cdmw/services/mesh_texture_sources.py": {
     "report": 1
@@ -111703,6 +111869,10 @@ SOURCE_COVERAGE = {
     "validation": 1
   },
   "cdmw/ui/mesh_editor/tab_ui_state.py": {},
+  "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py": {
+    "diagnostic_field": 2,
+    "raise": 4
+  },
   "cdmw/ui/mesh_editor/texture_panels.py": {},
   "cdmw/ui/mesh_editor/texture_tools_dock.py": {
     "raise": 1
