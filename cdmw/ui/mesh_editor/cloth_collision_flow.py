@@ -19,6 +19,13 @@ def prepare_cloth_collision_event(tab, session, event):
     if catalogue_session is None:
         raise ValueError("Load the game archives before choosing a collision input.")
     target = tab._current_target_entry()
+    from cdmw.ui.mesh_editor.host_archive_choice import CLOTH_COMMAND, take
+
+    # A file already chosen and prepared for this request (an AI connection names it): the
+    # picker's answer, unasked.
+    offered = take(tab, CLOTH_COMMAND)
+    if offered is not None:
+        return {**event, "arguments": offered.arguments_for(tab, role)}
     weapon = role == "weapon"
     picker = RemoteArchiveOriginalDialog(
         service, catalogue_session, initial_filter="", parent=owner,

@@ -71,8 +71,10 @@ def ready_document(context, *, commands: bool = False):
 
 
 def _busy(tab) -> bool:
+    # A picker opened for the request being prepared holds it too, before its worker starts.
     return bool(getattr(tab, "standalone_rust_protocol_thread", None) is not None
-                or getattr(tab, "standalone_rust_protocol_queue", None))
+                or getattr(tab, "standalone_rust_protocol_queue", None)
+                or getattr(tab, "_archive_refit_picker_active", False))
 
 
 def _status(tab) -> str:

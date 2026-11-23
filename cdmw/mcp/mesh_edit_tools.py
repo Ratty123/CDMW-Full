@@ -212,6 +212,11 @@ def _panel(family: str):
             raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
         command = f"{family}_{action}"
         arguments = dict(call.arguments.get("arguments") or {})
+        from cdmw.mcp.mesh_archive_choice import picks_from_archive, send_with_choice
+
+        if picks_from_archive(command, arguments):
+            # Its button opens a picker; the call names the file instead, so none opens.
+            return send_with_choice(call, command, arguments, _send_edit)
         if command in OUTPUT_COMMANDS:
             return _send_output(call, command, arguments)
         return _send_edit(call, command, arguments)
@@ -405,12 +410,17 @@ _PANEL_TOOLS = (
      "mesh_panels shows the morph state they work on."),
     ("refit", "mesh.refit", "Refit",
      "The Morph & Refit page's refit commands: set_driver {submesh_indices}, use_loaded_body, load_mesh, "
-     "choose_archive, bind {submesh_indices}, configure {submesh_indices, clearance_percent, intensity_percent, "
+     "choose_archive {role: body or armor, archive_path} (Load Body or Load Armor from the game archives: "
+     "'archive_path' names the file, as search_archive lists it, in place of the picker), bind {submesh_indices}, "
+     "configure {submesh_indices, clearance_percent, intensity_percent, "
      "tightness_percent, skin_pull_percent, mode, enabled}, island_configure, fit_to_body, restore_shape_preview, "
      "restore_shape_apply, restore_shape_cancel, clear, diagnostics."),
     ("cloth", "mesh.cloth", "Cloth",
-     "The Cloth page's commands on the selected vertices: pin_set {value}, paint_set {value}, "
-     "collision_input {role, source}."),
+     "The Cloth page's commands on the selected vertices: pin_set {value}, paint_set {value}, and the cloth "
+     "preview's collision inputs: collision_input {role, archive_path} (body or head: a .pabv, weapon: a .pac, "
+     "from the game archives, in place of the picker), {role, path} (an absolute path to such a file on disk), "
+     "{clear: true} (clears the inputs) or {weapon_placement: {offset: [x, y, z], rotation: [x, y, z] in degrees}} "
+     "(moves the weapon chosen before)."),
     ("layer", "mesh.layers", "Layers",
      "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
      "visibility {layer_id, visible}, copy {target} (copies the current selection, as Copy does; target is "
