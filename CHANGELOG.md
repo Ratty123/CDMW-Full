@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Docs
+
+- **AI Connections (MCP)**, a new Help and Wiki section in all 14 languages: what an AI app can do in CDMW, what is experimental or limited, how to connect Claude Code, Claude Desktop, Codex CLI or another MCP app, example requests, the guided prompts and resources, approvals and Full access, how the connection works and what to do when it does not connect. **Settings > AI connections** in Profile & Settings and the FAQ now link to it instead of repeating it.
+
 ## [0.12.0-alpha.7] - 2026-11-23
 
 ### Highlights

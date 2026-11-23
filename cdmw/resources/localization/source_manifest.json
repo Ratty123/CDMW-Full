@@ -2286,7 +2286,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4081,7 +4081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4111,7 +4111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4241,7 +4241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4251,7 +4251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4481,7 +4481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -4581,7 +4581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -6217,6 +6217,56 @@
       "manual": true
     },
     {
+      "key": "AI Connections (MCP)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_controller.py",
+          "line": 97,
+          "sink": "python-return:_build_about_overview_html"
+        },
+        {
+          "path": "cdmw/ui/shell/about_controller.py",
+          "line": 206,
+          "sink": "python-return:_build_about_intro_html"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1222,
+          "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "AI apps that offer MCP prompts show four starting points from CDMW. Each one reminds the AI app that it is a helper you supervise.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "AI apps that read MCP resources can attach these without a tool call:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "AI connections",
       "origins": [
         {
@@ -6242,19 +6292,19 @@
       ]
     },
     {
-      "key": "AI connections are experimental, and an AI app can misread CDMW's controls or choose the wrong part or value. Watch its work, review every change before building, and test the mod in game yourself.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
-          "sink": "python-return:_build_environment_sections"
-        }
-      ]
-    },
-    {
       "key": "AI connections could not start: {value_0}",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "AI connections let an AI app on this computer use CDMW through MCP (Model Context Protocol), the common way for AI apps to call the tools of another program. The AI app can search the game's archives, read files and work in CDMW's tools by numbers, as you would by hand, and CDMW asks you before anything changes. AI connections arrived in 0.12.0-alpha.6. They are experimental and off by default.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "AI movement speeds",
@@ -6411,7 +6461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 273,
+          "line": 275,
           "sink": "setWindowTitle"
         }
       ]
@@ -8567,6 +8617,16 @@
       ]
     },
     {
+      "key": "Add the line to the AI app, as the examples below show, then restart the AI app.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Add the new item",
       "origins": [
         {
@@ -9836,7 +9896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -11257,6 +11317,16 @@
       ]
     },
     {
+      "key": "Always run",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Ambient Occlusion",
       "origins": [],
       "manual": true
@@ -11438,6 +11508,16 @@
           "path": "cdmw/ui/ai_connections/approval_prompt.py",
           "line": 42,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "An AI app can work in CDMW's tools while you watch, but it is a helper, not a mod maker: review every change before building, and test the mod in game yourself. See",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1222,
+          "sink": "python-return:_build_environment_sections"
         }
       ]
     },
@@ -12802,6 +12882,16 @@
       ]
     },
     {
+      "key": "Any page",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Any shader",
       "origins": [
         {
@@ -14152,6 +14242,16 @@
       ]
     },
     {
+      "key": "Approvals and Full access",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Approximate",
       "origins": [
         {
@@ -14241,7 +14341,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -15396,7 +15496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16271,7 +16371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16836,7 +16936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -16923,8 +17023,23 @@
     },
     {
       "key": "Ask first",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Ask the AI app what CDMW shows now. The status line in CDMW then says that an AI app is connected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Ask this component to preserve character hair and beard. Helmet-owned item hair keeps its template rules.",
@@ -22476,7 +22591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -22743,6 +22858,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Browse Archives' editors",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -23080,6 +23205,16 @@
       "key": "Brush smaller",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Brush strokes, such as sculpt brushes and the Hair Tools brushes, need a hand on the pointer and have no tool. An AI app uses the selection, move and numeric tools instead.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Brush tip",
@@ -25046,7 +25181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -25566,8 +25701,28 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "CDMW was moved to another folder: copy the new line from Settings > AI connections into the AI app.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "CDMW writes one line for every call to the AI call log: the time, the AI app, the tool and its kind, a summary of its arguments without file contents, how it was approved, its result and how long it took. Past 4 MB the log starts again and keeps one older file. The log is in the CDMW folder:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -26476,7 +26631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26486,7 +26641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26496,7 +26651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -26526,7 +26681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -28332,6 +28487,16 @@
       "manual": true
     },
     {
+      "key": "Change an open session or document; you can undo them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Change at least one Refit setting before applying.",
       "origins": [
         {
@@ -28468,6 +28633,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_ui/morph_workflow.rs",
           "line": 692,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Change nothing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -30996,7 +31171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -31296,7 +31471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -32751,7 +32926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -34942,6 +35117,26 @@
       ]
     },
     {
+      "key": "Claude Code",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Claude Desktop",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Clavicle",
       "origins": [
         {
@@ -36751,7 +36946,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 283,
+          "line": 285,
           "sink": "QPushButton"
         },
         {
@@ -37393,6 +37588,16 @@
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 78,
           "sink": "python-data:WIKI_REFERENCE_FILES"
+        }
+      ]
+    },
+    {
+      "key": "Codex CLI",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -38311,7 +38516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39426,7 +39631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -39630,6 +39835,16 @@
       "key": "Conflicts: {count}",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Connect an AI app",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Connected Physics",
@@ -41231,7 +41446,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -41467,6 +41682,16 @@
       ]
     },
     {
+      "key": "Copy the line for your AI app from the box below the approvals. It already holds the path of your CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Copy the selected piece's path.",
       "origins": [
         {
@@ -41553,6 +41778,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 658,
           "sink": "QAction"
+        }
+      ]
+    },
+    {
+      "key": "Copy your own line from Settings, because the path differs on every computer. In the examples below, the folder that holds CDMW.exe is written as:",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -42861,7 +43096,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -42881,7 +43116,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -42976,7 +43216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -43696,7 +43936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -43706,7 +43946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 155,
+          "line": 156,
           "sink": "QLabel"
         }
       ]
@@ -43906,12 +44146,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 487,
+          "line": 488,
           "sink": "python-return:_build_index_html"
         }
       ]
@@ -46505,6 +46745,11 @@
       "key": "Default",
       "origins": [
         {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_shader_controls.rs",
           "line": 14,
           "sink": "rust-presentation"
@@ -47232,6 +47477,16 @@
       ]
     },
     {
+      "key": "Delete something you made in the CDMW folder. Undo cannot bring it back.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Delete the draft {value_0}?\n\nIts saved editing state is removed from this computer. Built mods are not affected.",
       "origins": [
         {
@@ -47838,8 +48093,13 @@
     },
     {
       "key": "Destructive tools",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Detach / reattach a window",
@@ -48891,7 +49151,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -49406,7 +49666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -49416,7 +49676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -49491,7 +49751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 282,
+          "line": 284,
           "sink": "QPushButton"
         },
         {
@@ -49526,7 +49786,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -49631,7 +49891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -50353,6 +50613,16 @@
           "path": "cdmw/ui/new_item/controller_continue_mixin.py",
           "line": 31,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Drafts & Mods, Mod Management, Edit Translations, Model Library, Item Icons, Research, settings and shortcuts, what DMM has mounted, Diagnostics and Help.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -51716,7 +51986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -53218,8 +53488,13 @@
     },
     {
       "key": "Edit tools",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Edit translation records and write a PALOC table while preserving its supported container.",
@@ -55282,6 +55557,16 @@
       ]
     },
     {
+      "key": "End the AI app's turn, then undo or redo every editor step of that turn at once, with the editors' own Undo and Redo. The answer lists what Undo cannot take back, such as exports and deleted files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Enhancement and crafting recipes",
       "origins": [
         {
@@ -55886,7 +56171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -56072,6 +56357,16 @@
       ]
     },
     {
+      "key": "Every call that changes something is declined at once: CDMW could not show its question, or the answer was Deny. The AI call log shows each call and its result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Every change as the exact files and values it writes.",
       "origins": [
         {
@@ -56131,7 +56426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 487,
+          "line": 488,
           "sink": "python-return:_build_index_html"
         }
       ]
@@ -56242,12 +56537,32 @@
       ]
     },
     {
+      "key": "Every step's fields, the model and its placement, effects and perks, the advanced editors, the plan, Build, Send to DMM and drafts.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Every target garment must already be bound to the active driver.",
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph_authoring.py",
           "line": 460,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Every topic of this Help, each at its own address. This page is one of them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -56282,12 +56597,32 @@
       ]
     },
     {
+      "key": "Everything a tool returns, such as file contents, names and pictures of CDMW's windows, goes to the AI app and from there to the AI service it uses. CDMW itself connects to no AI service.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Everything changed so far, and a way to undo back to any point.",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
           "line": 153,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Everything else",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -56693,6 +57028,16 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 318,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Examples of what to ask",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -57363,6 +57708,11 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 868,
           "sink": "python-return:_build_placement_texture_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -59111,7 +59461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60631,7 +60981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -60843,6 +61193,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Extract and export, game tables, skinned decals, sound banks, action charts, HKX physics, Add Bones and the Prefab Inspector.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -61261,12 +61621,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -63577,6 +63937,16 @@
       ]
     },
     {
+      "key": "Find Kliff's hair meshes and extract them to a folder I name.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Find Next",
       "origins": [
         {
@@ -63728,6 +64098,16 @@
           "path": "cdmw/ui/texture_workflow/independent_package_dialog.py",
           "line": 58,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Find files in the game's archives and extract them to a folder you name.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -64591,7 +64971,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -66346,7 +66726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -66906,7 +67286,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -67663,6 +68043,16 @@
           "path": "cdmw/ui/ai_connections/settings_section.py",
           "line": 77,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Full access: run every tool without asking skips every question, and the status line says so while it is on. It ends when CDMW closes unless you also tick Keep Full access after CDMW closes. Leave the questions on unless you are watching.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -68781,7 +69171,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -70578,6 +70968,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_01.py",
           "line": 641,
           "sink": "setData"
+        }
+      ]
+    },
+    {
+      "key": "Guided prompts and resources",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -74521,7 +74921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74531,7 +74931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74541,7 +74941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -74663,6 +75063,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 166,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "How it works",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -74836,7 +75246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -75176,7 +75586,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -75546,7 +75956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -75596,7 +76006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -77851,7 +78261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -80038,6 +80448,16 @@
           "path": "tools/format_explorer/workflows.py",
           "line": 1,
           "sink": "python-presentation:workflow"
+        }
+      ]
+    },
+    {
+      "key": "Inside CDMW, each call checks its arguments, the output path rule and its approval, and then runs through the same command or control as its button.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -83851,7 +84271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -84291,7 +84711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -84461,7 +84881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -85208,6 +85628,16 @@
           "path": "tools/placement_studio/window_clips.py",
           "line": 118,
           "sink": "caption"
+        }
+      ]
+    },
+    {
+      "key": "Kind of tool",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -86777,6 +87207,16 @@
       ]
     },
     {
+      "key": "Let an AI app such as Claude Code, Claude Desktop or Codex CLI use CDMW: what works, what is experimental, how to connect, safety and examples.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Let go here",
       "origins": [
         {
@@ -86951,12 +87391,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 189,
+          "line": 190,
           "sink": "addTab"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -87738,6 +88178,16 @@
           "path": "cdmw/ui/npc_finder/dialog.py",
           "line": 245,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "List this session's calls and what they changed, so you can check or undo them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -89601,7 +90051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -89917,6 +90367,16 @@
       ]
     },
     {
+      "key": "Long work, such as a build or an upscale run, becomes a job that the AI app follows until it is done.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Long-range attachments",
       "origins": [
         {
@@ -89976,7 +90436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -90762,6 +91222,16 @@
       "manual": true
     },
     {
+      "key": "Make a model change you describe, one undoable turn at a time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Make a ragdoll mod",
       "origins": [
         {
@@ -90788,6 +91258,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 868,
           "sink": "python-return:_build_placement_texture_sections"
+        }
+      ]
+    },
+    {
+      "key": "Make the selected part of the open model 10% larger, then show me.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -93746,7 +94226,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -93766,7 +94246,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -97086,7 +97571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -97661,7 +98146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -98131,7 +98616,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]
@@ -98871,7 +99356,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -106376,7 +106861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -108512,9 +108997,49 @@
       "manual": true
     },
     {
+      "key": "No tool answers its own approval question.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "No tool changes Settings > AI connections, the approvals, Full access or the game folder, imports a profile, or runs Restore Backup... or Remove What an Older CDMW Installed....",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "No tool enables mods or changes their load order in DMM. DMM owns those controls.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "No tool is in a window of its own.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "No tool writes into the game folder, a DLC folder of the game or any other Crimson Desert installation. Every output path is checked first: it must be absolute, its folder must exist, and an output never replaces an existing file or folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "No tool yet",
@@ -108836,7 +109361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -108846,7 +109371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -108856,7 +109381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -111282,6 +111807,16 @@
       ]
     },
     {
+      "key": "One AI app at a time: a second one is refused until the first closes its connection.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "One Mesh Editor session holds at most {value_0} files.",
       "origins": [
         {
@@ -111927,6 +112462,16 @@
       ]
     },
     {
+      "key": "Open CDMW and choose Settings > AI connections.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Open Cloth Controls",
       "origins": [
         {
@@ -112046,7 +112591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -114251,7 +114796,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -115501,7 +116046,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -116096,7 +116641,7 @@
         },
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 279,
+          "line": 280,
           "sink": "python-return:_section_category"
         }
       ]
@@ -116213,6 +116758,16 @@
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 393,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Other MCP apps",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -116563,8 +117118,13 @@
     },
     {
       "key": "Output tools",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Output, beside Finish Edit Mesh and at the top of Tools, shows the route Finish follows. Open it to switch between Exact and Free Edit, choose a Free Edit package folder, or open a package in CDMW.",
@@ -117206,7 +117766,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 177,
+          "line": 178,
           "sink": "addTab"
         },
         {
@@ -119253,6 +119813,16 @@
           "path": "cdmw/services/mesh_item_set_output.py",
           "line": 26,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Part of CDMW",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -122031,7 +122601,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -122098,6 +122668,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 92,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Placement & Animations, Speed & Prefabs",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -122821,7 +123401,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -122866,7 +123446,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -124243,6 +124823,16 @@
           "path": "tools/placement_studio/tab.py",
           "line": 201,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Prepare a Create New Item draft that you then review.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -130016,7 +130606,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -130478,6 +131068,16 @@
           "path": "cdmw/ui/new_item/effect_library_model.py",
           "line": 28,
           "sink": "python-data:CATEGORY_RULES"
+        }
+      ]
+    },
+    {
+      "key": "Prompt",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -131671,7 +132271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -132347,6 +132947,16 @@
       ]
     },
     {
+      "key": "Read tools",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Read tools, which change nothing, always run without asking.",
       "origins": [
         {
@@ -132788,6 +133398,16 @@
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
           "line": 6832,
           "sink": "rust-presentation"
+        }
+      ]
+    },
+    {
+      "key": "Reading and searching",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -134031,12 +134651,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -134066,7 +134686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -136046,7 +136666,7 @@
         },
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 278,
+          "line": 279,
           "sink": "python-return:_section_category"
         },
         {
@@ -136371,7 +136991,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -140626,7 +141246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -140641,7 +141261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -141061,7 +141681,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -143338,6 +143958,16 @@
           "path": "tools/placement_studio/corpus.py",
           "line": 401,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Resource",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -147651,7 +148281,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]
@@ -151292,6 +151922,16 @@
       ]
     },
     {
+      "key": "Search the archives, items, characters, NPCs, file text, the Model Library and Drafts & Mods. Ask what a file is, read its bytes or parsed content, what it refers to and what uses it. Read game table rows and game strings.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Search the game archives by name or path. Only the selected file is loaded for this preview.",
       "origins": [
         {
@@ -151603,6 +152243,16 @@
     },
     {
       "key": "Security",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "See what CDMW shows, list the controls of a page or dialog, press, fill, tick or pick any control, open right-click and drop-down menus, run any command by its id, and take pictures of windows and 3D views.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -154850,6 +155500,16 @@
       "key": "Select bounded relative save-member paths.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Select canonical relative save-member paths using forward slashes.",
@@ -158796,12 +159456,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -159646,7 +160306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -159691,7 +160351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -159701,7 +160361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -164217,6 +164877,16 @@
       ]
     },
     {
+      "key": "Sockets, keys and clips, constraints, rig settings, playback and Save Mod; speeds, prefab values and their mods.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Soft N",
       "origins": [
         {
@@ -164493,6 +165163,16 @@
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
           "line": 317,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Some editor buttons have no tool of their own yet, such as swapping collision in the HKX Physics Editor or adding sounds to a random container. An AI app reaches them one control at a time through the generic tools.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -166777,6 +167457,16 @@
       ]
     },
     {
+      "key": "Start a new one-handed sword from a game sword and call it Ashen Blade.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Start always uses the current settings shown in Texture Workflow. Run Summary is optional and shows the current sources, backend, and policy without duplicating those controls.",
       "origins": [],
       "manual": true
@@ -166951,7 +167641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -168578,6 +169268,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Strokes, adjustments, layers, selections and fills in the Texture Editor, reading and writing pixels by region, generated maps, and Textures > Replace, Recolor and Upscale.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -170911,7 +171611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -171446,7 +172146,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -171538,6 +172238,16 @@
           "path": "cdmw/ui/text_search/remote_catalogue.py",
           "line": 355,
           "sink": "_handle_search_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Text that comes back from archives, files, tables, strings, mods and CDMW's own pages is data. CDMW tells the AI app never to follow instructions found in it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -172886,7 +173596,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -172911,7 +173621,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -173101,7 +173816,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -173121,7 +173836,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -173141,7 +173856,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -173382,6 +174097,106 @@
       ]
     },
     {
+      "key": "The AI app lists every tool with its description, more than 200 in all. Each edit takes the same route as its button, so every rule of the page still applies, the edit shows in the tool as it happens and it is one Undo step.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app picks a template, fills the draft, asks you what it would otherwise have to guess, and shows you the plan's warnings. Building and installing the mod is yours to do.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app reads the open model, scales the part, ends its turn and takes a picture of the view. CDMW asks you before the edit, and one Undo of the turn takes it back.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app reads the recent AI calls and lists each call that edited, wrote or deleted something, whether you approved it, and what Undo can take back.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app says that CDMW is not running or AI connections are off: open CDMW, turn on Allow AI connections, then restart the AI app or reconnect its CDMW server. The AI app's MCP log shows the reason.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app says that another app is connected: close the other AI app, or its CDMW server, and try again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app searches CDMW's Help and answers with the topic and its Wiki address.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app searches the archives, shows you the paths and asks which ones you want, selects them in Browse Archives and extracts them. CDMW asks you before it writes the files.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The AI app starts CDMW.exe with the --mcp-bridge switch: a small CDMW process without a window that speaks MCP (JSON-RPC 2.0) on its standard input and output.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "The Claude Code line adds CDMW for every folder Claude Code starts in. A path with spaces is quoted in the line CDMW shows. CDMW run from source starts the Python interpreter with cdmw_app.py and the same switch. If you move the CDMW folder, copy the new line into the AI app again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "The Clips & animation list is now filtered to these {value_0} clip(s). Double-click one to watch it.",
       "origins": [
         {
@@ -173602,6 +174417,16 @@
       ]
     },
     {
+      "key": "The Mesh Editor's own panels are drawn by its helper, so the list of controls leaves them out; the Mesh Editor's state and command tools cover them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "The New Item metadata is too large.",
       "origins": [
         {
@@ -173711,7 +174536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -173851,7 +174676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -174767,6 +175592,16 @@
       ]
     },
     {
+      "key": "The bridge passes every message over a named pipe to the CDMW that is already open. The pipe accepts only your own Windows user on this computer, and only with a key that CDMW writes to the workspace folder when you turn on Allow AI connections and deletes when you turn it off. While the setting is off, nothing listens.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "The browser check expired. Send the saved draft again.",
       "origins": [
         {
@@ -174791,7 +175626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -175081,7 +175916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -176833,6 +177668,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 242,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The last lines of the AI call log.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -181111,7 +181956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 200,
+          "line": 201,
           "sink": "addTab"
         }
       ]
@@ -181166,7 +182011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -184550,6 +185395,11 @@
           "sink": "python-return:_build_start_sections"
         },
         {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 546,
           "sink": "QGroupBox"
@@ -185296,7 +186146,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -185552,6 +186402,16 @@
       ]
     },
     {
+      "key": "Tried against the installed game for 0.12.0-alpha.6: an AI app opened a mesh in the Mesh Editor, edited it by numbers, undid and redid the edits, finished it and built it into a mod; the Texture Editor and Create New Item were tried the same way. The other tools are covered by CDMW's tests only.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "Trim Transparent",
       "origins": [
         {
@@ -185586,7 +186446,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -185606,7 +186466,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185726,7 +186586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -185828,6 +186688,16 @@
           "path": "cdmw/ui/tools/dmm_mounted_mods_page.py",
           "line": 1578,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Turn on Allow AI connections. The status line says that CDMW is waiting for an AI app to connect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -187273,6 +188143,16 @@
           "path": "cdmw/ui/archive_browser/action_chart_editor_dialog.py",
           "line": 550,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Undo a whole turn",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -189711,7 +190591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -189906,7 +190786,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -190031,7 +190911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190086,7 +190966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190421,7 +191301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -190866,7 +191746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -191271,7 +192151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]
@@ -193226,7 +194106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195607,7 +196487,27 @@
       ]
     },
     {
+      "key": "What an AI app can do",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "What app profiles, settings pages, diagnostics, and language files include.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "What did you change in this session?",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -195647,12 +196547,32 @@
       ]
     },
     {
+      "key": "What happens",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "What if my model has too many vertices?",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "What is experimental or limited",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -195671,7 +196591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -195712,6 +196632,26 @@
       ]
     },
     {
+      "key": "What it does",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "What it holds",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "What it is",
       "origins": [
         {
@@ -195748,6 +196688,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 982,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "What it starts",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "What no tool does",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -195912,6 +196872,16 @@
       ]
     },
     {
+      "key": "What works",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "What you can change",
       "origins": [
         {
@@ -195993,6 +196963,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 422,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "When a tool asks first, CDMW shows which AI app wants to run which tool, its kind and its arguments. Choose Allow once, Allow this tool for this session, which lasts until the AI app disconnects, or Deny. A question left unanswered for five minutes counts as Deny. In Settings > AI connections you can set Edit, Output or Destructive tools to Allow without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -196127,6 +197107,16 @@
       ]
     },
     {
+      "key": "When it does not connect",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "When no code or useful detail is shown, use Report a Problem and attach the reviewed diagnostic report. Include what you clicked, the affected input type, the expected result and whether an unchanged original also fails. The absence of a named code does not mean that the operation succeeded.",
       "origins": [
         {
@@ -196171,7 +197161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196211,7 +197201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196351,8 +197341,28 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Which CDMW features AI tools reach, the tool or command that reaches each, and the gaps still open.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
+      "key": "Which Help topic explains Exact output?",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -196361,7 +197371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196626,7 +197636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196636,7 +197646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196646,7 +197656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196656,7 +197666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196666,7 +197676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196676,7 +197686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196686,7 +197696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196696,7 +197706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196706,7 +197716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196716,7 +197726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -196871,7 +197881,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -196943,6 +197953,16 @@
           "path": "cdmw/ui/shell/error_reference_guidance.py",
           "line": 81,
           "sink": "python-data:EXTERNAL_ERROR_GUIDE"
+        }
+      ]
+    },
+    {
+      "key": "Windows only. CDMW must already be open; the AI app never starts it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -197041,7 +198061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -197236,7 +198256,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         },
         {
@@ -197975,6 +198995,16 @@
       "key": "Write a mod, an export or a draft folder outside the session.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Write a mod, an export or a draft folder outside the session. Nothing is written into the game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
     },
     {
       "key": "Write a mod-ready loose package using this placement plan?\n\nTarget that changes: {value_0}\nPlacement source: {value_1}\n\n{value_2}\n\nNo original archives will be modified.",
@@ -198806,7 +199836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199661,7 +200691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -199703,6 +200733,16 @@
           "path": "cdmw/ui/mesh_editor/live_edit/end_edit_prompt.py",
           "line": 125,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "You ask",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -200887,6 +201927,16 @@
       ]
     },
     {
+      "key": "ai connections mcp model context protocol claude code desktop codex cli agent assistant tools bridge mcp-bridge stdio approval allow full access audit log ai-calls resources prompts undo turn json",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "alignment dialog is closing",
       "origins": [
         {
@@ -201047,6 +202097,16 @@
       ]
     },
     {
+      "key": "an AI app is a helper you supervise, not a mod maker. It sees CDMW one step at a time through its controls and numbers, so it can misread a page or a model and pick the wrong part or value, and it cannot tell whether a mod looks right or works in game. Watch what it does, review every change before you build, and test the result in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "anchor",
       "origins": [
         {
@@ -201116,7 +202176,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -201541,7 +202601,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -201616,7 +202676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -202556,7 +203616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -203606,12 +204666,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -203661,7 +204721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -203736,7 +204796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -206922,6 +207982,16 @@
       ]
     },
     {
+      "key": "explains what works, how to connect an AI app and what it may do without asking.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1119,
+          "sink": "python-return:_build_reference_sections"
+        }
+      ]
+    },
+    {
       "key": "export",
       "origins": [
         {
@@ -207496,7 +208566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207506,7 +208576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207776,7 +208846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -207911,7 +208981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -208036,7 +209106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -209556,7 +210626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -209756,7 +210826,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]
@@ -210352,7 +211422,7 @@
       ]
     },
     {
-      "key": "lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, edit by numbers in every tool on the rail, as you would by hand (the Mesh Editor, the Texture Editor, Create New Item, Placement & Animations, Edit Translations and the rest), undo an AI's whole turn at once, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. Browse Archives' editors have tools of their own too (game tables, skinned decals, sound banks, action charts, HKX physics, Add Bones and the Prefab Inspector), as do Init Workspace and language files, and an app that reads MCP resources can attach this Help and a map of what the AI tools reach. This is experimental. An AI app works through CDMW's controls one step at a time; it can misread a page or a model, pick the wrong part or value, and cannot tell whether a mod looks right or works in game. Watch what it does, review every change before you build, and test the result in game. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.",
+      "key": "lets AI apps on this computer, such as Claude Code, Claude Desktop and Codex CLI, use CDMW's tools while CDMW is open. It is experimental and off by default.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -210586,7 +211656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212406,7 +213476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212666,7 +213736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -212911,7 +213981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -213931,7 +215001,7 @@
         },
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         },
         {
@@ -214861,7 +215931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -216476,7 +217546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -219376,7 +220446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -222066,7 +223136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]
@@ -222076,7 +223146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 487,
+          "line": 488,
           "sink": "python-return:_build_index_html"
         }
       ]
@@ -222411,7 +223481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -222421,7 +223491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -223971,7 +225041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1221,
+          "line": 1222,
           "sink": "python-return:_build_environment_sections"
         }
       ]
@@ -225096,7 +226166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 557,
+          "line": 558,
           "sink": "setText"
         }
       ]
@@ -229896,7 +230966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 396,
+          "line": 397,
           "sink": "python-return:_format_topic_count"
         }
       ]
@@ -229906,7 +230976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
-          "line": 396,
+          "line": 397,
           "sink": "python-return:_format_topic_count"
         }
       ]
@@ -230061,12 +231131,12 @@
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 150,
+          "line": 151,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/shell/about_controller.py",
-          "line": 205,
+          "line": 206,
           "sink": "python-return:_build_about_intro_html"
         }
       ]

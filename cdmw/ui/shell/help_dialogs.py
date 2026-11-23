@@ -270,6 +270,7 @@ class AboutDialog(QDialog):
         if section_id in {
             "mod_packaging",
             "profile_settings",
+            "ai_connections",
             "window_layout",
             "safety",
             "settings_files",

@@ -69,6 +69,7 @@ PAGE_TOPICS = {
     "Translations-and-Text-Search": ("translation_studio", "text_search"),
     "Formats-and-Research": ("format_explorer", "research"),
     "Settings-and-Profiles": ("profile_settings", "window_layout", "settings_files"),
+    "AI-Connections": ("ai_connections",),
     "Troubleshooting-and-Reporting": ("troubleshooting",),
     "Error-Code-Library": ("error_code_library", *("error_messages_" + area for area in MESSAGE_AREAS), "external_errors"),
     "FAQ": ("faq",),
@@ -92,6 +93,7 @@ PAGE_REFERENCES = {
     "Formats-and-Research": (
         "docs/crimson-desert-research.md", "schemas/archive_content_capabilities.v1.json",
     ),
+    "AI-Connections": ("README.md#safety-and-limitations", "cdmw/mcp/coverage.json"),
     "Troubleshooting-and-Reporting": ("README.md#privacy-and-support", "SECURITY.md"),
 }
 MANUAL_GROUPS = (
@@ -99,7 +101,7 @@ MANUAL_GROUPS = (
     ("Assets", ("Archive-Browser", "Create-New-Item", "Model-Library", "Item-Icons")),
     ("Authoring", ("Mesh-Editor", "Placement-and-Animations", "Speed-and-Prefabs", "Textures")),
     ("Utilities", ("Mod-Management", "Independent-Item-Packages", "Translations-and-Text-Search", "Formats-and-Research")),
-    ("Help", ("Settings-and-Profiles", "Troubleshooting-and-Reporting", "Error-Code-Library", "Contributing")),
+    ("Help", ("Settings-and-Profiles", "AI-Connections", "Troubleshooting-and-Reporting", "Error-Code-Library", "Contributing")),
 )
 _CONTROLS = (
     "Mesh Data", "Vertex Parameters", "Position", "UV Coordinates", "Normals", "Skin Weights",

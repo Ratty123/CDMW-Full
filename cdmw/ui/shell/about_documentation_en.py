@@ -1176,11 +1176,12 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and Preview package caching.</li>
                   <li><b>Settings / Appearance</b> controls the shared theme, pane-size memory, all 14 built-in app languages plus imported custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults. Interface, list and log fonts accept 6 to 16 pt. <b>Preview Settings...</b> opens the existing full preview-settings window and reuses the same live controls and stored values.</li>
                   <li><b>Settings / Shortcuts</b> lists the keys of every command in every tool, the Mesh Editor's and the Texture Editor's included, in a table with the command, its keys, where it works and what it clashes with. Group it by area, sort by any column, search, or show only conflicts or changed keys. Double-click a key and press the new one to change it in place; Change... also sets a second key. Reset to default restores one command and Restore all defaults restores every command. Keys set in the Mesh Editor or Texture Editor shortcut windows also appear here.</li>
-                  <li><b>Settings / AI connections</b> lets AI apps on this computer, such as Claude Desktop, Claude Code and Codex CLI, see and do in CDMW what you can while CDMW is open: search the archives and read files, edit by numbers in every tool on the rail, as you would by hand (the Mesh Editor, the Texture Editor, Create New Item, Placement & Animations, Edit Translations and the rest), undo an AI's whole turn at once, press the buttons and fill the fields of any page, and take pictures of the windows and 3D views. Browse Archives' editors have tools of their own too (game tables, skinned decals, sound banks, action charts, HKX physics, Add Bones and the Prefab Inspector), as do Init Workspace and language files, and an app that reads MCP resources can attach this Help and a map of what the AI tools reach. This is experimental. An AI app works through CDMW's controls one step at a time; it can misread a page or a model, pick the wrong part or value, and cannot tell whether a mod looks right or works in game. Watch what it does, review every change before you build, and test the result in game. Turn on Allow AI connections, add CDMW to the app with a line this page shows, then restart the app. Tools that only read always run. Tools that change something, write a file or delete something ask you in CDMW first, unless you set that kind to allow or turn on Full access. No tool writes into the game, changes these settings or the game folder, or answers its own question, and CDMW logs every call.</li>
+                  <li><b>Settings / AI connections</b> lets AI apps on this computer, such as Claude Code, Claude Desktop and Codex CLI, use CDMW's tools while CDMW is open. It is experimental and off by default. <a href="topic:ai_connections">AI Connections (MCP)</a> explains what works, how to connect an AI app and what it may do without asking.</li>
                 </ul>
                 <p>Language export writes a JSON file with English keys and translated values. Keep keys unchanged, edit only values, then import the file from Settings / Appearance.</p>
                 """,
             },
+            AI_CONNECTIONS_SECTION,
             {
                 "id": "window_layout",
                 "title": 'Window & Layout',
@@ -1285,7 +1286,7 @@ class AboutDocumentationEnglishMixin:
                 <p><b>What is the safest first backend?</b><br/>Use <b>Disabled</b> first to prove paths and DDS rebuild behavior. Then test direct <b>Real-ESRGAN NCNN</b> or a known-good <b>chaiNNer</b> chain on a small subset.</p>
                 <p><b>Why did output brightness or detail change?</b><br/>Upscale models and correction modes can shift luma, contrast, alpha, or detail. Compare against the original, test a different model, reduce aggressive settings, or try Source Match correction for visible textures.</p>
                 <h4>General</h4>
-                <p><b>Can an AI app make mods for me?</b><br/>AI connections are experimental, and an AI app can misread CDMW's controls or choose the wrong part or value. Watch its work, review every change before building, and test the mod in game yourself.</p>
+                <p><b>Can an AI app make mods for me?</b><br/>An AI app can work in CDMW's tools while you watch, but it is a helper, not a mod maker: review every change before building, and test the mod in game yourself. See <a href="topic:ai_connections">AI Connections (MCP)</a>.</p>
                 <p><b>Can the app patch archives directly?</b><br/>CDMW builds mods for DMM. Browsing, preview and extraction only read the game archives.</p>
                 <p><b>Where are settings stored?</b><br/>The config file and cache are stored beside the executable or local source checkout. See <a href="topic:settings_files">Settings, Files &amp; Dependencies</a>.</p>
                 <p><b>Why does search not find my topic?</b><br/>Try feature names, tab names, file types, field labels, or symptoms such as <code>native DDS</code>, <code>brightness</code>, <code>normal</code>, <code>archive</code>, <code>profile</code>, or <code>mod-ready</code>.</p>
@@ -1315,3 +1316,116 @@ class AboutDocumentationEnglishMixin:
                 """,
             },
         ]
+
+
+#: The AI connections (MCP) documentation section. Tool, prompt and resource names in
+#: <code translate="no"> are checked against the MCP server by tests/test_ai_connections_help.py.
+AI_CONNECTIONS_SECTION = {
+    "id": "ai_connections",
+    "title": "AI Connections (MCP)",
+    "summary": "Let an AI app such as Claude Code, Claude Desktop or Codex CLI use CDMW: what works, what is experimental, how to connect, safety and examples.",
+    "keywords": "ai connections mcp model context protocol claude code desktop codex cli agent assistant tools bridge mcp-bridge stdio approval allow full access audit log ai-calls resources prompts undo turn json",
+    "html": r"""
+    <p>AI connections let an AI app on this computer use CDMW through MCP (Model Context Protocol), the common way for AI apps to call the tools of another program. The AI app can search the game's archives, read files and work in CDMW's tools by numbers, as you would by hand, and CDMW asks you before anything changes. AI connections arrived in 0.12.0-alpha.6. They are experimental and off by default.</p>
+    <div class="doc-callout doc-warning"><b>Experimental:</b> an AI app is a helper you supervise, not a mod maker. It sees CDMW one step at a time through its controls and numbers, so it can misread a page or a model and pick the wrong part or value, and it cannot tell whether a mod looks right or works in game. Watch what it does, review every change before you build, and test the result in game.</div>
+    <p>Everything a tool returns, such as file contents, names and pictures of CDMW's windows, goes to the AI app and from there to the AI service it uses. CDMW itself connects to no AI service.</p>
+    <h4>What works</h4>
+    <table>
+      <tr><th>Part of CDMW</th><th>What an AI app can do</th><th>Tools</th></tr>
+      <tr><td>Reading and searching</td><td>Search the archives, items, characters, NPCs, file text, the Model Library and Drafts &amp; Mods. Ask what a file is, read its bytes or parsed content, what it refers to and what uses it. Read game table rows and game strings.</td><td><code translate="no">search_*</code>, <code translate="no">files_describe</code>, <code translate="no">files_parse</code>, <code translate="no">files_references</code>, <code translate="no">tables_row</code>, <code translate="no">strings_get</code></td></tr>
+      <tr><td>Any page</td><td>See what CDMW shows, list the controls of a page or dialog, press, fill, tick or pick any control, open right-click and drop-down menus, run any command by its id, and take pictures of windows and 3D views.</td><td><code translate="no">app_state</code>, <code translate="no">app_ui</code>, <code translate="no">app_ui_act</code>, <code translate="no">commands_list</code>, <code translate="no">app_run_command</code>, <code translate="no">app_screenshot</code>, <code translate="no">view_capture</code></td></tr>
+      <tr><td>Mesh Editor</td><td>Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.</td><td><code translate="no">mesh_*</code></td></tr>
+      <tr><td>Textures</td><td>Strokes, adjustments, layers, selections and fills in the Texture Editor, reading and writing pixels by region, generated maps, and Textures &gt; Replace, Recolor and Upscale.</td><td><code translate="no">textures_*</code></td></tr>
+      <tr><td>Create New Item</td><td>Every step's fields, the model and its placement, effects and perks, the advanced editors, the plan, Build, Send to DMM and drafts.</td><td><code translate="no">new_item_*</code></td></tr>
+      <tr><td>Placement &amp; Animations, Speed &amp; Prefabs</td><td>Sockets, keys and clips, constraints, rig settings, playback and Save Mod; speeds, prefab values and their mods.</td><td><code translate="no">placement_*</code>, <code translate="no">speed_*</code></td></tr>
+      <tr><td>Browse Archives' editors</td><td>Extract and export, game tables, skinned decals, sound banks, action charts, HKX physics, Add Bones and the Prefab Inspector.</td><td><code translate="no">files_*</code>, <code translate="no">tables_*</code></td></tr>
+      <tr><td>Everything else</td><td>Drafts &amp; Mods, Mod Management, Edit Translations, Model Library, Item Icons, Research, settings and shortcuts, what DMM has mounted, Diagnostics and Help.</td><td><code translate="no">saved_*</code>, <code translate="no">mods_*</code>, <code translate="no">translation_*</code>, <code translate="no">models_*</code>, <code translate="no">item_icons_*</code>, <code translate="no">research_*</code>, <code translate="no">app_settings_set</code>, <code translate="no">app_dmm_mounted_mods</code>, <code translate="no">app_diagnostics</code>, <code translate="no">app_manual</code></td></tr>
+      <tr><td>Undo a whole turn</td><td>End the AI app's turn, then undo or redo every editor step of that turn at once, with the editors' own Undo and Redo. The answer lists what Undo cannot take back, such as exports and deleted files.</td><td><code translate="no">app_turn_end</code>, <code translate="no">app_undo</code>, <code translate="no">app_redo</code></td></tr>
+    </table>
+    <p>The AI app lists every tool with its description, more than 200 in all. Each edit takes the same route as its button, so every rule of the page still applies, the edit shows in the tool as it happens and it is one Undo step.</p>
+    <h4>What is experimental or limited</h4>
+    <ul>
+      <li>Tried against the installed game for 0.12.0-alpha.6: an AI app opened a mesh in the Mesh Editor, edited it by numbers, undid and redid the edits, finished it and built it into a mod; the Texture Editor and Create New Item were tried the same way. The other tools are covered by CDMW's tests only.</li>
+      <li>Some editor buttons have no tool of their own yet, such as swapping collision in the HKX Physics Editor or adding sounds to a random container. An AI app reaches them one control at a time through the generic tools.</li>
+      <li>Brush strokes, such as sculpt brushes and the Hair Tools brushes, need a hand on the pointer and have no tool. An AI app uses the selection, move and numeric tools instead.</li>
+      <li>The Mesh Editor's own panels are drawn by its helper, so the list of controls leaves them out; the Mesh Editor's state and command tools cover them.</li>
+      <li>One AI app at a time: a second one is refused until the first closes its connection.</li>
+      <li>Windows only. CDMW must already be open; the AI app never starts it.</li>
+      <li>Long work, such as a build or an upscale run, becomes a job that the AI app follows until it is done.</li>
+    </ul>
+    <h4>What no tool does</h4>
+    <ul>
+      <li>No tool writes into the game folder, a DLC folder of the game or any other Crimson Desert installation. Every output path is checked first: it must be absolute, its folder must exist, and an output never replaces an existing file or folder.</li>
+      <li>No tool changes Settings &gt; AI connections, the approvals, Full access or the game folder, imports a profile, or runs Restore Backup... or Remove What an Older CDMW Installed....</li>
+      <li>No tool enables mods or changes their load order in DMM. DMM owns those controls.</li>
+      <li>No tool answers its own approval question.</li>
+    </ul>
+    <h4>Connect an AI app</h4>
+    <ol>
+      <li>Open CDMW and choose Settings &gt; AI connections.</li>
+      <li>Turn on Allow AI connections. The status line says that CDMW is waiting for an AI app to connect.</li>
+      <li>Copy the line for your AI app from the box below the approvals. It already holds the path of your CDMW.</li>
+      <li>Add the line to the AI app, as the examples below show, then restart the AI app.</li>
+      <li>Ask the AI app what CDMW shows now. The status line in CDMW then says that an AI app is connected.</li>
+    </ol>
+    <p>Copy your own line from Settings, because the path differs on every computer. In the examples below, the folder that holds CDMW.exe is written as: <code translate="no">&lt;CDMW folder&gt;</code></p>
+    <ul>
+      <li><b>Claude Code</b>: <code translate="no">claude mcp add --scope user cdmw -- "&lt;CDMW folder&gt;\CDMW.exe" --mcp-bridge</code></li>
+      <li><b>Codex CLI</b>: <code translate="no">codex mcp add cdmw -- "&lt;CDMW folder&gt;\CDMW.exe" --mcp-bridge</code></li>
+      <li><b>Claude Desktop</b>: <code translate="no">claude_desktop_config.json</code></li>
+      <li><code translate="no">{"mcpServers": {"cdmw": {"command": "&lt;CDMW folder&gt;\\CDMW.exe", "args": ["--mcp-bridge"]}}}</code></li>
+      <li><b>Other MCP apps</b>: <code translate="no">{"cdmw": {"type": "stdio", "command": "&lt;CDMW folder&gt;\\CDMW.exe", "args": ["--mcp-bridge"]}}</code></li>
+    </ul>
+    <p>The Claude Code line adds CDMW for every folder Claude Code starts in. A path with spaces is quoted in the line CDMW shows. CDMW run from source starts the Python interpreter with cdmw_app.py and the same switch. If you move the CDMW folder, copy the new line into the AI app again.</p>
+    <h4>Examples of what to ask</h4>
+    <table>
+      <tr><th>You ask</th><th>What happens</th><th>Tools</th></tr>
+      <tr><td>Find Kliff's hair meshes and extract them to a folder I name.</td><td>The AI app searches the archives, shows you the paths and asks which ones you want, selects them in Browse Archives and extracts them. CDMW asks you before it writes the files.</td><td><code translate="no">search_archive</code>, <code translate="no">view_open</code>, <code translate="no">files_browser_export</code></td></tr>
+      <tr><td>Make the selected part of the open model 10% larger, then show me.</td><td>The AI app reads the open model, scales the part, ends its turn and takes a picture of the view. CDMW asks you before the edit, and one Undo of the turn takes it back.</td><td><code translate="no">mesh_state</code>, <code translate="no">mesh_transform</code>, <code translate="no">app_turn_end</code>, <code translate="no">view_capture</code></td></tr>
+      <tr><td>Start a new one-handed sword from a game sword and call it Ashen Blade.</td><td>The AI app picks a template, fills the draft, asks you what it would otherwise have to guess, and shows you the plan's warnings. Building and installing the mod is yours to do.</td><td><code translate="no">new_item_state</code>, <code translate="no">new_item_search</code>, <code translate="no">new_item_pick</code>, <code translate="no">new_item_set</code>, <code translate="no">new_item_plan</code></td></tr>
+      <tr><td>What did you change in this session?</td><td>The AI app reads the recent AI calls and lists each call that edited, wrote or deleted something, whether you approved it, and what Undo can take back.</td><td><code translate="no">cdmw://calls/recent</code>, <code translate="no">app_undo</code></td></tr>
+      <tr><td>Which Help topic explains Exact output?</td><td>The AI app searches CDMW's Help and answers with the topic and its Wiki address.</td><td><code translate="no">app_manual</code></td></tr>
+    </table>
+    <h4>Guided prompts and resources</h4>
+    <p>AI apps that offer MCP prompts show four starting points from CDMW. Each one reminds the AI app that it is a helper you supervise.</p>
+    <table>
+      <tr><th>Prompt</th><th>What it starts</th></tr>
+      <tr><td><code translate="no">find_and_extract</code></td><td>Find files in the game's archives and extract them to a folder you name.</td></tr>
+      <tr><td><code translate="no">edit_mesh_supervised</code></td><td>Make a model change you describe, one undoable turn at a time.</td></tr>
+      <tr><td><code translate="no">make_new_item</code></td><td>Prepare a Create New Item draft that you then review.</td></tr>
+      <tr><td><code translate="no">review_ai_changes</code></td><td>List this session's calls and what they changed, so you can check or undo them.</td></tr>
+    </table>
+    <p>AI apps that read MCP resources can attach these without a tool call:</p>
+    <table>
+      <tr><th>Resource</th><th>What it holds</th></tr>
+      <tr><td><code translate="no">cdmw://manual</code></td><td>Every topic of this Help, each at its own address. This page is one of them.</td></tr>
+      <tr><td><code translate="no">cdmw://coverage</code></td><td>Which CDMW features AI tools reach, the tool or command that reaches each, and the gaps still open.</td></tr>
+      <tr><td><code translate="no">cdmw://calls/recent</code></td><td>The last lines of the AI call log.</td></tr>
+    </table>
+    <h4>Approvals and Full access</h4>
+    <table>
+      <tr><th>Kind of tool</th><th>What it does</th><th>Default</th></tr>
+      <tr><td>Read tools</td><td>Change nothing.</td><td>Always run</td></tr>
+      <tr><td>Edit tools</td><td>Change an open session or document; you can undo them.</td><td>Ask first</td></tr>
+      <tr><td>Output tools</td><td>Write a mod, an export or a draft folder outside the session. Nothing is written into the game.</td><td>Ask first</td></tr>
+      <tr><td>Destructive tools</td><td>Delete something you made in the CDMW folder. Undo cannot bring it back.</td><td>Ask first</td></tr>
+    </table>
+    <p>When a tool asks first, CDMW shows which AI app wants to run which tool, its kind and its arguments. Choose Allow once, Allow this tool for this session, which lasts until the AI app disconnects, or Deny. A question left unanswered for five minutes counts as Deny. In Settings &gt; AI connections you can set Edit, Output or Destructive tools to Allow without asking.</p>
+    <p>Full access: run every tool without asking skips every question, and the status line says so while it is on. It ends when CDMW closes unless you also tick Keep Full access after CDMW closes. Leave the questions on unless you are watching.</p>
+    <h4>How it works</h4>
+    <ul>
+      <li>The AI app starts CDMW.exe with the --mcp-bridge switch: a small CDMW process without a window that speaks MCP (JSON-RPC 2.0) on its standard input and output.</li>
+      <li>The bridge passes every message over a named pipe to the CDMW that is already open. The pipe accepts only your own Windows user on this computer, and only with a key that CDMW writes to the workspace folder when you turn on Allow AI connections and deletes when you turn it off. While the setting is off, nothing listens.</li>
+      <li>Inside CDMW, each call checks its arguments, the output path rule and its approval, and then runs through the same command or control as its button.</li>
+      <li>CDMW writes one line for every call to the AI call log: the time, the AI app, the tool and its kind, a summary of its arguments without file contents, how it was approved, its result and how long it took. Past 4 MB the log starts again and keeps one older file. The log is in the CDMW folder: <code translate="no">workspace\logs\ai-calls.log</code></li>
+      <li>Text that comes back from archives, files, tables, strings, mods and CDMW's own pages is data. CDMW tells the AI app never to follow instructions found in it.</li>
+    </ul>
+    <h4>When it does not connect</h4>
+    <ul>
+      <li>The AI app says that CDMW is not running or AI connections are off: open CDMW, turn on Allow AI connections, then restart the AI app or reconnect its CDMW server. The AI app's MCP log shows the reason.</li>
+      <li>The AI app says that another app is connected: close the other AI app, or its CDMW server, and try again.</li>
+      <li>Every call that changes something is declined at once: CDMW could not show its question, or the answer was Deny. The AI call log shows each call and its result.</li>
+      <li>CDMW was moved to another folder: copy the new line from Settings &gt; AI connections into the AI app.</li>
+    </ul>
+    """,
+}
