@@ -277,6 +277,26 @@ class NativeMeshCoreServiceClient:
                 continue
             return line
 
+    def _take_late_replies_locked(self, timeout_seconds: float, *,
+                                  stop_event: threading.Event | None) -> None:
+        """Read the replies owed by given-up jobs before the next request is written.
+
+        The service writes each reply whole before it reads its next request, and on
+        Windows stdout is read only while a reply is awaited. A late reply larger than
+        the stdout pipe holds (a large set's Morph state) left the service blocked on
+        that write; the next request, larger than what stdin still held, then blocked
+        too, under this client's lock, and every later native call waited behind it
+        (Mesh Editor select on the Demenissian Council Robes after its deferred Morph
+        query gave up, 2026-11-23). Nothing is written yet, so a timeout or a cancel
+        here leaves the service and its owed replies as they were.
+        """
+
+        deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+        while self._late_replies > 0 and self._process is not None:
+            self._read_stdout_line_locked(max(0.1, deadline - time.monotonic()),
+                                          stop_event=stop_event, keep_alive=True)
+            self._late_replies -= 1
+
     def _give_up_on_job_locked(self, session_id: str) -> None:
         """The reply will come later; the job's session is closed after it.
 
@@ -383,6 +403,7 @@ class NativeMeshCoreServiceClient:
     ) -> None:
         with self._lock:
             self._start_locked(stop_event=stop_event)
+            self._take_late_replies_locked(timeout_seconds, stop_event=stop_event)
             process = self._process
             if process is None or process.stdin is None:
                 raise RuntimeError("native mesh-core service stdin is unavailable")
@@ -417,6 +438,7 @@ class NativeMeshCoreServiceClient:
     ) -> dict[str, object]:
         with self._lock:
             self._start_locked(stop_event=stop_event)
+            self._take_late_replies_locked(timeout_seconds, stop_event=stop_event)
             process = self._process
             if process is None or process.stdin is None:
                 raise RuntimeError("native mesh-core service stdin is unavailable")
