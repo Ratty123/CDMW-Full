@@ -84,6 +84,27 @@ def apply_texture_editor_lasso_selection(
         ),
     )
 
+def apply_texture_editor_mask_selection(
+    document: TextureEditorDocument,
+    incoming_mask: np.ndarray,
+    *,
+    combine_mode: str = "replace",
+) -> TextureEditorDocument:
+    """Combine a 0-255 mask the document's size with the selection, as Rect and Lasso do."""
+
+    incoming = np.asarray(incoming_mask, dtype=np.uint8)
+    if incoming.shape != (document.height, document.width):
+        raise ValueError("The mask is not the texture's size.")
+    existing = build_texture_editor_selection_mask(document.width, document.height, _unfeathered(document.selection))
+    combined = _combine_selection_masks(existing, incoming, combine_mode=combine_mode)
+    return dataclasses.replace(
+        document,
+        selection=_selection_from_mask(
+            combined,
+            feather_radius=max(0, int(document.selection.feather_radius)),
+        ),
+    )
+
 def update_texture_editor_selection_settings(
     document: TextureEditorDocument,
     *,

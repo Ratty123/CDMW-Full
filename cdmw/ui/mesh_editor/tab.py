@@ -280,6 +280,10 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
                 if callable(file_name) and file_name():
                     tools.base_dir = Path(file_name()).parent
                 tools.texture_edited.connect(self._on_texture_window_edit)
+                # Select From Mesh Selection reads this document's editing session.
+                tools.mesh_session_reader = lambda: getattr(self, "standalone_rust_authoring_session", None)
+                tools.texture_parts_reader = textures_dock.texture_parts
+                tools.status_message.connect(self.status_message_requested.emit)
                 # One history for mesh and texture edits (B item 4).
                 from cdmw.ui.mesh_editor.shared_history_routing import step_from_dock, texture_history_changed
 

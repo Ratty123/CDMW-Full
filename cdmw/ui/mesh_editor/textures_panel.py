@@ -1364,6 +1364,16 @@ class MeshEditorTexturesPanel(QDockWidget):
             if any(_share_key(other) == key for other in group.rows)
         )
 
+    def texture_parts(self, source_sha256: str, game_path: str = "") -> tuple[int, ...]:
+        """The parts listed with this texture, by its hash or its game path."""
+
+        sha = str(source_sha256 or "").strip().lower()
+        key = str(game_path or "").replace("\\", "/").casefold()
+        return tuple(
+            group.part_index for group in self.groups
+            if any((sha and row.source_sha256 == sha) or (key and _share_key(row) == key) for row in group.rows)
+        )
+
     def texture_item(self, texture_id: str) -> QTreeWidgetItem | None:
         for parent in self._part_items():
             for child_index in range(parent.childCount()):

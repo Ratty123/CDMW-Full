@@ -434,6 +434,10 @@
       "tool": "app.run_command",
       "class": "read"
     },
+    "browse.add_to_scene": {
+      "tool": "app.run_command",
+      "class": "read"
+    },
     "browse.replace_embedded_sound": {
       "tool": "app.run_command",
       "class": "output"
@@ -1318,6 +1322,20 @@
       "what": "Selections",
       "class": "edit",
       "tool": "textures.select"
+    },
+    {
+      "id": "textures.select_from_mesh",
+      "area": "Texture Editor",
+      "what": "Select From Mesh Selection: the selected faces or parts as a texture selection",
+      "class": "edit",
+      "tool": "textures.select_from_mesh"
+    },
+    {
+      "id": "textures.mesh_at",
+      "area": "Texture Editor",
+      "what": "Which faces a texture pixel or the texture selection covers",
+      "class": "read",
+      "tool": "textures.mesh_at"
     },
     {
       "id": "textures.stencil",
@@ -2341,6 +2359,10 @@
       "key": "menu:cdmw/ui/archive_browser/actions.py|Add Bones...",
       "command": "browse.add_bones",
       "typed_by": 13
+    },
+    {
+      "key": "menu:cdmw/ui/archive_browser/actions.py|Add to scene",
+      "command": "browse.add_to_scene"
     },
     {
       "key": "menu:cdmw/ui/archive_browser/actions.py|Asset Family...",
