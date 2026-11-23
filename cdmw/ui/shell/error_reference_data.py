@@ -37952,7 +37952,7 @@ MESSAGE_REFERENCE = [
     "message": "The set changed while its material file was read. Try again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_material_colours.py": 411
+      "cdmw/services/mesh_material_colours.py": 412
     }
   },
   {
@@ -38518,7 +38518,7 @@ MESSAGE_REFERENCE = [
     "message": "{asset.entry.basename}: its material file was not captured. Reopen the set from Browse Archives to change its colours.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_material_colours.py": 476
+      "cdmw/services/mesh_material_colours.py": 487
     }
   },
   {
@@ -38526,7 +38526,7 @@ MESSAGE_REFERENCE = [
     "message": "{asset.entry.basename}: its material file was not found in the archive. Reopen the set from Browse Archives to change its colours.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_material_colours.py": 456
+      "cdmw/services/mesh_material_colours.py": 467
     }
   },
   {
@@ -98024,7 +98024,7 @@ MESSAGE_REFERENCE = [
     "message": "The archive target changed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 66
+      "cdmw/ui/mesh_editor/replacement_flow.py": 69
     }
   },
   {
@@ -98232,7 +98232,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh session closed during replacement selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 64
+      "cdmw/ui/mesh_editor/replacement_flow.py": 67
     }
   },
   {
@@ -100054,7 +100054,7 @@ MESSAGE_REFERENCE = [
     "message": "{path} is not a Blender CDMW can run. Choose blender.exe, or export the model as GLB.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/replacement_flow.py": 92
+      "cdmw/ui/mesh_editor/replacement_flow.py": 109
     }
   },
   {
