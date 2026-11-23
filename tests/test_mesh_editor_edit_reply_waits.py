@@ -80,11 +80,22 @@ def _snapshot_payloads() -> set[str]:
     return {path.name for path in root.glob("cdmw_mesh_preview_delta_*_editor_snapshot_*.bin")}
 
 
+def _tracked_vertex_payloads() -> set[Path]:
+    # The tracked set is process-wide: an earlier test's sessions can still own
+    # folders in it, so only files that appear during this test are its own.
+    from cdmw.modding import mesh_native_core_temp_paths as temp_paths
+
+    with temp_paths._native_preview_delta_paths_lock:
+        tracked = set(temp_paths._native_preview_delta_dirs)
+    return {file for path in tracked if path.exists() for file in path.glob("*_vertices.bin")}
+
+
 @native
 def test_reading_the_resident_mesh_back_leaves_no_payload_files(tmp_path) -> None:
     service, session_id = _open(tmp_path)
     try:
         before = _snapshot_payloads()
+        vertex_payloads_before = _tracked_vertex_payloads()
         x = float(service.working_mesh(session_id, clone=True).submeshes[0].vertices[0][0])
         _transform(service, session_id)
         assert service.native_editor_mesh_dirty(session_id)
@@ -92,10 +103,7 @@ def test_reading_the_resident_mesh_back_leaves_no_payload_files(tmp_path) -> Non
         assert moved == pytest.approx(x + 0.25)
         assert not service.native_editor_mesh_dirty(session_id)
         assert _snapshot_payloads() <= before, "the read-back left its payload files behind"
-        from cdmw.modding import mesh_native_core_temp_paths as temp_paths
-        with temp_paths._native_preview_delta_paths_lock:
-            tracked = set(temp_paths._native_preview_delta_dirs)
-        assert not any(path.exists() and any(path.glob("*_vertices.bin")) for path in tracked)
+        assert _tracked_vertex_payloads() <= vertex_payloads_before, "the read-back left vertex payloads behind"
     finally:
         service.close_edit_session(session_id)
 
