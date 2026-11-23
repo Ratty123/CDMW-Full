@@ -1214,6 +1214,27 @@
       "tool": "mesh.hair"
     },
     {
+      "id": "hair.setup",
+      "area": "Hair Tools",
+      "what": "Start Hair Tools: character, Create or Edit, donor hairstyle, donor material, scalp cap",
+      "class": "edit",
+      "tool": "mesh.hair_setup"
+    },
+    {
+      "id": "hair.panel",
+      "area": "Hair Tools",
+      "what": "The panel's edits: prepare sections, starter shapes, lock width and density, strand card, rigid sections, rebind, convert, name, change references, import a custom mesh",
+      "class": "edit",
+      "tool": "mesh.hair"
+    },
+    {
+      "id": "hair.motion",
+      "area": "Hair Tools",
+      "what": "Motion preview (play, movement test, damping, softness, gravity, wind, settle) and display (bust, guides, collision shapes)",
+      "class": "edit",
+      "tool": "mesh.hair"
+    },
+    {
       "id": "materials.get",
       "area": "Material panel",
       "what": "Every factor of a material",
@@ -3123,15 +3144,11 @@
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/hair_reference_picker.py|HairReferencePickerDialog",
-      "gap": "generic_only",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair"
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/hair_setup_dialog.py|HairSetupDialog",
-      "gap": "generic_only",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair_setup"
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/mod_export_dialog.py|MeshModExportDialog",
@@ -3315,8 +3332,7 @@
     },
     {
       "key": "host_command:hair_import_custom",
-      "gap": "not_built",
-      "milestone": "P13 follow-up after alpha.7: allow-list hair_import_custom in the Mesh Editor helper and give mesh.hair an import_custom {path} action"
+      "tool": "mesh.hair"
     },
     {
       "key": "host_command:hair_texture",

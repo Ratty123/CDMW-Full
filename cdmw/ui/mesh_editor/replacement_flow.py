@@ -53,6 +53,9 @@ def prepare_replacement_event(tab, session, event):
     if event.get("command") in {"replacement_choose", "hair_import_custom"}:
         title = "Import Custom Hair Mesh" if event.get("command") == "hair_import_custom" else "Import Replacement"
         path, source_path_override = source_path_override, None
+        if path is None and event.get("command") == "hair_import_custom" and args.get("source_path"):
+            # The file an AI connection gave with the command, in place of the chooser.
+            path = _given_hair_mesh(args.pop("source_path"))
         if path is None:
             path, _ = QFileDialog.getOpenFileName(_dialog_parent(tab), title, "",
                                                   "Mesh models (*.obj *.dae *.gltf *.glb *.fbx)")
@@ -68,6 +71,20 @@ def prepare_replacement_event(tab, session, event):
     if tab._current_target_entry().identity != target.identity:
         raise ValueError("The archive target changed during replacement selection.")
     return {**event, "arguments": args}
+
+
+#: The files Import custom hair mesh takes without asking further (FBX asks for Blender).
+_GIVEN_HAIR_MESH_SUFFIXES = (".obj", ".dae", ".gltf", ".glb")
+
+
+def _given_hair_mesh(value):
+    from pathlib import Path
+    path = Path(str(value))
+    if path.suffix.lower() == ".fbx":
+        raise ValueError("An FBX asks for Blender with a second chooser; give an OBJ, DAE, glTF or GLB file.")
+    if path.suffix.lower() not in _GIVEN_HAIR_MESH_SUFFIXES or not path.is_absolute() or not path.is_file():
+        raise ValueError("Give the full path of an existing OBJ, DAE, glTF or GLB file.")
+    return str(path)
 
 
 def _resident_archive_source(owner):

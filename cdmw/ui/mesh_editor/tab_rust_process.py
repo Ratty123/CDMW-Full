@@ -23,6 +23,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_HOST_CAMERA_CAPABILITY,
     RUST_HOST_VIEW_STATE_CAPABILITY,
     RUST_HOST_VIEW_LOOK_CAPABILITY,
+    RUST_HOST_EDITOR_CONTROLS_CAPABILITY,
     RUST_HOST_HIGHLIGHT_PART_CAPABILITY,
     RUST_UI_TRANSLATION_PARTS_CAPABILITY,
 )
@@ -523,6 +524,12 @@ class MeshEditorRustProcessMixin:
             state = payload.get("view_state")
             self.standalone_rust_view_state = dict(state) if isinstance(state, Mapping) else None
             return
+        if event == "editor_control":
+            # The answer to send_editor_control, kept by its token for the call that waits on it.
+            from cdmw.ui.mesh_editor.editor_controls import keep_editor_control_answer
+
+            keep_editor_control_answer(self, payload)
+            return
         if event == "notice":
             # A refusal the editor explained (Delete unavailable): CDMW's status line and
             # activity log carry it, so a driven run sees why nothing happened.
@@ -690,6 +697,10 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_camera_supported = RUST_HOST_CAMERA_CAPABILITY in capability_set
         self.standalone_rust_view_state_supported = RUST_HOST_VIEW_STATE_CAPABILITY in capability_set
         self.standalone_rust_view_look_supported = RUST_HOST_VIEW_LOOK_CAPABILITY in capability_set
+        controls = payload.get("editor_controls", ())
+        self.standalone_rust_editor_controls = frozenset(
+            str(name) for name in controls if isinstance(name, str)
+        ) if RUST_HOST_EDITOR_CONTROLS_CAPABILITY in capability_set and isinstance(controls, (list, tuple)) else frozenset()
         self.standalone_rust_capabilities = tuple(sorted(capability_set))
         self.standalone_rust_highlight_part_supported = RUST_HOST_HIGHLIGHT_PART_CAPABILITY in capability_set
         session = self.standalone_rust_authoring_session
@@ -1158,6 +1169,14 @@ class MeshEditorRustProcessMixin:
         return bool(self._send_rust_message(self._rust_host_message(
             "set_view_state", request_id=0, extra=dict(values))))
 
+    def send_editor_control(self, control: str, arguments: Mapping[str, object]) -> int:
+        """Use one of the editor's own controls by name (``editor_control``); returns the token
+        its answer carries, or 0 when this editor does not take that control."""
+
+        from cdmw.ui.mesh_editor.editor_controls import send_editor_control
+
+        return send_editor_control(self, control, arguments)
+
     def push_live_texture(self, source_sha256: str, image) -> int:
         """Show an edited texture on the model now; returns the edit's revision."""
 
@@ -1260,10 +1279,12 @@ class MeshEditorRustProcessMixin:
                 QTimer.singleShot(0, self._start_next_rust_protocol_worker)
                 return
         if event.get("command") == "hair_texture":
-            from PySide6.QtWidgets import QFileDialog
+            from cdmw.ui.mesh_editor.hair_flow import hair_dds_path
             self._archive_refit_picker_active = True
             try:
-                path, _ = QFileDialog.getOpenFileName(self.window(), "Apply Edited Hair DDS", "", "DDS textures (*.dds)")
+                path = hair_dds_path(self, event)
+            except ValueError as exc:
+                path, preparation_error = "", str(exc)
             finally:
                 self._archive_refit_picker_active = False
             if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
@@ -1272,7 +1293,7 @@ class MeshEditorRustProcessMixin:
             if not path:
                 # The worker answers with the session's state, as for every other cancelled picker.
                 # A bare refusal has none, which the editor takes for a protocol failure and closes.
-                preparation_error = "DDS selection cancelled."
+                preparation_error = preparation_error or "DDS selection cancelled."
             else:
                 event = {**event, "arguments": {**dict(event.get("arguments") or {}), "_dds_path": path}}
         if event.get("command") in {"replacement_choose", "hair_import_custom", "replacement_include", "replacement_islands", "replacement_cloth", "replacement_guides", "replacement_weapon_collisions", "replacement_collision_volumes", "replacement_jiggle", "replacement_physics_profile", "replacement_translucency", "replacement_emission", "replacement_shader_controls", "replacement_material_colours"}:

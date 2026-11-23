@@ -169,7 +169,7 @@ PANEL_COMMANDS: dict[str, tuple[str, ...]] = {
         "collision_input", "paint_set", "pin_set",
     ),
     "hair": (
-        "begin", "color", "texture", "texture_export",
+        "begin", "color", "import_custom", "texture", "texture_export",
     ),
     "layer": (
         "activate", "copy", "delete", "move", "paste", "rename", "visibility",
@@ -414,10 +414,7 @@ _PANEL_TOOLS = (
     ("layer", "mesh.layers", "Layers",
      "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
      "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
-    ("hair", "mesh.hair", "Hair",
-     "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
-     "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
-     "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
+    # Hair Tools has its own typed tool (mesh_hair_tools.py).
     ("replacement", "mesh.part_options", "Part options",
      "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
      "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), material_colours "

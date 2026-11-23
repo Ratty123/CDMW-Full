@@ -268,6 +268,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_view_state_supported = False
         self.standalone_rust_view_look_supported = False
         self.standalone_rust_view_state = None
+        self.standalone_rust_editor_controls = frozenset()
+        self.standalone_rust_editor_control_answers = {}
         self.standalone_rust_highlight_part_supported = False
         self.standalone_rust_highlighted_part = None  # a new helper lights nothing yet
         self.standalone_rust_theme_digest = ""
@@ -1044,6 +1046,8 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_view_state_supported = False
         self.standalone_rust_view_look_supported = False
         self.standalone_rust_view_state = None
+        self.standalone_rust_editor_controls = frozenset()
+        self.standalone_rust_editor_control_answers = {}
         self.standalone_rust_highlight_part_supported = False
         self.standalone_rust_highlighted_part = None  # a new helper lights nothing yet
         self.standalone_rust_theme_digest = ""

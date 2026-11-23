@@ -172,7 +172,13 @@ const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_hair.rs"),
     "
 ",
-    include_str!("cdmw_material_colours.rs")
+    include_str!("cdmw_material_colours.rs"),
+    "
+",
+    include_str!("cdmw_hair_host.rs"),
+    "
+",
+    include_str!("cdmw_host_controls.rs")
 );
 const MAIN_SOURCE: &str = concat!(
     include_str!("main.rs"),
@@ -186,7 +192,10 @@ const MAIN_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_hair_motion.rs"),
     "\n",
-    include_str!("cdmw_jiggle.rs")
+    include_str!("cdmw_jiggle.rs"),
+    "
+",
+    include_str!("cdmw_host_controls.rs")
 );
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
@@ -754,6 +763,7 @@ hair.motion|hair|"Motion"|sim.advance_test
 hair.settle|hair|"Use settled shape"|.settled_state
 hair.convert|hair|"Convert to ordinary mesh"|HairAction::Convert
 hair.registration|hair|"Apply name"|HairAction::Registration
+hair.host_control|hair|fn hair_host_control|HostEvent::EditorControl
 tool.rotate|transform|CdmwRailPage::Rotate|ViewportTool::Rotate
 tool.scale|transform|CdmwRailPage::Scale|ViewportTool::Scale
 transform.numeric_rotate|transform|UiAction::RotateStep|UiAction::RotateStep
@@ -961,6 +971,7 @@ mod tests {
         assert!(keys.contains("morph.reset_correction"));
         assert!(keys.contains("refit.save_setup"));
         assert!(keys.contains("refit.apply_setup"));
+        assert!(keys.contains("hair.host_control"));
         assert!(rows.iter().all(|row| {
             row.get("source_binding_verified").and_then(Value::as_bool) == Some(true)
         }));

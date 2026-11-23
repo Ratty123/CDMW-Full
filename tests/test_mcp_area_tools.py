@@ -1709,7 +1709,8 @@ def test_output_commands_and_the_camera_go_to_the_helper(editor, connect, tmp_pa
     mcp = connect(editor.window)
     # An older helper: the page's own reason, and nothing sent.
     assert "host_output_commands_v1" in mcp.error("mesh_output_files", {"action": "free_edit"})["message"]
-    assert "host_output_commands_v1" in mcp.error("mesh_hair", {"action": "texture_export"})["message"]
+    assert "host_output_commands_v1" in mcp.error("mesh_hair", {"action": "texture_export",
+                                                                "texture_path": "character/hair.dds"})["message"]
     assert "host_camera_v1" in mcp.error("mesh_camera", {})["message"]
     ui.standalone_rust_host_output_commands_supported = True
     ui.standalone_rust_camera_supported = True

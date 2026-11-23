@@ -259,6 +259,8 @@ use geometry::prepare;
 mod input;
 #[path = "cdmw_hair_motion.rs"]
 mod motion;
+#[path = "cdmw_hair_host.rs"]
+mod host;
 
 fn normals(positions: &[[f32; 3]], indices: &[u32], output: &mut Vec<[f32; 3]>) {
     output.resize(positions.len(), [0.0; 3]);
