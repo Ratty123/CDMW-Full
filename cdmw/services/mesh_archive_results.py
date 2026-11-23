@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from cdmw.core.atomic_file import atomic_publish_paths
 from cdmw.core.common import raise_if_cancelled
+from cdmw.services.mesh_asset_context import is_item_set
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 from cdmw.services.archive_read_service import read_archive_entry_data
 
@@ -176,6 +177,13 @@ def prepare_mesh_archive_result(service, snapshot, entry, dependency_sources, ou
             if previous is not None and previous[1] != companion.data:
                 raise ValueError("Edited assets contain conflicting companion files.")
             outputs[candidate.identity] = (candidate, companion.data)
+    if is_item_set(snapshot.archive_refit_context) and snapshot.archive_refit_context.material_colours:
+        from cdmw.services.mesh_material_colours import item_set_colour_files
+        for candidate, _original, data in item_set_colour_files(snapshot.archive_refit_context, stop_event):
+            if candidate.identity in outputs:
+                raise ValueError(f"Edited assets contain conflicting companion files: {candidate.path}")
+            outputs[candidate.identity] = (candidate, data)
+            changed_materials = True
     entries.update({identity: candidate for identity, (candidate, _data) in outputs.items()})
     if len(entries) > MAX_RESULT_ENTRIES:
         raise ValueError("The edited result exceeds the 8,192-entry dependency limit.")

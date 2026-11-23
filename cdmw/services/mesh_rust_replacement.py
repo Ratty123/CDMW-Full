@@ -243,6 +243,11 @@ def run_replacement_command(authoring, command, args, stop_event):
         from cdmw.services.mesh_item_set_editing import set_item_set_inclusion
         set_item_set_inclusion(service, session_id, args.get("part_ids", ()), args.get("included"))
         return {"status": "included"}
+    if command == "replacement_material_colours" and is_item_set(service._session(session_id).archive_refit_context):
+        from cdmw.services.mesh_material_colours import set_item_set_material_colours
+        result = set_item_set_material_colours(authoring, args)
+        authoring.replacement_comparison = "edit"
+        return result
     if command == "replacement_cancel":
         authoring.pending_replacement = None
         authoring.replacement_weight_notes = ()

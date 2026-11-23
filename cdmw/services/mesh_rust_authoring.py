@@ -9607,6 +9607,13 @@ class RustMeshAuthoringSession:
             material_key = stage_replacement_materials(self, shadow_session.working_mesh, shadow_session.replacement_state)
             if self.replacement_comparison == "original":
                 material_key = "base"
+        else:
+            from cdmw.services.mesh_asset_context import is_item_set
+            if is_item_set(shadow_session.archive_refit_context) and (
+                    shadow_session.archive_refit_context.material_colours or material_key in self.archive_refit_material_references):
+                from cdmw.services.mesh_material_colours import stage_item_set_colour_preview
+                material_key = stage_item_set_colour_preview(
+                    self, shadow_session.working_mesh, shadow_session.archive_refit_context, material_key)
         if material_key in self.archive_refit_material_references:
             state["archive_refit_materials"] = {"key": material_key, "file": self.archive_refit_material_references[material_key]}
         if material_key in self.archive_refit_material_cache:

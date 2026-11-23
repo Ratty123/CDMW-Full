@@ -283,7 +283,49 @@ def save_archive_refit_context(context, project_root, stop_event):
     return {"format": "cdmw_item_set_v1" if is_item_set(context) else "cdmw_archive_refit_v2", "assets": assets,
             "coordinates": "neutral" if context.neutral_coordinates else "source",
             **({"source_identity": context.draft_identity, "excluded_parts": sorted(context.excluded_part_ids)}
-               if is_item_set(context) else {})}
+               if is_item_set(context) else {}),
+            **({"material_colours": [{"asset": asset, "material": material, "colours": dict(colours)}
+                                     for asset, material, colours in context.material_colours],
+                "material_colour_files": [_save_colour_file(asset, entry, data, project_root)
+                                          for asset, entry, data in context.material_colour_files]}
+               if is_item_set(context) and context.material_colours else {})}
+
+
+def _entry_payload(entry):
+    return {"path": entry.path, "pamt_path": str(entry.pamt_path), "paz_file": str(entry.paz_file),
+            "offset": entry.offset, "comp_size": entry.comp_size, "orig_size": entry.orig_size,
+            "flags": entry.flags, "paz_index": entry.paz_index}
+
+
+def _save_colour_file(asset, entry, data, project_root):
+    from cdmw.services.atomic_file_service import atomic_write_bytes
+    digest = hashlib.sha256(data).hexdigest()
+    relative = f"archive-refit-sources/{digest}.bin"
+    path = project_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        atomic_write_bytes(path, data)
+    return {"asset": asset, "entry": _entry_payload(entry), "source": relative, "sha256": digest, "size": len(data)}
+
+
+def _load_colour_files(rows, context, project_root):
+    from cdmw.models import ArchiveEntry
+    if not isinstance(rows, list) or len(rows) > len(context.assets):
+        raise ValueError("Item set draft has invalid material files")
+    assets = {asset.asset_id for asset in context.assets}
+    result = []
+    for row in rows:
+        path = (project_root / str(row["source"])).resolve(strict=True)
+        if row.get("asset") not in assets or not path.is_relative_to(project_root.resolve()):
+            raise ValueError("Item set draft material file is unavailable or outside the project")
+        data = path.read_bytes()
+        if len(data) != int(row["size"]) or len(data) > 16 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != row["sha256"]:
+            raise ValueError("Item set draft material file checksum failed")
+        raw_entry = dict(row["entry"])
+        raw_entry["pamt_path"] = Path(raw_entry["pamt_path"])
+        raw_entry["paz_file"] = Path(raw_entry["paz_file"])
+        result.append((row["asset"], ArchiveEntry(**raw_entry), data))
+    return tuple(result)
 
 
 def load_archive_refit_context(payload, project_root):
@@ -346,6 +388,11 @@ def load_archive_refit_context(payload, project_root):
     context = ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral",
         workflow="item_set" if payload["format"] == "cdmw_item_set_v1" else "refit",
         excluded_part_ids=frozenset(str(value) for value in payload.get("excluded_parts", ())))
+    if "material_colours" in payload:
+        from cdmw.services.mesh_material_colours import load_item_set_colours
+        context = replace(context, material_colours=load_item_set_colours(payload["material_colours"], context),
+                          material_colour_files=_load_colour_files(payload.get("material_colour_files", []), context,
+                                                                   Path(project_root)))
     if is_item_set(context) and context.draft_identity != payload.get("source_identity"):
         raise ValueError("Item set draft source identity does not match its files")
     return context

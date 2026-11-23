@@ -1358,7 +1358,11 @@ class MeshEditorRustProcessMixin:
             return "Recording Mesh Editor gesture..."
         if event_name == "cancel":
             return "Cancelling Mesh Editor..."
-        command = str(event.get("command", "") or "").replace("_", " ").strip()
+        command = str(event.get("command", "") or "")
+        # Inspector material panels share the replacement_ prefix; it is not an import.
+        if command.startswith("replacement_") and command not in {"replacement_choose", "replacement_apply"}:
+            command = command.removeprefix("replacement_")
+        command = command.replace("_", " ").strip()
         return f"Applying Mesh Editor {command or 'command'}..."
 
     def _handle_rust_protocol_completed(
