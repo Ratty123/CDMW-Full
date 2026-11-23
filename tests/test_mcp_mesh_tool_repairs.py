@@ -102,3 +102,17 @@ def test_vertex_inspect_reads_the_selection_and_its_token_edits_it(answered) -> 
     stale = mcp.ok("mesh_vertex_edit", {"token": token, "edits": {"position": {"values": [None, None, 0.0]}}})
     assert stale["history"]["undo"] == stale["history_before"]["undo"]
     assert service.working_mesh(session_id).submeshes[0].vertices[1][2] == pytest.approx(before + 0.25)
+
+
+# ----- 3. Layers: Copy ------------------------------------------------------------------
+def test_a_layer_copy_sent_by_name_copies_the_current_selection(answered) -> None:
+    editor, mcp = answered, answered.mcp
+    service, session_id = editor.host.shadow_service, editor.host.shadow_session_id
+    faces = len(service.working_mesh(session_id).submeshes[0].faces)
+    assert mcp.ok("mesh_select", {"faces": {"0": list(range(faces))}})["done"]
+    copied = mcp.ok("mesh_layers", {"action": "copy"})
+    assert copied["done"], copied
+    # The copy carried no selection: the session's own was copied, not an empty one.
+    sent = [m for m in editor.sent if m.get("event") == "cdmw_command"][-1]
+    assert (sent["command"], sent["arguments"]) == ("layer_copy", {})
+    assert service._session(session_id).native_clipboard_ready, copied["status"]

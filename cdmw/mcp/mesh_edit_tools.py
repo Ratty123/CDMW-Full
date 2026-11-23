@@ -413,7 +413,8 @@ _PANEL_TOOLS = (
      "collision_input {role, source}."),
     ("layer", "mesh.layers", "Layers",
      "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
-     "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
+     "visibility {layer_id, visible}, copy {target} (copies the current selection, as Copy does; target is "
+     "vertex, edge or face, by default what the selection holds), paste, delete {layer_id}."),
     ("hair", "mesh.hair", "Hair",
      "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
      "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
