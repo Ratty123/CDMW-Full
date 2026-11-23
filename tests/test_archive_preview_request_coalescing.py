@@ -294,6 +294,27 @@ class ArchivePreviewRequestCoalescingTests(unittest.TestCase):
             2,
         )
 
+    def test_a_request_whose_dependency_lookup_was_cancelled_is_never_folded(self) -> None:
+        """Add to scene while the armour's own preview waited for its dependencies:
+        the scope change cancelled that lookup, and the set's preview of the same
+        armour folded into the waiting request, which the 60 s watchdog then stopped."""
+
+        host = _DispatchHost()
+        entry = _entry("character/model/armor_ub.pac")
+        pending = {"lookup": True}
+        host.archive_remote_bridge = SimpleNamespace(
+            displays_v2=True, cancel_preview_dependencies=lambda **_kwargs: None,
+            preview_dependencies_pending_for=lambda _request_id: pending["lookup"])
+        host.archive_preview_debounce_timer.isActive = lambda: False  # it has left the debounce
+
+        host._render_archive_preview(entry)
+        host._render_archive_preview(entry)  # its lookup still runs: folded
+        self.assertEqual(host.archive_preview_request_id, 1)
+        pending["lookup"] = False  # the scope change cancelled it
+        host._render_archive_preview(entry)
+        self.assertEqual(host.archive_preview_request_id, 2)
+        self.assertEqual(host.scheduled_archive_preview_request[0], 2)
+
     def test_a_forced_repeat_upgrades_the_scheduled_request(self) -> None:
         host = _DispatchHost()
         entry = _entry("character/model/sword.pac")

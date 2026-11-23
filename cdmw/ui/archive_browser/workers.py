@@ -296,6 +296,15 @@ class ArchivePreviewWorkerMixin:
         # texture action is stuck reading "Loading textures..." for good.
         if int(getattr(self, "_archive_texture_request_id", 0) or 0) == int(self.archive_preview_request_id) + 1:
             return False
+        # A request past its debounce is waiting for its dependency lookup. A scope
+        # change (Add to scene, an Item Finder set, a filter) cancels that lookup, so
+        # the request would wait until the 60 s watchdog stops it: the set's own
+        # preview of the same file must start afresh instead of folding into it.
+        timer_active = getattr(self.archive_preview_debounce_timer, "isActive", None)
+        lookup_pending = getattr(getattr(self, "archive_remote_bridge", None), "preview_dependencies_pending_for", None)
+        if (callable(timer_active) and not timer_active() and callable(lookup_pending)
+                and not lookup_pending(int(scheduled_request_id))):
+            return False
         if force and not scheduled_force:
             self.scheduled_archive_preview_request = (
                 scheduled_request_id,

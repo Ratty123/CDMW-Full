@@ -82,6 +82,22 @@ def _in_item_set(browser, entry) -> str:
     return "Offered for a model that is part of a worn set opened from Item Finder."
 
 
+def scene_add_reason(browser, entry) -> str:
+    """Why Add to scene cannot take the selected file, or "" (the menu greys it out)."""
+
+    why = _mesh(browser, entry)
+    if why:
+        return why
+    reason = getattr(getattr(browser, "archive_remote_bridge", None), "scene_add_reason", None)
+    if not callable(reason):
+        return "Load the game archives in Browse Archives first."
+    return reason()
+
+
+def _add_to_scene(browser, _entry) -> bool:
+    return bool(browser.archive_remote_bridge.add_to_scene())
+
+
 def _editable_chart(browser, entry) -> str:
     from cdmw.services.action_chart_edit_service import is_editable_action_chart_path
 
@@ -160,6 +176,7 @@ CONTEXT_COMMANDS: tuple[ContextCommand, ...] = (
     ContextCommand("open_set_in_mesh_editor", "Open set in Mesh Editor", "edit", _in_item_set, _open_set),
     ContextCommand("preview_only_this_file", "Preview only this file", "read", _in_item_set,
                    lambda b, e: b.archive_remote_bridge.preview_only_current_file()),
+    ContextCommand("add_to_scene", "Add to scene", "read", scene_add_reason, _add_to_scene),
     ContextCommand("continue_earlier_work", "Continue Earlier Work...", "read", _mesh, _continue_work),
     ContextCommand("prefab_inspector", "Open Prefab Inspector...", "edit", _only(".prefab"),
                    lambda b, e: b._open_current_archive_prefab_inspector()),
@@ -249,4 +266,4 @@ def context_commands(browser) -> list[Command]:
     return [_command(browser, spec) for spec in CONTEXT_COMMANDS]
 
 
-__all__ = ["CONTEXT_COMMANDS", "ContextCommand", "command_reason", "context_commands"]
+__all__ = ["CONTEXT_COMMANDS", "ContextCommand", "command_reason", "context_commands", "scene_add_reason"]

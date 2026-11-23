@@ -1,5 +1,6 @@
 """Worn model membership and primary selection for catalogue item scopes."""
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 import re
 
@@ -35,6 +36,7 @@ def prefab_group(prefab_path: str) -> tuple[str, str]:
 def worn_set_members(
     entries: tuple[ArchiveEntryDto, ...],
     item_prefabs: Sequence[tuple[str, Sequence[str]]] = (),
+    kept_entry_ids: Collection[int] = (),
 ) -> tuple[ArchiveEntryDto, ...]:
     """The scope's worn models, primary first.
 
@@ -51,10 +53,15 @@ def worn_set_members(
     `ub_31066.pac`, and the unrelated `ub_31067.pac` was drawn over it. Other unlisted
     files stay, as the St. Halssius Priest's Cloak, whose prefab lists only its
     shoulder piece, and the packs whose strap has a prefab of its own need.
+
+    ``kept_entry_ids`` are files the user put in the set by hand (Add to scene, or
+    the paths an MCP set names): each stays whatever its path or the prefabs say.
     """
 
+    kept_ids = frozenset(int(entry_id) for entry_id in kept_entry_ids)
     models = tuple(entry for entry in entries if entry.extension.casefold() == ".pac")
-    worn = tuple(entry for entry in models if "dropitem" not in entry.path.casefold())
+    worn = tuple(entry for entry in models
+                 if entry.entry_id in kept_ids or "dropitem" not in entry.path.casefold())
     candidates = worn or (models if len(models) == 1 else ())
 
     def rank(entry: ArchiveEntryDto) -> tuple[bool, int, str, int]:
@@ -76,8 +83,70 @@ def worn_set_members(
 
     def kept(entry: ArchiveEntryDto) -> bool:
         key = _path_key(entry.path)
-        if key in own:
+        if key in own or entry.entry_id in kept_ids:
             return True
         return key not in others and PurePosixPath(key).stem not in named
 
     return tuple(entry for entry in ranked if kept(entry))
+
+
+#: The name a scene collected by hand gets when the files had no set name before.
+SCENE_LABEL = "Scene"
+
+
+@dataclass(frozen=True, slots=True)
+class SceneScope:
+    """The files of one Browse scene, as the set scope takes them.
+
+    A scene is a set scope (``apply_entry_id_scope(..., worn_set=True)``): Item
+    Finder's or the NPC finder's worn set, or files collected with Add to scene.
+    ``entry_ids`` is the whole scope, models and the item files that pick their
+    material variant (prefabs, icons); ``model_ids`` the set's models as the
+    preview resolved them, primary first. ``kept_ids`` are files added by hand,
+    which ``worn_set_members`` keeps whatever their name. Adding or removing a
+    file is the same scope with that one id more or less.
+    """
+
+    entry_ids: tuple[int, ...]
+    model_ids: tuple[int, ...] = ()
+    label: str = SCENE_LABEL
+    prefab_stems: tuple[str, ...] = ()
+    kept_ids: tuple[int, ...] = ()
+    session_id: str = ""
+
+    @classmethod
+    def of_file(cls, entry_id: int, *, session_id: str = "", prefab_stems: Sequence[str] = ()) -> "SceneScope":
+        """One model shown on its own, as the start of a scene."""
+
+        entry_id = int(entry_id)
+        return cls((entry_id,), (entry_id,), SCENE_LABEL, tuple(prefab_stems), (entry_id,), session_id)
+
+    def add_reason(self, entry_id: int, extension: str) -> str:
+        """Why ``entry_id`` cannot be added, or ""."""
+
+        if str(extension or "").casefold() != ".pac":
+            return "Only .pac models can be added to a scene."
+        if int(entry_id) in self.model_ids:
+            return "This model is already in the scene."
+        if len(self.model_ids) + 1 > MAX_SET_FILES:
+            return f"A scene holds at most {MAX_SET_FILES} model files."
+        return ""
+
+    def adding(self, entry_id: int) -> "SceneScope":
+        entry_id = int(entry_id)
+        return replace(
+            self,
+            entry_ids=tuple(dict.fromkeys((*self.entry_ids, entry_id))),
+            model_ids=tuple(dict.fromkeys((*self.model_ids, entry_id))),
+            label=self.label or SCENE_LABEL,
+            kept_ids=tuple(dict.fromkeys((*self.kept_ids, entry_id))),
+        )
+
+    def removing(self, entry_id: int) -> "SceneScope":
+        entry_id = int(entry_id)
+        return replace(
+            self,
+            entry_ids=tuple(value for value in self.entry_ids if value != entry_id),
+            model_ids=tuple(value for value in self.model_ids if value != entry_id),
+            kept_ids=tuple(value for value in self.kept_ids if value != entry_id),
+        )

@@ -159,6 +159,8 @@ class ArchivePreviewD3D11PartsMixin:
         # P5: the Scene panel beside every 3D preview, not only Item Finder sets.
         members = tuple(entry.path for entry in bridge.item_set_members) if is_set else ()
         panel.set_parts(batches, members, prefab_components=tuple(prefab_components.items()))
+        removable = getattr(bridge, "scene_removable_paths", None)
+        panel.set_removable_paths(removable() if is_set and callable(removable) else ())
         self._archive_item_set_visibility_active = panel.active
         if is_set:
             selected = self._current_archive_entry()
@@ -190,6 +192,17 @@ class ArchivePreviewD3D11PartsMixin:
                 f"Select {name} in the archive list, then choose Open in Mesh Editor; its own files are not prepared yet.",
                 error=True,
             )
+
+    def _archive_scene_remove_file(self, path: str) -> None:
+        """Remove from scene on one file of the Scene panel: the set without it."""
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        remove = getattr(bridge, "remove_from_scene", None)
+        if callable(remove) and remove(path):
+            return
+        shell = getattr(self, "shell", None)
+        if callable(getattr(shell, "set_status_message", None)):
+            shell.set_status_message("This file is not part of the scene shown.", error=True)
 
     @staticmethod
     def _archive_scene_path_key(path: object) -> str:

@@ -6,9 +6,10 @@ sets. A prefab component that is not loaded yet (such as a sword's ``_in.pac``
 scabbard) is listed as its own file, unticked; ticking it loads it.
 
 A context menu on parts and files offers Isolate, Show all, Hide, Preview only
-this file, Open in Mesh Editor and Open ticked parts in Mesh Editor. It is the
-one place to show, hide and load parts: the Parts dropdown that used to sit above
-Browse's preview was removed (2026-11-21).
+this file, Open in Mesh Editor and Open ticked parts in Mesh Editor, and in
+Browse Archives Remove from scene on a file of a set. It is the one place to
+show, hide and load parts: the Parts dropdown that used to sit above Browse's
+preview was removed (2026-11-21).
 """
 from __future__ import annotations
 
@@ -41,6 +42,7 @@ DEFAULT_WIDTH = 320
 MINIMUM_WIDTH = 200
 ISOLATE_HINT = "Select a part or a file to isolate it."
 ISOLATE_TIP = "Show only the selected part or file."
+REMOVE_FROM_SCENE_LABEL = "Remove from scene"
 
 
 def part_number_label(local: int) -> str:
@@ -68,6 +70,8 @@ class ItemSetComponentsWidget(QWidget):
     prefabComponentToggled = Signal(str, bool)
     #: Open in Mesh Editor on one file, by its path.
     openFileRequested = Signal(str)
+    #: Remove from scene on one file, by its path; taking it out of the set is the host's.
+    removeFileRequested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None, *, opens_editor: bool = True) -> None:
         super().__init__(parent)
@@ -83,6 +87,10 @@ class ItemSetComponentsWidget(QWidget):
         self._groups: dict[str, QTreeWidgetItem] = {}
         #: Prefab component files listed but not loaded: path key -> group item.
         self._prefab_groups: dict[str, QTreeWidgetItem] = {}
+        #: Files the host can take out of the scene (path keys); empty offers no Remove.
+        self._removable: frozenset[str] = frozenset()
+        #: reset(keep_hidden=...) asked the next set_parts to keep these unticked parts.
+        self._carry_hidden = False
         layout = QVBoxLayout(self)
         # Laid out as the app's other side panels: a section title, the list, then the actions.
         layout.setContentsMargins(scaled_px(6, self), scaled_px(4, self), 0, 0)
@@ -136,10 +144,17 @@ class ItemSetComponentsWidget(QWidget):
         self.isolate_button.clicked.connect(self._isolate)
         self.hide()
 
-    def reset(self) -> None:
+    def reset(self, *, keep_hidden: Iterable[tuple[str, int]] | None = None) -> None:
+        """Empty the panel. ``keep_hidden`` (path key, local part) stay unticked in the
+        next ``set_parts``: the same scene shown again with a file more or less."""
+
         self.active = False
         self._scope = ()
         self._hidden_keys.clear()
+        self._carry_hidden = keep_hidden is not None
+        if keep_hidden is not None:
+            self._hidden_keys.update((_path_key(path), int(local)) for path, local in keep_hidden)
+        self._removable = frozenset()
         self._keys.clear()
         self._parts.clear()
         self._groups.clear()
@@ -163,8 +178,9 @@ class ItemSetComponentsWidget(QWidget):
             if isinstance(batch, Mapping) and isinstance(batch.get("editor_identity"), Mapping)
         ))
         scope = tuple(_path_key(path) for path in paths) or tuple(path for path in loaded_paths if path)
-        if scope != self._scope and not (set(scope) & set(self._scope)):
+        if not self._carry_hidden and scope != self._scope and not (set(scope) & set(self._scope)):
             self._hidden_keys.clear()
+        self._carry_hidden = False
         self._scope = scope
         self._updating = True
         try:
@@ -288,6 +304,18 @@ class ItemSetComponentsWidget(QWidget):
                                   else part_number_label(local))
                         row.setText(0, f"{label} \u00b7 {detail}")
                     row.setToolTip(0, "\n".join(text for text in (label, material, name) if text))
+
+    def set_removable_paths(self, paths: Iterable[str]) -> None:
+        """The files Remove from scene is offered on (a set of two or more files)."""
+
+        keys = frozenset(_path_key(path) for path in paths if str(path or "").strip())
+        self._removable = keys if len(keys) > 1 else frozenset()
+
+    @property
+    def hidden_part_keys(self) -> frozenset[tuple[str, int]]:
+        """The unticked parts as (path key, local part), stable across a reload."""
+
+        return frozenset(self._hidden_keys)
 
     @property
     def hidden_indices(self) -> tuple[int, ...]:
@@ -459,6 +487,9 @@ class ItemSetComponentsWidget(QWidget):
                 ("Open in Mesh Editor", lambda: self.openFileRequested.emit(path), bool(path) and loaded),
                 (OPEN_TICKED_LABEL, self.editSetRequested.emit, bool(self.ticked_files())),
             ]
+        if self._removable:
+            actions.append((REMOVE_FROM_SCENE_LABEL, lambda: self.removeFileRequested.emit(path),
+                            bool(path) and path in self._removable))
         return actions
 
     def _show_context_menu(self, position: QPoint) -> None:

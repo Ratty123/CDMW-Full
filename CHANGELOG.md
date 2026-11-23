@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- **Add to scene** in Browse Archives: right-click any `.pac` model and choose Add to scene to show it in the preview with the models already there (on the model shown, it starts a scene with that model), then search for more and add them too; Clear Scope ends the scene. **Remove from scene** in the Scene panel's right-click menu takes one out. **Open ticked parts in Mesh Editor** edits the collected models in one session, and Build Mod writes them into one mod. A scene holds up to 33 models; each is drawn in its own model space, so a weapon or prop sits at its own origin rather than in a hand, and a model you add shows its default material variant.
+
 ### Changed
 
 - **Mods mounted in DMM (experimental)** is now off until you turn it on in **Mod Management > Mounted in DMM** or Settings, so Browse Archives and the editors show the game's own files by default. CDMW turns it off once for everyone who had it on from the old default; turn it on again if you want it.
@@ -21,6 +25,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Browse Archives** fills in the **Item Name** column once item names are ready. Before, files listed before the names finished loading kept an empty column, and scrolling or other work in CDMW could restart the name loading again and again, so names sometimes arrived very late or never, even after Refresh or a restart. A name search or a first preview could also swap the full name list for a smaller one, leaving thousands of models (many of them `.pac` files reached through prefabs) without a name.
 - **Browse Archives** no longer shows a long list of unrelated item names (Kliff coupons, House keys, Goyen and Kairos armour and others) on some house, door and window models.
 - **Build Mod** to DMM: a mod built while CDMW ran as administrator now loads in the game. Its files kept the private permissions of CDMW's temporary build folder, so DMM could read them but the game, started normally, could not open them. Mods and other files CDMW writes now take the permissions of the folder they are saved to. Mods built with earlier versions need rebuilding, or their permissions reset.
+- **Browse Archives** no longer stops a set's preview with "Preview timed out while loading" when the set is shown (with Add to scene, Item Finder or a search) while the same model's own preview is still loading. The timeout message no longer points to the removed Fast Detail option.
 
 ### Docs
 

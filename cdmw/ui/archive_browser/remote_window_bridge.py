@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cdmw.domain.archives.item_sets import MAX_SET_FILES
+from cdmw.domain.archives.item_sets import MAX_SET_FILES, SCENE_LABEL, SceneScope
 
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -111,6 +111,14 @@ class ArchiveRemoteWindowBridge(QObject):
         self.item_set_preview_requested = False
         self._item_set_previous_components: set[str] | None = None
         self._pending_item_set_query: ArchiveQuery | None = None
+        #: The last set shown (Item Finder's, or one collected with Add to scene). It
+        #: outlives a filter change or Clear Scope, so more files can be found and added.
+        self._scene: SceneScope | None = None
+        self._pending_scene: SceneScope | None = None
+        #: The Scene panel's unticked parts, (path key, local part), kept across a re-apply.
+        self._scene_hidden_parts: frozenset[tuple[str, int]] = frozenset()
+        #: The catalogue row of the model the preview last asked for: the shown file.
+        self._shown_dto: ArchiveEntryDto | None = None
         self._item_set_scope = ItemSetScopeResolver(window.archive.archive_catalogue_service, self)
         self._item_set_scope.ready.connect(self._item_set_scope_ready)
         self._item_set_scope.failed.connect(self._item_set_scope_failed)
@@ -201,6 +209,8 @@ class ArchiveRemoteWindowBridge(QObject):
         self._clear_item_set_scope()
         self._item_scope_preferred_prefab_stems = ()
         self._item_scope_entry_ids = ()
+        self._scene = self._pending_scene = self._shown_dto = None
+        self._scene_hidden_parts = frozenset()
         self._window.archive._clear_archive_failure_display()
         self._last_open_root = str(Path(package_root))
         self._last_force_refresh = bool(force_refresh)
@@ -313,13 +323,26 @@ class ArchiveRemoteWindowBridge(QObject):
         label: str,
         preferred_prefab_stems: Iterable[str] = (),
         worn_set: bool = False,
+        kept_entry_ids: Iterable[int] = (),
+        keep_ticks: bool = False,
     ) -> bool:
+        """Show ``entry_ids`` as Browse's scope; with ``worn_set`` its models are one set.
+
+        ``kept_entry_ids`` are models put in the set by hand, which the set keeps
+        whatever their name (``worn_set_members``). ``keep_ticks`` keeps the Scene
+        panel's unticked parts, for the same scene with a file more or less.
+        """
+
         session = self._controller.current_session
         bounded_ids = tuple(dict.fromkeys(int(entry_id) for entry_id in entry_ids))[:MAX_REMOTE_EXPORT_ENTRY_IDS]
         if session is None or not bounded_ids:
             return False
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._clear_item_set_scope()
+        if keep_ticks:
+            panel = getattr(self._window.archive, "archive_item_set_components", None)
+            if panel is not None:
+                panel.reset(keep_hidden=self._scene_hidden_parts)
         self._item_scope_entry_ids = bounded_ids
         self._item_scope_preferred_prefab_stems = tuple(
             dict.fromkeys(
@@ -344,6 +367,11 @@ class ArchiveRemoteWindowBridge(QObject):
         self._begin_pending(f"Applying {label} scope...", operation="query")
         if worn_set:
             self._pending_item_set_query = query
+            kept = {int(entry_id) for entry_id in kept_entry_ids}
+            self._pending_scene = SceneScope(
+                bounded_ids, (), str(label or SCENE_LABEL), self._item_scope_preferred_prefab_stems,
+                tuple(entry_id for entry_id in bounded_ids if entry_id in kept), session.session_id,
+            )
             return self._item_set_scope.request(session.session_id, bounded_ids, self._controller.generation,
                                                 self._item_scope_preferred_prefab_stems)
         self._item_scope_selection_generation = self._controller.apply_query(
@@ -354,6 +382,9 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def _clear_item_set_scope(self) -> None:
         self._item_set_scope.cancel()
+        panel = getattr(self._window.archive, "archive_item_set_components", None)
+        if self.item_set_active and panel is not None and getattr(panel, "active", False):
+            self._scene_hidden_parts = frozenset(getattr(panel, "hidden_part_keys", ()))
         if self.item_set_members:
             from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 
@@ -366,24 +397,29 @@ class ArchiveRemoteWindowBridge(QObject):
                 selections[key] = self._item_set_previous_components
         self._item_set_previous_components = None
         self._pending_item_set_query = None
+        self._pending_scene = None
         self.item_set_members = ()
         self.item_set_active = False
         self.item_set_preview_requested = False
         self._window.archive._archive_item_set_visibility_active = False
-        panel = getattr(self._window.archive, "archive_item_set_components", None)
         if panel is not None:
             panel.reset()
 
     def _item_set_scope_ready(self, session_id: str, entries: object, prefab_models: object = ()) -> None:
         query, self._pending_item_set_query = self._pending_item_set_query, None
+        scene, self._pending_scene = self._pending_scene, None
         if (query is None or self.current_session is None or self.current_session.session_id != session_id
                 or getattr(self._window.shell, "_shutting_down", False)):
             return
         # The item's own prefab names one wearer's pieces; its scope holds every wearer's.
-        members = worn_set_members(tuple(entries), tuple(prefab_models or ()))
+        members = worn_set_members(tuple(entries), tuple(prefab_models or ()),
+                                   scene.kept_ids if scene is not None else ())
         if len(members) > MAX_SET_FILES:
             self._handle_failure("item_set_scope", "A set preview supports at most 32 additional model files.")
             return
+        if scene is not None:
+            self._scene = replace(scene, model_ids=tuple(member.entry_id for member in members))
+            self._scene_hidden_parts = frozenset()
         self.item_set_members = members
         self.item_set_active = len(members) > 1
         if members:
@@ -405,6 +441,7 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._pending_item_set_query is None or getattr(self._window.shell, "_shutting_down", False):
             return
         self._pending_item_set_query = None
+        self._pending_scene = None  # the scene shown before stays the one Add to scene extends
         self._handle_failure("item_set_scope", message)
 
     @property
@@ -415,6 +452,102 @@ class ArchiveRemoteWindowBridge(QObject):
     @property
     def item_scope_entry_ids(self) -> tuple[int, ...]:
         return self._item_scope_entry_ids
+
+    # ----- Add to scene / Remove from scene ---------------------------------------
+    @property
+    def scene(self) -> SceneScope | None:
+        """The scene Add to scene extends: the set shown, or the last one before a search."""
+
+        session = self.current_session
+        scene = self._scene
+        if session is None or scene is None or scene.session_id != session.session_id:
+            return None
+        return scene
+
+    def _scene_base(self, dto: ArchiveEntryDto | None = None) -> SceneScope:
+        """The files Add to scene adds ``dto`` to.
+
+        The set shown, else the scene a search left (a filter change or Clear Scope
+        keeps it), else the model shown on its own. Add to scene on the model shown
+        on its own starts a scene of that one model, which a search keeps, so the
+        next model can be searched for and added. A one-model Item Finder set gives
+        way to another model shown since.
+        """
+
+        scene = self.scene
+        session = self.current_session
+        shown = self._shown_dto
+        if shown is not None and (session is None or shown.session_id != session.session_id
+                                  or shown.extension.casefold() != ".pac"):
+            shown = None
+        if scene is not None and (self.item_set_active or len(scene.model_ids) > 1 or scene.kept_ids
+                                  or shown is None or shown.entry_id in scene.model_ids):
+            return scene
+        empty = SceneScope((), session_id=session.session_id if session is not None else "")
+        if shown is None:
+            return empty
+        stems = self._item_scope_preferred_prefab_stems if shown.entry_id in self._item_scope_entry_ids else ()
+        if dto is not None and dto.entry_id == shown.entry_id:
+            return replace(empty, prefab_stems=stems)  # a scene of the model shown, to search on from
+        return SceneScope.of_file(shown.entry_id, session_id=shown.session_id, prefab_stems=stems)
+
+    def _current_dto(self) -> ArchiveEntryDto | None:
+        return self._model.entry_for_index(self._window.archive_tree.currentIndex())
+
+    def scene_add_reason(self, dto: ArchiveEntryDto | None = None) -> str:
+        """Why the selected file cannot be added to the scene, or ""."""
+
+        dto = dto if dto is not None else self._current_dto()
+        if self.current_session is None or dto is None:
+            return "Select an archive file first."
+        if self._pending_item_set_query is not None:
+            return "Wait for the scene to finish loading."
+        return self._scene_base(dto).add_reason(dto.entry_id, dto.extension)
+
+    def scene_file_count(self, dto: ArchiveEntryDto | None = None) -> int:
+        """How many models the scene the selected file would join holds now."""
+
+        return len(self._scene_base(dto if dto is not None else self._current_dto()).model_ids)
+
+    def add_to_scene(self, dto: ArchiveEntryDto | None = None) -> bool:
+        """Show the scene's files and the selected one as one set (Add to scene)."""
+
+        dto = dto if dto is not None else self._current_dto()
+        if dto is None or self.scene_add_reason(dto):
+            return False
+        scene = self._scene_base(dto).adding(dto.entry_id)
+        return self.apply_entry_id_scope(scene.entry_ids, label=scene.label,
+                                         preferred_prefab_stems=scene.prefab_stems, worn_set=True,
+                                         kept_entry_ids=scene.kept_ids, keep_ticks=True)
+
+    def clear_scene(self) -> None:
+        """Forget the scene (Clear Scope): the next Add to scene starts from the model shown."""
+
+        self._scene = None
+        self._scene_hidden_parts = frozenset()
+
+    def scene_removable_paths(self) -> tuple[str, ...]:
+        """The shown set's files Remove from scene can take out: all of them, while two or more."""
+
+        if not self.item_set_active or self.scene is None:
+            return ()
+        return tuple(member.path for member in self.item_set_members)
+
+    def remove_from_scene(self, path: str) -> bool:
+        """The scene without one file; one model left is a single-file preview."""
+
+        key = str(path or "").replace("\\", "/").strip().strip("/").casefold()
+        scene = self.scene
+        member = next((member for member in self.item_set_members
+                       if member.path.replace("\\", "/").strip("/").casefold() == key), None)
+        if scene is None or member is None or not self.item_set_active:
+            return False
+        scene = scene.removing(member.entry_id)
+        if not scene.entry_ids:
+            return False
+        return self.apply_entry_id_scope(scene.entry_ids, label=scene.label,
+                                         preferred_prefab_stems=scene.prefab_stems, worn_set=True,
+                                         kept_entry_ids=scene.kept_ids, keep_ticks=True)
 
     def item_set_contains(self, entry: ArchiveEntry | None) -> bool:
         return bool(self.item_set_active and entry is not None and any(
@@ -455,6 +588,7 @@ class ArchiveRemoteWindowBridge(QObject):
         if entry is None:
             return
         self._clear_item_set_scope()
+        self._scene = None  # a new scene starts from this file
         from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 
         key = ArchivePreviewD3D11PartsMixin._archive_d3d11_prefab_entry_key(entry)
@@ -480,6 +614,8 @@ class ArchiveRemoteWindowBridge(QObject):
     def request_preview_dependencies(self, ui_request_id: int, entry: ArchiveEntry) -> bool:
         provider = self._preview_dependencies
         dto = self._preview_dto_for(entry)
+        if dto is not None and _legacy_identity_key(entry) == _dto_identity_key(dto):
+            self._shown_dto = dto
         if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
             return False
         enabled_getter = getattr(self._window.archive, "_archive_d3d11_enabled_prefab_component_paths", None)

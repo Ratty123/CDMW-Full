@@ -517,6 +517,23 @@ class ArchiveBrowserActionMixin:
                 open_set_action.triggered.connect(lambda _checked=False, run=open_set: QTimer.singleShot(0, run))
                 preview_file_action = menu.addAction("Preview only this file")
                 preview_file_action.triggered.connect(set_bridge.preview_only_current_file)
+            from cdmw.ui.archive_browser.context_commands import scene_add_reason
+
+            add_scene_action = menu.addAction(menu_icons["mesh"], "Add to scene")
+            add_scene_why = scene_add_reason(self, entry)
+            add_scene_action.setEnabled(not add_scene_why)
+            if add_scene_why:
+                add_scene_action.setToolTip(add_scene_why)
+            else:
+                count = set_bridge.scene_file_count()
+                if count:
+                    add_scene_action.setToolTip(
+                        f"Show this model in the preview with the scene's other models. Models in the scene now: {count}. "
+                        "Open ticked parts in Mesh Editor then edits them together."
+                    )
+                else:
+                    add_scene_action.setToolTip("Start a scene with this model, then add more models to show them together.")
+                add_scene_action.triggered.connect(lambda _checked=False, bridge=set_bridge: bridge.add_to_scene())
             continue_work_action = menu.addAction(menu_icons["mesh"], "Continue Earlier Work...")
             continue_work_action.setToolTip("Show your saved drafts and built mods made from this file.")
 

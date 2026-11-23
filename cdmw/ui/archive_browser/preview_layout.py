@@ -664,6 +664,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_preview_host.set_source_part_picking(True)
         self.archive_item_set_components.prefabComponentToggled.connect(self._archive_scene_prefab_toggled)
         self.archive_item_set_components.openFileRequested.connect(self._archive_scene_open_file)
+        self.archive_item_set_components.removeFileRequested.connect(self._archive_scene_remove_file)
         preview_with_components.addWidget(self.archive_preview_stack)
         preview_with_components.addWidget(self.archive_item_set_components)
         preview_with_components.setStretchFactor(0, 1)

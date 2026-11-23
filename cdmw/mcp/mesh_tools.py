@@ -396,8 +396,10 @@ def _scope_set(call, archive, paths: list[str], label: str) -> None:
         missing = [path for path, key in zip(paths, wanted) if key not in by_path]
         if missing:
             box["error"] = ToolError(NOT_FOUND, f"The archives have no file {missing[0]}.")
+        # The files named are the scene, as Add to scene collects them: none is left out.
         elif not archive.archive_remote_bridge.apply_entry_id_scope(
-                [by_path[key] for key in wanted], label=label, worn_set=True):
+                [by_path[key] for key in wanted], label=label, worn_set=True,
+                kept_entry_ids=[by_path[key] for key in wanted]):
             box["error"] = ToolError(UNAVAILABLE, "Browse Archives could not show this set.")
         done.set()
 
@@ -843,7 +845,8 @@ def mesh_tools() -> list[Tool]:
                          "without it the selected mesh is opened. Returns at once; mesh_state says when the "
                          "editor is ready, or 'asks' when it waits for an answer such as whether to continue "
                          "a saved draft (mesh_draft_choice). With 'set' (two or more archive paths, such as "
-                         "an item's worn parts from search_items) Browse is scoped to that set and Open set in "
+                         "an item's worn parts from search_items, or any .pac files to edit together, as Add to scene "
+                         "collects them) Browse is scoped to that set, every file named is kept, and Open set in "
                          "Mesh Editor edits the pieces together; 'label' names the set. With 'ticked_parts' "
                          "the Scene panel's Open ticked parts button opens the parts ticked there.",
              input_schema=object_schema({

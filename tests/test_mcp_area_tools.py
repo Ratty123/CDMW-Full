@@ -384,7 +384,9 @@ def test_open_a_worn_set_or_the_ticked_parts_as_browse_does(mesh, monkeypatch) -
                    for index, path in enumerate(paths, 7)]
         QTimer.singleShot(20, lambda: on_done(SimpleNamespace(entries=entries)))
 
-    def scope(ids, *, label, worn_set):
+    def scope(ids, *, label, worn_set, kept_entry_ids=()):
+        # Every file the set names is kept, as Add to scene keeps the files it collects.
+        assert list(kept_entry_ids) == list(ids)
         scoped.append((list(ids), label, worn_set))
         members.update(paths)
         # The set scope selects its first file itself once its rows are listed.

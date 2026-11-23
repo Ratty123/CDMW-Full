@@ -294,7 +294,7 @@ class ArchivePreviewLoadingMixin:
             self._set_archive_texture_upgrade_status("timed_out")
             self.shell.set_status_message(message, error=True)
             return
-        self._clear_archive_preview("Preview timed out while loading. Select the file again or use Fast Detail.")
+        self._clear_archive_preview("Preview timed out while loading. Select the file again to retry.")
         self.shell.set_status_message("Archive preview timed out and was stopped.", error=True)
 
     def _stop_archive_preview_loading_indicator(self, *, success: Optional[bool]) -> None:

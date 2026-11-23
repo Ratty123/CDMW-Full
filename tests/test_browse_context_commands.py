@@ -67,7 +67,8 @@ def test_each_commands_reason_is_empty_exactly_when_the_menu_offers_its_entry(br
     for path in SAMPLES:
         name = path.rsplit("/", 1)[-1]
         listed = act(archive.archive_tree, "menu", row=name, window=browse)
-        offered = {clean_label(row["text"]) for row in listed["entries"]}
+        # A greyed-out entry is shown with its reason, as the command gives it.
+        offered = {clean_label(row["text"]) for row in listed["entries"] if row.get("enabled", True)}
         assert archive._current_archive_entry().path == path
         for spec in file_specs:
             in_menu = clean_label(spec.label) in offered
@@ -96,3 +97,39 @@ def test_the_commands_are_registered_and_run_the_menus_handler(browse, monkeypat
     # Without a selection the command says what to do first.
     monkeypatch.setattr(archive, "_current_archive_entry", lambda: None)
     assert registry.reason("browse.add_bones") == "Select an archive file first."
+
+
+def test_add_to_scene_and_remove_from_scene_reach_the_catalogue_bridge(browse, monkeypatch):
+    from cdmw.mcp.ui_tree import act
+
+    archive = browse.archive
+    calls = []
+
+    class _Bridge:
+        displays_v2 = False  # the fixture lists its rows in the legacy tree
+
+        def item_set_contains(self, _entry):
+            return False
+
+        def scene_add_reason(self):
+            return ""
+
+        def scene_file_count(self):
+            return 1
+
+        def add_to_scene(self):
+            calls.append(("add", archive._current_archive_entry().path))
+            return True
+
+        def remove_from_scene(self, path):
+            calls.append(("remove", path))
+            return True
+
+    monkeypatch.setattr(archive, "archive_remote_bridge", _Bridge())
+    listed = act(archive.archive_tree, "menu", row="ambience.bnk", window=browse)
+    assert "Add to scene" not in {row["text"] for row in listed["entries"]}
+    act(archive.archive_tree, "menu", row="cd_phm_00_body.pac", menu="Add to scene", window=browse)
+    assert calls == [("add", "character/cd_phm_00_body.pac")]
+    # The Scene panel's Remove from scene goes to the same bridge.
+    archive.archive_item_set_components.removeFileRequested.emit("character/cd_phm_00_body.pac")
+    assert calls[-1] == ("remove", "character/cd_phm_00_body.pac")

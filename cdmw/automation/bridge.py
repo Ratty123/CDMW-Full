@@ -625,7 +625,8 @@ class AutomationBridge(QObject):
                 if key in wanted and (key not in by_path or dto.is_active_override):
                     by_path[key] = dto.entry_id
             ids = [by_path[key] for key in wanted if key in by_path]
-            applied = len(ids) == len(wanted) and bridge.apply_entry_id_scope(ids, label=label, worn_set=True)
+            applied = len(ids) == len(wanted) and bridge.apply_entry_id_scope(ids, label=label, worn_set=True,
+                                                                                kept_entry_ids=ids)
             self._push("automation_set_applied", {"ok": bool(applied), "resolved": len(ids), "wanted": len(wanted)})
 
         start_live_catalogue_lookup(

@@ -109,6 +109,14 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Conflicts: {count}",
         "Record a new key",
         "Restore the default keys of every command, in every tool?",
+        # Add to scene's reasons (cdmw/domain/archives/item_sets.py, the catalogue bridge and
+        # context_commands.py): the menu entry's tooltip and the command's reason, set at run time.
+        "Only .pac models can be added to a scene.",
+        "This model is already in the scene.",
+        "A scene holds at most {count} model files.",
+        "Wait for the scene to finish loading.",
+        "Load the game archives in Browse Archives first.",
+        "Remove from scene",
         # Item-set preparation forwards these through worker callbacks/signals.
         "Preparing reference meshes...",
         "The archive catalogue changed while preparing the item set.",

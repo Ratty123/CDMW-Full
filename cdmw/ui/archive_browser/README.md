@@ -333,6 +333,31 @@ each changed piece in its original PAC; topology edits and paste cannot cross fi
 owners. Files that exceed the editor's session limits remain named, reduced-detail
 references. **Open in Mesh Editor** retains the selected-file editing workflow.
 
+### Scenes collected by hand
+
+**Add to scene** (a `.pac` file's right-click menu, command `browse.add_to_scene`)
+and the Scene panel's **Remove from scene** reuse the worn-set route rather than a
+second scene model. The bridge keeps the last set it showed as a `SceneScope`
+(`cdmw/domain/archives/item_sets.py`): the whole scope's entry ids, the resolved
+model ids, the label, the prefab stems and the ids added by hand. Add to scene
+re-applies that scope with the selected file's id added; Remove from scene re-applies
+it without one file, and one model left previews alone. The record survives a filter
+change, so the next file can be searched for and added (a search previews its first
+result on its own); a new set replaces it, and **Clear Scope**, **Preview only this
+file** and a new archive session drop it. Without a record the shown model starts the
+scene (the label becomes "Scene"); Add to scene on the shown model itself starts a
+one-model scene, which a search keeps. A one-model Item Finder set gives way to
+another model shown since.
+An Item Finder set keeps its label, stems and item files, so its pieces keep their
+material variant; a hand-added file shows its default variant. Files added by hand
+are passed as `kept_entry_ids`, which `worn_set_members` keeps even when their name
+says `dropitem` or another wearer's prefab lists them; the MCP `mesh.open` set and
+automation `select_set` keep every path they name the same way. The action is greyed
+out with its reason for other formats, for a file already in the scene, and for a
+scene at `MAX_SET_FILES`, checked before the shown set is cleared. The Scene panel's
+unticked parts carry over the re-apply. Pieces draw in their own model space; nothing
+is placed.
+
 ## Scanner failures and recovery
 
 The older application scanner, shadow mode and **Use Legacy This Session** action

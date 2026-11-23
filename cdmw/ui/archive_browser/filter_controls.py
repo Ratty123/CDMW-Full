@@ -284,6 +284,10 @@ class ArchiveFilterControlsMixin:
     def _clear_archive_asset_catalog_scope(self) -> None:
         if not self.archive_active_asset_catalog_scope:
             return
+        # Clear Scope also ends a scene; typing a new filter keeps it to add more models.
+        clear_scene = getattr(getattr(self, "archive_remote_bridge", None), "clear_scene", None)
+        if callable(clear_scene):
+            clear_scene()
         self.archive_active_asset_catalog_scope = ""
         self.archive_clear_asset_scope_button.setVisible(False)
         if hasattr(self, "archive_scope_banner_label"):
