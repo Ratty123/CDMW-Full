@@ -857,6 +857,23 @@ def _build_mod(call) -> dict[str, object]:
                     shown["refused"] = (self.destination.text().strip()
                                         or "Build Mod's options are incomplete: give a mod name and an output folder.")
                     return int(self.DialogCode.Rejected)
+                if hair and self.send_to_dmm_enabled():
+                    # Send to DMM writes outside 'output_folder', which the server checked: the same
+                    # rule for its own folder. CDMW's earlier copy there is replaced only when asked.
+                    from cdmw.domain.output_paths import OutputPathRefused, check_output_path
+
+                    destination = self.output_path()
+                    try:
+                        check_output_path(destination, game_folder=game_folder,
+                                          allow_existing=bool(a.get("replace")))
+                    except OutputPathRefused as refused:
+                        exists = destination.exists() and not a.get("replace")
+                        shown["refused"] = (f"{destination} is already in DMM's mods folder: send again with replace "
+                                            "to replace CDMW's earlier copy." if exists else str(refused))
+                        return int(self.DialogCode.Rejected)
+                elif a.get("replace"):
+                    shown["refused"] = "'replace' is for Send to DMM only."
+                    return int(self.DialogCode.Rejected)
                 shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text(),
                              manager=str(self.manager.currentData()[0]), kept_layers=list(self.kept_layers()),
                              include_body=bool(offers_body and self.include_body.isChecked()),
@@ -868,6 +885,7 @@ def _build_mod(call) -> dict[str, object]:
 
         from PySide6.QtCore import Qt
 
+        game_folder = str(getattr(context, "game_folder", lambda: "")() or "")
         QT_USER_ROLE, QT_CHECKED, QT_UNCHECKED = (Qt.ItemDataRole.UserRole, Qt.CheckState.Checked,
                                                   Qt.CheckState.Unchecked)
         tab_direct_output.MeshModExportDialog = _Answered
@@ -1102,8 +1120,12 @@ def mesh_tools() -> list[Tool]:
                                                          "description": "Hairstyle only: write the mod straight "
                                                                         "into DMM's mods folder instead of "
                                                                         "'output_folder', replacing CDMW's earlier "
-                                                                        "folder of the same name there. Refused "
-                                                                        "when DMM's mods folder is not found."}},
+                                                                        "folder of the same name there only with "
+                                                                        "'replace'. Refused when DMM's mods folder "
+                                                                        "is not found or is inside the game."},
+                                         "replace": {"type": "boolean", "default": False,
+                                                     "description": "With send_to_dmm: replace the copy CDMW sent "
+                                                                    "earlier under the same name."}},
                                         ["output_folder"]),
              effect=OUTPUT, route="ui:_start_mesh_mod_build_requested", handler=_build_mod, runs_on=ON_CALL,
              output_folders=("output_folder",)),

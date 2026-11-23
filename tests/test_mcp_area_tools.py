@@ -417,6 +417,21 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     sent = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
     assert sent["started"] and sent["send_to_dmm"] and built[-1][4]
     assert Path(sent["destination"]).parent == dmm / "mods"
+    # CDMW's earlier copy there is replaced only when the call says so, as New Item's Send to DMM does.
+    Path(sent["destination"]).mkdir()
+    building[0], count = False, len(built)
+    again = mcp.error("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
+    assert again["code"] == "invalid_arguments" and "replace" in again["message"] and len(built) == count
+    replaced = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True,
+                                         "replace": True})
+    assert replaced["started"] and replaced["destination"] == sent["destination"]
+    # Never into the game (set as the game folder above): a DMM kept inside it is refused.
+    inside = game / "DMM"
+    (inside / "mods").mkdir(parents=True)
+    (inside / "DMM.exe").write_bytes(b"")
+    hair[1], building[0], count = inside, False, len(built)
+    refused_game = mcp.error("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
+    assert "game" in refused_game["message"] and len(built) == count
     hair[1] = None
     # A mesh mod takes none of the hairstyle's options.
     hair[0], building[0] = False, False
