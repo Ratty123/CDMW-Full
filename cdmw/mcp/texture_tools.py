@@ -311,6 +311,24 @@ def _history_list(call):
     return _act(call, change)
 
 
+def _close_panel(call) -> dict[str, object]:
+    """The docked Texture Editor's own Close Editor button: the panel hides; its texture and edits stay."""
+
+    def close() -> dict[str, object]:
+        _tab, dock = _panel(call.context)
+        button = getattr(dock, "close_button", None)
+        if dock is None or button is None or dock.isHidden():
+            raise ToolError(UNAVAILABLE, "The Mesh Editor's Texture Editor panel is not open.")
+        target_now = getattr(dock, "target", None)
+        button.click()
+        return {"closed": True, "shown": not dock.isHidden(),
+                "texture": str(getattr(target_now, "display_name", "") or ""),
+                "message": "The Texture Editor panel is hidden; the texture and its edits stay. textures_open "
+                           "shows it again."}
+
+    return _act(call, close)
+
+
 def texture_tools() -> list[Tool]:
     from cdmw.mcp.texture_edits import POINTS, TEXT, TOOL_SETTINGS, edit_tools
     from cdmw.mcp.texture_files import file_tools
@@ -367,6 +385,12 @@ def texture_tools() -> list[Tool]:
                                           "index": {"type": "integer", "minimum": 0}}, ["action"]),
              effect=DESTRUCTIVE, effect_of=lambda call: DESTRUCTIVE if call.arguments["action"] == "clear" else EDIT,
              route="ui:TextureEditor.restore_selected_history/clear_history", handler=_history_list, runs_on=ON_CALL),
+        Tool(name="textures.close_panel", family="textures", title="Close the Texture Editor panel",
+             description="Closes the Mesh Editor's docked Texture Editor panel, as its Close Editor button does: "
+                         "the panel hides, and the open texture and its edits stay (shown on the model, kept "
+                         "for Build Mod). textures_open shows it again. The mesh is not closed.",
+             input_schema=object_schema(), effect=READ, route="ui:MeshEditorTextureTools.close_button",
+             handler=_close_panel, runs_on=ON_CALL),
         Tool(name="textures.undo", family="textures", title="Undo (texture)",
              description="Undo in the Texture Editor.", input_schema=texture_schema(), effect=EDIT,
              route="ui:TextureEditor.undo", handler=_history("undo"), runs_on=ON_CALL),

@@ -975,6 +975,13 @@
       "tool": "textures.stroke"
     },
     {
+      "id": "textures.close_panel",
+      "area": "Texture Editor",
+      "what": "Close Editor: hide the Mesh Editor's docked Texture Editor panel, keeping its texture and edits",
+      "class": "read",
+      "tool": "textures.close_panel"
+    },
+    {
       "id": "textures.undo",
       "area": "Texture Editor",
       "what": "Undo",

@@ -345,3 +345,47 @@ def test_a_pamlods_other_levels_are_read_from_the_file_as_stored() -> None:
     with pytest.raises(ToolError) as refused:
         _lod_parts(service, "s", view, len(stored.lod_levels) + 3)
     assert refused.value.code == "not_found"
+
+
+# ----- 8. The docked Texture Editor's Close ----------------------------------------------
+def test_close_panel_hides_the_docked_texture_editor_and_keeps_its_edits(connect, tmp_path) -> None:  # noqa: F811
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from cdmw.ui.mesh_editor.texture_tools_dock import LiveTextureTarget
+    from tests.test_mesh_editor_texture_panels_shown import _FakeEditor, _manifest, _settle
+    from tests.test_mesh_rust_embedding import _tab
+
+    tab = _tab(tmp_path)
+    holder = QWidget()
+    try:
+        workspace = tab.standalone_workspace
+        textures, tools = workspace.textures_dock, workspace.texture_tools_dock
+        tools._editor_factory = _FakeEditor
+        tab.resize(1400, 800)
+        tab.show()
+        workspace.setEnabled(True)
+        tab.textures_toggle_button.click()
+        textures.set_manifest(_manifest(), session_root=tmp_path)
+        session = tab.live_edit._live_texture_session_id()
+        tools.open_target(LiveTextureTarget(session_id=session, source_path=str(tmp_path / "a.dds"),
+                                            source_sha256="ab" * 32, channel="base_color", display_name="a.dds"))
+        image = QImage(4, 4, QImage.Format.Format_RGBA8888)
+        image.fill(QColor("#336699"))
+        tab.live_edit._on_texture_window_edit(session, "ab" * 32, image, True)
+        _settle()
+        target = tools.target
+        assert tools.isVisible() and target is not None
+        holder.active = tab
+        mcp = connect(SimpleNamespace(shell=SimpleNamespace(mesh_editor_tab=holder)))
+        closed = mcp.ok("textures_close_panel")
+        _settle()
+        assert closed["closed"] and not closed["shown"] and closed["texture"] == "a.dds", closed
+        assert not tools.isVisible() and textures.isVisible() and tools.target is target
+        assert tab.live_edit._live_texture_updates.edited_textures()
+        # Hidden already: said so, nothing pressed.
+        assert mcp.error("textures_close_panel")["code"] == "unavailable"
+    finally:
+        holder.deleteLater()
+        tab.deleteLater()
+        QApplication.processEvents()
