@@ -52,7 +52,8 @@ def _part_rows(snapshot, counts):
 def _select_from_mesh(call) -> dict[str, object]:
     from cdmw.mcp.texture_tools import _act
     from cdmw.services.mesh_texture_selection import TextureMeshRefusal, build_texture_mesh_selection
-    from cdmw.ui.mesh_editor.texture_mesh_selection_flow import MODE_NAMES, apply_selection, selection_mode
+    from cdmw.ui.mesh_editor.texture_mesh_selection_flow import (
+        MODE_NAMES, apply_selection, record_step, selection_mode, summary_text)
 
     a = call.arguments
     part_ids = a.get("part_ids")
@@ -68,9 +69,10 @@ def _select_from_mesh(call) -> dict[str, object]:
             text = apply_selection(editor, key, snapshot, selection, mode)
         except TextureMeshRefusal as exc:
             raise _refused(exc) from None
+        record_step(tools)
         show = getattr(tools, "_show_mesh_selection", None)
-        if callable(show):
-            show(text, False)
+        if callable(show):  # the panel's line, in the interface's language
+            show(summary_text(snapshot, selection, mode, translate=True), False)
         report = selection.report
         return {"texture": snapshot.texture, "lod": snapshot.lod_index, "mode": MODE_NAMES.get(mode, mode),
                 "from": snapshot.source, "selected_pixels": selection.pixels, "faces": report.faces,

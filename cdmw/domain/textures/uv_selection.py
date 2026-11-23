@@ -109,11 +109,12 @@ def _oriented(tri: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _coverage(ids: np.ndarray, tri: np.ndarray, width: int, height: int,
-              report: UvMaskReport) -> Iterator[tuple]:
+              report: UvMaskReport, tolerance: float = EDGE_TOLERANCE) -> Iterator[tuple]:
     """Every pixel each face covers, wrapped onto the texture.
 
-    Yields ``("points", faces, ys, xs)`` for small faces and ``("spans", face, rows, first,
-    last)`` for large ones (each span inside one row, ``first <= last``)."""
+    ``tolerance`` is how far outside an edge a pixel centre may lie; a negative one asks for
+    centres strictly inside. Yields ``("points", faces, ys, xs)`` for small faces and
+    ``("spans", face, rows, first, last)`` for large ones (each span inside one row)."""
 
     if not len(ids):
         return
@@ -152,7 +153,7 @@ def _coverage(ids: np.ndarray, tri: np.ndarray, width: int, height: int,
                 ax, ay = t[:, first, 0, None, None], t[:, first, 1, None, None]
                 ex, ey = t[:, second, 0, None, None] - ax, t[:, second, 1, None, None] - ay
                 length = np.maximum(np.hypot(ex, ey), 1.0e-300)
-                inside &= (ex * (cy - ay) - ey * (cx - ax)) / length >= -EDGE_TOLERANCE
+                inside &= (ex * (cy - ay) - ey * (cx - ax)) / length >= -tolerance
             owner, row, column = np.nonzero(inside)
             if not len(owner):
                 continue
@@ -170,7 +171,7 @@ def _coverage(ids: np.ndarray, tri: np.ndarray, width: int, height: int,
         for first, second in ((0, 1), (1, 2), (2, 0)):
             ax, ay = t[first]
             ex, ey = t[second, 0] - ax, t[second, 1] - ay
-            slack = EDGE_TOLERANCE * max(float(np.hypot(ex, ey)), 1.0e-300)
+            slack = tolerance * max(float(np.hypot(ex, ey)), 1.0e-300)
             # Inside: ex * (cy - ay) - ey * (x - ax) >= -slack.
             bound = ex * (cy - ay) + ey * ax + slack
             if ey > 0:
@@ -215,7 +216,7 @@ def _folded_spans(rows: np.ndarray, first: np.ndarray, last: np.ndarray, width: 
 
 def _faces_of(parts: Sequence[UvPart], width: int, height: int,
               faces_by_part: Mapping[int, Optional[Sequence[int]]] | None,
-              report: UvMaskReport) -> Iterator[tuple[int, tuple]]:
+              report: UvMaskReport, tolerance: float = EDGE_TOLERANCE) -> Iterator[tuple[int, tuple]]:
     for part in parts:
         if faces_by_part is not None and part.part not in faces_by_part:
             continue
@@ -224,7 +225,7 @@ def _faces_of(parts: Sequence[UvPart], width: int, height: int,
         report.faces += len(ids)
         if len(ids):
             report.faces_by_part[part.part] = report.faces_by_part.get(part.part, 0) + len(ids)
-        for item in _coverage(ids, tri, int(width), int(height), report):
+        for item in _coverage(ids, tri, int(width), int(height), report, tolerance):
             yield part.part, item
 
 
@@ -259,10 +260,12 @@ def uv_faces_mask(width: int, height: int, parts: Sequence[UvPart],
 def uv_faces_covering(width: int, height: int, parts: Sequence[UvPart], *,
                       mask: Optional[np.ndarray] = None, pixel: Optional[tuple[int, int]] = None,
                       faces_by_part: Mapping[int, Optional[Sequence[int]]] | None = None,
-                      ) -> dict[int, list[int]]:
+                      strict: bool = False) -> dict[int, list[int]]:
     """The faces covering any pixel of ``mask`` (nonzero), or the one ``pixel`` (x, y), by part.
 
-    Every face on a pixel is listed: mirrored and overlapping UVs list each of their faces."""
+    Every face on a pixel is listed: mirrored and overlapping UVs list each of their faces.
+    ``strict`` counts only pixel centres strictly inside a face, so a face that only shares
+    an edge with the mask (a quad's diagonal through pixel centres) is not listed."""
 
     width, height = int(width), int(height)
     if (mask is None) == (pixel is None):
@@ -274,14 +277,14 @@ def uv_faces_covering(width: int, height: int, parts: Sequence[UvPart], *,
         hits = np.asarray(mask)[:height, :width] > 0
         if hits.shape != (height, width):
             raise ValueError("The mask is not the texture's size.")
-        prefix = np.zeros((height, width + 1), dtype=np.int64)
-        np.cumsum(hits, axis=1, out=prefix[:, 1:])
+        prefix = None  # running hit counts per row, made for the first large face
     else:
         px, py = int(pixel[0]), int(pixel[1])
         if not (0 <= px < width and 0 <= py < height):
             raise ValueError(f"The pixel lies outside the texture ({width} x {height}).")
     report = UvMaskReport()
-    for part, item in _faces_of(parts, width, height, faces_by_part, report):
+    tolerance = -EDGE_TOLERANCE if strict else EDGE_TOLERANCE
+    for part, item in _faces_of(parts, width, height, faces_by_part, report, tolerance):
         bucket = found.setdefault(part, set())
         if item[0] == "points":
             faces, ys, xs = item[1:]
@@ -290,6 +293,9 @@ def uv_faces_covering(width: int, height: int, parts: Sequence[UvPart], *,
             continue
         face, rows, first, last = item[1:]
         if mask is not None:
+            if prefix is None:
+                prefix = np.zeros((height, width + 1), dtype=np.int32)
+                np.cumsum(hits, axis=1, dtype=np.int32, out=prefix[:, 1:])
             touched = np.any(prefix[rows, last + 1] - prefix[rows, first] > 0)
         else:
             touched = np.any((rows == py) & (first <= px) & (px <= last))

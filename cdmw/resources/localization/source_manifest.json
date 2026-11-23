@@ -12902,6 +12902,16 @@
       ]
     },
     {
+      "key": "Another texture opened while the selection was made: try again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
+          "line": 78,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Anthropic (Claude)",
       "origins": [
         {
@@ -86982,6 +86992,16 @@
       ]
     },
     {
+      "key": "Left out {value_0} selected faces on {value_1}, which do not use {value_2}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 260,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Left out:\n{value_0}",
       "origins": [
         {
@@ -107602,6 +107622,16 @@
       ]
     },
     {
+      "key": "No part of this mesh draws {value_0} in LOD {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 162,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "No payload files were detected.",
       "origins": [
         {
@@ -110742,6 +110772,16 @@
       ]
     },
     {
+      "key": "Nothing is selected in the 3D view. Select faces (or vertices) on the model, or a part in the Parts list, then try again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 199,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Nothing is selected to save.",
       "origins": [
         {
@@ -113622,6 +113662,16 @@
       ]
     },
     {
+      "key": "Open a texture from the Textures panel first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
+          "line": 26,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "Open a texture to start editing.",
       "origins": [
         {
@@ -114488,6 +114538,21 @@
           "path": "tools/placement_studio/window.py",
           "line": 414,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Open the mesh in the Mesh Editor first.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 148,
+          "sink": "tr"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
+          "line": 51,
+          "sink": "tr"
         }
       ]
     },
@@ -119968,6 +120033,11 @@
           "path": "cdmw/services/mesh_rust_replacement.py",
           "line": 83,
           "sink": "python-return:replacement_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 65,
+          "sink": "python-return:names"
         },
         {
           "path": "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_rig.rs",
@@ -152741,7 +152811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
-          "line": 98,
+          "line": 115,
           "sink": "_emit"
         }
       ]
@@ -157596,8 +157666,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
-          "line": 62,
-          "sink": "python-return:summary_text"
+          "line": 68,
+          "sink": "tr"
         }
       ]
     },
@@ -157721,8 +157791,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/texture_mesh_selection_flow.py",
-          "line": 140,
-          "sink": "_report"
+          "line": 25,
+          "sink": "tr"
         }
       ]
     },
@@ -174547,6 +174617,16 @@
       ]
     },
     {
+      "key": "The Mesh Editor session is closing.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 153,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "The Mesh Editor still has unsaved geometry or layer changes.",
       "origins": [
         {
@@ -178127,6 +178207,16 @@
       ]
     },
     {
+      "key": "The mesh has parts 0 to {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 182,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "The mesh helper lost this edit's Morph & Refit state: one of its jobs did not finish in time, or the helper started again. Cancel this edit and open the model again to keep using Morph & Refit.",
       "origins": [
         {
@@ -179972,6 +180062,26 @@
       ]
     },
     {
+      "key": "The selected faces do not use {value_0}: they are on {value_1}. {value_2} is used by: {value_3}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 226,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "The selected faces have no UVs on {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 241,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "The selected file is added by the mod and does not exist in the game's archive index.",
       "origins": [
         {
@@ -180213,6 +180323,16 @@
           "path": "cdmw/workers/character_finder_export_worker.py",
           "line": 82,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The selection holds no whole face: select faces, or every corner of the faces you want.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 229,
+          "sink": "tr"
         }
       ]
     },
@@ -182978,6 +183098,16 @@
           "path": "tools/placement_studio/window_animation_editor.py",
           "line": 106,
           "sink": "translate_active_ui_text"
+        }
+      ]
+    },
+    {
+      "key": "This is a material layer texture: the shader may repeat it at the layer's own scale, so check the result on the model.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 273,
+          "sink": "tr"
         }
       ]
     },
@@ -216397,7 +216527,7 @@
       ]
     },
     {
-      "key": "panel below the list. Tools and their options sit in two columns above Layers, Adjustments and History. The texture fits the canvas, and the panel follows the Mesh Editor's text size and Settings.",
+      "key": "panel below the list. Tools and their options sit in two columns above Selection, Layers, Adjustments and History. The texture fits the canvas, and the panel follows the Mesh Editor's text size and Settings.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -228527,6 +228657,16 @@
       ]
     },
     {
+      "key": "{value_0} do not use {value_1}. It is used by: {value_2}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 185,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
       "key": "{value_0} does not contain a backup_manifest.json file.",
       "origins": [
         {
@@ -228693,6 +228833,36 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 130,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} faces have UVs outside 0-1; they repeat the texture, so their pixels were wrapped onto it.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 266,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} faces outside the selection share these pixels (mirrored or overlapping UVs): painting the selection changes them too.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 263,
+          "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} faces were left out: their UVs are unusable or repeat the texture more than 64 times.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 270,
+          "sink": "tr"
         }
       ]
     },
@@ -229203,6 +229373,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
           "line": 515,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} is a detail texture: the 3D view repeats it over the surface at its own scale, so its pixels have no one place on the model. Open the part's base colour, normal or mask texture instead.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_texture_selection.py",
+          "line": 141,
+          "sink": "tr"
         }
       ]
     },

@@ -11,17 +11,19 @@ from typing import Optional, Sequence
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
 
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.services.mesh_texture_selection import (
     TextureMeshRefusal,
     TextureMeshSelection,
     TextureMeshSnapshot,
     build_texture_mesh_selection,
     snapshot_texture_mesh,
+    tr,
 )
 
 MODE_NAMES = {"replace": "Replace", "add": "Add", "subtract": "Subtract", "intersect": "Intersect"}
-WORKING_TEXT = "Selecting from the mesh selection..."
-NO_TEXTURE_TEXT = "Open a texture from the Textures panel first."
+WORKING_TEXT = tr("Selecting from the mesh selection...")
+NO_TEXTURE_TEXT = tr("Open a texture from the Textures panel first.")
 
 
 def document_key(editor: object) -> tuple:
@@ -46,7 +48,7 @@ def dock_snapshot(tools: object, *, part_ids: Optional[Sequence[int]] = None,
     reader = getattr(tools, "mesh_session_reader", None)
     session = reader() if callable(reader) else None
     if session is None:
-        raise TextureMeshRefusal("Open the mesh in the Mesh Editor first.")
+        raise TextureMeshRefusal(tr("Open the mesh in the Mesh Editor first."))
     parts_reader = getattr(tools, "texture_parts_reader", None)
     fallback = tuple(parts_reader(target.source_sha256, target.game_path)) if callable(parts_reader) else ()
     snapshot = snapshot_texture_mesh(session, target.source_sha256, texture=target.display_name,
@@ -55,11 +57,17 @@ def dock_snapshot(tools: object, *, part_ids: Optional[Sequence[int]] = None,
     return snapshot, document_key(editor)
 
 
-def summary_text(snapshot: TextureMeshSnapshot, selection: TextureMeshSelection, mode: str) -> str:
+def summary_text(snapshot: TextureMeshSnapshot, selection: TextureMeshSelection, mode: str, *,
+                 translate: bool = False) -> str:
+    """What was selected, then the notes; ``translate`` puts each sentence in the interface's
+    language (the panel's line), and without it they stay English (MCP answers)."""
+
+    shown = translate_active_ui_text if translate else (lambda text: text)
     parts = snapshot.names(part for part in snapshot.chosen)
-    text = (f"Selected {selection.pixels:,} pixels from {selection.report.faces:,} faces on {parts} "
-            f"({MODE_NAMES.get(mode, mode)}).")
-    return " ".join((text, *selection.notes))
+    mode_name = shown(MODE_NAMES.get(mode, mode))
+    head = shown(tr(f"Selected {selection.pixels:,} pixels from {selection.report.faces:,} faces on {parts} "
+                    f"({mode_name})."))
+    return " ".join((head, *(shown(note) for note in selection.notes)))
 
 
 def apply_selection(editor: object, key: tuple, snapshot: TextureMeshSnapshot,
@@ -67,9 +75,18 @@ def apply_selection(editor: object, key: tuple, snapshot: TextureMeshSnapshot,
     """Combine the pixels with the editor's selection (UI thread); the status line's text."""
 
     if not key or document_key(editor) != key:
-        raise TextureMeshRefusal("Another texture opened while the selection was made: try again.")
+        raise TextureMeshRefusal(tr("Another texture opened while the selection was made: try again."))
     editor.apply_mask_selection(selection.mask, combine_mode=mode, history_label="Select From Mesh")
     return summary_text(snapshot, selection, mode)
+
+
+def record_step(tools: object) -> None:
+    """Hand the new selection step to the document's one history now, so the panel's Undo
+    (the Mesh Editor's) takes it back: a selection changes no pixels, so no patch tells it."""
+
+    observe = getattr(tools, "observe_history", None)
+    if callable(observe):
+        observe(getattr(tools, "target", None))
 
 
 def selection_mode(editor: object) -> str:
@@ -154,16 +171,17 @@ class MeshSelectionToTexture(QObject):
         try:
             if error:
                 raise TextureMeshRefusal(error)
-            text = apply_selection(getattr(self._tools, "editor", None), key, snapshot, selection, mode)
+            apply_selection(getattr(self._tools, "editor", None), key, snapshot, selection, mode)
         except TextureMeshRefusal as exc:
             self._report(str(exc), True)
         else:
-            self._report(text, False)
+            record_step(self._tools)
+            self._report(summary_text(snapshot, selection, mode, translate=True), False, translated=True)
         self.finished.emit()
 
-    def _report(self, text: str, refused: bool) -> None:
-        self.reported.emit(text, refused)
+    def _report(self, text: str, refused: bool, *, translated: bool = False) -> None:
+        self.reported.emit(text if translated else translate_active_ui_text(text), refused)
 
 
-__all__ = ["MODE_NAMES", "MeshSelectionToTexture", "apply_selection",
+__all__ = ["MODE_NAMES", "MeshSelectionToTexture", "apply_selection", "record_step",
            "document_key", "dock_snapshot", "selection_mode", "summary_text"]

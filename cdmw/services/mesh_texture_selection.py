@@ -29,6 +29,13 @@ FACE_LIST_LIMIT = 2000
 _LAYER_RESOURCES = ("diffuse", "normal", "material", "height", "mask")
 
 
+def tr(text: str) -> str:
+    """Mark a message the interface shows: the localization manifest makes it a catalogue key,
+    and the panel translates it when it shows it. MCP answers keep the English."""
+
+    return text
+
+
 class TextureMeshRefusal(ValueError):
     """Why the mesh selection cannot become a selection on this texture."""
 
@@ -131,19 +138,19 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
 
     role_key = str(role or "").strip().casefold()
     if role_key in DETAIL_ROLES:
-        raise TextureMeshRefusal(
+        raise TextureMeshRefusal(tr(
             f"{texture} is a detail texture: the 3D view repeats it over the surface at its own "
             "scale, so its pixels have no one place on the model. Open the part's base colour, "
-            "normal or mask texture instead.")
+            "normal or mask texture instead."))
     service = getattr(session, "shadow_service", None)
     session_id = getattr(session, "shadow_session_id", None)
     if service is None or session_id is None or getattr(session, "closed", False):
-        raise TextureMeshRefusal("Open the mesh in the Mesh Editor first.")
+        raise TextureMeshRefusal(tr("Open the mesh in the Mesh Editor first."))
     try:
         view = service.session_view(session_id)
         mesh = service.working_mesh(session_id)
     except (KeyError, RuntimeError) as exc:
-        raise TextureMeshRefusal(str(exc) or "The Mesh Editor session is closing.") from None
+        raise TextureMeshRefusal(str(exc) or tr("The Mesh Editor session is closing.")) from None
     lod_index = int(getattr(view, "lod_index", 0) or 0)
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
     names = {index: str(getattr(part, "name", "") or "") for index, part in enumerate(submeshes)}
@@ -152,7 +159,7 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
     using = parts_sampling_texture(payload, source_sha256, lod_index) or tuple(sorted(set(fallback_parts)))
     using = tuple(index for index in using if 0 <= index < len(submeshes))
     if not using:
-        raise TextureMeshRefusal(f"No part of this mesh draws {texture} in LOD {lod_index}.")
+        raise TextureMeshRefusal(tr(f"No part of this mesh draws {texture} in LOD {lod_index}."))
     flips = _flips(payload, lod_index)
     parts = []
     faces_of: dict[int, np.ndarray] = {}
@@ -172,11 +179,11 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
         wanted = tuple(dict.fromkeys(int(index) for index in part_ids))
         missing = [index for index in wanted if not 0 <= index < len(submeshes)]
         if missing:
-            raise TextureMeshRefusal(f"The mesh has parts 0 to {len(submeshes) - 1}.")
+            raise TextureMeshRefusal(tr(f"The mesh has parts 0 to {len(submeshes) - 1}."))
         chosen = {index: None for index in wanted if index in using}
         if not chosen:
-            raise TextureMeshRefusal(
-                f"{by_name.names(wanted)} do not use {texture}. It is used by: {by_name.names(using)}.")
+            raise TextureMeshRefusal(tr(
+                f"{by_name.names(wanted)} do not use {texture}. It is used by: {by_name.names(using)}."))
         ignored = {index: len(submeshes[index].faces) for index in wanted if index not in using}
         return TextureMeshSnapshot(texture, role_key, lod_index, tuple(parts), names, chosen, "part_ids", ignored)
 
@@ -189,9 +196,9 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
         vertices_by_part[part] = tuple({*vertices_by_part[part], *(v for edge in edges for v in edge)})
     selected_parts = whole | set(faces_by_part) | set(vertices_by_part)
     if not selected_parts:
-        raise TextureMeshRefusal(
+        raise TextureMeshRefusal(tr(
             "Nothing is selected in the 3D view. Select faces (or vertices) on the model, or a part "
-            "in the Parts list, then try again.")
+            "in the Parts list, then try again."))
     chosen: dict[int, Optional[tuple[int, ...]]] = {}
     sources: set[str] = set()
     ignored: dict[int, int] = {}
@@ -216,11 +223,11 @@ def snapshot_texture_mesh(session: object, source_sha256: str, *, texture: str, 
             sources |= {kind}
     if not chosen:
         if ignored:
-            raise TextureMeshRefusal(
+            raise TextureMeshRefusal(tr(
                 f"The selected faces do not use {texture}: they are on {by_name.names(ignored)}. "
-                f"{texture} is used by: {by_name.names(using)}.")
-        raise TextureMeshRefusal(
-            "The selection holds no whole face: select faces, or every corner of the faces you want.")
+                f"{texture} is used by: {by_name.names(using)}."))
+        raise TextureMeshRefusal(tr(
+            "The selection holds no whole face: select faces, or every corner of the faces you want."))
     source = "faces" if sources == {"faces"} else "+".join(sorted(sources))
     return TextureMeshSnapshot(texture, role_key, lod_index, tuple(parts), names, chosen, source, ignored)
 
@@ -231,13 +238,15 @@ def build_texture_mesh_selection(snapshot: TextureMeshSnapshot, width: int, heig
 
     mask, report = uv_faces_mask(width, height, snapshot.parts, snapshot.chosen)
     if not mask.any():
-        raise TextureMeshRefusal(f"The selected faces have no UVs on {snapshot.texture}.")
+        raise TextureMeshRefusal(tr(f"The selected faces have no UVs on {snapshot.texture}."))
+    # The other faces that sample the faces' own pixels: strictly inside them, so a neighbour
+    # across a shared edge is not one, and before Grow, which reaches into neighbours on purpose.
+    covering = uv_faces_covering(width, height, snapshot.parts, mask=mask, strict=True,
+                                 faces_by_part={part.part: None for part in snapshot.parts})
     if grow > 0:
         from cdmw.core import image_ops
 
         mask = image_ops.dilate_ellipse(mask, int(grow) * 2 + 1)
-    covering = uv_faces_covering(width, height, snapshot.parts, mask=mask,
-                                 faces_by_part={part.part: None for part in snapshot.parts})
     shared: dict[int, int] = {}
     for part, faces in covering.items():
         picked = snapshot.chosen.get(part, ())
@@ -248,21 +257,21 @@ def build_texture_mesh_selection(snapshot: TextureMeshSnapshot, width: int, heig
             shared[part] = others
     notes = []
     if snapshot.ignored:
-        notes.append(f"Left out {sum(snapshot.ignored.values())} selected faces on {snapshot.names(snapshot.ignored)}, "
-                     f"which do not use {snapshot.texture}.")
+        notes.append(tr(f"Left out {sum(snapshot.ignored.values())} selected faces on "
+                        f"{snapshot.names(snapshot.ignored)}, which do not use {snapshot.texture}."))
     if shared:
-        notes.append(f"{sum(shared.values())} faces outside the selection share these pixels (mirrored or "
-                     "overlapping UVs): painting the selection changes them too.")
+        notes.append(tr(f"{sum(shared.values())} faces outside the selection share these pixels (mirrored or "
+                        "overlapping UVs): painting the selection changes them too."))
     if report.wrapped_faces:
-        notes.append(f"{report.wrapped_faces} faces have UVs outside 0-1; they repeat the texture, so their "
-                     "pixels were wrapped onto it.")
-    if report.too_many_repeats:
-        notes.append(f"{report.too_many_repeats} faces repeat the texture more than 64 times and were left out.")
-    if report.skipped_faces:
-        notes.append(f"{report.skipped_faces} faces have no usable UVs and were left out.")
+        notes.append(tr(f"{report.wrapped_faces} faces have UVs outside 0-1; they repeat the texture, so their "
+                        "pixels were wrapped onto it."))
+    left_out = report.skipped_faces + report.too_many_repeats
+    if left_out:
+        notes.append(tr(f"{left_out} faces were left out: their UVs are unusable or repeat the texture more "
+                        "than 64 times."))
     if snapshot.role in LAYER_ROLES:
-        notes.append("This is a material layer texture: the shader may repeat it at the layer's own scale, "
-                     "so check the result on the model.")
+        notes.append(tr("This is a material layer texture: the shader may repeat it at the layer's own scale, "
+                        "so check the result on the model."))
     return TextureMeshSelection(mask, report, shared, int(np.count_nonzero(mask)), tuple(notes))
 
 

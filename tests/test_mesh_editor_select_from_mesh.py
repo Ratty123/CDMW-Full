@@ -238,3 +238,72 @@ def test_the_mcp_tools_select_from_the_mesh_and_read_faces_back(app, tmp_path, c
     finally:
         tools.deleteLater()
         holder.deleteLater()
+
+
+def test_the_real_tab_and_session_select_and_undo_through_the_one_history(app, tmp_path) -> None:
+    """The real Mesh Editor tab and a real editing session: the 3D selection reaches the
+    button through the session's shadow, the step joins the document's one history, and
+    the Mesh Editor's Undo and Redo (the panel's) take it back and forward."""
+
+    from PySide6.QtCore import QSettings
+
+    from cdmw.domain.mesh import MeshEditCommand
+    from cdmw.ui.mesh_editor import shared_history_routing as routing
+    from cdmw.ui.mesh_editor.tab import MeshEditorTab
+    from cdmw.ui.mesh_editor.texture_tools_dock import _target_key
+    from tests.test_archive_dds_preview_recovery import _dds_bytes
+    from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
+
+    dds = tmp_path / "base.dds"
+    dds.write_bytes(_dds_bytes())
+    _source, _authority, host = _open_exact_session(tmp_path / "session", base_texture_path=dds)
+    service, session_id = host.shadow_service, host.shadow_session_id
+    part = service.working_mesh(session_id, clone=False).submeshes[0]
+    part.uvs = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]  # faces (0, 1, 2) and (1, 3, 2)
+    # What the session does with the selection the helper reports.
+    assert service.apply_command(session_id, MeshEditCommand(
+        "select", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+        params={"operation": "replace"}, mode="edit")).ok
+    sha = str(host.archive_refit_material_cache[host.active_material_key]["textures"][0]["file"]["sha256"])
+
+    tab = MeshEditorTab(settings=QSettings(str(tmp_path / "tab.ini"), QSettings.Format.IniFormat))
+    statuses = []
+    tab.status_message_requested.connect(lambda text, refused: statuses.append((text, refused)))
+    try:
+        tab.standalone_rust_authoring_session = host
+        tools = tab._texture_tools_panel()
+        assert tools.mesh_session_reader() is host  # the tab's wiring
+        history = routing.attach_shared_history(tab, host)
+        editor = tools._ensure_editor()
+        path = str(tmp_path / "base.png")
+        editor.document = TextureEditorDocument(
+            "Probe", 8, 8, active_layer_id="paint", layers=(TextureEditorLayer("paint", "Paint", "unused.png"),),
+            source_binding=TextureEditorSourceBinding(source_path=path, mesh_resource_id=sha.lower()))
+        editor.layer_pixels = {"paint": np.full((8, 8, 4), 90, dtype=np.uint8)}
+        editor._push_history("Open Document")
+        editor._refresh_ui()
+        target = LiveTextureTarget(session_id="doc", source_path=path, source_sha256=sha.lower(),
+                                   channel="base_color", display_name="base.dds")
+        tools.target = target
+        tools._targets[_target_key(path)] = target
+        tools.observe_history(target)
+        start = editor.history_index
+
+        assert tools.select_from_mesh()
+        _wait(app, tools)
+        # The upper-left triangle, its diagonal included (pixel centres where x + y = 8).
+        ys, xs = np.mgrid[0:8, 0:8]
+        assert np.array_equal(_selected(editor), xs + ys <= 7)
+        # Its neighbour only shares the diagonal: nothing else samples these pixels.
+        assert tools.mesh_selection_text == "Selected 36 pixels from 1 faces on target (Replace)."
+        assert statuses[-1] == (tools.mesh_selection_text, False)
+        assert editor.history_index == start + 1
+
+        routing.route_history_step(tab, {"event": "command_request", "command": "undo", "request_id": 1})
+        assert editor.history_index == start and editor.document.selection.mode == "none"
+        routing.route_history_step(tab, {"event": "command_request", "command": "redo", "request_id": 2})
+        assert editor.history_index == start + 1 and np.array_equal(_selected(editor), xs + ys <= 7)
+        assert history.current_history_payload()["history_entries"]
+    finally:
+        tab.deleteLater()
+        app.processEvents()

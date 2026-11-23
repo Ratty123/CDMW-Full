@@ -167,7 +167,33 @@ def test_a_whole_part_at_4096_is_quick() -> None:
     mask, report = uv_faces_mask(4096, 4096, [UvPart(0, grid, faces)])
     elapsed = time.perf_counter() - started
     assert mask.all() and report.faces == len(faces)
-    assert elapsed < 6.0, elapsed
+    # About a second on the development machine; the bound catches a per-pixel Python
+    # loop, not a slow run under load.
+    assert elapsed < 60.0, elapsed
+
+
+def test_a_neighbour_across_a_shared_edge_does_not_share_the_pixels() -> None:
+    # A square quad at 8 x 8: its diagonal runs through pixel centres, which both
+    # triangles cover, yet only a face with a pixel strictly inside is listed as sharing.
+    quad = UvPart(0, ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)), ((0, 1, 2), (1, 3, 2)))
+    first, _ = uv_faces_mask(8, 8, [quad], {0: [0]})
+    assert uv_faces_covering(8, 8, [quad], mask=first) == {0: [0, 1]}
+    assert uv_faces_covering(8, 8, [quad], mask=first, strict=True) == {0: [0]}
+    mirrored = UvPart(0, quad.uvs, ((0, 1, 2), (1, 3, 2), (0, 2, 1)))
+    assert uv_faces_covering(8, 8, [mirrored], mask=first, strict=True) == {0: [0, 2]}
+
+
+def test_sharing_is_counted_before_grow_and_grow_widens_the_mask() -> None:
+    from cdmw.services.mesh_texture_selection import TextureMeshSnapshot, build_texture_mesh_selection
+
+    grid = UvPart(0, ((0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (0.0, 1.0), (0.5, 1.0), (1.0, 1.0)),
+                  ((0, 1, 4), (0, 4, 3), (1, 2, 5), (1, 5, 4)))
+    snapshot = TextureMeshSnapshot("t.dds", "base_color", 0, (grid,), {0: "Chest"}, {0: (0, 1)})
+    plain = build_texture_mesh_selection(snapshot, 16, 8)
+    grown = build_texture_mesh_selection(snapshot, 16, 8, grow=2)
+    assert plain.shared == {} and grown.shared == {}
+    assert plain.pixels == 8 * 8 and grown.pixels > plain.pixels and grown.mask[:, 9].all()
+    assert not any("share these pixels" in note for note in grown.notes)
 
 
 def test_the_mask_combines_with_the_selection_by_the_editor_mode() -> None:
