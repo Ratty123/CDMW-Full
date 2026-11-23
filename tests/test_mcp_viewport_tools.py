@@ -109,3 +109,20 @@ def test_an_unanswered_control_fails_instead_of_waiting_forever(document, monkey
     monkeypatch.setattr(editor_control, "ANSWER_S", 0.05)
     with pytest.raises(ToolError, match="did not answer"):
         _run("mesh.islands", {"action": "state"})
+
+
+def test_overlays_send_only_what_the_action_takes(document):
+    document["tab"] = _Tab(controls=("overlays",))
+    outcome = _run("mesh.overlays", {"action": "set", "deformation_heatmap": True})
+    assert outcome == {"done": True, "overlays": {"parts": []}}
+    _run("mesh.overlays", {"action": "inspection", "light": "behind", "light_strength": 1.2})
+    _run("mesh.overlays", {"action": "frame_bone"})
+    assert document["tab"].sent == [
+        ("overlays", {"action": "set", "deformation_heatmap": True}),
+        ("overlays", {"action": "inspection", "light": "behind", "light_strength": 1.2}),
+        ("overlays", {"action": "frame_bone"}),
+    ]
+    with pytest.raises(ToolError, match="needs one of"):
+        _run("mesh.overlays", {"action": "set"})
+    with pytest.raises(ToolError, match="not light"):
+        _run("mesh.overlays", {"action": "set", "light": "front"})

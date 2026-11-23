@@ -1203,6 +1203,13 @@
       "tool": "mesh.islands"
     },
     {
+      "id": "mesh.overlays",
+      "area": "Mesh Editor",
+      "what": "View aids: deformation heatmap, weight colours, frame bone or influence, select influenced vertices, selection highlight, material inspection light and veil screen",
+      "class": "edit",
+      "tool": "mesh.overlays"
+    },
+    {
       "id": "mesh.open_file",
       "area": "Mesh Editor",
       "what": "Open a mesh file from disk (.pac, .pam, .pamlod, .obj, .glb, .fbx)",

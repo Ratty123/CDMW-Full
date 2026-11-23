@@ -19,28 +19,51 @@ _ISLAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "visibility": ("part", "island", "visible"), "isolate": ("part", "island"), "show_all": (),
     "colours": ("enabled",),
 }
+#: The view's overlays and inspection aids (cdmw_overlays_host.rs, OVERLAY_HOST_ACTIONS).
+OVERLAY_ACTIONS = ("state", "set", "frame_bone", "frame_influence", "select_influence", "inspection")
+_OVERLAY_ARGUMENTS: dict[str, tuple[str, ...]] = {
+    "state": (), "set": ("deformation_heatmap", "weight_colours", "hide_selection_highlight"),
+    "frame_bone": (), "frame_influence": (), "select_influence": (),
+    "inspection": ("hide_selection", "light", "light_strength", "veil_screen"),
+}
 _PART = {"type": "integer", "minimum": 0, "description": "A part's number, as mesh_state lists it."}
 _ISLAND = {"type": "integer", "minimum": 0, "description": "An island's number within its part, as action 'state' lists it."}
+
+
+def _checked(call, table: dict[str, tuple[str, ...]], *, all_required: bool) -> dict[str, object]:
+    """The control's arguments: only the action's own, each required or at least one given."""
+
+    a = call.arguments
+    action = str(a["action"])
+    wanted = table[action]
+    extra = sorted(key for key, value in a.items() if key not in {"action", *wanted} and value is not None)
+    if extra:
+        raise ToolError(INVALID_ARGUMENTS, f"Action {action} takes {', '.join(wanted) or 'nothing more'}; "
+                                           f"not {extra[0]}.")
+    given = {key: a[key] for key in wanted if a.get(key) is not None}
+    missing = [key for key in wanted if key not in given]
+    if all_required and missing:
+        raise ToolError(INVALID_ARGUMENTS, f"Action {action} needs {', '.join(missing)}.")
+    if not all_required and wanted and not given:
+        raise ToolError(INVALID_ARGUMENTS, f"Action {action} needs one of {', '.join(wanted)}.")
+    return {"action": action, **given}
 
 
 def _islands(call) -> dict[str, object]:
     from cdmw.mcp.editor_control import control_outcome, editor_control
 
-    a = call.arguments
-    action = str(a["action"])
-    wanted = _ISLAND_ARGUMENTS[action]
-    extra = sorted(key for key, value in a.items() if key not in {"action", *wanted} and value is not None)
-    if extra:
-        raise ToolError(INVALID_ARGUMENTS, f"Action {action} takes {', '.join(wanted) or 'nothing more'}; "
-                                           f"not {extra[0]}.")
-    missing = [key for key in wanted if a.get(key) is None]
-    if missing:
-        raise ToolError(INVALID_ARGUMENTS, f"Action {action} needs {', '.join(missing)}.")
-    arguments = {"action": action, **{key: a[key] for key in wanted}}
+    arguments = _checked(call, _ISLAND_ARGUMENTS, all_required=True)
     return control_outcome(editor_control(call, "islands", arguments), "islands")
 
 
-def _islands_effect(call) -> str:
+def _overlays(call) -> dict[str, object]:
+    from cdmw.mcp.editor_control import control_outcome, editor_control
+
+    arguments = _checked(call, _OVERLAY_ARGUMENTS, all_required=False)
+    return control_outcome(editor_control(call, "overlays", arguments), "overlays")
+
+
+def _state_reads(call) -> str:
     return READ if call.arguments.get("action") == "state" else EDIT
 
 
@@ -63,9 +86,28 @@ def mesh_viewport_tools() -> list[Tool]:
                  "islands": {"type": "array", "minItems": 1, "maxItems": 4096,
                              "items": object_schema({"part": _PART, "island": _ISLAND}, ["part", "island"])},
                  "visible": {"type": "boolean"}, "enabled": {"type": "boolean"}}, ["action"]),
-             effect=EDIT, effect_of=_islands_effect, route="helper:editor_control islands", handler=_islands,
+             effect=EDIT, effect_of=_state_reads, route="helper:editor_control islands", handler=_islands,
+             runs_on=ON_WORKER),
+        Tool(name="mesh.overlays", family="mesh", title="View overlays and inspection",
+             description="The shown document's view aids, which change only what the view shows: state; set "
+                         "{deformation_heatmap (Persistent edit colours: green, yellow and red for small to large "
+                         "changes since the mesh opened), weight_colours (the Rig page's Weight colours for its "
+                         "bone), hide_selection_highlight}; frame_bone, frame_influence (the Rig page's Frame bone "
+                         "and Frame influence, which move the camera only); select_influence (Select influenced "
+                         "vertices: replaces the selection, one History step); inspection {hide_selection, light "
+                         "(camera, front, side, behind or above), light_strength 0 to 2, veil_screen (1920x1080, "
+                         "2560x1440 or 3840x2160)}, the material inspector's preview light and veil net screen "
+                         "size. view_capture shows the result.",
+             input_schema=object_schema({
+                 "action": {"type": "string", "enum": list(OVERLAY_ACTIONS)},
+                 "deformation_heatmap": {"type": "boolean"}, "weight_colours": {"type": "boolean"},
+                 "hide_selection_highlight": {"type": "boolean"}, "hide_selection": {"type": "boolean"},
+                 "light": {"type": "string", "enum": ["camera", "front", "side", "behind", "above"]},
+                 "light_strength": {"type": "number", "minimum": 0, "maximum": 2},
+                 "veil_screen": {"type": "string", "enum": ["1920x1080", "2560x1440", "3840x2160"]}}, ["action"]),
+             effect=EDIT, effect_of=_state_reads, route="helper:editor_control overlays", handler=_overlays,
              runs_on=ON_WORKER),
     ]
 
 
-__all__ = ["ISLAND_ACTIONS", "mesh_viewport_tools"]
+__all__ = ["ISLAND_ACTIONS", "OVERLAY_ACTIONS", "mesh_viewport_tools"]

@@ -762,9 +762,10 @@ pub const HOST_EDITOR_CONTROLS_CAPABILITY: &str = "host_editor_controls_v1";
 /// The editor's own controls CDMW may use by name, each with its own actions in
 /// `arguments.action`. Hair is Hair Tools' panel (its local edits, motion preview and
 /// display); islands is the Mesh islands list's view and selection; document is the
-/// History list's cursor and the Reference pieces' View boxes. The helper checks each
+/// History list's cursor and the Reference pieces' View boxes; overlays is the view's
+/// diagnostic overlays, rig helpers and material inspection aids. The helper checks each
 /// action as its button checks it.
-pub const HOST_EDITOR_CONTROLS: [&str; 3] = ["hair", "islands", "document"];
+pub const HOST_EDITOR_CONTROLS: [&str; 4] = ["hair", "islands", "document", "overlays"];
 
 /// The name of a control CDMW may send in `editor_control`, as the helper knows it.
 pub fn host_editor_control(name: &str) -> Option<&'static str> {
