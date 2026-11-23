@@ -44,6 +44,12 @@ class MeshAssetContext:
     neutral_coordinates: bool = False
     workflow: str = "refit"
     excluded_part_ids: frozenset[str] = frozenset()
+    # Material colours of a set's pieces: ((asset_id, folded wrapper name,
+    # ((parameter, "#RRGGBB"), ...)), ...), sorted. Each piece's .pac_xml gets them at Build Mod.
+    material_colours: tuple[tuple[str, str, tuple[tuple[str, str], ...]], ...] = ()
+    # Each edited piece's .pac_xml as the archive had it when its colours were first
+    # changed: (asset_id, ArchiveEntry, bytes). Build Mod and drafts need no archive.
+    material_colour_files: tuple[tuple[str, object, bytes], ...] = ()
 
     @property
     def draft_identity(self) -> str:

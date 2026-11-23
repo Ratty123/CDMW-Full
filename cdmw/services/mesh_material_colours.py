@@ -97,31 +97,46 @@ def _rows_for(authored):
 def material_colours_ui_state(authoring, replacement, shader_state):
     """What the Material colours section shows, built on the shader panel's source rows."""
 
+    from cdmw.services.mesh_asset_context import is_item_set
+
     session = authoring.shadow_service._session(authoring.shadow_session_id)
-    reason = replacement["reason"]
+    item_set = is_item_set(getattr(session, "archive_refit_context", None))
+    # A set refuses Import Replacement, not colour edits: its pieces keep their own files.
+    reason = "" if item_set else replacement["reason"]
     if session.mesh_format != "pac":
         reason = "Material colours require a PAC and its material sidecar."
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before changing material colours."
     bindings = {part.part_id: part for part in session.replacement_state.parts} if session.replacement_state else {}
+    set_colours = ({f"{asset}|{material}": colours for asset, material, colours in session.archive_refit_context.material_colours}
+                   if item_set else {})
     sources = {row["id"]: row for row in shader_state.get("parts", ())}
+
+    def material_of(part):
+        name = str(sources.get(part["id"], {}).get("source", {}).get("part", "") or "")
+        if item_set:
+            # Pieces of a set can reuse a wrapper name; the piece is part of the identity.
+            name = name or str(part.get("name", "")).strip().casefold()
+            return f"{part.get('asset_id', '')}|{name}"
+        return name
+
     shared = {}
-    for row in sources.values():
-        shared.setdefault(str(row.get("source", {}).get("part", "")), []).append(row["id"])
+    for part in replacement["parts"]:
+        shared.setdefault(material_of(part), []).append(part["id"])
     parts = []
     for part in replacement["parts"]:
         source = sources.get(part["id"], {})
-        material = str(source.get("source", {}).get("part", ""))
+        material = material_of(part)
         binding = bindings.get(part["id"])
         blocked = ""
         if binding is not None and binding.material_choice == "imported":
             blocked = "This part uses imported materials, which do not read the original material colours."
         elif binding is not None and binding.shader_controls is not None and binding.shader_controls.rebuild:
             blocked = "Shader experiments rewrite this material with its own rows. Turn off the rewrite to change its colours."
+        saved = set_colours.get(material) if item_set else (binding.material_colours if binding is not None else ())
         parts.append({**part, "material": material, "shared": shared.get(material, [part["id"]]) if material else [part["id"]],
                       "rows": _rows_for(source.get("authored")), "blocked": blocked,
-                      "material_colours": colours_to_dict(binding.material_colours)
-                      if binding is not None and binding.material_colours else None})
+                      "material_colours": colours_to_dict(saved) if saved else None})
     return {"available": not reason, "reason": reason, "parts": parts}
 
 
@@ -331,3 +346,181 @@ def stage_colour_preview(mesh, state, payload):
                         break
             present.setdefault(key, tuple(edits[key]))
     recolour_preview_graph(payload, owners, present, edits)
+
+
+# ----- item sets ------------------------------------------------------------------------
+# A set (Open set in Mesh Editor, or ticked Scene parts) has no replacement state: its
+# pieces keep their own files. Their colour edits live in the set context, keyed by the
+# piece (asset id) and the folded wrapper name, and Build Mod patches each piece's .pac_xml.
+
+def load_item_set_colours(rows, context):
+    """The set context's colour edits from a draft, checked against the set's pieces."""
+
+    if not isinstance(rows, list) or len(rows) > 4096:
+        raise ValueError("Item set draft has invalid material colours")
+    assets = {asset.asset_id for asset in context.assets}
+    result = {}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("asset") not in assets or not isinstance(row.get("material"), str):
+            raise ValueError("Item set draft material colours name a piece that is not in the set")
+        key = (row["asset"], row["material"].strip().casefold())
+        if key in result:
+            raise ValueError("Item set draft lists a material's colours twice")
+        result[key] = normalize_material_colours(row.get("colours"))
+    return tuple(sorted((asset, material, colours) for (asset, material), colours in result.items()))
+
+
+def set_item_set_material_colours(authoring, args):
+    """Material colours for a set's piece: one Undo step, kept in the set context."""
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+    from cdmw.services.mesh_shader_controls import shader_controls_ui_state
+
+    service, session_id = authoring.shadow_service, authoring.shadow_session_id
+    replacement = replacement_ui_state(authoring)
+    ui = material_colours_ui_state(authoring, replacement, shader_controls_ui_state(authoring, replacement))
+    if not ui["available"]:
+        raise ValueError(ui["reason"])
+    parts = {part["id"]: part for part in ui["parts"]}
+    keys = args.get("part_ids")
+    if (not isinstance(keys, (list, tuple)) or not keys or any(not isinstance(key, str) for key in keys)
+            or len(set(keys)) != len(keys) or not set(keys) <= set(parts)):
+        raise ValueError("Select at least one material part for material colours.")
+    reset = args.get("reset", False)
+    if type(reset) is not bool:
+        raise ValueError("Invalid material colour reset request.")
+    value = () if reset else normalize_material_colours(args.get("colours"))
+    if not reset:
+        available = {row["name"].casefold() for key in keys for row in parts[key]["rows"]}
+        unknown = [name for name, _ in value if name.casefold() not in available]
+        if unknown:
+            raise ValueError("The selected material has no colour row named " + ", ".join(unknown) + ".")
+    materials = {tuple(parts[key]["material"].split("|", 1)) for key in keys}
+    session = service._session(session_id)
+    context = session.archive_refit_context
+    # Read each edited piece's material file once, before the lock, and prove the
+    # write works now rather than at Build Mod.
+    files = {asset: (entry, data) for asset, entry, data in context.material_colour_files}
+    if not reset:
+        owners = {owner for owner, _material in materials}
+        for asset in context.assets:
+            if asset.asset_id in owners and asset.asset_id not in files:
+                _owner, entry, data = _capture_set_colour_file(asset, args.get("_archive_dependencies"))
+                files[asset.asset_id] = (entry, data)
+    with session.export_lock:
+        if session.archive_refit_context is not context:
+            raise ValueError("The set changed while its material file was read. Try again.")
+        current = {(asset, material): colours for asset, material, colours in context.material_colours}
+        for material in materials:
+            if reset:
+                current.pop(material, None)
+            else:
+                current[material] = value
+        colours = tuple(sorted((asset, material, rows) for (asset, material), rows in current.items()))
+        if colours == context.material_colours:
+            return service.session_view(session_id)
+        kept = {asset for asset, _material, _rows in colours}
+        edited = replace(context, material_colours=colours, material_colour_files=tuple(
+            (asset, entry, data) for asset, (entry, data) in sorted(files.items(), key=lambda item: item[0])
+            if asset in kept))
+        item_set_colour_files(edited)
+        service._push_history(session, prefer_native=True, action="item_set_material_colours",
+                              label="Restore material colours" if reset else "Edit material colours")
+        session.undo_stack[-1].restore_archive_refit_context = True
+        session.undo_stack[-1].archive_refit_context = context
+        session.archive_refit_context = edited
+        session.revision += 1
+        service._schedule_mesh_layer_autosave(session)
+    return service.session_view(session_id)
+
+
+def _set_sidecar_path(entry):
+    return str(entry.path).replace("\\", "/").casefold().replace("/model/", "/modelproperty/", 1) + "_xml"
+
+
+def _capture_set_colour_file(asset, dependencies, stop_event=None):
+    """(asset_id, ArchiveEntry, bytes) of a set piece's .pac_xml, read from the archive context."""
+    from cdmw.core.archive_extraction import read_archive_entry_data
+
+    path = _set_sidecar_path(asset.entry)
+    matches = ()
+    for context in (dependencies, getattr(asset.preview_lease, "archive_dependencies", None)):
+        index = getattr(context, "entries_by_normalized_path", None)
+        if index:
+            matches = tuple(index.get(path, ()))
+        if not matches:
+            matches = tuple(item for item in getattr(context, "entries", ()) or ()
+                            if str(item.path).replace("\\", "/").casefold() == path)
+        if matches:
+            break
+    if not matches:
+        raise ValueError(f"{asset.entry.basename}: its material file was not found in the archive. "
+                         "Reopen the set from Browse Archives to change its colours.")
+    data, _, _ = read_archive_entry_data(matches[0], stop_event=stop_event)
+    return asset.asset_id, matches[0], bytes(data)
+
+
+def item_set_colour_files(context, stop_event=None):
+    """[(ArchiveEntry, original bytes, patched bytes)] for each set piece with colour edits."""
+    from cdmw.core.material_colours import rewrite_material_colours
+    from cdmw.domain.pac_xml_editor import decode_pac_xml_payload
+
+    files = {asset: (entry, data) for asset, entry, data in context.material_colour_files}
+    result = []
+    for asset in context.assets:
+        choices = {material: colours_to_dict(colours) for owner, material, colours in context.material_colours
+                   if owner == asset.asset_id}
+        if not choices:
+            continue
+        raise_if_cancelled(stop_event)
+        if asset.asset_id not in files:
+            raise ValueError(f"{asset.entry.basename}: its material file was not captured. "
+                             "Reopen the set from Browse Archives to change its colours.")
+        entry, data = files[asset.asset_id]
+        text, source_format = decode_pac_xml_payload(data)
+        text = rewrite_material_colours(text, choices)
+        result.append((entry, data, source_format.bom + text.encode(source_format.encoding)))
+    return result
+
+
+def stage_item_set_colour_preview(authoring, mesh, context, base_key):
+    """The material key the editor should draw for a set with colour edits."""
+    import hashlib
+    from cdmw.services.mesh_asset_context import ASSET_ATTRIBUTE
+    from cdmw.services.mesh_rust_authoring import _atomic_write_payload, _mesh_lods
+    from cdmw.services.mesh_rust_preview_package import conserve_preview_core_material_graph
+    from cdmw.services.mesh_shader_controls import _owner_slot
+    from cdmw.services.shader_controls_preview import source_inputs
+
+    cache, references = authoring.archive_refit_material_cache, authoring.archive_refit_material_references
+    if base_key not in cache:
+        return base_key
+    key = base_key
+    if context.material_colours:
+        key = hashlib.sha256(repr((base_key, context.material_colours)).encode()).hexdigest()[:32]
+    if key not in cache:
+        payload = copy.deepcopy(cache[base_key])
+        payload["key"] = key
+        edits = {f"{asset}|{material}": colours_to_dict(colours) for asset, material, colours in context.material_colours}
+        owners, present = {}, {}
+        for lod_index, level in enumerate(_mesh_lods(mesh)):
+            for index, part in enumerate(level):
+                owner = f"{getattr(part, ASSET_ATTRIBUTE, '')}|{(part.name or part.material or '').strip().casefold()}"
+                if owner not in edits:
+                    continue
+                owners[(lod_index, index)] = owner
+                if owner not in present:
+                    values, _ = source_inputs(part, _owner_slot(part))
+                    present[owner] = tuple(name for name, value in values.items() if _COLOUR.fullmatch(str(value)))
+        for owner, colours in edits.items():
+            if not present.get(owner):
+                present[owner] = tuple(colours)
+        recolour_preview_graph(payload, owners, present, edits)
+        conserve_preview_core_material_graph(payload)
+        cache[key] = payload
+    # The base needs a file too, so restoring every colour switches the editor back.
+    for cache_key in dict.fromkeys((base_key, key)):
+        if cache_key not in references:
+            references[cache_key] = _atomic_write_payload(
+                authoring.root, f"material-state-{cache_key}.json", cache[cache_key], data_type="mesh_materials_json",
+                element_count=1, expected_root_identity=authoring.root_identity)
+    return key

@@ -752,6 +752,14 @@ class MeshDirectOutputWorker(QObject):
                 requests.append(ArchivePatchRequest(entry, rebuilt.data))
                 reports.append(component_report)
                 written.append((entry, component))
+            if editing_set and snapshot.archive_refit_context.material_colours:
+                # Material colours of the set's pieces: each piece's own material file.
+                from cdmw.services.mesh_material_colours import item_set_colour_files
+                taken = {str(request.entry.path).replace("\\", "/").casefold() for request in requests}
+                for colour_entry, _original, data in item_set_colour_files(snapshot.archive_refit_context, self.stop_event):
+                    if str(colour_entry.path).replace("\\", "/").casefold() in taken:
+                        raise ValueError(f"{colour_entry.path} is already part of this mod; its colours cannot change it as well.")
+                    requests.append(ArchivePatchRequest(colour_entry, data))
             if self.inherited_archive_outputs:
                 from cdmw.services.mesh_archive_results import ADDED_RESULT_NOTE
                 from cdmw.services.archive_read_service import read_archive_entry_data
