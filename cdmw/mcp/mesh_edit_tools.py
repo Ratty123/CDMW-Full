@@ -428,9 +428,91 @@ _PANEL_TOOLS = (
 )
 
 
+#: The Vertex Parameters inspector's page size (cdmw/services/mesh_vertex_parameters.py, MAX_PAGE_SIZE).
+VERTEX_PAGE_SIZE = 128
+_TOKEN_SCHEMA = object_schema({
+    "session_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "mesh_revision": {"type": "integer", "minimum": 0},
+    "selection_revision": {"type": "integer", "minimum": 0},
+    "topology_generation": {"type": "integer", "minimum": 0},
+}, ["session_id", "mesh_revision", "selection_revision", "topology_generation"])
+_TOKEN_SCHEMA["description"] = ("The 'token' mesh_vertex_inspect returned, as it is: it names the selection and "
+                                "mesh revision it read, so an edit after either changed is refused.")
+
+
+def _component(width: int, *, nullable: bool = True) -> dict[str, object]:
+    item = {"type": ["number", "null"]} if nullable else {"type": "number"}
+    return {"type": "array", "minItems": width, "maxItems": width, "items": item}
+
+
+def _channel_edit(width: int, what: str, *, offsets: bool = True) -> dict[str, object]:
+    schema = object_schema({"mode": {"type": "string", "enum": ["set", "offset"] if offsets else ["set"],
+                                     "default": "set"},
+                            "values": _component(width)}, ["values"])
+    schema["description"] = what
+    return schema
+
+
+_VERTEX_EDITS = object_schema({
+    "position": _channel_edit(3, "Model-space position [x, y, z]; null keeps that axis. 'offset' adds to it."),
+    "uv0": _channel_edit(2, "UV0 [u, v]; null keeps that component. 'offset' adds to it."),
+    "normal": _channel_edit(3, "The normal direction [x, y, z], all three given; it is normalised.", offsets=False),
+    "weights": {**object_schema({
+        "mode": {"type": "string", "enum": ["set", "offset", "remove", "normalize"]},
+        "bone": {"type": "integer", "minimum": 0,
+                 "description": "The skeleton bone (a 'bones' row's 'bone'), not its palette slot."},
+        "value": {"type": "number", "minimum": -1, "maximum": 1}}, ["mode"]),
+        "description": "Skin weights: set or offset one bone's influence (the others are scaled to keep the "
+                       "total 1), remove it, or normalize each vertex's row."},
+})
+
+
+def _vertex_request(session) -> dict[str, object]:
+    """The identity the helper's own inspector requests carry, for the inspection route."""
+
+    from cdmw.services.mesh_rust_contract import RUST_MESH_EDITOR_PROTOCOL
+
+    view = session.shadow_service.session_view(session.shadow_session_id)
+    return {"protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": session.session_id,
+            "process_generation": session.process_generation, "base_revision": int(view.revision)}
+
+
+def _vertex_inspect(call) -> dict[str, object]:
+    """The Vertex Parameters inspector's page, read through the route its helper uses."""
+
+    from cdmw.mcp.mesh_tools import NO_EDITOR, NOT_READY, _session_of
+    from cdmw.services.mesh_rust_authoring import _json_safe
+    from cdmw.services.mesh_vertex_parameters import inspection_token
+
+    _facts, session = _session_of(call)
+    if session is None:
+        raise ToolError(UNAVAILABLE, NO_EDITOR)
+    page = int(call.arguments.get("page") or 0)
+    size = int(call.arguments.get("page_size") or VERTEX_PAGE_SIZE)
+    last_error = ""
+    # The selection or mesh can change between reading the token and reading the page: read again once.
+    for _attempt in range(2):
+        call.check_cancelled()
+        try:
+            request = {**_vertex_request(session),
+                       "arguments": {"token": inspection_token(session), "page": page, "page_size": size}}
+            result = session.vertex_inspect(request)
+        except ValueError as exc:
+            last_error = str(exc)
+            continue
+        except (KeyError, RuntimeError) as exc:
+            raise ToolError(UNAVAILABLE, str(exc) or NOT_READY) from None
+        payload = _json_safe(result)
+        payload["pages"] = max(1, -(-int(payload.get("count") or 0) // size))
+        if not payload.get("count"):
+            payload["message"] = "No vertices are selected: select some first (mesh_select)."
+        return payload
+    raise ToolError(UNAVAILABLE, last_error or NOT_READY)
+
+
 def _vertex_edit(call) -> dict[str, object]:
     a = call.arguments
-    return _send_output(call, "vertex_edit", {"token": a["token"], "edits": dict(a["edits"])})
+    return _send_output(call, "vertex_edit", {"token": dict(a["token"]), "edits": dict(a["edits"])})
 
 
 def _open_package(call) -> dict[str, object]:
@@ -694,13 +776,28 @@ def mesh_edit_tools() -> list[Tool]:
                  "light_rotation": {"type": "number", "minimum": -180, "maximum": 180}}),
              effect=EDIT, effect_of=_view_effect, route="helper:set_view_state", handler=_view,
              runs_on=ON_WORKER),
+        Tool(name="mesh.vertex_inspect", family="mesh", title="Inspect vertex parameters",
+             description="The Vertex Parameters inspector on the shown document's selected vertices, as its "
+                         "page reads them: each vertex's part, position, UV0, normal and tangent, its skin "
+                         "weights (palette slot, skeleton bone, bone name and weight), cloth influence "
+                         "(original, effective, fixed), its source vertex and topology lineage, summaries over "
+                         "the whole selection, 'capabilities' (whether each channel can be edited here and why "
+                         "not), 'bones' (the bones a weight edit can name) and the 'token' mesh_vertex_edit "
+                         "needs. Pages of at most 128 vertices: 'page' counts from 0, 'pages' says how many.",
+             input_schema=object_schema({"page": {"type": "integer", "minimum": 0, "default": 0},
+                                         "page_size": {"type": "integer", "minimum": 1,
+                                                       "maximum": VERTEX_PAGE_SIZE,
+                                                       "default": VERTEX_PAGE_SIZE}}),
+             effect=READ, route="service:RustMeshAuthoringSession.vertex_inspect", handler=_vertex_inspect,
+             runs_on=ON_WORKER),
         Tool(name="mesh.vertex_edit", family="mesh", title="Edit vertex parameters",
-             description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' and the "
-                         "channels it may edit come from mesh_panels' vertex_parameters section; 'edits' are as "
-                         "the inspector sends them (for example {position: {values: [null, null, 0.25]}} or "
-                         "{weights: {mode: set, bone: 3, value: 0.5}}). One History step.",
-             input_schema=object_schema({"token": {"type": "string", "minLength": 1, "maxLength": 256},
-                                         "edits": {"type": "object"}}, ["token", "edits"]),
+             description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' is the one "
+                         "mesh_vertex_inspect returned for this selection, and only channels its "
+                         "'capabilities' mark editable are taken. 'edits' holds one or more channels, for "
+                         "example {position: {values: [null, null, 0.25]}} (null keeps an axis), {uv0: {mode: "
+                         "offset, values: [0.1, 0]}}, {normal: {values: [0, 0, 1]}} or {weights: {mode: set, "
+                         "bone: 3, value: 0.5}}. One History step; inspect again before the next edit.",
+             input_schema=object_schema({"token": _TOKEN_SCHEMA, "edits": _VERTEX_EDITS}, ["token", "edits"]),
              effect=EDIT, route="helper:cdmw_command vertex_edit", handler=_vertex_edit, runs_on=ON_WORKER),
         Tool(name="mesh.open_package", family="mesh", title="Open an editable package",
              description="The Output page's Import editable package: open a Free Edit package folder (or its "

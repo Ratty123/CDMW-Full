@@ -1168,6 +1168,13 @@
       "tool": "mesh.view"
     },
     {
+      "id": "mesh.vertex_inspect",
+      "area": "Mesh Editor",
+      "what": "Vertex Parameters: read the selected vertices' positions, UVs, normals, tangents, weights, cloth and lineage, and which channels can be edited",
+      "class": "read",
+      "tool": "mesh.vertex_inspect"
+    },
+    {
       "id": "mesh.vertex_edit",
       "area": "Mesh Editor",
       "what": "Vertex Parameters: edit the selected vertices' values",
