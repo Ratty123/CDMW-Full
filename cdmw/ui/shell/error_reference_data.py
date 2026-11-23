@@ -44092,7 +44092,7 @@ MESSAGE_REFERENCE = [
     "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 897
+      "cdmw/mcp/mesh_tools.py": 915
     }
   },
   {
@@ -59308,7 +59308,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 906
+      "cdmw/mcp/mesh_tools.py": 924
     }
   },
   {
@@ -59373,7 +59373,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 127,
-      "cdmw/mcp/mesh_tools.py": 904
+      "cdmw/mcp/mesh_tools.py": 922
     }
   },
   {
@@ -73765,7 +73765,7 @@ MESSAGE_REFERENCE = [
     "message": "{where} {name} takes {allowed}, not {extra[0]}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_panel_schemas.py": 438
+      "cdmw/mcp/mesh_panel_schemas.py": 441
     }
   },
   {
