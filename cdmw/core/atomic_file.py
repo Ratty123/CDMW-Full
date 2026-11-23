@@ -14,6 +14,7 @@ from uuid import uuid4
 # a folder that holds one (decision 46). Targets are checked before anything is made,
 # again after their folder is made, and right before each move into place; staged
 # sources are checked too, since moving them takes them out of where they are.
+from cdmw.core.file_permissions import inherit_parent_permissions
 from cdmw.core.protected_roots import check_removable, check_writable
 
 
@@ -22,6 +23,12 @@ def _replace(staged: Path, target: Path, *, folder: bool = False) -> None:
     check(staged)
     check(target)
     os.replace(staged, target)
+
+
+def _settle_published(target: Path) -> None:
+    """A move keeps the staging folder's permissions, and a ``tempfile.mkdtemp``
+    folder is private on Windows: published output takes its new folder's instead."""
+    inherit_parent_permissions(target)
 
 
 def _temporary_file(target: Path) -> tuple[int, Path]:
@@ -131,6 +138,7 @@ def atomic_publish_files(files: Mapping[Path | str, Path | str]) -> None:
                     os.replace(backup, target)
                 raise
             published.append((target, backup))
+            _settle_published(target)
         success = True
     finally:
         if not success:
@@ -173,6 +181,7 @@ def atomic_publish_directory(
         if backup is not None:
             os.replace(backup, target_path)
         raise
+    _settle_published(target_path)
     if backup is not None:
         if retain_backup:
             return backup
@@ -230,6 +239,7 @@ def atomic_publish_paths(
                     backup.replace(target)
                 raise
             published.append((target, backup))
+            _settle_published(target)
         if check_cancelled is not None:
             check_cancelled()
     except BaseException:
