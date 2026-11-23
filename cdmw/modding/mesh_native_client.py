@@ -43,6 +43,24 @@ def _native_backend_id() -> str:
     return str(import_module("cdmw.modding.mesh_native_core").NATIVE_MESH_CORE_BACKEND_ID)
 
 
+#: The Windows stdout pipe holds a whole ordinary reply. With the default 4 KiB pipe the
+#: service wrote a reply one buffer at a time, and the reader took each piece only once
+#: it had the GIL again: a 370 KiB Morph state that the core made in 10 ms took over 5 s
+#: to read while three Python threads were busy (Mesh Editor open of the Demenissian
+#: Council Robes, beside Browse's preview and texture work, 2026-11-23), and its query
+#: was given up. Memory is used only by bytes waiting in the pipe.
+_WINDOWS_STDOUT_PIPE_BYTES = 8 * 1024 * 1024
+
+
+def _windows_stdout_pipe() -> tuple[int, int]:
+    """``(read_fd, write_fd)`` of an anonymous pipe with a large buffer."""
+
+    import _winapi
+
+    read_handle, write_handle = _winapi.CreatePipe(None, _WINDOWS_STDOUT_PIPE_BYTES)
+    return msvcrt.open_osfhandle(read_handle, os.O_RDONLY), msvcrt.open_osfhandle(write_handle, 0)
+
+
 #: Replies still owed by jobs that timed out or were cancelled. Past this many the
 #: service is taken to be stuck, not slow, and ended.
 _MAX_LATE_REPLIES = 3
@@ -118,7 +136,13 @@ class NativeMeshCoreServiceClient:
         self._close_process_streams_locked(process)
 
     def _close_process_streams_locked(self, process: object) -> None:
+        own_stdout = self._stdout_stream
         self._stdout_stream = None
+        if own_stdout is not None and own_stdout is not getattr(process, "stdout", None):
+            try:
+                own_stdout.close()  # type: ignore[attr-defined]
+            except (OSError, ValueError, AttributeError):
+                pass
         self._stdout_buffer.clear()
         for stream in (
             getattr(process, "stdin", None),
@@ -355,18 +379,29 @@ class NativeMeshCoreServiceClient:
         _clear_native_mesh_core_session_cache()
         self._jobs_completed = 0
         self._late_replies = 0
-        self._process = subprocess.Popen(
-            [str(self.binary), "--service"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            **hidden_process_group_kwargs(detached=True),
-        )
+        read_fd = write_fd = None
+        if os.name == "nt":
+            read_fd, write_fd = _windows_stdout_pipe()
+        try:
+            self._process = subprocess.Popen(
+                [str(self.binary), "--service"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE if write_fd is None else write_fd,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                **hidden_process_group_kwargs(detached=True),
+            )
+        except BaseException:
+            if read_fd is not None:
+                os.close(read_fd)
+            raise
+        finally:
+            if write_fd is not None:
+                os.close(write_fd)  # the service holds its own copy
         stderr = self._process.stderr
-        stdout = self._process.stdout
+        stdout = self._process.stdout if read_fd is None else open(read_fd, "rb", buffering=0)
         self._stderr_tail = BoundedTextTail()
         if stdout is None:
             self._kill_locked()
