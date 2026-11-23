@@ -22,7 +22,9 @@ import pytest
 from cdmw.core.common import ProcessTimeoutExpired
 from cdmw.modding import mesh_native_client as client
 
-LATE_REPLY_BYTES = 4 * 1024 * 1024  # far beyond any pipe buffer
+# Larger than the stdout pipe holds, so the service blocks writing it: the replies of
+# set-wide edits pass the pipe's size.
+LATE_REPLY_BYTES = 3 * client._WINDOWS_STDOUT_PIPE_BYTES
 REQUEST_BYTES = 1024 * 1024
 
 SERVICE = r'''
