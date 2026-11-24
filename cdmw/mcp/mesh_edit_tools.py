@@ -170,7 +170,7 @@ PANEL_COMMANDS: dict[str, tuple[str, ...]] = {
         "collision_input", "paint_set", "pin_set",
     ),
     "hair": (
-        "begin", "color", "texture", "texture_export",
+        "begin", "color", "import_custom", "texture", "texture_export",
     ),
     "layer": (
         "activate", "copy", "delete", "move", "paste", "rename", "visibility",
@@ -420,10 +420,7 @@ _PANEL_TOOLS = (
      "{weapon_placement: {offset: [x, y, z], rotation: [x, y, z] in degrees}} (moves the weapon chosen before)."),
     ("layer", "mesh.layers", "Layers",
      "The Layers list's commands. copy copies the current selection, as Copy does."),
-    ("hair", "mesh.hair", "Hair",
-     "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
-     "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
-     "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
+    # Hair Tools has its own typed tool (mesh_hair_tools.py).
     ("replacement", "mesh.part_options", "Part options",
      "The Inspector's per-part options, as its controls send them ('part_ids' as mesh_panels' replacement "
      "section lists them; parts sharing a material change together), and Import Replacement's fit, compare and "

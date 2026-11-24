@@ -154,3 +154,30 @@ fn action_history_rejects_stale_out_of_range_and_busy_targets() -> TestResult {
     assert!(app.cdmw_pending_request.is_none());
     Ok(())
 }
+
+#[test]
+fn document_editor_control_jumps_the_history_as_its_right_click_does() -> TestResult {
+    let root = tempdir()?;
+    let mut app = application(root.path())?;
+    let read = app.apply_editor_control("document", &json!({"action": "state"}));
+    assert!(read.ok);
+    assert_eq!(read.state["history"], json!({"entries": 3, "cursor": 3, "ready": true, "traversing": false}));
+    assert_eq!(read.state["reference_pieces"], json!([]));
+    let out_of_range = app.apply_editor_control("document", &json!({"action": "history_cursor", "cursor": 4}));
+    assert!(!out_of_range.ok && out_of_range.message.contains("0 to 3"), "{}", out_of_range.message);
+    let jumped = app.apply_editor_control("document", &json!({"action": "history_cursor", "cursor": 1}));
+    assert!(jumped.ok, "{}", jumped.message);
+    assert_eq!(jumped.state["history"]["traversing"], true);
+    assert_eq!(app.cdmw_pending_request.as_ref().unwrap().label, "Undo");
+    // While it traverses, another jump is refused as the list's own menu is disabled.
+    let busy = app.apply_editor_control("document", &json!({"action": "history_cursor", "cursor": 0}));
+    assert!(!busy.ok && busy.message.contains("not ready"), "{}", busy.message);
+    for (revision, cursor) in [(1, 2), (2, 1)] {
+        let value = state(root.path(), &app, revision, cursor)?;
+        reply(&mut app, value, true);
+    }
+    assert_eq!(app.cdmw_state["history_cursor"], 1);
+    let missing = app.apply_editor_control("document", &json!({"action": "reference_piece", "piece": 2, "visible": false}));
+    assert!(!missing.ok && missing.message.contains("no reference piece 2"), "{}", missing.message);
+    Ok(())
+}

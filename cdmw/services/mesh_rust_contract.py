@@ -59,6 +59,10 @@ RUST_HOST_VIEW_STATE_CAPABILITY = "host_view_state_v1"
 # Optional hello capability: set_view_state also takes the lighting preset and the Studio
 # look (wetness, exposure, light_rotation, reset "look"), and view_state reports them.
 RUST_HOST_VIEW_LOOK_CAPABILITY = "host_view_look_v1"
+# Optional hello capability: the helper takes "editor_control" for the controls its hello
+# lists under "editor_controls" (Hair Tools' panel ...) and answers each with an
+# "editor_control" event; "cdmw_command" also takes hair_import_custom.
+RUST_HOST_EDITOR_CONTROLS_CAPABILITY = "host_editor_controls_v1"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",

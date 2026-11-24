@@ -9,11 +9,13 @@ writes.
 ``view.capture`` returns a picture of a 3D view:
 
 * ``browse``: the frame the preview helper renders (its own capture request);
-* ``mesh_editor``: the Mesh Editor helper has no capture message for a
-  document, so its window is asked for its own picture (``PrintWindow``), which
-  shows only that window, also while it is covered. When Windows cannot give
-  that, the viewport's rectangle is copied from the screen, only while CDMW is
-  the window in front. An edit shown in Browse's view is captured as Browse's.
+* ``mesh_editor``: the editor's helper draws its 3D view to a picture in the
+  document's session folder (``editor_control`` "capture"), whatever window is in
+  front. An older helper, or one whose view cannot draw it, falls back to its
+  window's own picture (``PrintWindow``), which shows only that window, also while
+  it is covered, and then to the viewport's rectangle copied from the screen, only
+  while CDMW is the window in front. An edit shown in Browse's view is captured as
+  Browse's.
 """
 
 from __future__ import annotations
@@ -443,18 +445,70 @@ def _screen_copy(context, max_side: int, facts: dict[str, object]):
     return ImageResult(data, {**facts, "how": "copied from the screen", "width": width, "height": height})
 
 
-def _capture_mesh_editor(context, max_side: int):
+def _plain_path(text: object) -> Path:
+    """A path without Windows' extended-length prefix, as the helper may report it."""
+
+    value = str(text or "")
+    if value.startswith("\\\\?\\") and not value.startswith("\\\\?\\UNC\\"):
+        value = value[4:]
+    return Path(value).resolve()
+
+
+def _helper_picture(call, max_side: int, facts: dict[str, object]):
+    """The 3D view as the helper's renderer draws it (``editor_control`` "capture"), or None
+    when this helper cannot: it is older, or its view has no renderer. The file is read and
+    removed; only a file inside the document's session folder is read."""
+
+    from PySide6.QtGui import QImage
+
+    from cdmw.mcp.control_tools import png_of
+    from cdmw.mcp.editor_control import editor_control, has_control
+    from cdmw.mcp.mesh_tools import shown_document
+    from cdmw.mcp.server import ImageResult
+
+    context = call.context
+    if not has_control(call, "capture"):
+        return None
+    # The helper draws at most 2048 pixels a side (CAPTURE_MAX_SIDE in cdmw_host_controls.rs).
+    answer = editor_control(call, "capture", {"max_side": max(64, min(int(max_side), 2048))})
+    if not answer.get("ok"):
+        facts["helper_capture"] = str(answer.get("message") or "")
+        return None
+    state = dict(answer.get("state") or {})
+    root = context.ui_call(lambda: getattr(shown_document(context), "standalone_rust_session_root", None))
+    path = _plain_path(state.get("path"))
+    try:
+        if root is None or not path.is_relative_to(Path(str(root)).resolve()) or path.suffix.lower() != ".png":
+            raise ToolError(FAILED, "The Mesh Editor wrote its picture outside its session folder.")
+        image = QImage(str(path))
+    finally:
+        if root is not None and path.is_relative_to(Path(str(root)).resolve()):
+            path.unlink(missing_ok=True)
+    if image.isNull() or _one_colour(image):
+        facts["helper_capture"] = "The Mesh Editor's picture could not be read or was blank."
+        return None
+    data, width, height = png_of(image, max_side)
+    return ImageResult(data, {**facts, "how": "drawn by the editor's renderer", "width": width, "height": height})
+
+
+def _capture_mesh_editor(call, max_side: int):
     """The shown Mesh Editor document's viewport, from the call's own thread.
 
-    First the helper window's own picture: asked here, not on the UI thread, since Windows
-    waits for the helper to draw. When that gives nothing, the screen is copied.
+    First the helper's own render of its view. Without it, the helper window's own
+    picture: asked here, not on the UI thread, since Windows waits for the helper to
+    draw. When that gives nothing, the screen is copied.
     """
 
     from cdmw.mcp.control_tools import png_of
     from cdmw.mcp.server import ImageResult
 
+    context = call.context
     window = context.ui_call(lambda: _editor_window(context))
     facts: dict[str, object] = {"view": "mesh_editor", "document": window["document"]}
+    if window["hwnd"]:
+        rendered = _helper_picture(call, max_side, facts)
+        if rendered is not None:
+            return rendered
     image = window_picture(int(window["hwnd"]))
     if image is not None and not _one_colour(image):
         data, width, height = png_of(image, max_side)
@@ -484,7 +538,7 @@ def _capture(call):
         return "mesh_editor" if shown == "mesh_editor" and tab is not None and not in_browse else "browse"
 
     if context.ui_call(where) == "mesh_editor":
-        return _capture_mesh_editor(context, max_side)
+        return _capture_mesh_editor(call, max_side)
     return _capture_browse(call)
 
 
@@ -540,13 +594,16 @@ def view_tools() -> list[Tool]:
              approval_key=lambda call: "set" if call.arguments.get("values") else "get"),
         Tool(name="view.capture", family="view", title="Picture of the 3D view",
              description="A picture (PNG) of a 3D view: 'browse' is Browse Archives' preview as its renderer "
-                         "draws it; 'mesh_editor' is the shown Mesh Editor document's viewport, as its own "
-                         "window draws it ('how' says when it had to be copied from the screen instead, which "
-                         "needs CDMW's window in front). Without 'view' it is the one that is shown.",
+                         "draws it; 'mesh_editor' is the shown Mesh Editor document's 3D view as the editor's "
+                         "renderer draws it, without its panels and whatever window is in front ('how' says when "
+                         "an older editor's window was asked for its picture instead, or the view had to be "
+                         "copied from the screen, which needs CDMW's window in front). Without 'view' it is the "
+                         "one that is shown.",
              input_schema=object_schema({"view": {"type": "string", "enum": ["", "browse", "mesh_editor"]},
                                          "max_side": {"type": "integer", "minimum": 64, "maximum": 4096,
                                                       "default": 1600}}),
-             effect=READ, route="ui:request_frame_capture|QScreen.grabWindow", handler=_capture,
+             effect=READ, route="ui:request_frame_capture|helper:editor_control capture|QScreen.grabWindow",
+             handler=_capture,
              runs_on=ON_CALL),
     ]
 

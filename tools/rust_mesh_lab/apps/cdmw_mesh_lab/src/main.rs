@@ -16,6 +16,7 @@ mod cdmw_collision_volumes;
 mod cdmw_hair;
 mod cdmw_handoff;
 mod cdmw_history;
+mod cdmw_host_controls;
 mod cdmw_jiggle;
 mod cdmw_live_textures;
 mod cdmw_preview;
@@ -4390,6 +4391,22 @@ impl LabApplication {
                 }
                 if let Some(bridge) = &self.cdmw_bridge {
                     let _ = bridge.publish_view_state(self.view_state_report());
+                }
+            }
+            HostEvent::EditorControl {
+                control,
+                token,
+                arguments,
+            } => {
+                let outcome = self.apply_editor_control(control, &arguments);
+                if let Some(bridge) = &self.cdmw_bridge {
+                    let _ = bridge.publish_editor_control(
+                        token,
+                        control,
+                        outcome.ok,
+                        &outcome.message,
+                        outcome.state,
+                    );
                 }
             }
             HostEvent::HighlightPart(part) => {

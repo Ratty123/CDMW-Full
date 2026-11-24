@@ -172,7 +172,22 @@ const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_hair.rs"),
     "
 ",
-    include_str!("cdmw_material_colours.rs")
+    include_str!("cdmw_material_colours.rs"),
+    "
+",
+    include_str!("cdmw_hair_host.rs"),
+    "
+",
+    include_str!("cdmw_islands_host.rs"),
+    "
+",
+    include_str!("cdmw_document_host.rs"),
+    "
+",
+    include_str!("cdmw_overlays_host.rs"),
+    "
+",
+    include_str!("cdmw_host_controls.rs")
 );
 const MAIN_SOURCE: &str = concat!(
     include_str!("main.rs"),
@@ -186,7 +201,10 @@ const MAIN_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_hair_motion.rs"),
     "\n",
-    include_str!("cdmw_jiggle.rs")
+    include_str!("cdmw_jiggle.rs"),
+    "
+",
+    include_str!("cdmw_host_controls.rs")
 );
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
@@ -754,6 +772,7 @@ hair.motion|hair|"Motion"|sim.advance_test
 hair.settle|hair|"Use settled shape"|.settled_state
 hair.convert|hair|"Convert to ordinary mesh"|HairAction::Convert
 hair.registration|hair|"Apply name"|HairAction::Registration
+hair.host_control|hair|fn hair_host_control|HostEvent::EditorControl
 tool.rotate|transform|CdmwRailPage::Rotate|ViewportTool::Rotate
 tool.scale|transform|CdmwRailPage::Scale|ViewportTool::Scale
 transform.numeric_rotate|transform|UiAction::RotateStep|UiAction::RotateStep
@@ -849,6 +868,10 @@ islands.visibility|parts|"View"|UiAction::SetIslandVisibility
 islands.isolate|parts|"Isolate"|UiAction::IsolateIsland
 islands.show_all|parts|"Show all islands"|UiAction::ShowAllIslands
 islands.inclusion|parts|"replacement_islands"|UiAction::CdmwCommand
+islands.host_control|parts|fn islands_host_control|HostEvent::EditorControl
+history.host_control|session|fn document_host_control|HostEvent::EditorControl
+display.host_overlays|camera_display|fn overlays_host_control|HostEvent::EditorControl
+display.host_capture|camera_display|fn capture_host_control|HostEvent::EditorControl
 replacement.fit|transform|"replacement_fit"|UiAction::CdmwCommand
 replacement.reset|transform|"replacement_reset"|UiAction::CdmwCommand
 replacement.preview|camera_display|"replacement_compare"|UiAction::CdmwCommand
@@ -961,6 +984,11 @@ mod tests {
         assert!(keys.contains("morph.reset_correction"));
         assert!(keys.contains("refit.save_setup"));
         assert!(keys.contains("refit.apply_setup"));
+        assert!(keys.contains("hair.host_control"));
+        assert!(keys.contains("islands.host_control"));
+        assert!(keys.contains("history.host_control"));
+        assert!(keys.contains("display.host_overlays"));
+        assert!(keys.contains("display.host_capture"));
         assert!(rows.iter().all(|row| {
             row.get("source_binding_verified").and_then(Value::as_bool) == Some(true)
         }));

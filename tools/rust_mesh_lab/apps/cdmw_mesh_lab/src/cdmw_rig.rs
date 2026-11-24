@@ -1,6 +1,9 @@
 //! Rig inspection stays display-only until the user explicitly selects vertices.
 
 use super::*;
+
+#[path = "cdmw_overlays_host.rs"]
+mod host;
 use crate::cdmw_ui::{state_bool, state_str, state_u64, value_u32_list};
 use egui::Button;
 

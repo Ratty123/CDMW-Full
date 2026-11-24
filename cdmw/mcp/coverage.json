@@ -1210,6 +1210,78 @@
       "tool": "mesh.export_pac"
     },
     {
+      "id": "mesh.islands_view",
+      "area": "Mesh Editor",
+      "what": "Mesh islands in the view: select one or several, show or hide, isolate, show all, island colours",
+      "class": "edit",
+      "tool": "mesh.islands"
+    },
+    {
+      "id": "mesh.overlays",
+      "area": "Mesh Editor",
+      "what": "View aids: deformation heatmap, weight colours, frame bone or influence, select influenced vertices, selection highlight, material inspection light and veil screen",
+      "class": "edit",
+      "tool": "mesh.overlays"
+    },
+    {
+      "id": "mesh.open_file",
+      "area": "Mesh Editor",
+      "what": "Open a mesh file from disk (.pac, .pam, .pamlod, .obj, .glb, .fbx)",
+      "class": "edit",
+      "tool": "mesh.open_file"
+    },
+    {
+      "id": "mesh.open_piece",
+      "area": "Mesh Editor",
+      "what": "Open one piece of a worn set on its own, without the set as references",
+      "class": "edit",
+      "tool": "mesh.open_piece"
+    },
+    {
+      "id": "mesh.close_document",
+      "area": "Mesh Editor",
+      "what": "Close a document tab, shown, inactive or parked",
+      "class": "destructive",
+      "tool": "mesh.close_document"
+    },
+    {
+      "id": "mesh.switch_piece",
+      "area": "Mesh Editor",
+      "what": "Switch editable piece of a set opened with its reference pieces",
+      "class": "edit",
+      "tool": "mesh.switch_piece"
+    },
+    {
+      "id": "mesh.history_jump",
+      "area": "Mesh Editor",
+      "what": "Jump the History list to an entry (Undo from here, Restore through here)",
+      "class": "edit",
+      "tool": "mesh.history_jump"
+    },
+    {
+      "id": "mesh.reference_pieces",
+      "area": "Mesh Editor",
+      "what": "Show or hide a set's reference pieces in the view",
+      "class": "edit",
+      "tool": "mesh.reference_pieces"
+    },
+    {
+      "id": "mesh.lod_switch",
+      "area": "Mesh Editor",
+      "what": "Switch the LOD being edited",
+      "class": "edit",
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-24: a CDMW session edits the LOD CDMW opened it with (the session's source LOD); the editor offers no LOD switch for it. The LOD menu belongs to the standalone mesh lab."
+    },
+    {
+      "id": "mesh.edit_in_browse",
+      "area": "Browse Archives",
+      "what": "Edit in place in Browse Archives' view, and Promote to tab",
+      "class": "edit",
+      "gap": "accepted",
+      "reason": "Accepted 2026-11-24: editing in Browse's view is switched off (owner's decision of 2026-11-15, EDIT_IN_BROWSE_ENABLED); Open in Mesh Editor opens the Mesh Editor tab, which mesh_open does."
+    },
+    {
       "id": "hair.tools",
       "area": "Hair Tools",
       "what": "Guides and brushes by numbers (draw, comb, cut, curl, clump ... are pointer brushes)",
@@ -1224,6 +1296,27 @@
       "id": "hair.colour",
       "area": "Hair Tools",
       "what": "Hair colour and texture",
+      "class": "edit",
+      "tool": "mesh.hair"
+    },
+    {
+      "id": "hair.setup",
+      "area": "Hair Tools",
+      "what": "Start Hair Tools: character, Create or Edit, donor hairstyle, donor material, scalp cap",
+      "class": "edit",
+      "tool": "mesh.hair_setup"
+    },
+    {
+      "id": "hair.panel",
+      "area": "Hair Tools",
+      "what": "The panel's edits: prepare sections, starter shapes, lock width and density, strand card, rigid sections, rebind, convert, name, change references, import a custom mesh",
+      "class": "edit",
+      "tool": "mesh.hair"
+    },
+    {
+      "id": "hair.motion",
+      "area": "Hair Tools",
+      "what": "Motion preview (play, movement test, damping, softness, gravity, wind, settle) and display (bust, guides, collision shapes)",
       "class": "edit",
       "tool": "mesh.hair"
     },
@@ -3137,15 +3230,11 @@
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/hair_reference_picker.py|HairReferencePickerDialog",
-      "gap": "generic_only",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair"
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/hair_setup_dialog.py|HairSetupDialog",
-      "gap": "generic_only",
-      "item": 9,
-      "milestone": "P13 MCP gap plan item 9: allow-list the host command in the Mesh Editor helper"
+      "tool": "mesh.hair_setup"
     },
     {
       "key": "dialog:cdmw/ui/mesh_editor/mod_export_dialog.py|MeshModExportDialog",
@@ -3329,8 +3418,7 @@
     },
     {
       "key": "host_command:hair_import_custom",
-      "gap": "not_built",
-      "milestone": "P13 follow-up after alpha.7: allow-list hair_import_custom in the Mesh Editor helper and give mesh.hair an import_custom {path} action"
+      "tool": "mesh.hair"
     },
     {
       "key": "host_command:hair_texture",

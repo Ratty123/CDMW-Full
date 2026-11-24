@@ -3,6 +3,9 @@
 use super::*;
 use crate::cdmw_ui::{state_bool, state_u64};
 
+#[path = "cdmw_document_host.rs"]
+mod host;
+
 #[derive(Default)]
 pub(super) struct HistoryView {
     pub selected: Option<usize>,

@@ -4,6 +4,9 @@ use cdmw_mesh::{DrawSnapshot, FaceHandle};
 use egui::{Button, ScrollArea};
 use std::hash::{Hash, Hasher};
 
+#[path = "cdmw_islands_host.rs"]
+mod host;
+
 pub(super) fn island_colour(part: u32, first_face: u32) -> [f32; 4] {
     viewport::part_colour(part.wrapping_mul(0x9e37_79b9).wrapping_add(first_face))
 }

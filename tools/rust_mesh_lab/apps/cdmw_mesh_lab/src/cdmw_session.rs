@@ -693,6 +693,15 @@ pub enum HostEvent {
     /// `HOST_VIEW_STATE_CAPABILITY`): nothing in the document changes. The helper answers
     /// with a `view_state` event either way.
     SetViewState(ViewStateChange),
+    /// Use one of the editor's own controls by name (`editor_control`,
+    /// `HOST_EDITOR_CONTROLS_CAPABILITY`), as its button or checkbox does. Only the
+    /// controls of [`HOST_EDITOR_CONTROLS`] are taken; the helper answers every one with
+    /// an `editor_control` event carrying the same `token`.
+    EditorControl {
+        control: &'static str,
+        token: u64,
+        arguments: Value,
+    },
     /// Send one of the CDMW commands a panel button sends, as that button does
     /// (`cdmw_command`). Only the commands of `host_cdmw_command` are taken:
     /// CDMW's automated test runs drive Import Replacement and Export Mesh File.
@@ -744,6 +753,25 @@ pub const HOST_VIEW_STATE_CAPABILITY: &str = "host_view_state_v1";
 /// Hello capability: `set_view_state` also takes the lighting preset and the Studio
 /// look (Wetness, Exposure, Light rotation), and `view_state` reports them.
 pub const HOST_VIEW_LOOK_CAPABILITY: &str = "host_view_look_v1";
+
+/// Hello capability: the helper takes `editor_control` (`HostEvent::EditorControl`) for
+/// the controls its hello lists under `editor_controls`, and answers each with an
+/// `editor_control` event. It also means `cdmw_command` takes `hair_import_custom`.
+pub const HOST_EDITOR_CONTROLS_CAPABILITY: &str = "host_editor_controls_v1";
+
+/// The editor's own controls CDMW may use by name, each with its own actions in
+/// `arguments.action`. Hair is Hair Tools' panel (its local edits, motion preview and
+/// display); islands is the Mesh islands list's view and selection; document is the
+/// History list's cursor and the Reference pieces' View boxes; overlays is the view's
+/// diagnostic overlays, rig helpers and material inspection aids; capture draws the 3D
+/// view to a PNG in the session folder. The helper checks each action as its button
+/// checks it.
+pub const HOST_EDITOR_CONTROLS: [&str; 5] = ["hair", "islands", "document", "overlays", "capture"];
+
+/// The name of a control CDMW may send in `editor_control`, as the helper knows it.
+pub fn host_editor_control(name: &str) -> Option<&'static str> {
+    HOST_EDITOR_CONTROLS.iter().copied().find(|control| *control == name)
+}
 
 /// The overlay colours `set_view_state` takes under `colours`, by the names the
 /// `view_state` event reports them with.
@@ -1080,6 +1108,9 @@ pub fn host_cdmw_output_command(name: &str) -> Option<(&'static str, &'static st
         "vertex_edit" => Some(("vertex_edit", "Edit Vertex Parameters")),
         "hair_begin" => Some(("hair_begin", "Change hair references")),
         "hair_texture_export" => Some(("hair_texture_export", "Hair texture")),
+        // Hair Tools' Import custom hair mesh…, with the file its chooser would give
+        // (HOST_EDITOR_CONTROLS_CAPABILITY).
+        "hair_import_custom" => Some(("hair_import_custom", "Import custom hair mesh")),
         "export_free_edit" => Some(("export_free_edit", "Export Free Edit OBJ")),
         "import_editable_package" => Some(("import_editable_package", "Import editable package")),
         "morph_export_recipe" => Some(("morph_export_recipe", "Save fitting setup")),
@@ -1558,6 +1589,12 @@ impl CdmwBridge {
         &self.manifest
     }
 
+    /// The session folder CDMW gave this editor; files the editor writes for CDMW go here.
+    #[must_use]
+    pub fn session_root(&self) -> &Path {
+        &self.root
+    }
+
     #[must_use]
     pub const fn shadow_revision(&self) -> u64 {
         self.shadow_revision
@@ -1721,8 +1758,10 @@ impl CdmwBridge {
                 HOST_VIEW_STATE_CAPABILITY,
                 HOST_VIEW_LOOK_CAPABILITY,
                 HOST_HIGHLIGHT_PART_CAPABILITY,
+                HOST_EDITOR_CONTROLS_CAPABILITY,
                 translation_transfer::CAPABILITY
-            ]
+            ],
+            "editor_controls": HOST_EDITOR_CONTROLS
         }))
     }
 
@@ -2011,6 +2050,25 @@ impl CdmwBridge {
             "session_id": self.manifest.session_id,
             "process_generation": self.manifest.process_generation,
             "view_state": state,
+        }))
+    }
+
+    /// The answer to one `editor_control` (`HOST_EDITOR_CONTROLS_CAPABILITY`): whether the
+    /// control took it, the editor's reason when it did not, and the control's state after.
+    pub fn publish_editor_control(
+        &self,
+        token: u64,
+        control: &str,
+        ok: bool,
+        message: &str,
+        state: Value,
+    ) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": "editor_control", "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "process_generation": self.manifest.process_generation,
+            "token": token, "control": control, "ok": ok, "message": message,
+            "state": state,
         }))
     }
 
@@ -2612,6 +2670,26 @@ impl CdmwBridge {
                 }
                 "set_camera" => decode_set_camera(&value),
                 "set_view_state" => decode_set_view_state(&value).map(HostEvent::SetViewState),
+                "editor_control" => {
+                    let name = value.get("control").and_then(Value::as_str).unwrap_or("");
+                    let control = host_editor_control(name).ok_or_else(|| {
+                        SessionError::Protocol(
+                            "editor_control names no control CDMW may use".to_owned(),
+                        )
+                    })?;
+                    let token = required_u64(&value, "token")?;
+                    let arguments = value.get("arguments").cloned().unwrap_or_else(|| json!({}));
+                    if !arguments.is_object() {
+                        return Err(SessionError::Protocol(
+                            "editor_control arguments must be an object".to_owned(),
+                        ));
+                    }
+                    Ok(HostEvent::EditorControl {
+                        control,
+                        token,
+                        arguments,
+                    })
+                }
                 "cdmw_command" => {
                     let name = value.get("command").and_then(Value::as_str).unwrap_or("");
                     let (command, label) = host_cdmw_command(name).ok_or_else(|| {
@@ -7550,6 +7628,7 @@ pub(crate) mod tests {
             ("morph_export_recipe", "Save fitting setup"),
             ("morph_export_preset", "Export morph preset"),
             ("replacement_export_rig", "Export rig GLB"),
+            ("hair_import_custom", "Import custom hair mesh"),
         ] {
             value["command"] = json!(name);
             assert!(matches!(
@@ -7587,6 +7666,72 @@ pub(crate) mod tests {
             bridge.decode_host_event(value),
             HostEvent::Fatal(_)
         ));
+    }
+
+    #[test]
+    fn editor_control_event_takes_listed_controls_with_a_token_and_object_arguments() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let mut value = json!({"event":"editor_control", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3,
+            "control":"hair", "token":7, "arguments":{"action":"state"}});
+        for control in HOST_EDITOR_CONTROLS {
+            value["control"] = json!(control);
+            assert!(matches!(
+                bridge.decode_host_event(value.clone()),
+                HostEvent::EditorControl { control: c, token: 7, arguments }
+                    if c == control && arguments["action"] == "state"
+            ));
+            assert_eq!(bridge.shadow_revision(), 4);
+        }
+        // Without arguments the control gets an empty object.
+        let mut bare = value.clone();
+        bare.as_object_mut().expect("object").remove("arguments");
+        assert!(matches!(
+            bridge.decode_host_event(bare),
+            HostEvent::EditorControl { arguments, .. } if arguments == json!({})
+        ));
+        // A control not listed, a missing token or arguments that are not an object: refused.
+        for (key, bad) in [
+            ("control", json!("session")),
+            ("control", json!("")),
+            ("token", json!(null)),
+            ("token", json!("7")),
+            ("arguments", json!([1])),
+        ] {
+            let mut wrong = value.clone();
+            wrong[key] = bad;
+            assert!(matches!(bridge.decode_host_event(wrong), HostEvent::Fatal(_)));
+        }
+        assert_eq!(host_editor_control("hair"), Some("hair"));
+        assert_eq!(host_editor_control("Hair"), None);
+    }
+
+    #[test]
+    fn hello_lists_the_editor_controls_with_their_capability() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let (sender, receiver) = bounded(4);
+        bridge.outbound = sender;
+        bridge.announce_hello(1, 2).expect("hello");
+        let Outbound::Message(hello) = receiver.recv().expect("hello line") else {
+            panic!("missing hello");
+        };
+        assert!(hello["capabilities"].as_array().expect("capabilities").iter()
+            .any(|value| value == HOST_EDITOR_CONTROLS_CAPABILITY));
+        assert_eq!(hello["editor_controls"], json!(HOST_EDITOR_CONTROLS));
+        bridge
+            .publish_editor_control(7, "hair", false, "Open Hair first", json!({"active": false}))
+            .expect("answer");
+        let Outbound::Message(answer) = receiver.recv().expect("answer line") else {
+            panic!("missing answer");
+        };
+        validate_identity(&answer, bridge.manifest()).unwrap();
+        assert_eq!(answer["event"], "editor_control");
+        assert_eq!(answer["token"], 7);
+        assert_eq!(answer["ok"], false);
+        assert_eq!(answer["message"], "Open Hair first");
+        assert_eq!(answer["state"]["active"], false);
     }
 
     #[test]

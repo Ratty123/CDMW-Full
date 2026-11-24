@@ -5,6 +5,13 @@ from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_depen
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 HAIR_ENTRY_STATUS_AUTO_CLEAR_MS = 5000
+#: The edited DDS a hair_texture command may carry (an AI connection's), in place of
+#: Apply edited DDS's file chooser.
+HAIR_DDS_KEY = "dds_path"
+HAIR_TEXTURE_SUFFIXES = (".dds", ".png", ".jpg", ".jpeg", ".webp", ".bmp")
+#: The token of the head and body CDMW found for a Change references that an AI
+#: connection asked for (``offer_hair_references``), in place of the two choosers.
+HAIR_REFERENCES_KEY = "references_token"
 
 
 def cancel_hair_entry_status_auto_clear(tab) -> None:
@@ -263,6 +270,38 @@ def open_hair_texture_source(tab, path):
     owner.textures._open_source_in_texture_editor(path, None)
 
 
+def hair_dds_path(tab, event):
+    """The edited texture that Apply edited DDS applies: the file the command carries, checked,
+    else the chooser's answer ("" when it was cancelled). An image is re-encoded to the
+    template's DDS layout when it is applied."""
+    from pathlib import Path
+    given = dict(event.get("arguments") or {}).get(HAIR_DDS_KEY)
+    if given is not None:
+        path = Path(str(given))
+        if not path.is_absolute() or path.suffix.lower() not in HAIR_TEXTURE_SUFFIXES or not path.is_file():
+            raise ValueError("Choose an existing image or DDS file smaller than 128 MiB.")
+        return str(path)
+    from PySide6.QtWidgets import QFileDialog
+    path, _ = QFileDialog.getOpenFileName(tab.window(), "Apply Edited Hair Texture", "",
+                                          "Textures (*.dds *.png *.jpg *.jpeg *.webp *.bmp)")
+    return path
+
+
+def offer_hair_references(tab, head, body):
+    """Keep a head and body (each ``(entry, dependencies)``) for the next Change references
+    that names the token returned; only that command takes them."""
+    import uuid
+    token = uuid.uuid4().hex
+    tab._hair_reference_answers = {token: {"head": head, "body": body}}
+    return token
+
+
+def _take_hair_references(tab, token):
+    answers = getattr(tab, "_hair_reference_answers", None) or {}
+    tab._hair_reference_answers = {}
+    return answers.get(str(token))
+
+
 def prepare_hair_event(tab, session, event):
     from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
     owner = tab.window()
@@ -275,8 +314,16 @@ def prepare_hair_event(tab, session, event):
     archive_session = service.current_session
     arguments = {**dict(event.get("arguments") or {}), "_target_entry": target,
                  "_target_dependencies": getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)}
+    token = arguments.pop(HAIR_REFERENCES_KEY, None)
+    answers = _take_hair_references(tab, token) if token is not None else None
+    if token is not None and answers is None:
+        raise ValueError("The head and body found for this change are no longer waiting; ask for them again.")
     for role, entry_key, dependencies_key in (("head", "_archive_entry", "_archive_dependencies"),
                                              ("body", "_body_archive_entry", "_body_archive_dependencies")):
+        if answers is not None:
+            # Found by their paths, as a click in the chooser would have chosen them.
+            arguments[entry_key], arguments[dependencies_key] = answers[role]
+            continue
         state = session.shadow_service._session(session.shadow_session_id).hair_state
         picker = HairReferencePickerDialog(owner, role, character=state.payload["template"]["character"] if state else "Damiane")
         if picker.exec() != QDialog.Accepted:
