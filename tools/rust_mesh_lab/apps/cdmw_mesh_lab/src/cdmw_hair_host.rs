@@ -8,6 +8,10 @@ use crate::cdmw_host_controls::{ControlOutcome, control_action, control_bool, co
 /// The Motion panel's movement tests, in its menu's order.
 pub(super) const MOVEMENT_TESTS: [&str; 6] = ["still", "turn", "nod", "head_and_shoulders", "body_sway", "wind"];
 
+/// The most locks one answer lists: a protocol line holds at most 256 KiB
+/// (DOTNET_PROTOCOL_LINE_LIMIT on CDMW's side). `state` pages through the rest.
+pub(super) const LISTED_LOCKS: usize = 400;
+
 /// Hair's actions CDMW may name, besides `state`.
 pub(super) const HAIR_HOST_ACTIONS: [&str; 16] = [
     "select_locks", "prepare", "empty", "fill", "lock_uv", "rigid", "rebind", "convert", "settings",
@@ -28,7 +32,11 @@ impl LabApplication {
     pub(crate) fn hair_host_control(&mut self, arguments: &Value) -> ControlOutcome {
         let action = control_action(arguments).to_owned();
         let result = if action == "state" { Ok(()) } else { self.hair_host_action(&action, arguments) };
-        let state = self.hair_host_state();
+        // Only a read lists the locks; an edit's answer says how many there are.
+        let listed = (action == "state").then(|| {
+            arguments.get("lock_offset").and_then(Value::as_u64).unwrap_or(0) as usize
+        });
+        let state = self.hair_host_state(listed);
         match result {
             Ok(()) => ControlOutcome::done(state),
             Err(message) => ControlOutcome::refused(message, state),
@@ -213,16 +221,21 @@ impl LabApplication {
 
     /// The panel as CDMW reads it: the locks and sections, the selection, the values
     /// the actions use, the motion preview and whether an edit is still on its way.
-    pub(crate) fn hair_host_state(&mut self) -> Value {
+    pub(crate) fn hair_host_state(&mut self, listed: Option<usize>) -> Value {
         let motion_unavailable = if self.hair.state.is_some() { self.hair_motion_reason().err() } else { None };
         let Some(state) = self.hair.state.as_ref() else {
             return json!({"active": false});
         };
         let mut selected: Vec<u64> = self.hair.selected.iter().map(|id| *id as u64).collect();
         selected.sort_unstable();
+        let selected_total = selected.len();
+        selected.truncate(LISTED_LOCKS);
+        let offset = listed.unwrap_or(0).min(state.locks.len());
         let locks: Vec<Value> = state
             .locks
             .iter()
+            .skip(offset)
+            .take(if listed.is_some() { LISTED_LOCKS } else { 0 })
             .map(|lock| {
                 json!({"id": lock.id, "kind": lock.kind, "part": lock.part, "guide": lock.guide,
                        "mirrored": lock.mirrored, "cards": lock.cards, "width_scale": lock.width_scale,
@@ -244,9 +257,12 @@ impl LabApplication {
             "style_name": state.style_name,
             "target_stem": state.template.target_stem,
             "rebind_offered": state.bound_reference != state.scalp.identity,
+            "locks_total": state.locks.len(),
+            "locks_offset": offset,
             "locks": locks,
             "groups": groups,
             "selected_locks": selected,
+            "selected_total": selected_total,
             "panel": {
                 "style_name": self.hair.style_name, "width": self.hair.width, "density": self.hair.density,
                 "starter_length": self.hair.preset_length, "symmetry": self.hair.symmetry,
@@ -326,6 +342,25 @@ mod tests {
         let lock = app.hair.state.as_ref().unwrap().locks.iter().find(|lock| lock.id == id).unwrap().clone();
         assert!((lock.width_scale - 1.5).abs() < 0.001);
         assert_eq!(lock.cards, 4);
+    }
+
+    #[test]
+    fn hair_answers_list_locks_only_when_read_and_page_through_them() {
+        let (mut app, _rect) = ready_hair_app();
+        let total = app.hair.state.as_ref().unwrap().locks.len();
+        assert!(total > 0);
+        let read = app.apply_editor_control("hair", &json!({"action": "state"}));
+        assert_eq!(read.state["locks_total"], total);
+        assert_eq!(read.state["locks"].as_array().unwrap().len(), total.min(LISTED_LOCKS));
+        let past = app.apply_editor_control("hair", &json!({"action": "state", "lock_offset": total + 5}));
+        assert_eq!(past.state["locks"], json!([]));
+        assert_eq!(past.state["locks_offset"], total);
+        // An edit's answer carries the counts only, so a large hairstyle never fills a line.
+        let display = app.apply_editor_control("hair", &json!({"action": "display", "show_guides": true}));
+        assert!(display.ok);
+        assert_eq!(display.state["locks"], json!([]));
+        assert_eq!(display.state["locks_total"], total);
+        assert!(serde_json::to_vec(&read.state).unwrap().len() < 256 * 1024);
     }
 
     #[test]

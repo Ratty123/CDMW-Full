@@ -118,7 +118,9 @@ def _close(call) -> dict[str, object]:
                                              "with discard_edit true to drop its steps.")
             # As the close question's Discard: the session ends and its recovery point with it.
             mark_discarded(document)
-            document.close_standalone_session()
+            if document.close_standalone_session() is False or has_pending_edit(document):
+                raise ToolError(UNAVAILABLE, f"{label}'s edit could not be closed now (it may be finishing); "
+                                             "try again in a moment.")
         if not view.close_document(index):
             raise ToolError(UNAVAILABLE, f"{label} was not closed; mesh_state says why.")
         return {"closed": index, "label": label, "discarded": discard,

@@ -5,6 +5,9 @@
 use super::*;
 use crate::cdmw_host_controls::{ControlOutcome, control_action, control_bool};
 
+/// The most islands one answer lists, within a protocol line's 256 KiB; `state` pages.
+pub(super) const LISTED_ISLANDS: usize = 1500;
+
 /// The islands' actions CDMW may name.
 pub(super) const ISLAND_HOST_ACTIONS: [&str; 7] =
     ["state", "select", "select_many", "visibility", "isolate", "show_all", "colours"];
@@ -13,7 +16,15 @@ impl LabApplication {
     pub(crate) fn islands_host_control(&mut self, arguments: &Value) -> ControlOutcome {
         let action = control_action(arguments).to_owned();
         let result = if action == "state" { Ok(()) } else { self.islands_host_action(&action, arguments) };
-        let state = self.islands_host_state();
+        // A read may name one part and where to start; an edit's answer lists the part it
+        // named (or every part, from the first island).
+        let part = arguments.get("part").and_then(Value::as_u64);
+        let offset = if action == "state" {
+            arguments.get("island_offset").and_then(Value::as_u64).unwrap_or(0) as usize
+        } else {
+            0
+        };
+        let state = self.islands_host_state(part, offset);
         match result {
             Ok(()) => ControlOutcome::done(state),
             Err(message) => ControlOutcome::refused(message, state),
@@ -95,7 +106,7 @@ impl LabApplication {
 
     /// The list as CDMW reads it: each part's islands with their face counts, which are hidden
     /// in the view and which are selected, and whether the list can be used now.
-    pub(crate) fn islands_host_state(&self) -> Value {
+    pub(crate) fn islands_host_state(&self, only_part: Option<u64>, offset: usize) -> Value {
         let selected: HashSet<(u32, u32)> = self
             .mesh
             .as_ref()
@@ -107,17 +118,27 @@ impl LabApplication {
                 })
             })
             .collect();
+        let mut skip = offset;
+        let mut room = LISTED_ISLANDS;
+        let mut truncated = false;
         let parts: Vec<Value> = self.cdmw_state["mesh_islands"]["parts"]
             .as_array()
             .into_iter()
             .flatten()
+            .filter(|row| only_part.is_none_or(|part| row["index"].as_u64() == Some(part)))
             .map(|row| {
                 let part = row["index"].as_u64().unwrap_or_default() as u32;
-                let islands: Vec<Value> = row["islands"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
+                let all = row["islands"].as_array().cloned().unwrap_or_default();
+                let start = skip.min(all.len());
+                skip -= start;
+                let take = room.min(all.len() - start);
+                room -= take;
+                truncated |= start + take < all.len();
+                let islands: Vec<Value> = all
+                    .iter()
                     .enumerate()
+                    .skip(start)
+                    .take(take)
                     .map(|(index, island)| {
                         let faces = island_faces(island);
                         let hidden = self.cdmw_hidden_islands.iter().any(|h| h.part == part && h.faces == faces);
@@ -128,12 +149,14 @@ impl LabApplication {
                     })
                     .collect();
                 json!({"part": part, "name": row["name"], "available": row["available"],
-                       "reason": row["reason"], "islands": islands})
+                       "reason": row["reason"], "islands_total": all.len(), "islands": islands})
             })
             .collect();
         let editing = self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|mode| mode == "edit");
         json!({
             "parts": parts,
+            "island_offset": offset,
+            "truncated": truncated,
             "hidden": self.cdmw_hidden_islands.len(),
             "usable": editing && !self.cdmw_busy(),
             "island_colours": self.view_mode == ViewMode::PartId && self.cdmw_island_colours,

@@ -27,6 +27,8 @@ from cdmw.mcp.names import EDIT, READ
 from cdmw.mcp.tools import ON_WORKER, Tool, object_schema
 
 PREPARE_S = 120.0
+#: A lock offset past every lock: the panel's state with its counts and no lock list.
+COUNTS_ONLY = 1 << 31
 SETUP_S = 180.0
 NO_EDITOR_CONTROLS = ("This Mesh Editor helper does not take its hair control from CDMW; it is older than this "
                       "app (host_editor_controls_v1).")
@@ -39,7 +41,7 @@ HOST_ACTIONS = {"begin": "hair_begin", "color": "hair_color", "texture": "hair_t
 ACTIONS = (*LOCAL_ACTIONS, *HOST_ACTIONS)
 #: The arguments each action takes besides 'action' and 'wait'; any other is refused.
 ACTION_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "state": (), "select_locks": ("lock_ids",), "prepare": (), "empty": (),
+    "state": ("lock_offset",), "select_locks": ("lock_ids",), "prepare": (), "empty": (),
     "fill": ("preset", "length"), "lock_uv": ("lock_ids", "uv_rect"), "rigid": ("lock_ids",), "rebind": (),
     "convert": (), "settings": ("lock_ids", "width", "density"), "settle": (), "reset": (),
     "name": ("style_name",), "delete": ("lock_ids",),
@@ -90,7 +92,7 @@ def _local(call, action: str) -> dict[str, object]:
             if time.monotonic() > deadline:
                 break
             time.sleep(0.1)
-            state = _control(call, {"action": "state"}).get("state") or {}
+            state = _control(call, {"action": "state", "lock_offset": COUNTS_ONLY}).get("state") or {}
             waited = True
     outcome: dict[str, object] = {"done": bool(answer["ok"]), "hair": state}
     if not answer["ok"]:
@@ -133,10 +135,8 @@ def _references(call, head: str, body: str) -> str:
 
     context = call.context
     found: dict[str, object] = {}
-    done = threading.Event()
-    pending: list[object] = []
 
-    def start() -> None:
+    def character_and_owner():
         tab = ready_document(context)
         character = _hair_character(tab)
         if not character:
@@ -144,31 +144,37 @@ def _references(call, head: str, body: str) -> str:
         owner = tab.window()
         if isinstance(owner, DetachedToolWindow):
             owner = owner.owner
-        for role, path in (("head", head), ("body", body)):
+        return tab, owner, character
+
+    deadline = time.monotonic() + PREPARE_S
+    for role, path in (("head", head), ("body", body)):
+        done = threading.Event()
+        box: dict[str, object] = {}
+
+        def start(role=role, path=path, done=done, box=box) -> None:
+            tab, owner, character = character_and_owner()
             resolution = HairReferenceResolution(owner, tab)
 
-            def finished(entry, dependencies, error, role=role, resolution=resolution):
-                found[role] = (entry, dependencies, error)
+            def finished(entry, dependencies, error):
+                box["found"] = (entry, dependencies, error)
                 resolution.deleteLater()
-                if len(found) == 2:
-                    done.set()
+                done.set()
 
             resolution.done.connect(finished)
-            pending.append(resolution)
+            box["resolution"] = resolution
             resolution.start(role, path, character)
 
-    context.ui_call(start)
-    deadline = time.monotonic() + PREPARE_S
-    while not done.wait(0.05):
-        call.check_cancelled()
-        if time.monotonic() > deadline:
-            context.ui_call(lambda: [resolution.cancel() for resolution in pending])
-            raise ToolError(FAILED, "CDMW did not find the head and body in time.")
-    errors = [found[role][2] for role in ("head", "body") if found[role][2]]
-    if errors:
-        raise ToolError(INVALID_ARGUMENTS, " ".join(errors))
-    return context.ui_call(lambda: offer_hair_references(
-        ready_document(context), found["head"][:2], found["body"][:2]))
+        context.ui_call(start)
+        while not done.wait(0.05):
+            call.check_cancelled()
+            if time.monotonic() > deadline:
+                context.ui_call(lambda box=box: box["resolution"].cancel())
+                raise ToolError(FAILED, "CDMW did not find the head and body in time.")
+        entry, dependencies, error = box["found"]
+        if error:
+            raise ToolError(INVALID_ARGUMENTS, str(error))
+        found[role] = (entry, dependencies)
+    return context.ui_call(lambda: offer_hair_references(ready_document(context), found["head"], found["body"]))
 
 
 def _host(call, action: str) -> dict[str, object]:
@@ -349,8 +355,9 @@ def mesh_hair_tools() -> list[Tool]:
              description=(
                  "Hair Tools' panel for the hairstyle open in the shown document (mesh_hair_setup opens one). "
                  "'action' picks what it does, each with its own arguments: "
-                 "state (the panel: locks with id, kind and part, sections, the selected locks, display, "
-                 "motion, and whether an edit is still being prepared); select_locks {lock_ids}; "
+                 "state {lock_offset} (the panel: locks with id, kind and part, 400 at a time from "
+                 "lock_offset, sections, the selected locks, display, motion, and whether an edit is still "
+                 "being prepared; an edit's answer gives the counts only); select_locks {lock_ids}; "
                  "prepare (Prepare existing hair sections); empty (Start empty); fill {preset: cropped, bob, "
                  "long or ponytail, length 0.08 to 0.6} (Starter shapes); settings {width, density 1 to 32, "
                  "lock_ids} (Apply to selected locks); lock_uv {uv_rect [u, v, width, height] or null, "
@@ -372,6 +379,7 @@ def mesh_hair_tools() -> list[Tool]:
              input_schema=object_schema({
                  "action": {"type": "string", "enum": list(ACTIONS)},
                  "wait": {"type": "boolean", "default": True},
+                 "lock_offset": {"type": "integer", "minimum": 0},
                  "lock_ids": lock_ids,
                  "preset": {"type": "string", "enum": ["cropped", "bob", "long", "ponytail"]},
                  "length": {"type": "number", "minimum": 0.08, "maximum": 0.6},

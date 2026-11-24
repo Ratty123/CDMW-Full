@@ -62,12 +62,25 @@ def _run(name, arguments):
     return tool.handler(_Call(validate_arguments(arguments, tool.input_schema)))
 
 
-def test_islands_are_used_by_part_and_number(document):
+def test_islands_are_used_by_part_and_number(document, monkeypatch):
+    from cdmw.mcp import mesh_edit_tools
+
+    settled = []
+    monkeypatch.setattr(mesh_edit_tools, "history_now", lambda call: {"undo": 1})
+    monkeypatch.setattr(mesh_edit_tools, "request_mark", lambda context: 4)
+    monkeypatch.setattr(mesh_edit_tools, "settle", lambda call, mark, before: settled.append(mark) or {
+        "done": True, "history_before": before, "history": {"undo": 2}, "selection": {"faces": 3}, "status": ""})
     outcome = _run("mesh.islands", {"action": "visibility", "part": 1, "island": 2, "visible": False})
     assert outcome == {"done": True, "islands": {"parts": []}}
     assert document["tab"].sent == [("islands", {"action": "visibility", "part": 1, "island": 2, "visible": False})]
-    _run("mesh.islands", {"action": "select_many", "islands": [{"part": 0, "island": 0}, {"part": 1, "island": 3}]})
+    assert not settled  # the view only: nothing to wait for
+    selected = _run("mesh.islands", {"action": "select_many",
+                                     "islands": [{"part": 0, "island": 0}, {"part": 1, "island": 3}]})
     assert document["tab"].sent[-1][1]["islands"] == [{"part": 0, "island": 0}, {"part": 1, "island": 3}]
+    # A selection is one History step the host answers: the call waits for it.
+    assert settled == [4] and selected["history"] == {"undo": 2} and selected["selection"] == {"faces": 3}
+    _run("mesh.islands", {"action": "state", "part": 1, "island_offset": 1500})
+    assert document["tab"].sent[-1] == ("islands", {"action": "state", "part": 1, "island_offset": 1500})
 
 
 def test_islands_report_the_lists_refusal(document):
@@ -149,6 +162,7 @@ class _CaptureTab(_Tab):
         path.parent.mkdir(parents=True, exist_ok=True)
         image = QImage(64, 36, QImage.Format.Format_RGB32)
         image.fill(QColor(30, 140, 60))
+        image.setPixelColor(10, 10, QColor(200, 40, 40))  # a model on the background
         image.save(str(path))
         keep_editor_control_answer(self, {"token": len(self.sent), "ok": self.ok,
                                           "message": "" if self.ok else "The 3D view has no renderer.",
@@ -189,3 +203,23 @@ def test_a_picture_outside_the_session_folder_is_refused_and_a_refusal_falls_bac
     assert result is None and facts["helper_capture"] == "The 3D view has no renderer."
     document["tab"] = _Tab(controls=("hair",))
     assert _picture(document["tab"])[0] is None  # an older helper: the window's own picture next
+
+
+def test_a_blank_helper_picture_falls_back_to_the_windows_own(document, tmp_path):
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+
+    class Blank(_CaptureTab):
+        def send_editor_control(self, control, arguments):
+            token = super().send_editor_control(control, arguments)
+            image = QImage(64, 36, QImage.Format.Format_RGB32)
+            image.fill(QColor(0, 0, 0))
+            image.save(str(self.standalone_rust_session_root / "captures" / "view-1.png"))
+            return token
+
+    document["tab"] = Blank(tmp_path)
+    result, facts = _picture(document["tab"])
+    assert result is None and "blank" in facts["helper_capture"]
+    assert not (tmp_path / "captures" / "view-1.png").exists()

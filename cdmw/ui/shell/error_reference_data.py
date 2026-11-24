@@ -39358,7 +39358,7 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} needs one of {', '.join(wanted)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_viewport_tools.py": 48
+      "cdmw/mcp/mesh_viewport_tools.py": 51
     }
   },
   {
@@ -39366,8 +39366,8 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} needs {', '.join(missing)}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 217,
-      "cdmw/mcp/mesh_viewport_tools.py": 46
+      "cdmw/mcp/mesh_hair_tools.py": 223,
+      "cdmw/mcp/mesh_viewport_tools.py": 49
     }
   },
   {
@@ -39375,7 +39375,7 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} takes {', '.join(ACTION_ARGUMENTS[action]) or 'nothing more'}; not {extra[0]}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 213
+      "cdmw/mcp/mesh_hair_tools.py": 219
     }
   },
   {
@@ -39383,7 +39383,7 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} takes {', '.join(wanted) or 'nothing more'}; not {extra[0]}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_viewport_tools.py": 41
+      "cdmw/mcp/mesh_viewport_tools.py": 42
     }
   },
   {
@@ -40981,7 +40981,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW did not find the head and body in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 166
+      "cdmw/mcp/mesh_hair_tools.py": 172
     }
   },
   {
@@ -42552,7 +42552,7 @@ MESSAGE_REFERENCE = [
     "message": "Converted to ordinary mesh. Undo restores Hair editing.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 46
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 54
     }
   },
   {
@@ -45478,7 +45478,7 @@ MESSAGE_REFERENCE = [
     "message": "Give 'donor', the hairstyle's archive path (.pac), to edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 267
+      "cdmw/mcp/mesh_hair_tools.py": 273
     }
   },
   {
@@ -45486,7 +45486,7 @@ MESSAGE_REFERENCE = [
     "message": "Give 'donor', the hairstyle's archive path (.pac), to take its material and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 267
+      "cdmw/mcp/mesh_hair_tools.py": 273
     }
   },
   {
@@ -45518,7 +45518,7 @@ MESSAGE_REFERENCE = [
     "message": "Give piece and visible together, or neither to read the pieces.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_document_tools.py": 193
+      "cdmw/mcp/mesh_document_tools.py": 195
     }
   },
   {
@@ -45702,7 +45702,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair Tools did not start in time, so its setup was closed. It said: {text}",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 328
+      "cdmw/mcp/mesh_hair_tools.py": 334
     }
   },
   {
@@ -45710,7 +45710,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair Tools did not take it.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 164
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 172
     }
   },
   {
@@ -45894,7 +45894,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair has no action {action}.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 145
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 153
     }
   },
   {
@@ -45902,7 +45902,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair has no action {action}; its actions are {}.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 40
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 48
     }
   },
   {
@@ -47190,7 +47190,7 @@ MESSAGE_REFERENCE = [
     "message": "Island colors are offered once the mesh's islands are known.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 57
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 68
     }
   },
   {
@@ -47366,7 +47366,7 @@ MESSAGE_REFERENCE = [
     "message": "Island {island} of part {part} has no faces.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 36
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 47
     }
   },
   {
@@ -49510,7 +49510,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh islands are edited in the Edit comparison view only.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 68
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 79
     }
   },
   {
@@ -52489,7 +52489,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a hairstyle with Hair Tools first.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 43
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 51
     }
   },
   {
@@ -52540,7 +52540,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_document_tools.py": 31,
-      "cdmw/mcp/mesh_hair_tools.py": 241
+      "cdmw/mcp/mesh_hair_tools.py": 247
     }
   },
   {
@@ -54585,7 +54585,7 @@ MESSAGE_REFERENCE = [
     "message": "Piece 0 ({names[0]}) is the one being edited; switch to 1 to {len(contexts) - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_document_tools.py": 147
+      "cdmw/mcp/mesh_document_tools.py": 149
     }
   },
   {
@@ -54609,7 +54609,7 @@ MESSAGE_REFERENCE = [
     "message": "Prepare existing hair sections is offered for a hairstyle with original sections.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 80
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 88
     }
   },
   {
@@ -55910,7 +55910,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebind to changed head is offered after the head reference changed.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 86
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 94
     }
   },
   {
@@ -58849,7 +58849,7 @@ MESSAGE_REFERENCE = [
     "message": "Starter shapes create new hair in Create hairstyle.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 83
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 91
     }
   },
   {
@@ -59486,10 +59486,10 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is working on the last request; try again in a moment.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_document_tools.py": 152,
+      "cdmw/mcp/mesh_document_tools.py": 154,
       "cdmw/mcp/mesh_edit_tools.py": 126,
       "cdmw/mcp/mesh_tools.py": 777,
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 64
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 75
     }
   },
   {
@@ -59761,7 +59761,7 @@ MESSAGE_REFERENCE = [
     "message": "The characters are {', '.join(names.values())}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 261
+      "cdmw/mcp/mesh_hair_tools.py": 267
     }
   },
   {
@@ -60082,7 +60082,7 @@ MESSAGE_REFERENCE = [
     "message": "The islands have no action {action}.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 90
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 101
     }
   },
   {
@@ -60090,7 +60090,7 @@ MESSAGE_REFERENCE = [
     "message": "The islands have no action {action}; their actions are {}.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 49
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 60
     }
   },
   {
@@ -60619,7 +60619,7 @@ MESSAGE_REFERENCE = [
     "message": "The shown document has an unfinished edit and no other can be opened; finish or close it first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 247
+      "cdmw/mcp/mesh_hair_tools.py": 253
     }
   },
   {
@@ -60635,7 +60635,7 @@ MESSAGE_REFERENCE = [
     "message": "The shown document is not one piece of a set; Switch editable piece is offered for a set opened with its reference pieces.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_document_tools.py": 144
+      "cdmw/mcp/mesh_document_tools.py": 146
     }
   },
   {
@@ -60876,7 +60876,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its hair control from CDMW; it is older than this app (host_editor_controls_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 112
+      "cdmw/mcp/mesh_hair_tools.py": 114
     }
   },
   {
@@ -60893,7 +60893,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_edit_tools.py": 212,
-      "cdmw/mcp/mesh_hair_tools.py": 181
+      "cdmw/mcp/mesh_hair_tools.py": 187
     }
   },
   {
@@ -61153,7 +61153,7 @@ MESSAGE_REFERENCE = [
     "message": "This hairstyle has no lock {missing}; the hair state lists its locks.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 54
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 62
     }
   },
   {
@@ -63902,7 +63902,7 @@ MESSAGE_REFERENCE = [
     "message": "dds_path must be the full path of an existing .dds file.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 188
+      "cdmw/mcp/mesh_hair_tools.py": 194
     }
   },
   {
@@ -66592,7 +66592,7 @@ MESSAGE_REFERENCE = [
     "message": "lock_uv needs uv_rect: [u, v, width, height] from 0 to 1, or null for the donor strip.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 120
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 128
     }
   },
   {
@@ -68452,7 +68452,7 @@ MESSAGE_REFERENCE = [
     "message": "name needs style_name, 1 to 64 characters.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 140
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 148
     }
   },
   {
@@ -71589,7 +71589,7 @@ MESSAGE_REFERENCE = [
     "message": "select_locks needs lock_ids (an empty list clears the selection).",
     "recovery": "empty",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 61
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 69
     }
   },
   {
@@ -71789,7 +71789,7 @@ MESSAGE_REFERENCE = [
     "message": "settings needs width or density.",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 108
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 116
     }
   },
   {
@@ -73071,7 +73071,7 @@ MESSAGE_REFERENCE = [
     "message": "uv_rect takes four numbers from 0 to 1",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 133
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_host.rs": 141
     }
   },
   {
@@ -73664,7 +73664,15 @@ MESSAGE_REFERENCE = [
     "message": "{label} was not closed; mesh_state says why.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_document_tools.py": 123
+      "cdmw/mcp/mesh_document_tools.py": 125
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "{label}'s edit could not be closed now (it may be finishing); try again in a moment.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_document_tools.py": 122
     }
   },
   {
@@ -109654,7 +109662,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/mesh_document_tools.py": {
     "code": 4,
-    "raise": 13
+    "raise": 14,
+    "report": 1
   },
   "cdmw/mcp/mesh_edit_tools.py": {
     "code": 21,
@@ -109663,9 +109672,8 @@ SOURCE_COVERAGE = {
   },
   "cdmw/mcp/mesh_hair_tools.py": {
     "code": 10,
-    "diagnostic_field": 1,
     "raise": 15,
-    "report": 3
+    "report": 4
   },
   "cdmw/mcp/mesh_session_tools.py": {
     "code": 3,

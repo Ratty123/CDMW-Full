@@ -1056,3 +1056,20 @@ fn island_editor_control_refuses_what_the_list_would_not_offer() -> TestResult {
     assert_eq!(outcome.state["usable"], false);
     Ok(())
 }
+
+#[test]
+fn island_editor_control_pages_a_long_island_list() -> TestResult {
+    let mut ui = island_ui(egui::vec2(1280.0, 900.0))?;
+    let islands: Vec<Value> = (0..2000).map(|_| json!({"faces": [0], "included": true})).collect();
+    ui.application.cdmw_state["mesh_islands"]["parts"][0]["islands"] = json!(islands);
+    let first = ui.application.apply_editor_control("islands", &json!({"action": "state"}));
+    assert_eq!(first.state["parts"][0]["islands_total"], 2000);
+    assert_eq!(first.state["parts"][0]["islands"].as_array().ok_or("islands")?.len(), 1500);
+    assert_eq!(first.state["truncated"], true);
+    assert!(serde_json::to_vec(&first.state)?.len() < 256 * 1024);
+    let rest = ui.application.apply_editor_control("islands", &json!({"action": "state", "part": 0, "island_offset": 1500}));
+    assert_eq!(rest.state["parts"][0]["islands"].as_array().ok_or("islands")?.len(), 500);
+    assert_eq!(rest.state["parts"][0]["islands"][0]["island"], 1500);
+    assert_eq!(rest.state["truncated"], false);
+    Ok(())
+}

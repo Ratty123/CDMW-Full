@@ -256,7 +256,9 @@ def test_mesh_hair_edits_wait_until_prepared_and_return_the_history(helper):
     assert outcome["done"] is True and outcome["waited"] is True
     assert outcome["hair"]["preparing"] is False
     assert helper.sent[0] == {"action": "settings", "lock_ids": [3], "width": 0.02, "density": 4}
-    assert all(message == {"action": "state"} for message in helper.sent[1:])
+    from cdmw.mcp.mesh_hair_tools import COUNTS_ONLY
+
+    assert all(message == {"action": "state", "lock_offset": COUNTS_ONLY} for message in helper.sent[1:])
     assert outcome["history_before"] != outcome["history"]
 
 

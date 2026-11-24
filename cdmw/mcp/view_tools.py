@@ -484,8 +484,8 @@ def _helper_picture(call, max_side: int, facts: dict[str, object]):
     finally:
         if root is not None and path.is_relative_to(Path(str(root)).resolve()):
             path.unlink(missing_ok=True)
-    if image.isNull():
-        facts["helper_capture"] = "The Mesh Editor's picture could not be read."
+    if image.isNull() or _one_colour(image):
+        facts["helper_capture"] = "The Mesh Editor's picture could not be read or was blank."
         return None
     data, width, height = png_of(image, max_side)
     return ImageResult(data, {**facts, "how": "drawn by the editor's renderer", "width": width, "height": height})

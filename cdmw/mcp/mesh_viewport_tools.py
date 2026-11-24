@@ -15,7 +15,7 @@ from cdmw.mcp.tools import ON_WORKER, Tool, object_schema
 #: The Mesh islands list's actions (cdmw_islands_host.rs, ISLAND_HOST_ACTIONS).
 ISLAND_ACTIONS = ("state", "select", "select_many", "visibility", "isolate", "show_all", "colours")
 _ISLAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "state": (), "select": ("part", "island"), "select_many": ("islands",),
+    "state": ("part", "island_offset"), "select": ("part", "island"), "select_many": ("islands",),
     "visibility": ("part", "island", "visible"), "isolate": ("part", "island"), "show_all": (),
     "colours": ("enabled",),
 }
@@ -31,7 +31,8 @@ _ISLAND = {"type": "integer", "minimum": 0, "description": "An island's number w
 
 
 def _checked(call, table: dict[str, tuple[str, ...]], *, all_required: bool) -> dict[str, object]:
-    """The control's arguments: only the action's own, each required or at least one given."""
+    """The control's arguments: only the action's own, each required or at least one given.
+    A read ('state') takes its own arguments as options."""
 
     a = call.arguments
     action = str(a["action"])
@@ -42,6 +43,8 @@ def _checked(call, table: dict[str, tuple[str, ...]], *, all_required: bool) -> 
                                            f"not {extra[0]}.")
     given = {key: a[key] for key in wanted if a.get(key) is not None}
     missing = [key for key in wanted if key not in given]
+    if action == "state":
+        return {"action": action, **given}
     if all_required and missing:
         raise ToolError(INVALID_ARGUMENTS, f"Action {action} needs {', '.join(missing)}.")
     if not all_required and wanted and not given:
@@ -49,18 +52,36 @@ def _checked(call, table: dict[str, tuple[str, ...]], *, all_required: bool) -> 
     return {"action": action, **given}
 
 
-def _islands(call) -> dict[str, object]:
-    from cdmw.mcp.editor_control import control_outcome, editor_control
+#: The actions that replace the selection: the helper sends it to CDMW as one History step,
+#: as after a click, and the next control waits for that to come back.
+_SELECTING = {("islands", "select"), ("islands", "select_many"), ("islands", "isolate"),
+              ("overlays", "select_influence")}
 
-    arguments = _checked(call, _ISLAND_ARGUMENTS, all_required=True)
-    return control_outcome(editor_control(call, "islands", arguments), "islands")
+
+def _send(call, control: str, arguments: dict[str, object], key: str) -> dict[str, object]:
+    from cdmw.mcp.editor_control import control_outcome, editor_control
+    from cdmw.mcp.mesh_edit_tools import history_now, request_mark, settle
+
+    selecting = (control, arguments["action"]) in _SELECTING
+    if selecting:
+        before, mark = history_now(call), request_mark(call.context)
+    answer = editor_control(call, control, arguments)
+    outcome = control_outcome(answer, key)
+    if selecting and answer.get("ok"):
+        settled = settle(call, mark, before)
+        outcome.update({name: settled[name] for name in ("history_before", "history", "selection", "status")
+                        if name in settled})
+        if settled.get("message"):
+            outcome["message"] = settled["message"]
+    return outcome
+
+
+def _islands(call) -> dict[str, object]:
+    return _send(call, "islands", _checked(call, _ISLAND_ARGUMENTS, all_required=True), "islands")
 
 
 def _overlays(call) -> dict[str, object]:
-    from cdmw.mcp.editor_control import control_outcome, editor_control
-
-    arguments = _checked(call, _OVERLAY_ARGUMENTS, all_required=False)
-    return control_outcome(editor_control(call, "overlays", arguments), "overlays")
+    return _send(call, "overlays", _checked(call, _OVERLAY_ARGUMENTS, all_required=False), "overlays")
 
 
 def _state_reads(call) -> str:
@@ -76,13 +97,17 @@ def mesh_viewport_tools() -> list[Tool]:
                          "(a click on the island's name: its faces become the selection); select_many {islands: "
                          "[{part, island}]}; visibility {part, island, visible} (the View box: the view only, "
                          "not the output); isolate {part, island} (shows only that island within its part and "
-                         "selects it); show_all (Show all islands); colours {enabled} (Island colors). The "
+                         "selects it); show_all (Show all islands); colours {enabled} (Island colors). state takes "
+                         "'part' to list one part and 'island_offset' to page. The "
                          "mesh is not changed; Include, which changes the output, is mesh_part_options' "
                          "islands. Refused, as the list is disabled, while the editor works on a request or "
                          "outside the Edit comparison view.",
              input_schema=object_schema({
                  "action": {"type": "string", "enum": list(ISLAND_ACTIONS)},
                  "part": _PART, "island": _ISLAND,
+                 "island_offset": {"type": "integer", "minimum": 0,
+                                   "description": "For state: the first island to list. One answer lists at most "
+                                                  "1500 islands; 'truncated' says when there are more."},
                  "islands": {"type": "array", "minItems": 1, "maxItems": 4096,
                              "items": object_schema({"part": _PART, "island": _ISLAND}, ["part", "island"])},
                  "visible": {"type": "boolean"}, "enabled": {"type": "boolean"}}, ["action"]),
@@ -97,7 +122,7 @@ def mesh_viewport_tools() -> list[Tool]:
                          "vertices: replaces the selection, one History step); inspection {hide_selection, light "
                          "(camera, front, side, behind or above), light_strength 0 to 2, veil_screen (1920x1080, "
                          "2560x1440 or 3840x2160)}, the material inspector's preview light and veil net screen "
-                         "size. view_capture shows the result.",
+                         "size.",
              input_schema=object_schema({
                  "action": {"type": "string", "enum": list(OVERLAY_ACTIONS)},
                  "deformation_heatmap": {"type": "boolean"}, "weight_colours": {"type": "boolean"},
