@@ -240,6 +240,16 @@ def _surface_argument(args):
     return tuple(values)
 
 
+def fbx_work_dir(session_root) -> Path:
+    """Where an FBX is converted for Import Replacement: beside the session folder, not in
+    it. The session folder holds only what CDMW and the editor check; an ``fbx-import``
+    folder in it failed CDMW's next state write and closed the editor (2026-11-24). The
+    stale-session sweep removes it with the session (its name starts ``session-``)."""
+
+    root = Path(session_root)
+    return root.parent / f"{root.name}-fbx-import"
+
+
 def run_replacement_command(authoring, command, args, stop_event):
     service, session_id = authoring.shadow_service, authoring.shadow_session_id
     from cdmw.services.mesh_asset_context import is_item_set
@@ -295,7 +305,7 @@ def run_replacement_command(authoring, command, args, stop_event):
             raise ValueError("Select at least one target part before importing a replacement.")
         pending = prepare_import(snapshot, args.get("source_path", ""), target_part_ids=selected,
                                  entry=entry, dependencies=dependencies, stop_event=stop_event,
-                                 blender=args.get("_blender"), work_dir=authoring.root / "fbx-import")
+                                 blender=args.get("_blender"), work_dir=fbx_work_dir(authoring.root))
         authoring._raise_if_cancelled(stop_event)
         authoring.pending_replacement = pending
         authoring.replacement_weight_notes = ()

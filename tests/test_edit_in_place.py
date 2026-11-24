@@ -438,6 +438,27 @@ def test_after_a_crash_the_session_files_are_written_again_at_the_accepted_step(
         authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)
 
 
+def test_a_retry_after_a_capture_and_a_crash_mid_transaction_opens_in_the_new_helper(tmp_path: Path) -> None:
+    """The dead helper left its view pictures and a half-written transaction; CDMW's own
+    check refused the temp file on the first write, and the helper refused the folder."""
+    from tests.editor_session_check import assert_editor_accepts
+    from tests.test_mesh_rust_authoring import RustMeshAuthoringTests
+
+    authoritative, session = RustMeshAuthoringTests()._create(tmp_path / "session")
+    try:
+        captures = session.root / "captures"
+        captures.mkdir()
+        (captures / "view-3.png").write_bytes(b"PNG")
+        (session.root / ".candidate-7-rust4242.json.tmp").write_text("{", encoding="utf-8")
+        session.rewrite_for_relaunch(9)
+        assert not captures.exists()
+        assert not (session.root / ".candidate-7-rust4242.json.tmp").exists()
+        assert_editor_accepts(session.manifest_path)
+    finally:
+        session.cancel()
+        authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)
+
+
 def test_a_deferred_open_says_morphs_are_preparing_until_its_query_answers(tmp_path: Path) -> None:
     import threading
 

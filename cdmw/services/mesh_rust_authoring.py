@@ -198,6 +198,12 @@ _RUST_MATERIAL_LUMINANCE_GUARD_MAX_SURFACE_SAMPLES = (
 )
 _LAYER_GENERATION_RE = re.compile(r"generation-[0-9]+-[0-9a-f]{8}\Z")
 _PROFILE_MAX_DEPTH = 4
+#: The slider profile library the session copies, bounded as the editor bounds that folder
+#: (MAX_PROFILE_FILE_BYTES, MAX_PROFILE_TOTAL_BYTES and MAX_PROFILE_ENTRIES in
+#: cdmw_session.rs; tests/test_session_contract_limits.py compares them).
+PROFILE_MAX_FILE_BYTES = 256 * 1024 * 1024
+PROFILE_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
+PROFILE_MAX_ENTRIES = 4096
 _MORPH_STATE_MAX_BYTES = 16 * 1024 * 1024
 _GENERATED_MAX_ENTRIES = 65_536
 _GENERATED_MAX_DEPTH = 8
@@ -1686,6 +1692,10 @@ def _validate_owned_profile_tree(root: Path) -> tuple[int, int]:
                 )
             length = item.stat().st_size
             total_bytes += length
+            if length > PROFILE_MAX_FILE_BYTES or total_bytes > PROFILE_MAX_TOTAL_BYTES:
+                raise RustMeshProtocolError("Mesh morph profiles exceed the size the Mesh Editor accepts")
+    if entry_count > PROFILE_MAX_ENTRIES:
+        raise RustMeshProtocolError("Mesh morph profiles contain too many entries")
     return entry_count, total_bytes
 
 
@@ -7458,6 +7468,16 @@ def _copy_shadow_morph_profiles(
         return None, _directory_fingerprint(None)
     destination = session_root / "mesh_slider_profiles"
     with mesh_morph_profile_lock(source):
+        if source.is_dir():
+            sizes = [item.stat().st_size for item in source.rglob("*") if item.is_file()]
+            if (len(sizes) > PROFILE_MAX_ENTRIES or any(size > PROFILE_MAX_FILE_BYTES for size in sizes)
+                    or sum(sizes) > PROFILE_MAX_TOTAL_BYTES):
+                # Said here, before the editor starts; the editor would refuse the folder and close.
+                raise RustMeshValidationError(
+                    f"The Mesh Editor cannot open with this slider profile library ({source}): it allows "
+                    f"{PROFILE_MAX_ENTRIES} files, each up to {PROFILE_MAX_FILE_BYTES // (1024 * 1024)} MiB and "
+                    f"{PROFILE_MAX_TOTAL_BYTES // (1024 * 1024 * 1024)} GiB in total. Move some profiles out "
+                    "of that folder.")
         source_existed, source_files, base_fingerprint = _capture_owned_profile_tree(source)
         if source_existed:
             _write_owned_profile_tree(destination, source_files)
@@ -9079,6 +9099,7 @@ class RustMeshAuthoringSession:
     ) -> None:
         try:
             self._write_initial_manifest_files(stop_event=stop_event, progress=progress)
+            self._hand_over_session_files()
         finally:
             # Never leave a query running against a session whose open failed.
             prefetch = self.morph_state_prefetch
@@ -9087,6 +9108,41 @@ class RustMeshAuthoringSession:
                 started = time.perf_counter()
                 prefetch[0].join()
                 self.open_stage_ms["morph_join_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
+
+    def _hand_over_session_files(self) -> list[str]:
+        """Leave the session folder as the helper's startup check takes it, after the
+        manifest is written (at open and at Retry).
+
+        The helper opens a folder holding only what its manifest declares: the manifest's
+        files, and the files inside each material state it declares. Everything else goes:
+        textures named for an earlier open, material states it does not declare (it takes
+        the original and the active one), a dead helper's transaction files and capture
+        folder. A material state removed here is forgotten, so it is staged again if it
+        is needed. 2026-11-24: after a Retry the original state named textures the old
+        prune had removed, and the editor could not open.
+        """
+
+        manifest = json.loads((self.root / "manifest.json").read_text(encoding="utf-8"))
+        keep = {"manifest.json"} | _manifest_file_names(manifest)
+        for reference in manifest.get("replacement_material_states") or ():
+            state = self.root / str(reference.get("path") or "")
+            if state.is_file():
+                keep |= _manifest_file_names(json.loads(state.read_text(encoding="utf-8")))
+        removed = []
+        for entry in self.root.iterdir():
+            if entry.is_symlink():
+                continue
+            if entry.is_file() and entry.name not in keep:
+                entry.unlink()
+                removed.append(entry.name)
+            elif entry.is_dir() and entry.name == _VIEW_CAPTURES_DIR:
+                shutil.rmtree(entry, ignore_errors=True)
+                removed.append(entry.name)
+        for key, reference in list(self.archive_refit_material_references.items()):
+            if not (self.root / str(reference.get("path") or "")).is_file():
+                del self.archive_refit_material_references[key]
+                self.archive_refit_material_cache.pop(key, None)
+        return sorted(removed)
 
     def _start_morph_state_prefetch(self) -> None:
         """Ask the helper for the morph state while the files are written.
@@ -9124,12 +9180,15 @@ class RustMeshAuthoringSession:
 
         self._require_open()
         self.process_generation = int(process_generation)
+        # A dead helper's half-written transaction and its pictures would fail CDMW's
+        # own check of the folder on the first write below, before anything is pruned.
+        for entry in self.root.iterdir():
+            if entry.is_file() and not entry.is_symlink() and entry.name.startswith(".candidate-"):
+                entry.unlink()
+        shutil.rmtree(self.root / _VIEW_CAPTURES_DIR, ignore_errors=True)
+        # Writing the manifest hands the folder over as the new helper takes it
+        # (_hand_over_session_files).
         self._write_initial_manifest()
-        # The helper opens a session folder holding only what its manifest lists.
-        # The first write's files the new manifest no longer names (textures named
-        # for the first open, the dead helper's transaction files) would make it
-        # refuse the session, so they go.
-        _prune_unlisted_session_files(self.root)
 
     def query_deferred_morph_state(self, done: Callable[[dict[str, object]], None]) -> bool:
         """Ask the morph state of a deferred open in the background (P4 V3).
@@ -9396,11 +9455,12 @@ class RustMeshAuthoringSession:
             # helper starts. Declare their exact files for its initial allowlist: for a
             # context, its own original state and the edited one (2026-11-24: undeclared,
             # the editor refused them and closed).
-            references = self.archive_refit_material_references
-            if reopened_context:
-                own = getattr(shadow.archive_refit_context, "context_id", "base")
-                active = manifest["state"]["archive_refit_materials"]["key"]
-                references = {key: references[key] for key in dict.fromkeys((own, active)) if key in references}
+            # The helper takes two: the original and the active one (a replacement's
+            # Compare and Undo, and its Glow or colour edits, stage more).
+            active = manifest["state"]["archive_refit_materials"]["key"]
+            own = getattr(shadow.archive_refit_context, "context_id", "base") if reopened_context else "base"
+            references = {key: self.archive_refit_material_references[key] for key in dict.fromkeys((own, active))
+                          if key in self.archive_refit_material_references}
             manifest["replacement_material_states"] = list(references.values())
             material_key = manifest["state"]["archive_refit_materials"]["key"]
             active_materials = self.archive_refit_material_cache[material_key]

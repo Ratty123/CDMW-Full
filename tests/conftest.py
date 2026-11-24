@@ -440,3 +440,28 @@ def pytest_sessionfinish(session, exitstatus):
         else:
             print(message, file=sys.stderr)
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+@pytest.fixture(autouse=True)
+def _editor_checks_every_session(monkeypatch, request):
+    """CDMW_CHECK_EDITOR_SESSIONS=1: every session a test creates is handed to the Mesh
+    Editor helper's own startup check as ``create`` returns it (tests/editor_session_check.py),
+    so a file CDMW writes that the editor would refuse fails the test that wrote it."""
+
+    if os.environ.get("CDMW_CHECK_EDITOR_SESSIONS") != "1":
+        yield
+        return
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from tests.editor_session_check import assert_editor_accepts
+
+    original = RustMeshAuthoringSession.create.__func__
+
+    def create(cls, *args, **kwargs):
+        session = original(cls, *args, **kwargs)
+        manifest = getattr(session, "manifest_path", None)
+        if manifest is not None and Path(manifest).is_file():
+            assert_editor_accepts(Path(manifest))
+        return session
+
+    monkeypatch.setattr(RustMeshAuthoringSession, "create", classmethod(create))
+    yield

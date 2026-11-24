@@ -1052,6 +1052,27 @@ def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part
         command(host, "replacement_compare", {"mode": "edit"})
         command(host, "undo")
         assert command(host, "redo")["state"]["archive_refit_materials"]["key"] == material_key
+        # Retry after the editor stopped: the folder rewritten for a new helper must be
+        # one it opens (2026-11-24 audit: states piled up across Compare and Undo).
+        from tests.editor_session_check import assert_editor_accepts
+        host.rewrite_for_relaunch(3)
+        assert_editor_accepts(host.manifest_path)
+        # A Glow or colour edit stages a third material state (the file holds the edited
+        # copy); the helper takes two, the original and the active one, so the third is
+        # left out of the folder and forgotten, to be staged again when it is needed.
+        from cdmw.services.mesh_rust_authoring import _atomic_write_payload
+        extra_key = "f" * 32
+        extra = {**host.archive_refit_material_cache[material_key], "key": extra_key}
+        host.archive_refit_material_cache[extra_key] = extra
+        host.archive_refit_material_references[extra_key] = _atomic_write_payload(
+            host.root, f"material-state-{extra_key}.json", extra, data_type="mesh_materials_json",
+            element_count=1, expected_root_identity=host.root_identity)
+        host.rewrite_for_relaunch(4)
+        assert_editor_accepts(host.manifest_path)
+        assert {row["path"] for row in json.loads(host.manifest_path.read_text())["replacement_material_states"]} == {
+            "material-state-base.json", f"material-state-{material_key}.json"}
+        assert extra_key not in host.archive_refit_material_references
+        assert not (host.root / f"material-state-{extra_key}.json").exists()
         from tests.test_mesh_rust_authoring_exact_output import _request
         host.finish(_request(host, "finish_request", 51))
         snapshot = service.capture_export_snapshot(session_id)

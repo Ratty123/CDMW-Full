@@ -680,8 +680,14 @@ def stage_item_set_colour_preview(authoring, mesh, context, base_key):
         conserve_preview_core_material_graph(payload)
         cache[key] = payload
     # The base needs a file too, so restoring every edit switches the editor back.
+    from cdmw.services.mesh_rust_authoring import _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES, _canonical_json_bytes
+
     for cache_key in dict.fromkeys((base_key, key)):
         if cache_key not in references:
+            # The helper refuses a material state over 16 MiB (MAX_MANIFEST_BYTES), as the
+            # replacement and Archive Refit writers already say.
+            if len(_canonical_json_bytes(cache[cache_key])) > _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES:
+                raise ValueError("The set's material preview metadata exceeds the 16 MiB session limit")
             references[cache_key] = _atomic_write_payload(
                 authoring.root, f"material-state-{cache_key}.json", cache[cache_key], data_type="mesh_materials_json",
                 element_count=1, expected_root_identity=authoring.root_identity)

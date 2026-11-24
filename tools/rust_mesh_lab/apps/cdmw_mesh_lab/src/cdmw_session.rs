@@ -35,8 +35,13 @@ const MAX_CANCEL_REASON_CHARS: usize = 1_000;
 const MAX_CONTROL_LINE_BYTES: usize = 256 * 1024;
 const CONTROL_QUEUE_BOUND: usize = 256;
 const OUTBOUND_QUEUE_BOUND: usize = 64;
-const MAX_PROFILE_FILE_BYTES: u64 = 8 * 1024 * 1024;
-const MAX_PROFILE_TOTAL_BYTES: u64 = 64 * 1024 * 1024;
+// The slider profile library CDMW copies into every session. CDMW supports large
+// libraries (5e9a23559) and copies the same bounds (PROFILE_MAX_FILE_BYTES and
+// PROFILE_MAX_TOTAL_BYTES in mesh_rust_authoring.py, compared by a test); the editor only
+// checks this folder, it does not read it. At 8 and 64 MiB a large library stopped every
+// open (2026-11-24).
+const MAX_PROFILE_FILE_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_PROFILE_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_PROFILE_ENTRIES: usize = 4_096;
 const MAX_PROFILE_DEPTH: usize = 4;
 const MAX_TEXTURE_RESOURCES: usize = 4_096;
