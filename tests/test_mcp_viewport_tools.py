@@ -126,3 +126,66 @@ def test_overlays_send_only_what_the_action_takes(document):
         _run("mesh.overlays", {"action": "set"})
     with pytest.raises(ToolError, match="not light"):
         _run("mesh.overlays", {"action": "set", "light": "front"})
+
+
+# ----- view_capture through the helper's own render -----------------------------------------------
+#: Windows' extended-length prefix, which the helper's canonical paths carry.
+EXTENDED = "\\\\?\\"
+
+
+class _CaptureTab(_Tab):
+    def __init__(self, root, write_to=None, ok=True):
+        super().__init__(controls=("capture",))
+        self.standalone_rust_session_root = root
+        self.write_to, self.ok = write_to, ok
+
+    def send_editor_control(self, control, arguments):
+        from PySide6.QtGui import QColor, QImage
+
+        from cdmw.ui.mesh_editor.editor_controls import keep_editor_control_answer
+
+        self.sent.append((control, dict(arguments)))
+        path = self.write_to or (self.standalone_rust_session_root / "captures" / "view-1.png")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        image = QImage(64, 36, QImage.Format.Format_RGB32)
+        image.fill(QColor(30, 140, 60))
+        image.save(str(path))
+        keep_editor_control_answer(self, {"token": len(self.sent), "ok": self.ok,
+                                          "message": "" if self.ok else "The 3D view has no renderer.",
+                                          "state": {"path": EXTENDED + str(path), "width": 64, "height": 36}})
+        return len(self.sent)
+
+
+def _picture(tab, max_side=256):
+    from cdmw.mcp.view_tools import _helper_picture
+
+    facts = {"view": "mesh_editor"}
+    return _helper_picture(_Call({}), max_side, facts), facts
+
+
+def test_the_mesh_editor_view_is_drawn_by_its_renderer_and_the_file_removed(document, tmp_path):
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    tab = document["tab"] = _CaptureTab(tmp_path)
+    result, _facts = _picture(tab, 128)
+    assert result is not None
+    assert tab.sent == [("capture", {"max_side": 128})]
+    assert not (tmp_path / "captures" / "view-1.png").exists()
+
+
+def test_a_picture_outside_the_session_folder_is_refused_and_a_refusal_falls_back(document, tmp_path):
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    outside = tmp_path / "elsewhere" / "view.png"
+    document["tab"] = _CaptureTab(tmp_path / "session", write_to=outside)
+    (tmp_path / "session").mkdir()
+    with pytest.raises(ToolError, match="outside its session folder"):
+        _picture(document["tab"])
+    assert outside.exists()  # not ours to remove
+    document["tab"] = _CaptureTab(tmp_path / "session", ok=False)
+    result, facts = _picture(document["tab"])
+    assert result is None and facts["helper_capture"] == "The 3D view has no renderer."
+    document["tab"] = _Tab(controls=("hair",))
+    assert _picture(document["tab"])[0] is None  # an older helper: the window's own picture next

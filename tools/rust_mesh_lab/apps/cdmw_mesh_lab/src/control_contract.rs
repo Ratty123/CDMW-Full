@@ -871,6 +871,7 @@ islands.inclusion|parts|"replacement_islands"|UiAction::CdmwCommand
 islands.host_control|parts|fn islands_host_control|HostEvent::EditorControl
 history.host_control|session|fn document_host_control|HostEvent::EditorControl
 display.host_overlays|camera_display|fn overlays_host_control|HostEvent::EditorControl
+display.host_capture|camera_display|fn capture_host_control|HostEvent::EditorControl
 replacement.fit|transform|"replacement_fit"|UiAction::CdmwCommand
 replacement.reset|transform|"replacement_reset"|UiAction::CdmwCommand
 replacement.preview|camera_display|"replacement_compare"|UiAction::CdmwCommand
@@ -987,6 +988,7 @@ mod tests {
         assert!(keys.contains("islands.host_control"));
         assert!(keys.contains("history.host_control"));
         assert!(keys.contains("display.host_overlays"));
+        assert!(keys.contains("display.host_capture"));
         assert!(rows.iter().all(|row| {
             row.get("source_binding_verified").and_then(Value::as_bool) == Some(true)
         }));

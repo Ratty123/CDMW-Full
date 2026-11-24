@@ -763,9 +763,10 @@ pub const HOST_EDITOR_CONTROLS_CAPABILITY: &str = "host_editor_controls_v1";
 /// `arguments.action`. Hair is Hair Tools' panel (its local edits, motion preview and
 /// display); islands is the Mesh islands list's view and selection; document is the
 /// History list's cursor and the Reference pieces' View boxes; overlays is the view's
-/// diagnostic overlays, rig helpers and material inspection aids. The helper checks each
-/// action as its button checks it.
-pub const HOST_EDITOR_CONTROLS: [&str; 4] = ["hair", "islands", "document", "overlays"];
+/// diagnostic overlays, rig helpers and material inspection aids; capture draws the 3D
+/// view to a PNG in the session folder. The helper checks each action as its button
+/// checks it.
+pub const HOST_EDITOR_CONTROLS: [&str; 5] = ["hair", "islands", "document", "overlays", "capture"];
 
 /// The name of a control CDMW may send in `editor_control`, as the helper knows it.
 pub fn host_editor_control(name: &str) -> Option<&'static str> {
@@ -1586,6 +1587,12 @@ impl CdmwBridge {
     #[must_use]
     pub fn manifest(&self) -> &SessionManifest {
         &self.manifest
+    }
+
+    /// The session folder CDMW gave this editor; files the editor writes for CDMW go here.
+    #[must_use]
+    pub fn session_root(&self) -> &Path {
+        &self.root
     }
 
     #[must_use]
