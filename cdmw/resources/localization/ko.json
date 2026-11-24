@@ -13377,7 +13377,7 @@
     "Select body or garment vertices, faces, or parts first.": "먼저 바디 또는 의상의 정점, 면, 파트를 선택하세요.",
     "Select bound garment Parts and finish any pending sculpted slider or correction first.": "바인딩된 의상 파트를 선택하고 대기 중인 조각 슬라이더나 보정을 먼저 완료하세요.",
     "Select bounded relative save-member paths.": "허용 범위 안의 저장 구성 파일 상대 경로를 선택하세요.",
-    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth and layers, start Hair Tools and use its panel and motion preview, select, hide and isolate mesh islands, set the camera and view, finish, export and build the mod.": "번호로 선택하고, 이동, 회전, 크기 조정을 하고, 토폴로지, 가중치, 모프, 리핏, 천, 레이어를 바꾸고, 헤어 도구를 시작해 그 패널과 움직임 미리보기를 쓰고, 메시 섬을 선택, 숨기기, 격리하고, 카메라와 보기를 설정하고, 완료, 내보내기, 모드 빌드를 합니다.",
+    "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth and layers, start Hair Tools and use its panel and motion preview, select, hide and isolate mesh islands, open a file or one piece of a set, close and switch documents, jump the history, turn view overlays on and off, set the camera and view, finish, export and build the mod.": "번호로 선택하고, 이동, 회전, 크기 조정을 하고, 토폴로지, 가중치, 모프, 리핏, 천, 레이어를 바꾸고, 헤어 도구를 시작해 그 패널과 움직임 미리보기를 쓰고, 메시 섬을 선택, 숨기기, 격리하고, 파일이나 세트의 한 조각만 열고, 문서를 닫거나 전환하고, 기록을 건너뛰고, 보기 오버레이를 켜고 끄고, 카메라와 보기를 설정하고, 완료, 내보내기, 모드 빌드를 합니다.",
     "Select canonical relative save-member paths using forward slashes.": "슬래시를 사용한 정규 저장 구성 파일 상대 경로를 선택하세요.",
     "Select chaiNNer chain": "chaiNNer 체인 선택",
     "Select chaiNNer executable": "chaiNNer 실행 파일 선택",
