@@ -142,6 +142,27 @@ fn apply_pending_cdmw_texture_updates(
     }
 }
 
+/// `--validate-cdmw-session <manifest.json>`: run the startup check the editor runs on a
+/// session CDMW wrote (the same `LoadedCdmwSessionPackage::load` a pending or direct open
+/// uses), print `{"ok": true}` or `{"ok": false, "error": ...}` on one line and exit. CDMW's
+/// tests reopen every kind of saved work through it, so a file CDMW writes that the editor
+/// would refuse fails a test instead of closing the editor (2026-11-24).
+fn try_validate_cdmw_session() -> bool {
+    let mut arguments = env::args().skip(1);
+    if arguments.next().as_deref() != Some("--validate-cdmw-session") {
+        return false;
+    }
+    let outcome = match arguments.next() {
+        None => serde_json::json!({"ok": false, "error": "--validate-cdmw-session requires a manifest path"}),
+        Some(path) => match cdmw_session::LoadedCdmwSessionPackage::load(Path::new(&path)) {
+            Ok(_) => serde_json::json!({"ok": true}),
+            Err(error) => serde_json::json!({"ok": false, "error": error.to_string()}),
+        },
+    };
+    println!("{outcome}");
+    true
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -149,7 +170,7 @@ fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .try_init()
         .ok();
-    if texture_view::try_run()? || new_item_ui::try_run()? {
+    if texture_view::try_run()? || new_item_ui::try_run()? || try_validate_cdmw_session() {
         return Ok(());
     }
     let options = parse_startup_options()?;

@@ -177,6 +177,9 @@ def test_a_reopened_set_with_colours_declares_its_material_states_for_the_editor
     host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=case.service, active_session_id=case.key),
                                            tmp_path / "reopened-host", process_generation=2)
     try:
+        # The editor's own startup check first, as it sees the folder CDMW left.
+        from tests.editor_session_check import assert_editor_accepts
+        assert_editor_accepts(host.manifest_path)
         manifest = json.loads(host.manifest_path.read_text())
         active = manifest["state"]["archive_refit_materials"]["key"]
         references = manifest["replacement_material_states"]

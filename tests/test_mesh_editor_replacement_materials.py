@@ -1073,6 +1073,9 @@ def test_material_preview_and_package_share_frozen_bundle(editor, tmp_path, part
             reopened = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=restored_service, active_session_id=restored.session_id),
                                                        tmp_path / "reopened-host", process_generation=2)
             try:
+                # The editor checks the folder as CDMW leaves it before the editor starts.
+                from tests.editor_session_check import assert_editor_accepts
+                assert_editor_accepts(reopened.manifest_path)
                 saved_key = reopened.state_payload()["archive_refit_materials"]["key"]
                 assert saved_key == material_key
                 assert reopened.archive_refit_material_cache[saved_key]["textures"]
