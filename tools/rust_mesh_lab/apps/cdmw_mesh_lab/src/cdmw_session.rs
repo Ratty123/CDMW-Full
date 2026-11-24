@@ -4578,8 +4578,13 @@ fn reject_unexpected_initial_files(
         let active_key = manifest.state["archive_refit_materials"]["key"]
             .as_str()
             .unwrap_or_default();
+        // A reopened replacement (keys "base" and its edit), or a reopened archive
+        // context, such as a set whose pieces carry colour or Glow edits, whose keys
+        // are its own and never "base" (2026-11-24: undeclared, the files were refused).
+        let replacement = manifest.state["replacement"]["active"] == true;
+        let archive_context = !replacement && manifest.state.get("archive_refit_materials").is_some();
         if manifest.schema != PACKAGE_SCHEMA
-            || manifest.state["replacement"]["active"] != true
+            || (!replacement && !archive_context)
             || manifest.replacement_material_states.len() > 2
             || (active_key != "base"
                 && (active_key.len() != 32
@@ -4601,7 +4606,12 @@ fn reject_unexpected_initial_files(
             }
             let bytes = read_json_reference(root, reference)?;
             let payload: MaterialStatePayload = serde_json::from_slice(&bytes)?;
-            if (payload.key != "base" && payload.key != active_key)
+            let own_key = if replacement {
+                payload.key == "base"
+            } else {
+                payload.key.len() == 32 && payload.key.bytes().all(|byte| byte.is_ascii_hexdigit())
+            };
+            if (!own_key && payload.key != active_key)
                 || reference.path != format!("material-state-{}.json", payload.key)
                 || !keys.insert(payload.key.clone())
             {
@@ -4635,7 +4645,10 @@ fn reject_unexpected_initial_files(
                     .map(|texture| texture.file.path.clone()),
             );
         }
-        if !keys.contains(active_key) || !keys.contains("base") {
+        if !keys.contains(active_key)
+            || (replacement && !keys.contains("base"))
+            || (archive_context && keys.contains("base"))
+        {
             return Err(SessionError::InvalidManifest(
                 "initial replacement materials omitted the original or active state".to_owned(),
             ));
@@ -6429,6 +6442,54 @@ pub(crate) mod tests {
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
         fs::remove_file(root.path().join("unowned.json")).expect("remove unowned state");
         fs::write(root.path().join(imported_name), b"changed DDS").expect("tampered DDS");
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn a_reopened_archive_context_declares_its_own_material_states_and_nothing_else_reopens_them() {
+        // A set's colour or Glow edits restored from a draft: its keys are the set's own
+        // (no "base"), and the editor refused the undeclared files (2026-11-24).
+        let root = tempdir().expect("root");
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        let (set_key, key) = ("fedcba9876543210fedcba9876543210", "0123456789abcdef0123456789abcdef");
+        let mut references = Vec::new();
+        for material_key in [set_key, key] {
+            let payload = json!({
+                "key": material_key, "textures": manifest["textures"].clone(),
+                "material_presentations": manifest["material_presentations"], "reason": ""
+            });
+            let bytes = serde_json::to_vec(&payload).expect("material state bytes");
+            let name = format!("material-state-{material_key}.json");
+            fs::write(root.path().join(&name), &bytes).expect("material state");
+            references.push(json!({
+                "path": name, "data_type": "mesh_materials_json", "count": 1,
+                "byte_length": bytes.len(), "sha256": sha256_upper(&bytes),
+                "content_type": "application/json"
+            }));
+        }
+        manifest["state"] = json!({
+            "replacement": {"active": false},
+            "archive_refit_materials": {"key": key, "file": references[1]}
+        });
+        manifest["replacement_material_states"] = json!(references);
+        let publish = |value: &Value| {
+            fs::write(&manifest_path, serde_json::to_vec(value).expect("manifest bytes")).expect("manifest");
+        };
+        publish(&manifest);
+        let loaded = LoadedCdmwSessionPackage::load(&manifest_path).expect("reopened set");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 1, 0);
+        bridge.manifest = loaded.manifest().clone();
+        let materials = bridge
+            .materials_from_state(&manifest["state"], "base", Some(loaded.document()))
+            .expect("active materials")
+            .expect("material update");
+        assert_eq!(materials.key, key);
+        // Undeclared, it is still refused.
+        manifest["replacement_material_states"] = json!([references[0]]);
+        publish(&manifest);
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }
 

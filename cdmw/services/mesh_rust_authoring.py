@@ -9387,12 +9387,21 @@ class RustMeshAuthoringSession:
             len(manifest.get("reference_pieces", ())) + 1, stop_event)
         if companion is not None:
             manifest.setdefault("reference_pieces", []).append(companion)
-        if self.shadow_service._session(self.shadow_session_id).replacement_state is not None:
-            # Reopened replacements already have material snapshots before the
-            # helper starts. Declare their exact files for its initial allowlist.
-            manifest["replacement_material_states"] = list(
-                self.archive_refit_material_references.values()
-            )
+        shadow = self.shadow_service._session(self.shadow_session_id)
+        reopened_context = (shadow.replacement_state is None and shadow.archive_refit_context is not None
+                            and "archive_refit_materials" in manifest["state"])
+        if shadow.replacement_state is not None or reopened_context:
+            # Reopened replacements, and a reopened archive context (a set whose pieces
+            # carry colour or Glow edits), already have material snapshots before the
+            # helper starts. Declare their exact files for its initial allowlist: for a
+            # context, its own original state and the edited one (2026-11-24: undeclared,
+            # the editor refused them and closed).
+            references = self.archive_refit_material_references
+            if reopened_context:
+                own = getattr(shadow.archive_refit_context, "context_id", "base")
+                active = manifest["state"]["archive_refit_materials"]["key"]
+                references = {key: references[key] for key in dict.fromkeys((own, active)) if key in references}
+            manifest["replacement_material_states"] = list(references.values())
             material_key = manifest["state"]["archive_refit_materials"]["key"]
             active_materials = self.archive_refit_material_cache[material_key]
             manifest["textures"] = active_materials["textures"]

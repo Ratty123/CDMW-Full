@@ -158,3 +158,32 @@ def test_the_set_preview_shows_a_piece_s_glow_on_its_own_part(tmp_path):
     rows = {row["material_index"]: row for row in authoring.archive_refit_material_cache[key]["material_presentations"]}
     assert rows[0]["emissive_color"] == [1.0, 0.5, 0.25] and rows[0]["emissive_intensity"] == 6.0
     assert 1 not in rows
+
+
+def test_a_reopened_set_with_colours_declares_its_material_states_for_the_editor(real_set, tmp_path):
+    """A set draft with colour edits starts the editor with the set's material states
+    written; undeclared, the editor refused them and closed (2026-11-24)."""
+    import hashlib
+    import json
+
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+
+    case = real_set
+    # Glow first captures the piece's material file, whose rows the colours then use.
+    _run(case, "replacement_emission", emission=GLOW)
+    _run(case, "replacement_material_colours", colours={"_tintColorR": "#102030"})
+    context = case.service._session(case.key).archive_refit_context
+    assert context.material_colours
+    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=case.service, active_session_id=case.key),
+                                           tmp_path / "reopened-host", process_generation=2)
+    try:
+        manifest = json.loads(host.manifest_path.read_text())
+        active = manifest["state"]["archive_refit_materials"]["key"]
+        references = manifest["replacement_material_states"]
+        assert {row["path"] for row in references} == {
+            f"material-state-{context.context_id}.json", f"material-state-{active}.json"}
+        assert active != context.context_id and "base" not in {row["path"] for row in references}
+        for row in references:
+            assert hashlib.sha256((host.root / row["path"]).read_bytes()).hexdigest().upper() == row["sha256"].upper()
+    finally:
+        host.cancel()
