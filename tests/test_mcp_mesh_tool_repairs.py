@@ -520,7 +520,9 @@ def test_the_tool_list_shows_each_actions_fields_and_a_wrong_field_is_refused_be
     assert "texture_files" in part and "shader_controls" in part
     params = listed["mesh_topology"]["inputSchema"]["properties"]["params"]["properties"]
     assert params["cuts"]["maximum"] == 16
-    assert listed["mesh_hair"]["inputSchema"]["properties"]["arguments"] == {"type": "object"}
+    # Hair Tools has its own typed tool, with its fields at the top level.
+    hair = listed["mesh_hair"]["inputSchema"]
+    assert "action" in hair["required"] and "dds_path" in hair["properties"]
 
     sent = len(_commands(editor))
     # A field another action takes is not this one's; a required one left out; a value of the wrong type.

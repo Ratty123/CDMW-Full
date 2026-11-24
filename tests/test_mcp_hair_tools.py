@@ -66,7 +66,7 @@ def test_apply_edited_dds_takes_the_file_the_command_carries_without_a_chooser(
             # no preview binding, so the commit after it refuses. No chooser was asked.
             assert result["ok"] is True or "preview binding" in result["error"], result
         else:
-            assert result["ok"] is False and "existing .dds" in result["error"], result
+            assert result["ok"] is False and "existing image or DDS" in result["error"], result
             assert result["payload"].get("state")  # the session stays open
     finally:
         tab.standalone_rust_authoring_session = None
