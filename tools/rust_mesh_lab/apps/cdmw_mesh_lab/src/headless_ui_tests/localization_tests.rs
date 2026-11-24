@@ -12,7 +12,7 @@ fn native_localization_paints_and_activates_controls_in_every_builtin_language()
     ui.application.cdmw_state["geometry_layers"]["layers"][0]["name"] = json!("History");
     ui.click("Back to Inspector")?;
     for code in [
-        "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko", "zh-Hans",
+        "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "tr", "ja", "ko", "zh-Hans",
         "zh-Hant", "en",
     ] {
         let catalog: Value =

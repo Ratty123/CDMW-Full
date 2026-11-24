@@ -303,7 +303,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             f"Native label {index} \"quoted\" {{value_0}}": "Редактор сетки «{value_0}» " * 8
             for index in range(6_000)
         }
-        theme = {"schema": "cdmw_ui_theme_v1", "language": "ru", "translations": translations}
+        theme = {"schema": "cdmw_ui_theme_v1", "language": "de", "translations": translations}
         self.assertGreater(
             len(json.dumps(translations, ensure_ascii=False).encode("utf-8")), 1 << 20,
         )

@@ -30,7 +30,6 @@ BUILTIN_TRANSLATION_CODES = (
     "ko",
     "pl",
     "pt-BR",
-    "ru",
     "tr",
     "zh-Hans",
     "zh-Hant",

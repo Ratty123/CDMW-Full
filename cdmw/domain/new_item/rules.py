@@ -40,7 +40,7 @@ from cdmw.domain.new_item.spec import (
 
 #: Supported game-item languages (independent of the workbench's UI languages).
 LOCALIZATION_LANGUAGES: Tuple[str, ...] = (
-    "eng", "kor", "jpn", "rus", "tur", "spa-es", "spa-mx", "fre", "ger", "ita", "pol", "por-br", "zho-tw", "zho-cn", "ara",
+    "eng", "kor", "jpn", "tur", "spa-es", "spa-mx", "fre", "ger", "ita", "pol", "por-br", "zho-tw", "zho-cn", "ara",
 )
 REQUIRED_LANGUAGE = "eng"
 

@@ -295,7 +295,7 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
         # same sentence whether nothing was ever published, a compile failed, or
         # the renderer never answered, and those need different actions. The
         # status string itself is unchanged so it stays the catalogued one in
-        # all fourteen languages.
+        # every built-in language.
         self._record_mesh_dotnet_event(
             "mesh_dotnet_textured_view_timeout_reasons",
             missing_material_roles=missing,

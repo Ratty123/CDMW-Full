@@ -33,7 +33,6 @@ internal static class ArchiveNameIndexBuilder
         ("kor", "localizationstring_kor"),
         ("eng", "localizationstring_eng"),
         ("jpn", "localizationstring_jpn"),
-        ("rus", "localizationstring_rus"),
         ("tur", "localizationstring_tur"),
         ("spa-es", "localizationstring_spa-es"),
         ("spa-mx", "localizationstring_spa-mx"),

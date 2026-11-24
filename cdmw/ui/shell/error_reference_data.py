@@ -8927,7 +8927,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive name source '{entry.Path}' exceeds the bounded decode limit.",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 286
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 285
     }
   },
   {
@@ -12839,7 +12839,7 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1125,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 360
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 359
     }
   },
   {
@@ -12848,7 +12848,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1123,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 358
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 357
     }
   },
   {
@@ -12857,7 +12857,7 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1135,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 371
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 370
     }
   },
   {
@@ -12866,7 +12866,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1145,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 379
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 378
     }
   },
   {
@@ -12875,7 +12875,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1140,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 376
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 375
     }
   },
   {
@@ -12884,7 +12884,7 @@ MESSAGE_REFERENCE = [
     "recovery": "limits",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1148,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 381
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 380
     }
   },
   {
@@ -12892,7 +12892,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC compressed size does not match its bytes",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 346
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 345
     }
   },
   {
@@ -12917,7 +12917,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "native/cdmw_archive_accelerator/src/main.cpp": 1107,
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 344
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 343
     }
   },
   {
@@ -12933,7 +12933,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC decoded size does not match its payload",
     "recovery": "format",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 389
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 388
     }
   },
   {
@@ -12941,7 +12941,7 @@ MESSAGE_REFERENCE = [
     "message": "PALOC uncompressed size is out of bounds",
     "recovery": "limits",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 348
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 347
     }
   },
   {
@@ -16699,7 +16699,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported PALOC container version",
     "recovery": "unsupported",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 345
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 344
     }
   },
   {
@@ -18130,7 +18130,7 @@ MESSAGE_REFERENCE = [
     "message": "iteminfo.pabgb contained no supported item-name records.",
     "recovery": "empty",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 150
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 149
     }
   },
   {
@@ -18138,7 +18138,7 @@ MESSAGE_REFERENCE = [
     "message": "iteminfo.pabgb was not found in archive package 0008.",
     "recovery": "missing",
     "sources": {
-      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 113
+      "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Core/ArchiveNameIndexBuilder.cs": 112
     }
   },
   {
@@ -80577,7 +80577,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: iteminfo.pabgh was not found beside iteminfo.pabgb; falling back to the marker scan, which finds fewer items.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/item_index.py": 1143
+      "cdmw/core/item_index.py": 1149
     }
   },
   {
@@ -80585,7 +80585,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: native catalog schema {catalog_schema} is not supported; falling back to Python.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/core/item_index.py": 2200
+      "cdmw/core/item_index.py": 2206
     }
   },
   {
@@ -80593,7 +80593,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: native item index unavailable; falling back to Python: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/item_index.py": 2193
+      "cdmw/core/item_index.py": 2199
     }
   },
   {
@@ -80601,7 +80601,7 @@ MESSAGE_REFERENCE = [
     "message": "Item-name search: the iteminfo.pabgh row directory could not be read ({exc}); falling back to the marker scan, which finds fewer items.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_index.py": 1138
+      "cdmw/core/item_index.py": 1144
     }
   },
   {
@@ -81595,7 +81595,7 @@ MESSAGE_REFERENCE = [
     "message": "Named table row does not repeat its directory key.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/item_index.py": 896
+      "cdmw/core/item_index.py": 902
     }
   },
   {
@@ -89889,7 +89889,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/final_package_builder.py": 214,
       "cdmw/core/final_package_pac_xml_preflight.py": 139,
-      "cdmw/core/item_index.py": 472,
+      "cdmw/core/item_index.py": 478,
       "cdmw/core/pat_decoder.py": 616,
       "cdmw/domain/xml_text.py": 70,
       "cdmw/modding/scene_gltf_embedded_images.py": 61,
@@ -90586,7 +90586,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/core/appearance_composite.py": 158,
       "cdmw/core/common.py": 425,
-      "cdmw/core/item_index.py": 902,
+      "cdmw/core/item_index.py": 908,
       "cdmw/core/pat_decoder.py": 115,
       "cdmw/core/recolor_variants.py": 1174,
       "cdmw/core/structured_binary_editor.py": 117,
@@ -101638,7 +101638,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid translation placeholder: {field_name}",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 225
+      "cdmw/domain/localization.py": 216
     }
   },
   {
@@ -101862,7 +101862,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural count must be finite: {value}",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 152
+      "cdmw/domain/localization.py": 151
     }
   },
   {
@@ -101870,7 +101870,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural count must be numeric: {value}",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 150
+      "cdmw/domain/localization.py": 149
     }
   },
   {
@@ -101878,7 +101878,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural translation for {source} has no categories.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 262
+      "cdmw/domain/localization.py": 253
     }
   },
   {
@@ -101886,7 +101886,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural translation for {source} requires an 'other' category.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 264
+      "cdmw/domain/localization.py": 255
     }
   },
   {
@@ -101894,7 +101894,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural translation {category} for {source} is blank.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 255
+      "cdmw/domain/localization.py": 246
     }
   },
   {
@@ -101902,7 +101902,7 @@ MESSAGE_REFERENCE = [
     "message": "Plural translation {category} placeholders do not match {source}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 257
+      "cdmw/domain/localization.py": 248
     }
   },
   {
@@ -102150,7 +102150,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation for {source} is blank.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 243
+      "cdmw/domain/localization.py": 234
     }
   },
   {
@@ -102158,7 +102158,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation for {source} must be a string or plural object.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 248
+      "cdmw/domain/localization.py": 239
     }
   },
   {
@@ -102174,7 +102174,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation placeholders do not match {source}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 245
+      "cdmw/domain/localization.py": 236
     }
   },
   {
@@ -102198,7 +102198,7 @@ MESSAGE_REFERENCE = [
     "message": "Translation templates require named placeholders.",
     "recovery": "input",
     "sources": {
-      "cdmw/domain/localization.py": 222
+      "cdmw/domain/localization.py": 213
     }
   },
   {
@@ -102230,7 +102230,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown plural category {raw_category} for {source}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/domain/localization.py": 253
+      "cdmw/domain/localization.py": 244
     }
   },
   {
@@ -102254,7 +102254,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported frozen translation entry: {entry}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/localization.py": 281
+      "cdmw/domain/localization.py": 272
     }
   },
   {
@@ -102270,7 +102270,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported plural rule: {rule}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/domain/localization.py": 143
+      "cdmw/domain/localization.py": 142
     }
   },
   {

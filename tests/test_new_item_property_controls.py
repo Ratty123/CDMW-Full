@@ -89,7 +89,7 @@ def test_property_help_and_controls_have_real_translations_in_all_builtin_locale
                           CREATE_NEW_ITEM_SECTION['html']).group(1)
     keys = ('Tier:', 'Required level:', 'Max durability:', 'item properties changed', help_text,
             'Raw game value. Returning to the template value restores inheritance. Disabled when the field layout is unknown; in-game effects are unverified.')
-    assert len(BUILTIN_LANGUAGES) == 14
+    assert len(BUILTIN_LANGUAGES) == 13
     for language in BUILTIN_LANGUAGES:
         translations = load_builtin_catalog(language.code)['translations']
         assert all(key in translations for key in keys)

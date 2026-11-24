@@ -151,7 +151,7 @@ class ArchiveBrowserActionControlsMixin:
             self.archive_model_export_obj_button,
             controls_enabled and (can_mesh_actions or can_export_preview),
             "Export the selected archive mesh, or the currently shown model preview, as OBJ.",
-            busy_reason if not controls_enabled else "select a mesh entry or open a model preview first",
+            busy_reason if not controls_enabled else "Select a mesh entry or open a model preview first",
         )
         self._set_action_button_state(
             self.archive_model_export_glb_button,

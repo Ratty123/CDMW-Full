@@ -114,7 +114,7 @@ class ValidateSpecTests(unittest.TestCase):
         issues = validate_spec(_spec(display_names={"eng": "x", "ger": ""}))
         self.assertIn("names.empty", _codes(issues))
         self.assertFalse(has_errors(issues), "an empty non-English name is a warning, not an error")
-        self.assertEqual(len(LOCALIZATION_LANGUAGES), 15)
+        self.assertEqual(len(LOCALIZATION_LANGUAGES), 14)
         self.assertIn("ara", LOCALIZATION_LANGUAGES)
 
     def test_edit_ranges_and_duplicates(self) -> None:

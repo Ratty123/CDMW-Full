@@ -152,7 +152,7 @@ class StaticReplacementMeshEditSession:
         if not after:
             if str(edit_result.action or "").strip().lower() not in self._SELECTION_ONLY_ACTIONS:
                 # Wording unchanged deliberately: it is a translated UI string
-                # in fourteen catalogs, and it is still exactly right for every
+                # in every catalog, and it is still exactly right for every
                 # case that reaches here -- a result that touched geometry and
                 # failed to say how.
                 raise RuntimeError(

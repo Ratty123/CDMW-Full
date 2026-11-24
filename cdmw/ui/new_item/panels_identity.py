@@ -27,7 +27,7 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, note
 
 LANGUAGE_LABELS = {
-    "eng": "English", "kor": "Korean", "jpn": "Japanese", "rus": "Russian", "tur": "Turkish",
+    "eng": "English", "kor": "Korean", "jpn": "Japanese", "tur": "Turkish",
     "spa-es": "Spanish (Spain)", "spa-mx": "Spanish (Latin America)", "fre": "French", "ger": "German",
     "ita": "Italian", "pol": "Polish", "por-br": "Portuguese (Brazil)", "zho-tw": "Chinese (Traditional)",
     "zho-cn": "Chinese (Simplified)", "ara": "Arabic",

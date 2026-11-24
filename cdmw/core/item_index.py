@@ -35,6 +35,11 @@ from cdmw.models import RunCancelled
 from cdmw.domain.archives.filters import archive_entry_package_group
 
 
+#: Game text tables item search leaves out (as the native accelerator's list does). Create
+#: New Item still writes an item's name into every table the game ships.
+ITEM_NAME_EXCLUDED_LANGUAGES = frozenset({"rus"})
+
+
 @dataclass(slots=True)
 class ArchiveItemRecord:
     item_id: int
@@ -333,7 +338,8 @@ def _collect_archive_item_index_sources(
 ) -> _ArchiveItemIndexSources:
     sources = _ArchiveItemIndexSources()
     selected = resolve_item_data_sources(entries)
-    sources.localization_entries = dict(selected.localizations)
+    sources.localization_entries = {language: entry for language, entry in selected.localizations.items()
+                                    if language not in ITEM_NAME_EXCLUDED_LANGUAGES}
     for stem, body_field, header_field in (
         ("iteminfo", "iteminfo_entry", "iteminfo_header_entry"),
         ("equiptypeinfo", "equiptypeinfo_entry", "equiptypeinfo_header_entry"),

@@ -44,8 +44,8 @@ const RIGHT_HEADERS: [&str; 7] = [
     "Geometry Layers",
     "Action History",
 ];
-const LANGUAGES: [&str; 14] = [
-    "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko", "zh-Hans",
+const LANGUAGES: [&str; 13] = [
+    "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "tr", "ja", "ko", "zh-Hans",
     "zh-Hant", "en",
 ];
 // The rail's default and minimum widths, which an open section still gets.

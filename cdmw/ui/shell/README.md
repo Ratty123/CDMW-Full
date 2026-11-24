@@ -149,7 +149,7 @@ The built-in window (`show_builtin_documentation_dialog`, `help_dialogs.AboutDia
 remains for when no browser can be started. It uses a hierarchical topic
 tree, a generated all-topic index, multi-word relevance search with `Ctrl+K`,
 article links, breadcrumbs, and back/forward history. English topic data in
-`about_documentation_en.py` is the single source; all 14 built-in languages use
+`about_documentation_en.py` is the single source; all 13 built-in languages use
 the shared localization catalog instead of maintaining separate translated
 topic copies.
 

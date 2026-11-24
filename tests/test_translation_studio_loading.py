@@ -236,7 +236,7 @@ def test_renamed_file_asks_for_slot_and_close_rejects_pending_result(panel, monk
     source = tmp_path / "my-translation.paloc"
     source.write_bytes(ENGLISH)
     monkeypatch.setattr(module.QFileDialog, "getOpenFileName", lambda *args: (str(source), ""))
-    monkeypatch.setattr(module.QInputDialog, "getText", lambda *args, **kwargs: ("rus", True))
+    monkeypatch.setattr(module.QInputDialog, "getText", lambda *args, **kwargs: ("tur", True))
     original_load = module.load_catalogue
     started, release = threading.Event(), threading.Event()
     loaded = []
@@ -256,7 +256,7 @@ def test_renamed_file_asks_for_slot_and_close_rejects_pending_result(panel, monk
     finally:
         release.set()
     until(lambda: not tab.iter_shutdown_workers())
-    assert loaded == ["rus"]
+    assert loaded == ["tur"]
     assert tab._catalogue is None
 
 

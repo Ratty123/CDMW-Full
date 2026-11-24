@@ -87,7 +87,6 @@ EXPECTED_LANGUAGES = (
     ("it", "Italiano"),
     ("pt-BR", "Português (Brasil)"),
     ("pl", "Polski"),
-    ("ru", "Русский"),
     ("tr", "Türkçe"),
     ("ja", "日本語"),
     ("ko", "한국어"),
@@ -152,7 +151,7 @@ def test_catalog_module_loads_only_english_until_an_inactive_language_is_request
             "from cdmw.ui.localization import UiLocalizer",
             "app = QApplication.instance() or QApplication([])",
             "localizer = UiLocalizer(language_dir=Path(tempfile.mkdtemp()), language_code='en')",
-            "assert len(localizer.available_languages()) == 14",
+            "assert len(localizer.available_languages()) == 13",
             "assert catalogs._loaded_builtin_catalog_codes == {'en'}",
             "catalogs.BUILTIN_LANGUAGES['fr']",
             "assert catalogs._loaded_builtin_catalog_codes == {'en', 'fr'}",
@@ -315,10 +314,6 @@ def test_imported_cjk_overlay_applies_font_fallback_immediately(
         (
             "pl",
             ((1, "one"), (2, "few"), (5, "many"), (12, "many"), (22, "few"), (1.2, "other")),
-        ),
-        (
-            "ru",
-            ((1, "one"), (2, "few"), (5, "many"), (11, "many"), (21, "one"), (1.2, "other")),
         ),
         ("tr", ((0, "other"), (1, "other"), (2, "other"))),
         ("ja", ((0, "other"), (1, "other"), (2, "other"))),
@@ -1165,7 +1160,7 @@ def test_every_composite_widget_kind_restores_its_english_source(tmp_path: Path)
     english = readings()
     assert set(english.values()) == {"Archive Browser", "Model Library", "Flat files", "Archive Files"}
 
-    for code in ("fr", "de", "ja", "en", "ru", "en"):
+    for code in ("fr", "de", "ja", "en", "pl", "en"):
         localizer.load_language(code)
         localizer.apply(root)
         expected = {
@@ -1849,7 +1844,7 @@ def test_generated_manifest_records_expected_origins() -> None:
 
 
 def test_generated_catalog_validation_is_current() -> None:
-    assert validate_catalogs() == (14, len(SOURCE_STRING_CATALOGUE))
+    assert validate_catalogs() == (13, len(SOURCE_STRING_CATALOGUE))
 
 
 def test_html_manifest_keeps_sentence_after_inline_tag() -> None:
@@ -1867,7 +1862,6 @@ def test_first_run_checklist_uses_reviewed_mode_and_navigation_terms() -> None:
         "it": "Disabilitato",
         "pt-BR": "Desativado",
         "pl": "Wyłączone",
-        "ru": "Отключено",
         "tr": "Devre dışı",
         "ja": "無効",
         "ko": "사용 안 함",

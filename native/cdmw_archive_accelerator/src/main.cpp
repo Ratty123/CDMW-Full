@@ -1922,7 +1922,7 @@ int run_item_index_job(
         }
         std::map<std::string, std::map<std::string, std::string>> loc_tables;
         for (const auto& dataset : datasets) {
-        for (const std::string& lang : {"kor","eng","jpn","rus","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn","ara"}) {
+        for (const std::string& lang : {"kor","eng","jpn","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn","ara"}) {
             const std::string filename = "loc_" + lang + ".bin";
             try {
                 const auto data = decode_paloc_container(read_binary_if_exists(dataset / filename));

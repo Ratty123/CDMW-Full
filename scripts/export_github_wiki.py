@@ -18,18 +18,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cdmw.constants import APP_VERSION
-from cdmw.domain.localization import BUILTIN_LANGUAGES as INTERFACE_LANGUAGES
+from cdmw.domain.localization import BUILTIN_LANGUAGES
 from cdmw.ui.localization import _translate_html_text
 from cdmw.ui.localization_catalogs_v2 import load_builtin_catalog
 from cdmw.ui.shell.about_documentation_en import AboutDocumentationEnglishMixin
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
 # Shared with Help > Documentation, which opens these manuals (cdmw/ui/shell/wiki_links.py).
-from cdmw.ui.shell.wiki_links import WIKI, WIKI_EXCLUDED_LANGUAGES, manual_slug, manual_url
-
-#: The languages with a Wiki manual: every interface language but those Help sends to the
-#: English manual (wiki_links.WIKI_EXCLUDED_LANGUAGES: Russian, removed 2026-11-24).
-BUILTIN_LANGUAGES = tuple(language for language in INTERFACE_LANGUAGES
-                          if language.code not in WIKI_EXCLUDED_LANGUAGES)
+from cdmw.ui.shell.wiki_links import WIKI, manual_slug, manual_url
 from cdmw.ui.shell.error_reference_guidance import (
     MESSAGE_AREAS, MESSAGE_REFERENCE_INTRO, RECOVERY_GUIDANCE, EXTERNAL_ERROR_GUIDE,
     WIKI_REFERENCE_FILES,
@@ -566,7 +561,7 @@ def _compact_code_library(intro: str, locale: str) -> str:
     """The Error Code Library as the manual page shows it.
 
     Every code and every translated explanation stays on the page. The verbatim messages
-    and source links, identical in all fourteen manuals and more than half of each page,
+    and source links, identical in every manual and more than half of each page,
     are in the group's reference file (`build_reference_assets`), linked from the group.
     """
 
@@ -955,14 +950,6 @@ def main() -> int:
     output = args.output.resolve()
     old_paths = legacy_names | {manual_slug(language.code) + ".md" for language in BUILTIN_LANGUAGES}
     obsolete = sorted(name for name in old_paths - pages.keys() if (output / name).is_file())
-    # A language taken off the Wiki leaves its manual, sidebar folder and reference files.
-    for code in sorted(WIKI_EXCLUDED_LANGUAGES):
-        if code in {language.code for language in INTERFACE_LANGUAGES}:
-            manual = output / (manual_slug(code) + ".md")
-            obsolete += [manual.name] if manual.is_file() else []
-        for folder in (output / code, output / "reference" / code):
-            if folder.is_dir():
-                obsolete += sorted(path.relative_to(output).as_posix() for path in folder.rglob("*") if path.is_file())
     if args.check:
         stale = [name for name, body in pages.items() if not (output / name).is_file() or (output / name).read_text(encoding="utf-8") != body]
         if stale or obsolete:

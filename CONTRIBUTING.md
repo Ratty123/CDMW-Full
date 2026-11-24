@@ -84,7 +84,7 @@ app's documentation source, which the built-in Documentation window (shown when
 no browser can be started) also presents. Every documentation change must keep both aligned, whether the edit
 starts on GitHub, in the app's documentation source, or alongside a feature fix.
 This covers every topic, supported workflow, warning, limitation and link in all
-14 built-in languages. Layout, navigation and machine-specific path examples can
+13 built-in languages. Layout, navigation and machine-specific path examples can
 differ to suit each surface; their instructions and meaning must agree.
 
 The shared sources under `cdmw/ui/shell/about_documentation*.py`, their translation

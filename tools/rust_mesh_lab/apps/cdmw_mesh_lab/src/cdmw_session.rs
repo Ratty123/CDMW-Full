@@ -5854,7 +5854,7 @@ pub(crate) mod tests {
                 )
             })
             .collect::<serde_json::Map<_, _>>();
-        manifest["theme"] = json!({"language": "ru", "translations": translations});
+        manifest["theme"] = json!({"language": "de", "translations": translations});
         assert!(serde_json::to_vec(&manifest["theme"]).unwrap().len() > 1 << 20);
         fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         let package = LoadedCdmwSessionPackage::load(&manifest_path).unwrap();

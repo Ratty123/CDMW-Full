@@ -2370,7 +2370,7 @@ fn workflow_compact_sections_localize_and_dispatch_in_every_builtin_language() -
     let resources =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../cdmw/resources/localization");
     for code in [
-        "en", "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr", "ja", "ko",
+        "en", "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "tr", "ja", "ko",
         "zh-Hans", "zh-Hant",
     ] {
         let mut ui = super::morph_authoring::authoring_ui()?;

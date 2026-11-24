@@ -3075,7 +3075,7 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 refusal = str(getattr(execution.session, "native_editor_last_refusal", "") or "unrecorded")
                 # The sentence itself is a translated key, so it stays exactly as
                 # it shipped; the branch name is appended outside it rather than
-                # folded in, which would orphan the key in all fourteen catalogs.
+                # folded in, which would orphan the key in every catalog.
                 message = (
                     f"native mesh editor session failed for {execution.action}; Python mesh-edit fallback is disabled"
                 )

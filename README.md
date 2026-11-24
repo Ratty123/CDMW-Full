@@ -58,7 +58,7 @@ Settings stay beside the executable, and app-managed files (caches, projects, an
 ## Documentation and languages
 
 Workflow guides live on the [GitHub Wiki](https://github.com/Ratty123/CDMW-Full/wiki)
-(available in [14 built-in languages](https://github.com/Ratty123/CDMW-Full/wiki/Languages))
+(available in [13 built-in languages](https://github.com/Ratty123/CDMW-Full/wiki/Languages))
 and under **Help > Documentation**.
 
 Change the interface language or import a custom language pack in **Settings > Appearance**

@@ -1082,7 +1082,7 @@ def test_shared_atlas_is_rejected_before_a_mask_can_reach_other_parts(tmp_path):
 
 
 @pytest.mark.parametrize("font_size", [12, 20])
-@pytest.mark.parametrize("language", ["en", "de", "fr", "ru"])
+@pytest.mark.parametrize("language", ["en", "de", "fr", "pl"])
 @pytest.mark.parametrize("dual", [False, True])
 def test_painter_controls_fit_compact_window_and_large_fonts(font_size, language, dual, tmp_path):
     from PySide6.QtGui import QFont

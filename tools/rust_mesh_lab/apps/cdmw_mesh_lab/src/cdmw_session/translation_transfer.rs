@@ -293,7 +293,7 @@ mod tests {
     fn update(request_id: u64, descriptor: &Value, entry_count: usize) -> Value {
         let mut update = message("theme_update", request_id);
         update["payload"] =
-            json!({"schema": "cdmw_ui_theme_v1", "language": "ru", "theme": "nord"});
+            json!({"schema": "cdmw_ui_theme_v1", "language": "de", "theme": "nord"});
         update["translations_transfer"] = descriptor.clone();
         update["translations_transfer"]["entry_count"] = json!(entry_count);
         update

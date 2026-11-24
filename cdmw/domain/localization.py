@@ -34,7 +34,6 @@ BUILTIN_LANGUAGES = (
     BuiltinLanguage("it", "Italiano", "italian_million", "it_IT"),
     BuiltinLanguage("pt-BR", "Português (Brasil)", "zero_one_million", "pt_BR"),
     BuiltinLanguage("pl", "Polski", "polish", "pl_PL"),
-    BuiltinLanguage("ru", "Русский", "russian", "ru_RU"),
     BuiltinLanguage("tr", "Türkçe", "other", "tr_TR"),
     BuiltinLanguage(
         "ja",
@@ -138,7 +137,7 @@ def required_plural_categories(code: object) -> frozenset[str]:
         return frozenset({"one", "many", "other"})
     if rule == "zero_one_million":
         return frozenset({"one", "many", "other"})
-    if rule in {"polish", "russian"}:
+    if rule == "polish":
         return frozenset({"one", "few", "many", "other"})
     raise ValueError(f"Unsupported plural rule: {rule}")
 
@@ -197,14 +196,6 @@ def plural_category(code: object, count: int | float | Decimal) -> str:
             or 5 <= mod10 <= 9
             or 12 <= mod100 <= 14
         ):
-            return "many"
-        return "other"
-    if rule == "russian":
-        if mod10 == 1 and mod100 != 11:
-            return "one"
-        if 2 <= mod10 <= 4 and not 12 <= mod100 <= 14:
-            return "few"
-        if mod10 == 0 or 5 <= mod10 <= 9 or 11 <= mod100 <= 14:
             return "many"
         return "other"
     raise ValueError(f"Unsupported plural rule: {rule}")

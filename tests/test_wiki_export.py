@@ -483,7 +483,7 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
         dialog.select_section("contributing")
         localizer.apply(dialog)
         assert localizer.translate("Contributing") in dialog.browser.toPlainText()
-        sync_rule = "Keep Help and the GitHub Wiki aligned in all 14 languages whenever either is edited. Before exporting, compare the latest published Wiki with the shared documentation source and bring any GitHub-only corrections back into Help and its translations. Regenerate and check every guide and diagnostic reference, then verify the published Wiki after an authorized update. Existing executables keep the Help they were built with until rebuilt."
+        sync_rule = "Keep Help and the GitHub Wiki aligned in all 13 languages whenever either is edited. Before exporting, compare the latest published Wiki with the shared documentation source and bring any GitHub-only corrections back into Help and its translations. Regenerate and check every guide and diagnostic reference, then verify the published Wiki after an authorized update. Existing executables keep the Help they were built with until rebuilt."
         translated = localizer.translate(sync_rule)
         assert translated != sync_rule or language.code == "en"
         assert translated in dialog.browser.toPlainText()
@@ -631,9 +631,9 @@ def test_in_app_browser_renders_the_expanded_guides_in_each_locale(tmp_path, lan
 def test_every_manual_stays_inside_the_page_budget(wiki_manuals):
     """Fails well before GitHub's limit, while a Help edit still has room to land.
 
-    The Russian manual reached the limit twice, each time found at publication with a few
-    bytes left: Cyrillic takes two bytes a letter, so every Help sentence costs it about
-    half as much again as English. Shorten Help text, or move reference material into a
+    A manual in a two-byte script reached the limit twice, each time found at publication
+    with a few bytes left: every Help sentence costs it about half as much again as
+    English. Shorten Help text, or move reference material into a
     linked Wiki file as the Error Code Library does, before this budget is spent.
     """
 
@@ -680,16 +680,6 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
         assert 'Showing raw stored bytes because the decoded preview path failed.' in manual
         assert 'Decoded preview failed: ...' in manual
         assert '0xC0000005' in manual and '0xC0000142' in manual
-
-
-def test_russian_has_no_wiki_manual_and_its_help_opens_the_english_one(tmp_path) -> None:
-    """The Russian manual kept reaching GitHub's page limit and was taken off the Wiki
-    (2026-11-24); Help in Russian opens the English manual instead of a missing page."""
-    from cdmw.ui.shell.wiki_links import documentation_url
-
-    assert "ru" not in {language.code for language in BUILTIN_LANGUAGES}
-    assert documentation_url("ru", "mesh_editor") == documentation_url("en", "mesh_editor")
-    assert documentation_url("de", "mesh_editor") != documentation_url("en", "mesh_editor")
 
 
 def test_complete_wiki_assets_preserve_every_message_source_and_translated_remedy(wiki_manuals):

@@ -49,7 +49,7 @@ from .tab import _run_detached
 _COMMON_LANGUAGES = (
     "English", "Swedish", "Norwegian", "Danish", "Finnish", "German", "French",
     "Spanish", "Italian", "Portuguese (Brazil)", "Polish", "Czech", "Hungarian",
-    "Dutch", "Russian", "Ukrainian", "Turkish", "Arabic", "Hebrew", "Hindi",
+    "Dutch", "Ukrainian", "Turkish", "Arabic", "Hebrew", "Hindi",
     "Thai", "Vietnamese", "Indonesian", "Korean", "Japanese",
     "Chinese (Simplified)", "Chinese (Traditional)",
 )

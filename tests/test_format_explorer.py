@@ -249,7 +249,7 @@ def test_localization_manifest_covers_presented_workflow_metadata(rows):
 
 
 @pytest.mark.parametrize("code", [
-    "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "ru", "tr",
+    "de", "es-ES", "es-419", "fr", "it", "pt-BR", "pl", "tr",
     "ja", "ko", "zh-Hans", "zh-Hant",
 ])
 def test_new_workflow_guidance_translates_at_runtime(rows, code, tmp_path):

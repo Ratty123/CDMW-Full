@@ -490,7 +490,7 @@ def test_e8_every_command_label_and_reason_the_shell_shows_is_in_every_catalogue
     texts.discard("")
     root = Path(__file__).resolve().parents[1] / "cdmw" / "resources" / "localization"
     missing = {}
-    for locale in ("de", "es-419", "es-ES", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant"):
+    for locale in ("de", "es-419", "es-ES", "fr", "it", "ja", "ko", "pl", "pt-BR", "tr", "zh-Hans", "zh-Hant"):
         catalogue = json.loads((root / f"{locale}.json").read_text(encoding="utf-8"))["translations"]
         lacking = sorted(text for text in texts if text not in catalogue)
         if lacking:
