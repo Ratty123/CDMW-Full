@@ -293,7 +293,10 @@ pub(super) fn prepare(
                 compact_part(&mut state, &mut document, *part_id, &prev_generated);
             }
         }
-        for geometry in hair::generate(&state, cancelled).map_err(|e| e.to_string())? {
+        let reserved = reserved_original_vertices(&state, &document);
+        for geometry in
+            hair::generate_within(&state, cancelled, &reserved).map_err(|e| e.to_string())?
+        {
             let part = &mut document.lods[0].submeshes[geometry.part as usize];
             if generated.contains(&geometry.part) {
                 part.positions = geometry.positions;
@@ -369,6 +372,31 @@ pub(super) fn prepare(
         label,
         milliseconds: start.elapsed().as_secs_f64() * 1000.0,
     })
+}
+
+/// Original vertices that stay in each part beside generated cards. Generated
+/// parts are rebuilt whole, so only Existing (Hybrid) parts reserve budget.
+pub(super) fn reserved_original_vertices(
+    state: &HairState,
+    document: &MeshDocument,
+) -> BTreeMap<u32, usize> {
+    let Some(lod) = document.lods.first() else {
+        return BTreeMap::new();
+    };
+    state
+        .groups
+        .iter()
+        .filter(|g| g.mode == GroupMode::Existing)
+        .filter_map(|g| {
+            let part = lod.submeshes.get(g.part as usize)?;
+            let kept = if part.source_vertex_indices.len() == part.positions.len() {
+                part.source_vertex_indices.iter().filter(|&&s| s != -1).count()
+            } else {
+                part.positions.len()
+            };
+            Some((g.part, kept))
+        })
+        .collect()
 }
 
 fn compact_part(

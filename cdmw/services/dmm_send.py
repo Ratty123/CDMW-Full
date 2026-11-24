@@ -83,7 +83,7 @@ def _operation_item(intent) -> Optional[int]:
     return item if isinstance(item, int) and not isinstance(item, bool) else None
 
 
-def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> None:
+def write_operations(folder: Path, title: str, targets, *, owned_items=(), description: str = "") -> None:
     """Write shop and item group additions as DMM V3 operations beside a mod's archive.
 
     DMM applies them to the base and the DLC's rows alike; a table copy would replace
@@ -122,7 +122,7 @@ def write_operations(folder: Path, title: str, targets, *, owned_items=()) -> No
         path.unlink(missing_ok=True)
         return
     operations = dict(format=3, modinfo=dict(title=f"{title} (item registrations)", version="1.0.0", author="CDMW",
-                                             description="Adds CDMW's parts, shop stock and item groups. Requires DMM 4.4.0 or newer."),
+                                             description=description or "Adds CDMW's parts, shop stock and item groups. Requires DMM 4.4.0 or newer."),
                       targets=[dict(file=name, intents=intents) for name, intents in merged.items()])
     path.write_text(json.dumps(operations, indent=2) + "\n", encoding="utf-8")
 

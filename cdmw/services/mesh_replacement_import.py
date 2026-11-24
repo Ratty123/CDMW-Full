@@ -433,18 +433,20 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
     return candidate, state
 
 
-def commit_replacement(service, snapshot, candidate, state, *, label, stop_event=None):
+def commit_replacement(service, snapshot, candidate, state, *, label, stop_event=None, hair_state=None):
     raise_if_cancelled(stop_event, "Replacement cancelled.")
     session = service._session(snapshot.session_id)
     with session.export_lock:
         if session.revision != snapshot.mesh_revision or session.closed:
             raise ValueError("Replacement is stale because the mesh changed. Import again.")
     prepared = service.prepare_working_mesh_replacement(snapshot.session_id, candidate,
-        replacement_state=state, validation_output_policy=REPLACEMENT_POLICY)
+        replacement_state=state, validation_output_policy=REPLACEMENT_POLICY,
+        hair_state=hair_state, replace_hair_state=hair_state is not None)
     if prepared.expected_revision != snapshot.mesh_revision:
         raise ValueError("Replacement is stale because the mesh changed. Import again.")
     # Prove the final writer before touching live geometry, materials or history.
-    output = prepare_replacement_output(replace(snapshot, mesh=candidate, replacement_state=state))
+    output = prepare_replacement_output(replace(snapshot, mesh=candidate, replacement_state=state,
+                                                hair_state=hair_state if hair_state is not None else snapshot.hair_state))
     raise_if_cancelled(stop_event, "Replacement cancelled.")
     view = service.commit_prepared_working_mesh_replacement(prepared,
         history_action="mesh_replacement", history_label=label,

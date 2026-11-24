@@ -105,6 +105,7 @@ fn hair_draw_shapes_render_and_drag_benchmark() {
                     &scene.scalp_picking,
                     &scene.scalp_indices,
                     Some(&app.hair.drawing),
+                    &Default::default(),
                 )
                 .unwrap(),
             );

@@ -4816,6 +4816,16 @@ ERROR_REFERENCE = [
   },
   {
     "group": "native_tools",
+    "code": "HairError::Budget",
+    "messages": [],
+    "sources": [
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs"
+    ],
+    "severity": [],
+    "recovery": "internal"
+  },
+  {
+    "group": "native_tools",
     "code": "HairError::Cancelled",
     "messages": [
       "Hair preparation cancelled"
@@ -39015,7 +39025,7 @@ MESSAGE_REFERENCE = [
     "message": "A color DDS also supplies another material role; edit that texture explicitly.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 460
+      "cdmw/services/mesh_rust_hair.py": 466
     }
   },
   {
@@ -39103,7 +39113,7 @@ MESSAGE_REFERENCE = [
     "message": "A game vertex holds six bones. Remove an existing influence before adding another.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8889
+      "cdmw/services/mesh_rust_authoring.py": 8899
     }
   },
   {
@@ -39183,7 +39193,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider definition is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10604
+      "cdmw/services/mesh_rust_authoring.py": 10615
     }
   },
   {
@@ -39191,7 +39201,7 @@ MESSAGE_REFERENCE = [
     "message": "A sculpted slider or outfit correction requires unchanged topology and source mapping. Undo the incompatible edit, or save/discard the pending work before replacing the mesh.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10018
+      "cdmw/services/mesh_rust_authoring.py": 10028
     }
   },
   {
@@ -39287,7 +39297,7 @@ MESSAGE_REFERENCE = [
     "message": "A valid unambiguous game mount catalogue is required.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 525
+      "cdmw/services/mesh_hair_output.py": 610
     }
   },
   {
@@ -39304,6 +39314,14 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_skinning.rs": 165
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Add New Barber Hairstyle cannot use this hairstyle. Replace Existing Hairstyle can still export it.",
+    "recovery": "input",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1171
     }
   },
   {
@@ -39351,7 +39369,7 @@ MESSAGE_REFERENCE = [
     "message": "Adding body or armor Parts requires Free Edit",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9951
+      "cdmw/services/mesh_rust_authoring.py": 9961
     }
   },
   {
@@ -39359,7 +39377,7 @@ MESSAGE_REFERENCE = [
     "message": "Additive DMM registration produced no partprefabtable operations.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 624
+      "cdmw/services/mesh_hair_output.py": 792
     }
   },
   {
@@ -39512,7 +39530,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply DDS edits through Hair Appearance so every material reference is retained.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 386
+      "cdmw/services/mesh_hair_output.py": 434
     }
   },
   {
@@ -39520,7 +39538,7 @@ MESSAGE_REFERENCE = [
     "message": "Apply or Cancel Restore fitting shape before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10550
+      "cdmw/services/mesh_rust_authoring.py": 10561
     }
   },
   {
@@ -39544,7 +39562,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output has duplicate asset paths",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1039
+      "cdmw/workers/mesh_editor_workers.py": 1042
     }
   },
   {
@@ -39552,7 +39570,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit output target no longer matches the loaded source",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 699
+      "cdmw/workers/mesh_editor_workers.py": 702
     }
   },
   {
@@ -39560,7 +39578,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive Refit preserves each source Part and topology; finish this refit before changing topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10363
+      "cdmw/services/mesh_rust_authoring.py": 10374
     }
   },
   {
@@ -39616,7 +39634,7 @@ MESSAGE_REFERENCE = [
     "message": "Archive mesh path escapes the loose package",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1037
+      "cdmw/workers/mesh_editor_workers.py": 1040
     }
   },
   {
@@ -40829,7 +40847,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW cannot read {profile.name}'s barber list ({profile.mesh_param_path}): {choices} A game update or another mod may have changed it. Loading again will not change this; choose another character, or turn off mods that change this file.",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 191
+      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 196
     }
   },
   {
@@ -40901,7 +40919,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no authoritative Mesh Edit session",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8120
+      "cdmw/services/mesh_rust_authoring.py": 8126
     }
   },
   {
@@ -41181,7 +41199,7 @@ MESSAGE_REFERENCE = [
     "message": "Cannot add {role} mesh: {blockers[0]}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9968
+      "cdmw/services/mesh_rust_authoring.py": 9978
     }
   },
   {
@@ -41471,7 +41489,7 @@ MESSAGE_REFERENCE = [
     "message": "Change fitting references through the host-owned reference picker.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 791
+      "cdmw/services/mesh_rust_hair.py": 806
     }
   },
   {
@@ -41536,7 +41554,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose Create Hair or Edit Hair.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 625
+      "cdmw/services/mesh_rust_hair.py": 640
     }
   },
   {
@@ -41560,7 +41578,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a GLB, FBX or OBJ filename matching the export format.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10207
+      "cdmw/services/mesh_rust_authoring.py": 10217
     }
   },
   {
@@ -41573,10 +41591,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Choose a PNG, JPG, WEBP, BMP, or DDS file for the custom barber icon.",
+    "message": "Choose a PNG, JPG, WEBP, BMP, or DDS file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 275
+      "cdmw/services/mesh_hair_output.py": 323
     }
   },
   {
@@ -41613,18 +41631,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Choose a complete DDS file smaller than 128 MiB.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_rust_hair.py": 396
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Choose a custom hair mesh file to import.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 1045
+      "cdmw/services/mesh_rust_hair.py": 1080
     }
   },
   {
@@ -41632,7 +41642,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a finite RGB hair color between 0 and 1.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 450
+      "cdmw/services/mesh_rust_hair.py": 456
     }
   },
   {
@@ -41648,7 +41658,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a head from the selected character's mounted appearance.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 497
+      "cdmw/services/mesh_rust_hair.py": 512
     }
   },
   {
@@ -41728,7 +41738,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a texture declared by this hairstyle's material.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 385
+      "cdmw/services/mesh_rust_hair.py": 386
     }
   },
   {
@@ -41792,15 +41802,16 @@ MESSAGE_REFERENCE = [
     "message": "Choose an existing image or DDS file for the custom barber icon.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/mod_export_dialog.py": 355
+      "cdmw/ui/mesh_editor/mod_export_dialog.py": 364
     }
   },
   {
     "area": "mesh",
-    "message": "Choose an existing image or DDS file smaller than 64 MiB for the barber icon.",
+    "message": "Choose an existing image or DDS file smaller than 128 MiB.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 260
+      "cdmw/services/mesh_hair_output.py": 308,
+      "cdmw/services/mesh_rust_hair.py": 398
     }
   },
   {
@@ -41896,7 +41907,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose the reference head through the archive picker.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 493
+      "cdmw/services/mesh_rust_hair.py": 508
     }
   },
   {
@@ -41904,7 +41915,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose the selected character's base body for the neck and shoulder reference.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 536
+      "cdmw/services/mesh_rust_hair.py": 551
     }
   },
   {
@@ -41968,7 +41979,7 @@ MESSAGE_REFERENCE = [
     "message": "Clear Refit before adding body or armor Parts",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9955
+      "cdmw/services/mesh_rust_authoring.py": 9965
     }
   },
   {
@@ -41984,7 +41995,7 @@ MESSAGE_REFERENCE = [
     "message": "Click the scalp to place the root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1184
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1196
     }
   },
   {
@@ -42416,7 +42427,7 @@ MESSAGE_REFERENCE = [
     "message": "Conflicting incremental hair geometry updates.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 819
+      "cdmw/services/mesh_rust_hair.py": 834
     }
   },
   {
@@ -42448,7 +42459,7 @@ MESSAGE_REFERENCE = [
     "message": "Convert hair guides to ordinary geometry before using these mesh operations.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10342
+      "cdmw/services/mesh_rust_authoring.py": 10353
     }
   },
   {
@@ -42472,7 +42483,7 @@ MESSAGE_REFERENCE = [
     "message": "Correct the selected sections before changing their width",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 898
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 926
     }
   },
   {
@@ -42680,7 +42691,7 @@ MESSAGE_REFERENCE = [
     "message": "Create and bind hair guides before building a hairstyle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 202
+      "cdmw/services/mesh_hair_output.py": 236
     }
   },
   {
@@ -42688,7 +42699,7 @@ MESSAGE_REFERENCE = [
     "message": "Custom barber icon DDS format does not match this character's barber icons.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 395
+      "cdmw/services/mesh_hair_output.py": 443
     }
   },
   {
@@ -42696,7 +42707,7 @@ MESSAGE_REFERENCE = [
     "message": "Custom barber icon not found: {icon_source}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 515
+      "cdmw/services/mesh_hair_output.py": 737
     }
   },
   {
@@ -42704,7 +42715,7 @@ MESSAGE_REFERENCE = [
     "message": "Cut and deleted existing hair require exact original vertex provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 920
+      "cdmw/services/mesh_rust_hair.py": 935
     }
   },
   {
@@ -42712,7 +42723,7 @@ MESSAGE_REFERENCE = [
     "message": "Cut hair changed its original UV layout.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 926
+      "cdmw/services/mesh_rust_hair.py": 941
     }
   },
   {
@@ -42768,7 +42779,7 @@ MESSAGE_REFERENCE = [
     "message": "DDS selection cancelled.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1275
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1276
     }
   },
   {
@@ -42816,7 +42827,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1107
+      "cdmw/workers/mesh_editor_workers.py": 1110
     }
   },
   {
@@ -42824,7 +42835,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM archive-group package is missing {relative}",
     "recovery": "missing",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1133
+      "cdmw/workers/mesh_editor_workers.py": 1136
     }
   },
   {
@@ -42832,7 +42843,7 @@ MESSAGE_REFERENCE = [
     "message": "DMM package metadata changed archive-group payload {relative}",
     "recovery": "format",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1160
+      "cdmw/workers/mesh_editor_workers.py": 1163
     }
   },
   {
@@ -42936,7 +42947,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part cannot remove every Part because the editable mesh must retain geometry.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8777
+      "cdmw/services/mesh_rust_authoring.py": 8787
     }
   },
   {
@@ -42944,7 +42955,7 @@ MESSAGE_REFERENCE = [
     "message": "Delete Part requires at least one explicitly selected Part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8773
+      "cdmw/services/mesh_rust_authoring.py": 8783
     }
   },
   {
@@ -43000,7 +43011,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleted hair still has visible lock ownership.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 864
+      "cdmw/services/mesh_rust_hair.py": 879
     }
   },
   {
@@ -43024,7 +43035,7 @@ MESSAGE_REFERENCE = [
     "message": "Deleting whole parts requires Free Edit. To remove a part from the exported game file, untick Include instead.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8665
+      "cdmw/services/mesh_rust_authoring.py": 8675
     }
   },
   {
@@ -43208,7 +43219,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh Finish was cancelled before authoritative publication.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8463
+      "cdmw/services/mesh_rust_authoring.py": 8469
     }
   },
   {
@@ -43216,7 +43227,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh Finish was rejected and Morph profile rollback also failed: {type(rollback_error).__name__}: {rollback_error}",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11408
+      "cdmw/services/mesh_rust_authoring.py": 11419
     }
   },
   {
@@ -43224,7 +43235,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh can import editable GLB, FBX, or OBJ packages.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10044
+      "cdmw/services/mesh_rust_authoring.py": 10054
     }
   },
   {
@@ -43232,7 +43243,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {action} under the current output policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8689
+      "cdmw/services/mesh_rust_authoring.py": 8699
     }
   },
   {
@@ -43240,7 +43251,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot run {command}.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10370
+      "cdmw/services/mesh_rust_authoring.py": 10381
     }
   },
   {
@@ -43248,7 +43259,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh cannot {operation} under the current output policy.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8472
+      "cdmw/services/mesh_rust_authoring.py": 8478
     }
   },
   {
@@ -43256,7 +43267,7 @@ MESSAGE_REFERENCE = [
     "message": "Edit Mesh closed before authoritative publication.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11173
+      "cdmw/services/mesh_rust_authoring.py": 11184
     }
   },
   {
@@ -43336,7 +43347,7 @@ MESSAGE_REFERENCE = [
     "message": "Editable package path is required",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10040
+      "cdmw/services/mesh_rust_authoring.py": 10050
     }
   },
   {
@@ -43465,14 +43476,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service_morph.py": 2506
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "Encoded custom barber icon does not match the donor icon layout.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_hair_output.py": 311
     }
   },
   {
@@ -43738,7 +43741,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset topology writer did not prove that fallback was disabled.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10871
+      "cdmw/services/mesh_rust_authoring.py": 10882
     }
   },
   {
@@ -43746,7 +43749,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer attempted to use a developer override.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10866
+      "cdmw/services/mesh_rust_authoring.py": 10877
     }
   },
   {
@@ -43754,7 +43757,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer did not return a passing validation report.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10862
+      "cdmw/services/mesh_rust_authoring.py": 10873
     }
   },
   {
@@ -43762,7 +43765,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt hash does not match its output.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10893
+      "cdmw/services/mesh_rust_authoring.py": 10904
     }
   },
   {
@@ -43770,7 +43773,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rebuilt-size evidence does not match its output.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10889
+      "cdmw/services/mesh_rust_authoring.py": 10900
     }
   },
   {
@@ -43778,7 +43781,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10855
+      "cdmw/services/mesh_rust_authoring.py": 10866
     }
   },
   {
@@ -43786,7 +43789,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer returned no rebuilt bytes.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10879
+      "cdmw/services/mesh_rust_authoring.py": 10890
     }
   },
   {
@@ -43794,7 +43797,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source hash does not match the session snapshot.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10885
+      "cdmw/services/mesh_rust_authoring.py": 10896
     }
   },
   {
@@ -43802,7 +43805,7 @@ MESSAGE_REFERENCE = [
     "message": "Exact game-asset writer source-size evidence does not match the session snapshot.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10881
+      "cdmw/services/mesh_rust_authoring.py": 10892
     }
   },
   {
@@ -43842,7 +43845,7 @@ MESSAGE_REFERENCE = [
     "message": "Existing hair cuts may only retain original card triangles.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 923
+      "cdmw/services/mesh_rust_hair.py": 938
     }
   },
   {
@@ -43850,7 +43853,7 @@ MESSAGE_REFERENCE = [
     "message": "Existing hair sections are too wide for stable motion. Assign roots to smaller selections, or mark scalp sections rigid.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1003
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1031
     }
   },
   {
@@ -43882,7 +43885,7 @@ MESSAGE_REFERENCE = [
     "message": "Experimental replacement is missing its neutral coordinate transform.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 130
+      "cdmw/services/mesh_hair_output.py": 164
     }
   },
   {
@@ -43923,7 +43926,7 @@ MESSAGE_REFERENCE = [
     "message": "Export presets outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10653
+      "cdmw/services/mesh_rust_authoring.py": 10664
     }
   },
   {
@@ -44147,7 +44150,7 @@ MESSAGE_REFERENCE = [
     "message": "FBX sidecar is required for editable mesh package import.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10051,
+      "cdmw/services/mesh_rust_authoring.py": 10061,
       "cdmw/workers/mesh_editor_workers.py": 194
     }
   },
@@ -44212,7 +44215,7 @@ MESSAGE_REFERENCE = [
     "message": "Field-JSON only describes DDS assets and cannot safely package a mesh payload",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1027
+      "cdmw/workers/mesh_editor_workers.py": 1030
     }
   },
   {
@@ -44252,7 +44255,7 @@ MESSAGE_REFERENCE = [
     "message": "Finish or cancel neutral face editing before loading a different source mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10352
+      "cdmw/services/mesh_rust_authoring.py": 10363
     }
   },
   {
@@ -44949,7 +44952,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output folder must still be new; the selected destination now exists: {target}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10987
+      "cdmw/services/mesh_rust_authoring.py": 10998
     }
   },
   {
@@ -44974,7 +44977,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output must not overwrite the source asset.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10979
+      "cdmw/services/mesh_rust_authoring.py": 10990
     }
   },
   {
@@ -44998,7 +45001,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent folder no longer exists: {target.parent}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10983
+      "cdmw/services/mesh_rust_authoring.py": 10994
     }
   },
   {
@@ -45022,7 +45025,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit requires a valid new output folder before Finish.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10962
+      "cdmw/services/mesh_rust_authoring.py": 10973
     }
   },
   {
@@ -45030,7 +45033,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit writer rejected Edit Mesh Finish: {exc}",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10946
+      "cdmw/services/mesh_rust_authoring.py": 10957
     }
   },
   {
@@ -45286,7 +45289,7 @@ MESSAGE_REFERENCE = [
     "message": "Generate Tangents would split vertices along a UV seam, and Exact output cannot add vertices. Choose Free Edit before generating tangents for this mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8627
+      "cdmw/services/mesh_rust_authoring.py": 8637
     }
   },
   {
@@ -45318,7 +45321,7 @@ MESSAGE_REFERENCE = [
     "message": "Generated texture registry failed reparsing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 407
+      "cdmw/services/mesh_hair_output.py": 455
     }
   },
   {
@@ -45470,7 +45473,7 @@ MESSAGE_REFERENCE = [
     "message": "Group sections from one material at a time, then set their shared root",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1175
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1187
     }
   },
   {
@@ -45566,7 +45569,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair binding refers to a removed vertex.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 984
+      "cdmw/services/mesh_rust_hair.py": 999
     }
   },
   {
@@ -45590,7 +45593,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair creation needs a registered player hair PAC without active Morph & Refit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 488
+      "cdmw/services/mesh_rust_hair.py": 503
     }
   },
   {
@@ -45598,7 +45601,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair display stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_motion.rs": 298
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_motion.rs": 306
     }
   },
   {
@@ -45606,7 +45609,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair donor source changed; reopen its draft against the original asset.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 206
+      "cdmw/services/mesh_hair_output.py": 240
     }
   },
   {
@@ -45638,7 +45641,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair edit requires a current Rust authoring session.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 751
+      "cdmw/services/mesh_rust_hair.py": 766
     }
   },
   {
@@ -45646,7 +45649,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair export changed its required material section table.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 341
+      "cdmw/services/mesh_hair_output.py": 389
     }
   },
   {
@@ -45654,7 +45657,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair export contains an unregistered companion dependency.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 384
+      "cdmw/services/mesh_hair_output.py": 432
     }
   },
   {
@@ -45662,7 +45665,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair export lost an affected LOD.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 343
+      "cdmw/services/mesh_hair_output.py": 391
     }
   },
   {
@@ -45678,7 +45681,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair geometry and original vertex provenance were not published together.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 888
+      "cdmw/services/mesh_rust_hair.py": 903
     }
   },
   {
@@ -45686,7 +45689,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair geometry is incomplete or has invalid indices.",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 871
+      "cdmw/services/mesh_rust_hair.py": 886
     }
   },
   {
@@ -45694,7 +45697,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair group refers to a missing material part.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 831
+      "cdmw/services/mesh_rust_hair.py": 846
     }
   },
   {
@@ -45718,7 +45721,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair guide limit reached",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 906
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 918
     }
   },
   {
@@ -45758,7 +45761,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair lock refers to removed geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 987,
+      "cdmw/services/mesh_rust_hair.py": 1002,
       "cdmw/services/mesh_service_hair_transaction.py": 77
     }
   },
@@ -45767,7 +45770,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair material texture references were not rewritten completely.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 390
+      "cdmw/services/mesh_hair_output.py": 438
     }
   },
   {
@@ -45775,7 +45778,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair materials must not contain XML entities.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 107
+      "cdmw/services/mesh_hair_output.py": 141
     }
   },
   {
@@ -45783,7 +45786,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair output has lost its donor and material mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 204
+      "cdmw/services/mesh_hair_output.py": 238
     }
   },
   {
@@ -45791,7 +45794,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair output must be a new folder outside the installed game.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 505
+      "cdmw/services/mesh_hair_output.py": 727
     }
   },
   {
@@ -45799,7 +45802,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair package payload failed reparsing: {item.path}",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 671
+      "cdmw/services/mesh_hair_output.py": 839
     }
   },
   {
@@ -45807,7 +45810,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair part has no original skin donor.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 728
+      "cdmw/services/mesh_rust_hair.py": 743
     }
   },
   {
@@ -45815,7 +45818,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair part has no unambiguous original skin donor.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 733
+      "cdmw/services/mesh_rust_hair.py": 748
     }
   },
   {
@@ -45823,7 +45826,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair part {part + 1} has changed sections without grooming guides. Set their roots or restore the original hair before exporting.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 237
+      "cdmw/services/mesh_hair_output.py": 271
     }
   },
   {
@@ -45831,7 +45834,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair part {part + 1} needs complete guide binding before export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 230
+      "cdmw/services/mesh_hair_output.py": 264
     }
   },
   {
@@ -45847,7 +45850,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair physics paint lost its output vertex mapping.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 83
+      "cdmw/services/mesh_hair_output.py": 111
     }
   },
   {
@@ -45856,7 +45859,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_geometry.rs": 15,
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 23
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 28
     }
   },
   {
@@ -45864,7 +45867,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair preparation stopped before completing",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 622
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 650
     }
   },
   {
@@ -45920,7 +45923,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair requires the template's DDS texture bindings.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 245
+      "cdmw/services/mesh_hair_output.py": 279
     }
   },
   {
@@ -45984,7 +45987,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair texture identity already exists: {new_path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 370
+      "cdmw/services/mesh_hair_output.py": 418
     }
   },
   {
@@ -45992,7 +45995,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction changed an unassigned part.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 878,
+      "cdmw/services/mesh_rust_hair.py": 893,
       "cdmw/services/mesh_service_hair_transaction.py": 81
     }
   },
@@ -46001,7 +46004,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction changed its export template.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 798
+      "cdmw/services/mesh_rust_hair.py": 813
     }
   },
   {
@@ -46009,7 +46012,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction changed its reference or donor provenance.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 789
+      "cdmw/services/mesh_rust_hair.py": 804
     }
   },
   {
@@ -46017,7 +46020,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction changed the template's material part layout.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 828
+      "cdmw/services/mesh_rust_hair.py": 843
     }
   },
   {
@@ -46025,7 +46028,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction has a stale or invalid revision.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 777
+      "cdmw/services/mesh_rust_hair.py": 792
     }
   },
   {
@@ -46033,7 +46036,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair transaction omitted its rest state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 775
+      "cdmw/services/mesh_rust_hair.py": 790
     }
   },
   {
@@ -46065,7 +46068,7 @@ MESSAGE_REFERENCE = [
     "message": "Hairstyles require an output folder.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 663
+      "cdmw/workers/mesh_editor_workers.py": 665
     }
   },
   {
@@ -46097,7 +46100,7 @@ MESSAGE_REFERENCE = [
     "message": "Hybrid existing hair requires valid original vertex provenance for non-generated vertices.",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 902
+      "cdmw/services/mesh_rust_hair.py": 917
     }
   },
   {
@@ -46203,7 +46206,7 @@ MESSAGE_REFERENCE = [
     "message": "Incremental hair state has a stale or conflicting base revision.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 770
+      "cdmw/services/mesh_rust_hair.py": 785
     }
   },
   {
@@ -46211,7 +46214,7 @@ MESSAGE_REFERENCE = [
     "message": "Incremental hair update has a stale reference or unsupported version.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 764
+      "cdmw/services/mesh_rust_hair.py": 779
     }
   },
   {
@@ -46276,6 +46279,14 @@ MESSAGE_REFERENCE = [
     "recovery": "empty",
     "sources": {
       "cdmw/domain/mesh/weight_transfer.py": 55
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Invalid DDS file: {src_info.reason or source.name}",
+    "recovery": "input",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 319
     }
   },
   {
@@ -46480,14 +46491,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "Invalid custom icon DDS: {src_info.reason or source.name}",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_hair_output.py": 271
-    }
-  },
-  {
-    "area": "mesh",
     "message": "Invalid decoded jiggle settings or frame time.",
     "recovery": "configuration",
     "sources": {
@@ -46595,7 +46598,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid hair authoring state: {0}",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 21
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 26
     }
   },
   {
@@ -46611,7 +46614,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid hair geometry record.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 857
+      "cdmw/services/mesh_rust_hair.py": 872
     }
   },
   {
@@ -46683,7 +46686,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid incremental hair material part.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 816
+      "cdmw/services/mesh_rust_hair.py": 831
     }
   },
   {
@@ -46691,7 +46694,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid incremental hair part list.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 808
+      "cdmw/services/mesh_rust_hair.py": 823
     }
   },
   {
@@ -46699,7 +46702,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid incremental hair vertex range.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 825
+      "cdmw/services/mesh_rust_hair.py": 840
     }
   },
   {
@@ -46707,7 +46710,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid incremental hair vertex updates.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 813
+      "cdmw/services/mesh_rust_hair.py": 828
     }
   },
   {
@@ -47546,7 +47549,7 @@ MESSAGE_REFERENCE = [
     "message": "Keep the template DDS dimensions, format and mip count when editing hair textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 400
+      "cdmw/services/mesh_rust_hair.py": 406
     }
   },
   {
@@ -47826,7 +47829,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the archive catalogue to choose a hairstyle. Start is unavailable until it is ready.",
     "recovery": "missing",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 158
+      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 160
     }
   },
   {
@@ -47858,7 +47861,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose Mesh Editor output needs a package folder",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1025
+      "cdmw/workers/mesh_editor_workers.py": 1028
     }
   },
   {
@@ -48195,7 +48198,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1465
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1466
     }
   },
   {
@@ -48267,7 +48270,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor cancelled; CDMW mesh unchanged.",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1406,
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1407,
       "cdmw/ui/mesh_editor/tab_session_runtime.py": 971
     }
   },
@@ -48326,7 +48329,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor companion parts were skipped",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9440
+      "cdmw/services/mesh_rust_authoring.py": 9450
     }
   },
   {
@@ -48359,7 +48362,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor could not restart after its 3D view stopped: {error}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1988
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1989
     }
   },
   {
@@ -48375,7 +48378,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1767
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1768
     }
   },
   {
@@ -48383,7 +48386,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor did not finish preparing its renderer and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1763
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1764
     }
   },
   {
@@ -48530,7 +48533,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor process failed.{suffix}",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1793
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1794
     }
   },
   {
@@ -48570,7 +48573,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor rejected the operation: {message}",
     "recovery": "input",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1469
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1470
     }
   },
   {
@@ -48595,7 +48598,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor request failed",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/tab_rust_process.py": 1547
+      "cdmw/ui/mesh_editor/tab_rust_process.py": 1548
     }
   },
   {
@@ -48907,7 +48910,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Morph state exceeds the 16 MiB inline protocol limit",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9514
+      "cdmw/services/mesh_rust_authoring.py": 9524
     }
   },
   {
@@ -48923,7 +48926,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8726
+      "cdmw/services/mesh_rust_authoring.py": 8736
     }
   },
   {
@@ -48931,7 +48934,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8723
+      "cdmw/services/mesh_rust_authoring.py": 8733
     }
   },
   {
@@ -48939,7 +48942,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8703
+      "cdmw/services/mesh_rust_authoring.py": 8713
     }
   },
   {
@@ -48947,7 +48950,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring action received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8707
+      "cdmw/services/mesh_rust_authoring.py": 8717
     }
   },
   {
@@ -48955,7 +48958,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh authoring session is closed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8442
+      "cdmw/services/mesh_rust_authoring.py": 8448
     }
   },
   {
@@ -48963,7 +48966,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh base revision is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9390
+      "cdmw/services/mesh_rust_authoring.py": 9400
     }
   },
   {
@@ -48995,7 +48998,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate UV count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9761
+      "cdmw/services/mesh_rust_authoring.py": 9771
     }
   },
   {
@@ -49003,7 +49006,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate belongs to another session",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9840
+      "cdmw/services/mesh_rust_authoring.py": 9850
     }
   },
   {
@@ -49011,7 +49014,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed topology outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9763
+      "cdmw/services/mesh_rust_authoring.py": 9773
     }
   },
   {
@@ -49019,7 +49022,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate changed vertex count outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9757
+      "cdmw/services/mesh_rust_authoring.py": 9767
     }
   },
   {
@@ -49051,7 +49054,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate normal count does not match positions",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9759
+      "cdmw/services/mesh_rust_authoring.py": 9769
     }
   },
   {
@@ -49059,7 +49062,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate schema does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9838
+      "cdmw/services/mesh_rust_authoring.py": 9848
     }
   },
   {
@@ -49067,7 +49070,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh count changed outside CDMW topology",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9860
+      "cdmw/services/mesh_rust_authoring.py": 9870
     }
   },
   {
@@ -49075,7 +49078,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate submesh is malformed",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9737
+      "cdmw/services/mesh_rust_authoring.py": 9747
     }
   },
   {
@@ -49083,7 +49086,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices are duplicate, unordered or out of range",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9751
+      "cdmw/services/mesh_rust_authoring.py": 9761
     }
   },
   {
@@ -49091,7 +49094,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate vertex indices must be integers",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9747
+      "cdmw/services/mesh_rust_authoring.py": 9757
     }
   },
   {
@@ -49099,7 +49102,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains a boolean",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11558
+      "cdmw/services/mesh_rust_authoring.py": 11569
     }
   },
   {
@@ -49107,7 +49110,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains an invalid index",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11564
+      "cdmw/services/mesh_rust_authoring.py": 11575
     }
   },
   {
@@ -49115,7 +49118,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} contains non-finite values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11547
+      "cdmw/services/mesh_rust_authoring.py": 11558
     }
   },
   {
@@ -49123,7 +49126,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not integral",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11562
+      "cdmw/services/mesh_rust_authoring.py": 11573
     }
   },
   {
@@ -49131,7 +49134,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} is not numeric",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11545
+      "cdmw/services/mesh_rust_authoring.py": 11556
     }
   },
   {
@@ -49139,7 +49142,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} must be an array",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11535
+      "cdmw/services/mesh_rust_authoring.py": 11546
     }
   },
   {
@@ -49147,7 +49150,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh candidate {label} rows must contain {width} values",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11539
+      "cdmw/services/mesh_rust_authoring.py": 11550
     }
   },
   {
@@ -49163,7 +49166,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel exceeds finite f32 range",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11527
+      "cdmw/services/mesh_rust_authoring.py": 11538
     }
   },
   {
@@ -49171,7 +49174,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh channel row width changed",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11514
+      "cdmw/services/mesh_rust_authoring.py": 11525
     }
   },
   {
@@ -49195,7 +49198,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh command would exceed the 512 MiB state payload limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8559
+      "cdmw/services/mesh_rust_authoring.py": 8569
     }
   },
   {
@@ -49203,7 +49206,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh command would exceed the 768 MiB aggregate limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8572
+      "cdmw/services/mesh_rust_authoring.py": 8582
     }
   },
   {
@@ -49211,7 +49214,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh control payload exceeds the 16 MiB state limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9686
+      "cdmw/services/mesh_rust_authoring.py": 9696
     }
   },
   {
@@ -49460,7 +49463,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh loading was cancelled before the scene changed",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9963
+      "cdmw/services/mesh_rust_authoring.py": 9973
     }
   },
   {
@@ -49516,7 +49519,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh mod output already exists: {root}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1030
+      "cdmw/workers/mesh_editor_workers.py": 1033
     }
   },
   {
@@ -49950,7 +49953,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is invalid",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9382
+      "cdmw/services/mesh_rust_authoring.py": 9392
     }
   },
   {
@@ -49958,7 +49961,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh process generation is stale",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9384
+      "cdmw/services/mesh_rust_authoring.py": 9394
     }
   },
   {
@@ -49966,7 +49969,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh protocol version does not match",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9376
+      "cdmw/services/mesh_rust_authoring.py": 9386
     }
   },
   {
@@ -49974,7 +49977,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body received an invalid archive context",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10728
+      "cdmw/services/mesh_rust_authoring.py": 10739
     }
   },
   {
@@ -49982,7 +49985,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh refit_fit_to_body reference_body and body_weights must be boolean",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10724
+      "cdmw/services/mesh_rust_authoring.py": 10735
     }
   },
   {
@@ -49990,7 +49993,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh request is stale: expected shadow revision {current}, received {expected}.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9393
+      "cdmw/services/mesh_rust_authoring.py": 9403
     }
   },
   {
@@ -50046,7 +50049,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh session id does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9378
+      "cdmw/services/mesh_rust_authoring.py": 9388
     }
   },
   {
@@ -50054,7 +50057,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh session preparation was cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8100
+      "cdmw/services/mesh_rust_authoring.py": 8106
     }
   },
   {
@@ -50206,7 +50209,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology command received unsupported params: {detail}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8753
+      "cdmw/services/mesh_rust_authoring.py": 8763
     }
   },
   {
@@ -50214,7 +50217,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label exceeds the 128-character limit",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8786
+      "cdmw/services/mesh_rust_authoring.py": 8796
     }
   },
   {
@@ -50222,7 +50225,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology label must be text",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8783
+      "cdmw/services/mesh_rust_authoring.py": 8793
     }
   },
   {
@@ -50230,7 +50233,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh topology params must be an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8749
+      "cdmw/services/mesh_rust_authoring.py": 8759
     }
   },
   {
@@ -50238,7 +50241,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction omitted its candidate reference",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9823
+      "cdmw/services/mesh_rust_authoring.py": 9833
     }
   },
   {
@@ -50246,7 +50249,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh transaction selection contains invalid mesh elements",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9901
+      "cdmw/services/mesh_rust_authoring.py": 9911
     }
   },
   {
@@ -50278,7 +50281,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh-only outputs cannot contain texture or material authoring changes",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 689
+      "cdmw/workers/mesh_editor_workers.py": 692
     }
   },
   {
@@ -50342,7 +50345,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing DDS",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1390
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1139
     }
   },
   {
@@ -50374,7 +50377,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing hair material",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 899
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 911
     }
   },
   {
@@ -50406,7 +50409,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing or oversized hair dependency: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 558
+      "cdmw/services/mesh_hair_output.py": 649
     }
   },
   {
@@ -50414,7 +50417,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing required hair texture: {path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 248
+      "cdmw/services/mesh_hair_output.py": 282
     }
   },
   {
@@ -50438,7 +50441,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing template archive metadata for {item.path}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 648
+      "cdmw/services/mesh_hair_output.py": 816
     }
   },
   {
@@ -50958,7 +50961,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile changes cannot be published because CDMW settings are unavailable.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11140
+      "cdmw/services/mesh_rust_authoring.py": 11151
     }
   },
   {
@@ -50990,7 +50993,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback did not restore the prior shadow profile tree.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10524
+      "cdmw/services/mesh_rust_authoring.py": 10535
     }
   },
   {
@@ -50998,7 +51001,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and rollback validation failed.",
     "recovery": "recovery",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10520
+      "cdmw/services/mesh_rust_authoring.py": 10531
     }
   },
   {
@@ -51006,7 +51009,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile limits were exceeded and the shadow transaction could not be rolled back safely.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10495
+      "cdmw/services/mesh_rust_authoring.py": 10506
     }
   },
   {
@@ -51070,7 +51073,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profile staging cleanup is pending: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11093
+      "cdmw/services/mesh_rust_authoring.py": 11104
     }
   },
   {
@@ -51142,7 +51145,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed outside an acknowledged CDMW command.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9409
+      "cdmw/services/mesh_rust_authoring.py": 9419
     }
   },
   {
@@ -51158,7 +51161,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph profiles changed while the command result was being finalized.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10530
+      "cdmw/services/mesh_rust_authoring.py": 10541
     }
   },
   {
@@ -51182,7 +51185,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph runtime cleanup is pending: {type(exc).__name__}: {exc}; defer failed: {type(defer_exc).__name__}: {defer_exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11082
+      "cdmw/services/mesh_rust_authoring.py": 11093
     }
   },
   {
@@ -51630,7 +51633,7 @@ MESSAGE_REFERENCE = [
     "message": "No authored hair section is included in the hairstyle.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 215
+      "cdmw/services/mesh_hair_output.py": 249
     }
   },
   {
@@ -51855,7 +51858,7 @@ MESSAGE_REFERENCE = [
     "message": "None of {profile.name}'s {listed} barber hairstyles can be opened in Hair Tools. Choose another character.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 198
+      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 203
     }
   },
   {
@@ -52263,7 +52266,7 @@ MESSAGE_REFERENCE = [
     "message": "Only the body is left to write. Turn on Include the body to build it.",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 812
+      "cdmw/workers/mesh_editor_workers.py": 815
     }
   },
   {
@@ -52297,7 +52300,7 @@ MESSAGE_REFERENCE = [
     "message": "Open one piece separately before importing a replacement",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10359
+      "cdmw/services/mesh_rust_authoring.py": 10370
     }
   },
   {
@@ -52305,7 +52308,7 @@ MESSAGE_REFERENCE = [
     "message": "Open one piece separately before loading a Refit source",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10358
+      "cdmw/services/mesh_rust_authoring.py": 10369
     }
   },
   {
@@ -54374,7 +54377,7 @@ MESSAGE_REFERENCE = [
     "message": "Preparing hair sections",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 953
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 981
     }
   },
   {
@@ -55803,7 +55806,7 @@ MESSAGE_REFERENCE = [
     "message": "Refit diagnostics could not identify the current Morph state.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10333
+      "cdmw/services/mesh_rust_authoring.py": 10343
     }
   },
   {
@@ -56044,7 +56047,7 @@ MESSAGE_REFERENCE = [
     "message": "Reload the hairstyle to recover its original color textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 468
+      "cdmw/services/mesh_rust_hair.py": 474
     }
   },
   {
@@ -56052,7 +56055,7 @@ MESSAGE_REFERENCE = [
     "message": "Reload the hairstyle with all its required material textures before recoloring.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 462
+      "cdmw/services/mesh_rust_hair.py": 468
     }
   },
   {
@@ -56108,7 +56111,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has an invalid or duplicate package path",
     "recovery": "conflict",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 1058
+      "cdmw/workers/mesh_editor_workers.py": 1061
     }
   },
   {
@@ -56116,7 +56119,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement companion has no captured baseline: {file.path}",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 747
+      "cdmw/workers/mesh_editor_workers.py": 750
     }
   },
   {
@@ -56172,7 +56175,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement output target no longer matches the captured archive identity.",
     "recovery": "internal",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 731
+      "cdmw/workers/mesh_editor_workers.py": 734
     }
   },
   {
@@ -56244,7 +56247,7 @@ MESSAGE_REFERENCE = [
     "message": "Required hair textures are missing. Reload the hairstyle with its material dependencies.",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 972
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1000
     }
   },
   {
@@ -56252,7 +56255,7 @@ MESSAGE_REFERENCE = [
     "message": "Required textured Hair material and game physics profile are unavailable.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 358
+      "cdmw/services/mesh_hair_output.py": 406
     }
   },
   {
@@ -56260,7 +56263,7 @@ MESSAGE_REFERENCE = [
     "message": "Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1337
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 1119
     }
   },
   {
@@ -57020,7 +57023,7 @@ MESSAGE_REFERENCE = [
     "message": "Restore editable guides through Undo.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 801
+      "cdmw/services/mesh_rust_hair.py": 816
     }
   },
   {
@@ -57148,7 +57151,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit before changing replacement geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9808
+      "cdmw/services/mesh_rust_authoring.py": 9818
     }
   },
   {
@@ -57156,7 +57159,7 @@ MESSAGE_REFERENCE = [
     "message": "Return to Edit comparison before changing the mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10344
+      "cdmw/services/mesh_rust_authoring.py": 10355
     }
   },
   {
@@ -57340,7 +57343,7 @@ MESSAGE_REFERENCE = [
     "message": "Save fitting setups outside the internal profile and edit-session folders",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10644
+      "cdmw/services/mesh_rust_authoring.py": 10655
     }
   },
   {
@@ -57356,7 +57359,7 @@ MESSAGE_REFERENCE = [
     "message": "Save or cancel the outfit correction before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10553
+      "cdmw/services/mesh_rust_authoring.py": 10564
     }
   },
   {
@@ -57372,7 +57375,7 @@ MESSAGE_REFERENCE = [
     "message": "Save the sculpted slider or discard its captured base before changing Morph & Refit or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10558
+      "cdmw/services/mesh_rust_authoring.py": 10569
     }
   },
   {
@@ -57588,7 +57591,7 @@ MESSAGE_REFERENCE = [
     "message": "Select generated hair locks before changing their strand card UV.",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 850
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 878
     }
   },
   {
@@ -57596,7 +57599,7 @@ MESSAGE_REFERENCE = [
     "message": "Select hair locks before changing thickness or density",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 892
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 920
     }
   },
   {
@@ -57604,7 +57607,7 @@ MESSAGE_REFERENCE = [
     "message": "Select hair locks before deleting them",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 871
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 899
     }
   },
   {
@@ -57612,7 +57615,7 @@ MESSAGE_REFERENCE = [
     "message": "Select hair sections, then click their shared scalp root",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1165
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 1177
     }
   },
   {
@@ -57645,7 +57648,7 @@ MESSAGE_REFERENCE = [
     "recovery": "input",
     "sources": {
       "cdmw/services/mesh_item_set_weights.py": 109,
-      "cdmw/services/mesh_rust_authoring.py": 8845
+      "cdmw/services/mesh_rust_authoring.py": 8855
     }
   },
   {
@@ -57653,7 +57656,7 @@ MESSAGE_REFERENCE = [
     "message": "Select the scalp sections to attach rigidly",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 878
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 906
     }
   },
   {
@@ -58013,7 +58016,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit produced a row outside the exact PAC contract; the edit was rolled back.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8986
+      "cdmw/services/mesh_rust_authoring.py": 8996
     }
   },
   {
@@ -58021,7 +58024,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would exceed the exact PAC contract: cloth vertices support only four skeletal influences. Remove an existing influence before adding another.",
     "recovery": "limits",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8900
+      "cdmw/services/mesh_rust_authoring.py": 8910
     }
   },
   {
@@ -58029,7 +58032,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight edit would leave a vertex without any bones, outside the exact PAC contract. Keep at least one influence.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8881
+      "cdmw/services/mesh_rust_authoring.py": 8891
     }
   },
   {
@@ -58037,7 +58040,7 @@ MESSAGE_REFERENCE = [
     "message": "Skin-weight editing is unavailable for selected part(s): {detail}. The parts must retain the exact 40-byte PAC LOD 0 skin layout.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8852
+      "cdmw/services/mesh_rust_authoring.py": 8862
     }
   },
   {
@@ -58366,7 +58369,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot change topology",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9753
+      "cdmw/services/mesh_rust_authoring.py": 9763
     }
   },
   {
@@ -58374,7 +58377,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate cannot create missing attribute channels",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9775
+      "cdmw/services/mesh_rust_authoring.py": 9785
     }
   },
   {
@@ -58382,7 +58385,7 @@ MESSAGE_REFERENCE = [
     "message": "Sparse mesh candidate vertex count does not match positions",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9755
+      "cdmw/services/mesh_rust_authoring.py": 9765
     }
   },
   {
@@ -58478,7 +58481,7 @@ MESSAGE_REFERENCE = [
     "message": "Stale hair acknowledgement",
     "recovery": "stale",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 488
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 516
     }
   },
   {
@@ -58550,7 +58553,7 @@ MESSAGE_REFERENCE = [
     "message": "Start Hair Tools before importing a custom hair mesh.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 1040
+      "cdmw/services/mesh_rust_hair.py": 1074
     }
   },
   {
@@ -58558,7 +58561,7 @@ MESSAGE_REFERENCE = [
     "message": "Start Hair authoring before changing its color.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 453
+      "cdmw/services/mesh_rust_hair.py": 459
     }
   },
   {
@@ -58566,7 +58569,7 @@ MESSAGE_REFERENCE = [
     "message": "Start Hair authoring before editing its textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 381
+      "cdmw/services/mesh_rust_hair.py": 382
     }
   },
   {
@@ -58574,7 +58577,7 @@ MESSAGE_REFERENCE = [
     "message": "Start hair authoring before submitting guides.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 758
+      "cdmw/services/mesh_rust_hair.py": 773
     }
   },
   {
@@ -58582,7 +58585,7 @@ MESSAGE_REFERENCE = [
     "message": "Start the stroke on the scalp",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 876
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 888
     }
   },
   {
@@ -58663,7 +58666,7 @@ MESSAGE_REFERENCE = [
     "message": "Strand card UV strips apply only to generated hair locks.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 855
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 883
     }
   },
   {
@@ -59018,7 +59021,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW Morph & Refit state changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11208
+      "cdmw/services/mesh_rust_authoring.py": 11219
     }
   },
   {
@@ -59026,7 +59029,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW geometry layers changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11200
+      "cdmw/services/mesh_rust_authoring.py": 11211
     }
   },
   {
@@ -59034,7 +59037,7 @@ MESSAGE_REFERENCE = [
     "message": "The CDMW mesh changed while Edit Mesh was open; Finish was rejected.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11278
+      "cdmw/services/mesh_rust_authoring.py": 11289
     }
   },
   {
@@ -59042,7 +59045,7 @@ MESSAGE_REFERENCE = [
     "message": "The DDS has no resolved preview binding. Reload the hair with its complete material dependencies.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 431
+      "cdmw/services/mesh_rust_hair.py": 437
     }
   },
   {
@@ -59268,7 +59271,7 @@ MESSAGE_REFERENCE = [
     "message": "The barber registration exceeds its supported size.",
     "recovery": "limits",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 181
+      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 183
     }
   },
   {
@@ -59529,18 +59532,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "The donor barber icon DDS format could not be inspected.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/services/mesh_hair_output.py": 263
-    }
-  },
-  {
-    "area": "mesh",
     "message": "The donor game Hair physics profile is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 587
+      "cdmw/services/mesh_hair_output.py": 755
     }
   },
   {
@@ -59548,7 +59543,7 @@ MESSAGE_REFERENCE = [
     "message": "The donor hair prefab registration is missing.",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 569
+      "cdmw/services/mesh_hair_output.py": 672
     }
   },
   {
@@ -59556,7 +59551,7 @@ MESSAGE_REFERENCE = [
     "message": "The donor must be a current barber choice for this character.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 331
+      "cdmw/services/mesh_hair_output.py": 379
     }
   },
   {
@@ -59609,6 +59604,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "The encoded DDS does not match the original layout.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 359
+    }
+  },
+  {
+    "area": "mesh",
     "message": "The exact profile source is unavailable.",
     "recovery": "missing",
     "sources": {
@@ -59636,7 +59639,7 @@ MESSAGE_REFERENCE = [
     "message": "The game mount catalogue contains an unsafe directory.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 539,
+      "cdmw/services/mesh_hair_output.py": 624,
       "cdmw/services/mesh_layer_visibility.py": 204
     }
   },
@@ -59645,7 +59648,7 @@ MESSAGE_REFERENCE = [
     "message": "The game registries changed while building hair.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 702
+      "cdmw/services/mesh_hair_output.py": 870
     }
   },
   {
@@ -59653,7 +59656,7 @@ MESSAGE_REFERENCE = [
     "message": "The hair archive contains an incomplete or duplicate bundle.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 668
+      "cdmw/services/mesh_hair_output.py": 836
     }
   },
   {
@@ -59693,7 +59696,7 @@ MESSAGE_REFERENCE = [
     "message": "The head reference has no usable scalp surface.",
     "recovery": "empty",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 523
+      "cdmw/services/mesh_rust_hair.py": 538
     }
   },
   {
@@ -59717,7 +59720,7 @@ MESSAGE_REFERENCE = [
     "message": "The included item set files have no changes to write",
     "recovery": "write",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 811
+      "cdmw/workers/mesh_editor_workers.py": 814
     }
   },
   {
@@ -59726,14 +59729,6 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/dmm_character_models.py": 83
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "The loaded hair is not a current barber choice for this character.",
-    "recovery": "input",
-    "sources": {
-      "cdmw/services/mesh_hair_output.py": 566
     }
   },
   {
@@ -59862,7 +59857,7 @@ MESSAGE_REFERENCE = [
     "message": "The mounted donor changed since this hair draft was created.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 337
+      "cdmw/services/mesh_hair_output.py": 385
     }
   },
   {
@@ -59883,14 +59878,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "The native DDS decoder could not read the custom barber icon DDS.",
-    "recovery": "format",
-    "sources": {
-      "cdmw/services/mesh_hair_output.py": 285
-    }
-  },
-  {
-    "area": "mesh",
     "message": "The native DDS decoder could not read the hair color texture.",
     "recovery": "format",
     "sources": {
@@ -59899,10 +59886,18 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "The native DDS encoder could not encode the custom barber icon.",
+    "message": "The native DDS decoder could not read this DDS file.",
+    "recovery": "format",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 333
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The native DDS encoder could not encode this image.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 300
+      "cdmw/services/mesh_hair_output.py": 348
     }
   },
   {
@@ -59927,6 +59922,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_service.py": 1698
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The original DDS format could not be inspected.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 311
     }
   },
   {
@@ -60022,7 +60025,7 @@ MESSAGE_REFERENCE = [
     "message": "The required hair DDS was not captured from the archive.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 390
+      "cdmw/services/mesh_rust_hair.py": 391
     }
   },
   {
@@ -60030,7 +60033,7 @@ MESSAGE_REFERENCE = [
     "message": "The required hair material was not captured; reopen with its archive dependencies.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 242
+      "cdmw/services/mesh_hair_output.py": 276
     }
   },
   {
@@ -60118,7 +60121,7 @@ MESSAGE_REFERENCE = [
     "message": "The sculpted slider contains unsupported metadata.",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10610
+      "cdmw/services/mesh_rust_authoring.py": 10621
     }
   },
   {
@@ -60134,7 +60137,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected body does not overlap the head's neck and shoulder area.",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 571
+      "cdmw/services/mesh_rust_hair.py": 586
     }
   },
   {
@@ -60158,7 +60161,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected hairstyle does not belong to this character's hair family.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 490
+      "cdmw/services/mesh_rust_hair.py": 505
     }
   },
   {
@@ -60174,7 +60177,7 @@ MESSAGE_REFERENCE = [
     "message": "The selected skeleton bone is not present in the PAC bone palette.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8862
+      "cdmw/services/mesh_rust_authoring.py": 8872
     }
   },
   {
@@ -60350,7 +60353,7 @@ MESSAGE_REFERENCE = [
     "message": "The texture registry does not round-trip exactly.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 350
+      "cdmw/services/mesh_hair_output.py": 398
     }
   },
   {
@@ -60616,7 +60619,7 @@ MESSAGE_REFERENCE = [
     "message": "This donor has additional PAC LODs requiring a verified hair LOD writer.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_hair_output.py": 347,
+      "cdmw/services/mesh_hair_output.py": 395,
       "cdmw/services/mesh_rust_hair.py": 35
     }
   },
@@ -60720,6 +60723,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "This hair would need {} vertices in one material part, and a PAC part holds at most {MAX_PART_VERTICES}. Remove some locks or lower Cards.",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 913
+    }
+  },
+  {
+    "area": "mesh",
     "message": "This hairstyle has incomplete or ambiguous dependencies.",
     "recovery": "format",
     "sources": {
@@ -60731,7 +60742,23 @@ MESSAGE_REFERENCE = [
     "message": "This hairstyle has no declared base-color slot. Edit its DDS explicitly in Texture Editor.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_hair.py": 458
+      "cdmw/services/mesh_rust_hair.py": 464
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This hairstyle has no hair physics file ({physics_path}), which a new barber hairstyle copies.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 679
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "This hairstyle is not in the game's own barber list for {profile.name}; it may come from another mod. Add New Barber Hairstyle copies one of the game's hairstyle slots. Use Replace Existing Hairstyle to edit this one, or start from one of the game's hairstyles.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/services/mesh_hair_output.py": 665
     }
   },
   {
@@ -61155,7 +61182,7 @@ MESSAGE_REFERENCE = [
     "message": "Turn outfit corrections back on before editing or finishing.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10540,
+      "cdmw/services/mesh_rust_authoring.py": 10551,
       "cdmw/services/mesh_service_morph_authoring.py": 295
     }
   },
@@ -61236,7 +61263,7 @@ MESSAGE_REFERENCE = [
     "message": "Undo replacement operations before adding geometry layers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10348
+      "cdmw/services/mesh_rust_authoring.py": 10359
     }
   },
   {
@@ -61519,7 +61546,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh Editor output kind: {self.kind}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 887
+      "cdmw/workers/mesh_editor_workers.py": 890
     }
   },
   {
@@ -61535,7 +61562,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh authoring action: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8698
+      "cdmw/services/mesh_rust_authoring.py": 8708
     }
   },
   {
@@ -61543,7 +61570,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh command: {command or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10280
+      "cdmw/services/mesh_rust_authoring.py": 10290
     }
   },
   {
@@ -61551,7 +61578,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh morph command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10743
+      "cdmw/services/mesh_rust_authoring.py": 10754
     }
   },
   {
@@ -61567,7 +61594,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported Mesh topology command: {action or '(empty)'}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 8744
+      "cdmw/services/mesh_rust_authoring.py": 8754
     }
   },
   {
@@ -61920,7 +61947,7 @@ MESSAGE_REFERENCE = [
     "message": "Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 9852
+      "cdmw/services/mesh_rust_authoring.py": 9862
     }
   },
   {
@@ -62064,7 +62091,7 @@ MESSAGE_REFERENCE = [
     "message": "Vertex inspection requires arguments.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 10294
+      "cdmw/services/mesh_rust_authoring.py": 10304
     }
   },
   {
@@ -63528,7 +63555,7 @@ MESSAGE_REFERENCE = [
     "message": "density must be 1 through 32 cards per guide",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 322
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 330
     }
   },
   {
@@ -64502,7 +64529,7 @@ MESSAGE_REFERENCE = [
     "message": "generated hair exceeds the vertex budget",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 878
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 931
     }
   },
   {
@@ -64558,7 +64585,7 @@ MESSAGE_REFERENCE = [
     "message": "guide limit exceeded",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 450
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 458
     }
   },
   {
@@ -64566,7 +64593,7 @@ MESSAGE_REFERENCE = [
     "message": "guide point count must be 2 through 64",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 338
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 346
     }
   },
   {
@@ -64574,7 +64601,7 @@ MESSAGE_REFERENCE = [
     "message": "guide refers to a missing group",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 334
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 342
     }
   },
   {
@@ -64590,7 +64617,7 @@ MESSAGE_REFERENCE = [
     "message": "hair resource limit exceeded",
     "recovery": "limits",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 299
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 307
     }
   },
   {
@@ -65594,7 +65621,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid card width",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 318
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 326
     }
   },
   {
@@ -65602,7 +65629,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid collision capsule",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 394
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 402
     }
   },
   {
@@ -65642,7 +65669,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid existing hair geometry",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 747
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 755
     }
   },
   {
@@ -65650,7 +65677,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid frame time",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1202
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1276
     }
   },
   {
@@ -65658,7 +65685,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid grooming stroke",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 612
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 620
     }
   },
   {
@@ -65666,7 +65693,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid guide length",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 446
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 454
     }
   },
   {
@@ -65858,7 +65885,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid preview movement test",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1205
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1279
     }
   },
   {
@@ -65866,7 +65893,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid preview time",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1175
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1249
     }
   },
   {
@@ -65890,7 +65917,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid root barycentric coordinates",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 86
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 94
     }
   },
   {
@@ -65914,7 +65941,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid simulation frame time",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1400
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1474
     }
   },
   {
@@ -65922,7 +65949,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid simulation settings",
     "recovery": "configuration",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1164
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1238
     }
   },
   {
@@ -65946,7 +65973,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid texture atlas region",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 328
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 336
     }
   },
   {
@@ -65954,7 +65981,7 @@ MESSAGE_REFERENCE = [
     "message": "invalid vertex binding",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 377
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 385
     }
   },
   {
@@ -67241,7 +67268,7 @@ MESSAGE_REFERENCE = [
     "message": "missing simulated guide",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1022
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1096
     }
   },
   {
@@ -67249,7 +67276,7 @@ MESSAGE_REFERENCE = [
     "message": "missing simulated segment",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1025
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 1099
     }
   },
   {
@@ -67974,7 +68001,7 @@ MESSAGE_REFERENCE = [
     "message": "mouse sample density changed smoothing by {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 108
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_input.rs": 120
     }
   },
   {
@@ -70401,7 +70428,7 @@ MESSAGE_REFERENCE = [
     "message": "reference geometry cannot be hairstyle output",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 314
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 322
     }
   },
   {
@@ -70409,7 +70436,7 @@ MESSAGE_REFERENCE = [
     "message": "reference identity is missing",
     "recovery": "integrity",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 53
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 61
     }
   },
   {
@@ -70417,7 +70444,7 @@ MESSAGE_REFERENCE = [
     "message": "reference triangle count is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 61
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 69
     }
   },
   {
@@ -70425,7 +70452,7 @@ MESSAGE_REFERENCE = [
     "message": "reference vertex count is unsupported",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 57
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 65
     }
   },
   {
@@ -71311,7 +71338,7 @@ MESSAGE_REFERENCE = [
     "message": "shadow-session cleanup is pending: {type(exc).__name__}: {exc}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_authoring.py": 11104
+      "cdmw/services/mesh_rust_authoring.py": 11115
     }
   },
   {
@@ -72431,7 +72458,7 @@ MESSAGE_REFERENCE = [
     "message": "unsupported hair state version",
     "recovery": "unsupported",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 286
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 294
     }
   },
   {
@@ -72593,7 +72620,7 @@ MESSAGE_REFERENCE = [
     "message": "vertex has a missing guide",
     "recovery": "missing",
     "sources": {
-      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 364
+      "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": 372
     }
   },
   {
@@ -72786,7 +72813,7 @@ MESSAGE_REFERENCE = [
     "message": "{colour_entry.path} is already part of this mod; its colours cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 763
+      "cdmw/workers/mesh_editor_workers.py": 766
     }
   },
   {
@@ -72834,7 +72861,7 @@ MESSAGE_REFERENCE = [
     "message": "{entry.path} is already part of this mod; Layers underneath cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 918
+      "cdmw/workers/mesh_editor_workers.py": 921
     }
   },
   {
@@ -73372,7 +73399,7 @@ MESSAGE_REFERENCE = [
     "message": "{profile.name}'s barber list ({profile.mesh_param_path}) is not in the loaded archives. Refresh the archive catalogue, then use Retry loading choices.",
     "recovery": "internal",
     "sources": {
-      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 173
+      "cdmw/ui/mesh_editor/hair_setup_dialog.py": 175
     }
   },
   {
@@ -73500,7 +73527,7 @@ MESSAGE_REFERENCE = [
     "message": "{texture.entry.path} is already part of this mod; the edited texture cannot change it as well.",
     "recovery": "input",
     "sources": {
-      "cdmw/workers/mesh_editor_workers.py": 806
+      "cdmw/workers/mesh_editor_workers.py": 809
     }
   },
   {
@@ -73540,7 +73567,7 @@ MESSAGE_REFERENCE = [
     "message": "{} could not be saved: {error}",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 728
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": 756
     }
   },
   {
@@ -93980,7 +94007,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose a replacement model first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 305
+      "cdmw/services/mesh_rust_replacement.py": 306
     }
   },
   {
@@ -94037,7 +94064,7 @@ MESSAGE_REFERENCE = [
     "message": "Choose valid parts to include in the mod.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 466
+      "cdmw/services/mesh_replacement_import.py": 468
     }
   },
   {
@@ -94085,7 +94112,7 @@ MESSAGE_REFERENCE = [
     "message": "Collision volume edits are supported only for PAC meshes.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 419
+      "cdmw/services/mesh_replacement_output.py": 420
     }
   },
   {
@@ -94318,7 +94345,7 @@ MESSAGE_REFERENCE = [
     "message": "Duplicate replacement companion: {file.path}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 494
+      "cdmw/services/mesh_replacement_output.py": 495
     }
   },
   {
@@ -94871,7 +94898,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement before adjusting its placement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 476
+      "cdmw/services/mesh_replacement_import.py": 478
     }
   },
   {
@@ -94879,7 +94906,7 @@ MESSAGE_REFERENCE = [
     "message": "Import a replacement or change output inclusion before previewing output.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 269
+      "cdmw/services/mesh_rust_replacement.py": 270
     }
   },
   {
@@ -94887,7 +94914,7 @@ MESSAGE_REFERENCE = [
     "message": "Import topology changed; undo topology edits before resetting placement.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 501
+      "cdmw/services/mesh_replacement_import.py": 503
     }
   },
   {
@@ -95400,7 +95427,7 @@ MESSAGE_REFERENCE = [
     "message": "Invalid replacement companion: {file.path}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 492
+      "cdmw/services/mesh_replacement_output.py": 493
     }
   },
   {
@@ -96713,7 +96740,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material has no target mapping: {lod_part.material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 472
+      "cdmw/services/mesh_replacement_output.py": 473
     }
   },
   {
@@ -96721,7 +96748,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD material mapping is ambiguous: {material}",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 466
+      "cdmw/services/mesh_replacement_output.py": 467
     }
   },
   {
@@ -96729,7 +96756,7 @@ MESSAGE_REFERENCE = [
     "message": "Paired LOD writer changed the required section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 484
+      "cdmw/services/mesh_replacement_output.py": 485
     }
   },
   {
@@ -97107,7 +97134,7 @@ MESSAGE_REFERENCE = [
     "message": "Rebuilt replacement is invalid: {detail}",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 433
+      "cdmw/services/mesh_replacement_output.py": 434
     }
   },
   {
@@ -97291,7 +97318,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement is stale because the mesh changed. Import again.",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 445
+      "cdmw/services/mesh_replacement_import.py": 446
     }
   },
   {
@@ -97403,7 +97430,7 @@ MESSAGE_REFERENCE = [
     "message": "Replacement writer changed the required target section layout.",
     "recovery": "write",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 430
+      "cdmw/services/mesh_replacement_output.py": 431
     }
   },
   {
@@ -97411,7 +97438,7 @@ MESSAGE_REFERENCE = [
     "message": "Required companion {paired.path} could not be rebuilt: {exc}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 486
+      "cdmw/services/mesh_replacement_output.py": 487
     }
   },
   {
@@ -97475,7 +97502,7 @@ MESSAGE_REFERENCE = [
     "message": "Reversible island exclusion requires an original PAC mesh.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_output.py": 413
+      "cdmw/services/mesh_replacement_output.py": 414
     }
   },
   {
@@ -97541,7 +97568,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/mesh_replacement_draft.py": 213,
-      "cdmw/services/mesh_replacement_import.py": 505
+      "cdmw/services/mesh_replacement_import.py": 507
     }
   },
   {
@@ -97558,7 +97585,7 @@ MESSAGE_REFERENCE = [
     "message": "Select at least one target part before importing a replacement.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 294
+      "cdmw/services/mesh_rust_replacement.py": 295
     }
   },
   {
@@ -98200,7 +98227,7 @@ MESSAGE_REFERENCE = [
     "message": "The mesh changed after import preparation. Import again before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 309
+      "cdmw/services/mesh_rust_replacement.py": 310
     }
   },
   {
@@ -98256,7 +98283,7 @@ MESSAGE_REFERENCE = [
     "message": "The original mesh bounds cannot provide a usable uniform fit.",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 496
+      "cdmw/services/mesh_replacement_import.py": 498
     }
   },
   {
@@ -98464,7 +98491,7 @@ MESSAGE_REFERENCE = [
     "message": "This older replacement draft has no saved import normals. Import the model again before using Reset Placement or Fit to Original.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_replacement_import.py": 503
+      "cdmw/services/mesh_replacement_import.py": 505
     }
   },
   {
@@ -98480,7 +98507,7 @@ MESSAGE_REFERENCE = [
     "message": "This replacement mapping belongs to an older import. Review the current import before applying.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 307
+      "cdmw/services/mesh_rust_replacement.py": 308
     }
   },
   {
@@ -98704,7 +98731,7 @@ MESSAGE_REFERENCE = [
     "message": "Unknown replacement comparison mode.",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 265
+      "cdmw/services/mesh_rust_replacement.py": 266
     }
   },
   {
@@ -98744,7 +98771,7 @@ MESSAGE_REFERENCE = [
     "message": "Unsupported replacement command: {command}",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_replacement.py": 377
+      "cdmw/services/mesh_rust_replacement.py": 386
     }
   },
   {
@@ -110026,7 +110053,7 @@ SOURCE_COVERAGE = {
     "raise": 7
   },
   "cdmw/services/mesh_hair_output.py": {
-    "raise": 46
+    "raise": 48
   },
   "cdmw/services/mesh_history_journal.py": {
     "raise": 9
@@ -110154,7 +110181,7 @@ SOURCE_COVERAGE = {
     "raise": 36
   },
   "cdmw/services/mesh_rust_hair.py": {
-    "raise": 69
+    "raise": 68
   },
   "cdmw/services/mesh_rust_jiggle.py": {
     "raise": 28
@@ -113904,7 +113931,7 @@ SOURCE_COVERAGE = {
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair.rs": {
     "native_handoff": 19,
-    "native_message": 16
+    "native_message": 17
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_hair_geometry.rs": {
     "native_handoff": 3,
@@ -114114,9 +114141,9 @@ SOURCE_COVERAGE = {
     "native_message": 21
   },
   "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair.rs": {
-    "native_handoff": 4,
-    "native_kind": 2,
-    "native_message": 29
+    "native_handoff": 5,
+    "native_kind": 3,
+    "native_message": 30
   },
   "tools/rust_mesh_lab/crates/cdmw_mesh/src/hair_locks.rs": {
     "native_handoff": 1,

@@ -252,6 +252,7 @@ def hair_ui_state(authoring):
                     uv_presets[str(part_index)] = presets
         result["uv_presets"] = uv_presets
         result["revision"] = state.revision
+        result["additive_problem"] = authoring.hair_additive_problem or ""
         cached = authoring.hair_file_cache
         if cached is None or cached[0] != state.canonical:
             reference = _atomic_write_payload(
@@ -391,10 +392,15 @@ def hair_texture_command(authoring, args, stop_event, *, export=False):
     if export:
         data = before.data
     else:
+        from cdmw.services.mesh_hair_output import encode_dds_like
         source = Path(str(args.get("_dds_path", "")))
-        if not source.is_file() or not 128 <= source.stat().st_size <= 128 * 1024 * 1024:
-            raise ValueError("Choose a complete DDS file smaller than 128 MiB.")
+        if not source.is_file() or not 1 <= source.stat().st_size <= 128 * 1024 * 1024:
+            raise ValueError("Choose an existing image or DDS file smaller than 128 MiB.")
         data = source.read_bytes()
+        if source.suffix.lower() != ".dds" or data[:4] != b"DDS " or dds_shape(data) != dds_shape(before.data):
+            # An image, or a DDS of another size or format, is re-encoded to the
+            # template's layout, as the barber icon is.
+            data = encode_dds_like(source, before.data, stop_event=stop_event)
     inspect_dds_native(data)
     if dds_shape(data) != dds_shape(before.data):
         raise ValueError("Keep the template DDS dimensions, format and mip count when editing hair textures.")
@@ -473,8 +479,17 @@ def hair_color_command(authoring, args, stop_event):
 
 def setup_hair(authoring, args, stop_event):
     """The archive loader has prepared the explicit reference on this worker."""
-    return prepare_hair_setup(authoring.shadow_service, authoring.shadow_session_id, args, stop_event,
-                             neutral_appearance=authoring.neutral_appearance)
+    result = prepare_hair_setup(authoring.shadow_service, authoring.shadow_session_id, args, stop_event,
+                                neutral_appearance=authoring.neutral_appearance)
+    # Check the donor once, as Add New Barber Hairstyle will, before any grooming.
+    entry = args.get("_target_entry")
+    session = authoring.shadow_service._session(authoring.shadow_session_id)
+    if entry is not None and session.hair_state is not None and authoring.hair_additive_problem is None:
+        from cdmw.services.mesh_hair_output import additive_donor_problem
+        template = session.hair_state.payload["template"]
+        authoring.hair_additive_problem = additive_donor_problem(entry, template["path"], template["character"],
+                                                                 stop_event)
+    return result
 
 
 def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appearance=None, neutral_coordinates=True):
@@ -1029,8 +1044,27 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     )
 
 
+def converted_hair_state(payload):
+    """The hair state after Import custom hair mesh: no guides, kept template and references."""
+    return hair_state_from_payload({
+        **payload,
+        "revision": payload["revision"] + 1,
+        "converted": True,
+        "guides": [],
+        "bindings": [],
+        "locks": [],
+        "prepared_parts": [],
+        "vertex_sources": {},
+    }, allow_unbound=True)
+
+
 def hair_import_custom_command(authoring, args, stop_event):
-    """Convert active hair authoring into a custom mesh replacement import flow."""
+    """Read a custom hair mesh and open the replacement mapping for it.
+
+    Nothing is committed here. Applying the mapping converts the hair in the
+    same history step (see ``run_replacement_command``), so cancelling the file
+    picker or the mapping dialog leaves Hair Tools exactly as it was.
+    """
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.mesh_rust_replacement import run_replacement_command
     raise_if_cancelled(stop_event, "Hair import cancelled")
@@ -1038,40 +1072,14 @@ def hair_import_custom_command(authoring, args, stop_event):
     snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     if snapshot.hair_state is None or snapshot.replacement_state is None:
         raise ValueError("Start Hair Tools before importing a custom hair mesh.")
+    authoring.pending_hair_import_token = ""
     if args.get("cancelled"):
         return {"status": "cancelled"}
     source_path = str(args.get("source_path") or "").strip()
     if not source_path:
         raise ValueError("Choose a custom hair mesh file to import.")
-    converted_this_call = False
-    old = snapshot.hair_state.payload
-    if not old.get("converted"):
-        converted_payload = {
-            **old,
-            "revision": old["revision"] + 1,
-            "converted": True,
-            "guides": [],
-            "bindings": [],
-            "locks": [],
-            "prepared_parts": [],
-            "vertex_sources": {},
-        }
-        new_hair = hair_state_from_payload(converted_payload, allow_unbound=True)
-        candidate = mesh_with_part_ids(snapshot, snapshot.replacement_state)
-        prepared = service.prepare_working_mesh_replacement(
-            session_id, candidate, replacement_state=snapshot.replacement_state,
-            hair_state=new_hair, replace_hair_state=True,
-            validation_output_policy=REPLACEMENT_POLICY,
-        )
-        raise_if_cancelled(stop_event, "Hair import cancelled")
-        service.commit_prepared_working_mesh_replacement(
-            prepared, history_action="hair_convert_import", history_label="Import custom hair mesh",
-            output_policy=REPLACEMENT_POLICY, require_reversible_history=True,
-        )
-        converted_this_call = True
-    try:
-        return run_replacement_command(authoring, "replacement_choose", {**args, "scope": "all"}, stop_event)
-    except Exception:
-        if converted_this_call:
-            service.undo(session_id)
-        raise
+    result = run_replacement_command(authoring, "replacement_choose", {**args, "scope": "all"}, stop_event)
+    pending = authoring.pending_replacement
+    if pending is not None:
+        authoring.pending_hair_import_token = pending.token
+    return result

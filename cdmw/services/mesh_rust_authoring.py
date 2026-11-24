@@ -8019,6 +8019,12 @@ class RustMeshAuthoringSession:
     acknowledged_morph_profile_fingerprint: str = ""
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
+    # Token of a pending import that Import custom hair mesh started. Applying
+    # it converts the hair in the same history step; cancelling leaves it as is.
+    pending_hair_import_token: str = ""
+    # Why Add New Barber Hairstyle would refuse this session's donor ("" when it
+    # would not); None until Hair setup has checked it.
+    hair_additive_problem: str | None = None
     replacement_comparison: str = "edit"
     # What the last applied import did with its weights, shown under the parts.
     replacement_weight_notes: tuple[str, ...] = ()
@@ -8536,6 +8542,10 @@ class RustMeshAuthoringSession:
             int(reference["byte_length"]),
         )
         return reference
+
+    def _hair_import_pending(self) -> bool:
+        pending = self.pending_replacement
+        return bool(self.pending_hair_import_token) and pending is not None and pending.token == self.pending_hair_import_token
 
     def _preflight_mesh_document_capacity(
         self,
@@ -10338,7 +10348,8 @@ class RustMeshAuthoringSession:
         if (shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]
                 and (command in {"topology", "mesh_action", "import_editable_package", "layer_delete", "layer_paste"}
                      or command.startswith(("morph_", "refit_"))
-                     or command.startswith("replacement_") and command not in {"replacement_compare", "replacement_cancel", "replacement_include"})):
+                     or command.startswith("replacement_") and command not in {"replacement_compare", "replacement_cancel", "replacement_include"}
+                     and not (command == "replacement_apply" and self._hair_import_pending()))):
             raise RustMeshValidationError("Convert hair guides to ordinary geometry before using these mesh operations.")
         if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
             raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")

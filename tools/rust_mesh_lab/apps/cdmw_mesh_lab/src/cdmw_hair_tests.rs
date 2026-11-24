@@ -142,14 +142,17 @@ fn hair_presets_create_distinct_geometry_and_keep_references_outside_output() {
         )
         .unwrap();
         assert_eq!(result.state.guides.len(), 256);
+        // 256 guides x 16 points x 6 cards fit one PAC part at one card
+        // section per segment, leaving room for drawn locks.
         assert_eq!(
             result.document.lods[0].submeshes[0].positions.len(),
-            141_312
+            49_152
         );
+        assert!(49_152 < hair::MAX_PART_VERTICES);
         let scene = build_scene(&result.document, &result.state, true, None, 1);
         assert_eq!(
             scene.frame.positions.len(),
-            141_312 + state.scalp.positions.len()
+            49_152 + state.scalp.positions.len()
         );
         assert_eq!(result.document.lods[0].submeshes.len(), 1);
         assert!(!shapes.contains(&result.document.lods[0].submeshes[0].positions));
@@ -1210,7 +1213,9 @@ fn hair_long_draw_keeps_tip_at_pointer_and_balanced_segments() {
     await_hair(&mut app);
     let state = app.hair.state.as_ref().unwrap();
     let guide = &state.guides[0];
-    assert_eq!(guide.points.len(), hair::MAX_POINTS);
+    // A long stroke keeps detail, but fewer points than the old fixed 64 so
+    // drawn locks do not exhaust the PAC part's vertex budget.
+    assert!((32..hair::MAX_POINTS).contains(&guide.points.len()), "{}", guide.points.len());
     assert!(Vec3::from(guide.points[0]).distance(state.scalp.point(&guide.root).unwrap()) < 1e-6);
     let projected_tip = app
         .camera
@@ -3544,7 +3549,12 @@ fn hair_area_brush_cut_resolves_symmetry_before_shortening_locks() {
     let b = before.locks[1].id;
     before.locks[0].mirrored = Some(b);
     before.locks[1].mirrored = Some(a);
-    let cuts = vec![(a, 40, 0.5), (b, 30, 0.25)];
+    // Drawn locks carry 32-64 points depending on length; cut inside both.
+    let points = |id: u64| {
+        let lock = before.locks.iter().find(|l| l.id == id).unwrap();
+        before.guides[lock.guide.unwrap() as usize].points.len() as u32
+    };
+    let cuts = vec![(a, points(a) * 2 / 3, 0.5), (b, points(b) / 2, 0.25)];
     let after = prepare(
         before.clone(),
         app.hair.preview.clone().unwrap(),
@@ -4400,7 +4410,7 @@ fn hair_draw_subpixel_pointer_events_accumulate_into_a_continuous_stroke() {
     let end = start + Vec2::X * 80.0;
     app.render_hair();
     let stroke = app.hair.stroke.as_ref().unwrap();
-    assert_eq!(stroke.guides[0].points.len(), hair::MAX_POINTS);
+    assert!((32..=hair::MAX_POINTS).contains(&stroke.guides[0].points.len()));
     let tip = app
         .camera
         .project(Vec3::from(*stroke.guides[0].points.last().unwrap()), rect)
@@ -4650,7 +4660,7 @@ fn hair_draw_shape_controls_make_smooth_roots_and_exact_templates() {
             .iter()
             .map(|p| app.camera.project(Vec3::from(*p), rect).unwrap().screen)
             .collect();
-        assert_eq!(screen.len(), hair::MAX_POINTS);
+        assert!((32..=hair::MAX_POINTS).contains(&screen.len()), "{shape:?}");
         match shape {
             DrawShape::Straight | DrawShape::Freehand => {
                 assert!(screen.iter().all(|p| (p.y - start.y).abs() < 0.2));
@@ -4701,7 +4711,7 @@ fn hair_draw_shape_controls_make_smooth_roots_and_exact_templates() {
         );
         app.hair.state.as_ref().unwrap().validate().unwrap();
         let state = app.hair.state.as_ref().unwrap();
-        assert_eq!(state.guides[0].points.len(), hair::MAX_POINTS);
+        assert!((32..=hair::MAX_POINTS).contains(&state.guides[0].points.len()));
         assert!(state.bindings.iter().all(|b| b.smooth));
         assert!(
             state.bindings.iter().any(|b| b.t > 0.0 && b.t < 1.0),
@@ -5267,4 +5277,84 @@ fn hair_setup_starter_shape_fill_populates_generated_group_and_keeps_scalp_cap()
     let doc = app.document.as_ref().unwrap();
     assert!(!doc.lods[0].submeshes[0].positions.is_empty());
     assert_eq!(doc.lods[0].submeshes[1].positions.len(), 3);
+}
+
+#[test]
+fn hair_draw_point_count_follows_stroke_length_within_budget() {
+    let line = |length: f32| -> Vec<[f32; 3]> {
+        (0..=100).map(|i| [0.0, length * i as f32 / 100.0, 0.0]).collect()
+    };
+    // Short and medium locks no longer cost the full 64-point budget.
+    assert_eq!(input::draw_point_count(&line(0.05), 0.01), 32);
+    assert_eq!(input::draw_point_count(&line(0.3), 0.01), 32);
+    assert!((50..=53).contains(&input::draw_point_count(&line(0.5), 0.01)));
+    assert_eq!(input::draw_point_count(&line(2.0), 0.01), hair::MAX_POINTS);
+    // A 32-point lock with six cards at three sections per segment, the
+    // default Draw, leaves room for dozens of locks in one PAC part.
+    let cost = hair::lock_vertices(32, 6, 3);
+    assert_eq!(cost, 1_128);
+    assert!(hair::MAX_PART_VERTICES / cost >= 58);
+}
+
+#[test]
+fn converted_hair_keeps_bust_reference_and_appearance_controls() {
+    let (mut state, document) = fixture();
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(Arc::new(document));
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true,
+        "texture_slots":[{"role":"base_color","path":"a.dds"}],"textures":["a.dds"]},
+        "replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(state.clone()));
+    assert!(!app.cdmw_reference_pieces.iter().any(|p| p.index == HAIR_REFERENCE_PIECE));
+    state.converted = true;
+    state.revision += 1;
+    app.hydrate_hair(Some(state.clone()));
+    let piece = app
+        .cdmw_reference_pieces
+        .iter_mut()
+        .find(|p| p.index == HAIR_REFERENCE_PIECE)
+        .expect("converted hair shows the fitting bust");
+    assert!(piece.visible);
+    assert_eq!(piece.snapshot.positions.len(), state.scalp.positions.len());
+    // The viewer's choice survives the next host publication.
+    piece.visible = false;
+    state.revision += 1;
+    app.hydrate_hair(Some(state.clone()));
+    assert!(app.cdmw_reference_pieces.iter().any(|p| p.index == HAIR_REFERENCE_PIECE && !p.visible));
+    // Hair colour and DDS editing stay available after conversion.
+    let ctx = egui::Context::default();
+    let mut actions = vec![];
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 900.0))),
+            ..Default::default()
+        },
+        |ui| app.draw_hair_controls(ui, &mut actions),
+    );
+    output.textures_delta.clear();
+    assert!(actions.is_empty());
+    let labels: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(labels.iter().any(|l| l.contains("Converted to ordinary mesh")), "{labels:?}");
+    assert!(labels.iter().any(|l| l == "Appearance"), "{labels:?}");
+    // Undo back to editable hair removes the piece; the hair scene draws the bust.
+    state.converted = false;
+    state.revision += 1;
+    app.hydrate_hair(Some(state));
+    assert!(!app.cdmw_reference_pieces.iter().any(|p| p.index == HAIR_REFERENCE_PIECE));
+}
+
+#[test]
+fn hybrid_budget_counts_only_surviving_original_vertices() {
+    let (mut state, mut document) = fixture();
+    state.groups[0].mode = GroupMode::Existing;
+    document.lods[0].submeshes[0].source_vertex_indices = vec![0, 1, -1];
+    let reserved = geometry::reserved_original_vertices(&state, &document);
+    assert_eq!(reserved.get(&0), Some(&2));
 }

@@ -436,8 +436,8 @@ def test_helper_without_translation_parts_keeps_its_theme_and_names_the_line_lim
     tab = _tab(tmp_path)
     app = QApplication.instance()
     previous = app.property("_cdmw_ui_localizer")
-    # The full Russian and Japanese native catalogues no longer fit one line and
-    # need translation parts; Traditional Chinese still does.
+    # No full non-English native catalogue fits one line any more (Traditional
+    # Chinese, the smallest, passed it in 2026-11); the second half trims it.
     localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="zh-Hant")
     app.setProperty("_cdmw_ui_localizer", localizer)
     keys = _pad_native_catalog(localizer, minimum_bytes=400 * 1024)
@@ -453,9 +453,12 @@ def test_helper_without_translation_parts_keeps_its_theme_and_names_the_line_lim
         status = tab.standalone_status_label.text()
         assert "bytes; limit is" in status
         # A catalogue that fits one line still reaches an older helper.
-        assert tab._send_rust_theme_update() is True
-        assert [message["event"] for message in sent] == ["theme_update"]
-        assert sent[0]["payload"]["translations"] == _expected_native_translations(localizer)
+        from cdmw.ui.localization_catalogs_v2 import native_ui_source_keys
+        fitting = tuple(native_ui_source_keys())[:1500]
+        with patch("cdmw.ui.localization_catalogs_v2.native_ui_source_keys", return_value=fitting):
+            assert tab._send_rust_theme_update() is True
+            assert [message["event"] for message in sent] == ["theme_update"]
+            assert sent[0]["payload"]["translations"] == _expected_native_translations(localizer)
     finally:
         app.setProperty("_cdmw_ui_localizer", previous)
         localizer.shutdown()

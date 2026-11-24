@@ -37,6 +37,17 @@ fn resample_draw_points(points: &[[f32; 3]], count: usize, root_span: f32) -> Ve
     result
 }
 
+/// Guide points for a drawn lock: about one per card width, so short locks do
+/// not spend the PAC part's vertex budget like long ones. At least 32 points
+/// keep the eight root-transition samples and the crease filter's rows.
+pub(super) fn draw_point_count(points: &[[f32; 3]], width: f32) -> usize {
+    let length: f32 = points
+        .windows(2)
+        .map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1])))
+        .sum();
+    ((length / width.max(0.008)).ceil() as usize + 1).clamp(32, hair::MAX_POINTS)
+}
+
 fn smooth_draw_points(points: &[[f32; 3]], smoothing: f32, width: f32) -> Vec<[f32; 3]> {
     let length: f32 = points
         .windows(2)
@@ -47,7 +58,8 @@ fn smooth_draw_points(points: &[[f32; 3]], smoothing: f32, width: f32) -> Vec<[f
     // Symmetric spatial filtering keeps the tip under the pointer; a temporal
     // trailing filter would make drawing feel delayed and depend on frame rate.
     let points = hair::smooth_guide_points(&points, (width * smoothing).min(length * 0.1));
-    resample_draw_points(&points, hair::MAX_POINTS, width * 2.0)
+    let count = draw_point_count(&points, width);
+    resample_draw_points(&points, count, width * 2.0)
 }
 
 fn draw_shape_point(shape: DrawShape, start: Vec2, end: Vec2, t: f32, bend: f32) -> Vec2 {
@@ -1083,7 +1095,7 @@ impl LabApplication {
                     } else {
                         resample_draw_points(
                             &self.hair.drawing_samples,
-                            hair::MAX_POINTS,
+                            draw_point_count(&self.hair.drawing_samples, width),
                             width * 2.0,
                         )
                     };

@@ -677,6 +677,29 @@ def test_dds_edit_preserves_material_binding_and_undo(editor, tmp_path):
     assert service.capture_export_snapshot(sid).hair_state == before.hair_state
 
 
+@pytest.mark.parametrize("kind", ["png", "larger_dds"])
+def test_hair_texture_edit_reencodes_images_to_the_template_layout(editor, tmp_path, kind):
+    from cdmw.core.pathc_format import dds_shape
+    from cdmw.services.mesh_rust_hair import hair_texture_command
+    _, session = editor
+    service, sid = session.shadow_service, session.shadow_session_id
+    source = tmp_path / "before.dds"
+    source.write_bytes(dds())
+    current = service._session(sid)
+    current.working_mesh.submeshes[0].preview_texture_dds_path = str(source)
+    current.working_mesh.submeshes[0].preview_texture_path = str(source)
+    if kind == "png":
+        edited = tmp_path / "painted.png"
+        Image.new("RGBA", (16, 8), (10, 120, 80, 255)).save(edited, format="PNG")
+    else:
+        edited = tmp_path / "larger.dds"
+        Image.new("RGBA", (8, 8), (10, 120, 80, 255)).save(edited, format="DDS", pixel_format="DXT5")
+    hair_texture_command(session, {"texture_path": TEXTURE, "_dds_path": str(edited)}, threading.Event())
+    after = service.capture_export_snapshot(sid)
+    written = after.replacement_state.companion_files[0].data
+    assert dds_shape(written) == dds_shape(dds())
+
+
 @pytest.mark.parametrize("bindings", ["legacy", "native", "shared_cache", "rebased"])
 def test_dds_edits_keep_distinct_identical_textures_separate(editor, tmp_path, bindings):
     from pathlib import Path
@@ -1556,11 +1579,14 @@ def test_export_hair_package_normalizes_partial_dds_and_cleans_mod_root(tmp_path
     custom_icon_bytes[128:136] = b"\xAA\xBB\xCC\xDD\xEE\xFF\x11\x22"
     custom_icon_file.write_bytes(bytes(custom_icon_bytes))
 
+    # The check Hair setup runs finds nothing the export would refuse.
+    assert hair_out.additive_donor_problem(target_entry, MESH, "Damiane") == ""
     out_dir = tmp_path / "exported-hair"
+    notes = []
     hair_out.export_hair_package(
         snap, rebuilt, target_entry, out_dir, create_zip=True,
         use_dmm_additive_tables=additive, target_stem_override=custom_stem,
-        custom_icon_path=custom_icon_file,
+        custom_icon_path=custom_icon_file, notes=notes,
     )
     assert out_dir.is_dir()
     assert out_dir.with_name(out_dir.name + ".zip").is_file()
@@ -1581,6 +1607,9 @@ def test_export_hair_package_normalizes_partial_dds_and_cleans_mod_root(tmp_path
         assert ops["format"] == 3 and ops["targets"][0]["file"] == hair_out.PART_PREFAB_TABLE
         assert ops["targets"][0]["intents"][0]["op"] == "list_append"
         assert ops["targets"][0]["intents"][0]["new"]["key_a"] == custom_stem
+        # DMM shows the registrations as a second entry; both must be enabled.
+        assert ops["modinfo"]["description"] == hair_out.HAIR_REGISTRATION_DESCRIPTION
+        assert any("(item registrations)" in note and "DMM 4.4.0" in note for note in notes)
         patch_file = out_dir / (DAMIANE_MESH_PARAM + ".patch")
         assert patch_file.is_file()
         replayed = apply_hair_choice_xml_patch(param_xml, patch_file.read_bytes())
@@ -1592,6 +1621,7 @@ def test_export_hair_package_normalizes_partial_dds_and_cleans_mod_root(tmp_path
         assert DAMIANE_MESH_PARAM in packaged
         assert not (out_dir / OPERATIONS_FILE).exists()
         assert not (out_dir / (DAMIANE_MESH_PARAM + ".patch")).exists()
+        assert notes == []
 
     exported_icon_path = f"ui/texture/image/customizeimage/{custom_stem}.dds"
     assert exported_icon_path in packaged
@@ -1926,6 +1956,25 @@ def test_prepare_hair_setup_keeps_donor_scalp_cap_when_enabled(editor):
     validate_hair_output(service.capture_export_snapshot(sid))
 
 
+def _forge_unique_cloth_records(live):
+    """Give every donor vertex its own cloth guide record, so a record cloned
+    from the wrong vertex, or a binding left on new hair, is visible."""
+    from dataclasses import replace as _replace
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+    forged = bytearray(live.original_data)
+    for level in pac_cloth_lods(forged):
+        for i, offset in enumerate(level.submeshes[0].source_vertex_offsets):
+            struct.pack_into("<2e", forged, offset + 12, 3., 4.)
+            struct.pack_into("<I", forged, offset + 24, 1 << 10 | 2 << 20 | 0xC0000000)
+            forged[offset + 28:offset + 32] = bytes((255, 0, 0, 0))
+            forged[offset + 32:offset + 36] = bytes((1 + i % 200, 82, 42, 27))
+            forged[offset + 39] = 0xC0
+    live.original_data = bytes(forged)
+    live.replacement_state = _replace(live.replacement_state,
+                                      target_sha256=hashlib.sha256(live.original_data).hexdigest())
+    return live.original_data
+
+
 def test_hybrid_existing_hair_draw_preserves_donor_skinning_and_validates(editor):
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.services.mesh_rust_hair import prepare_hair_setup
@@ -2012,6 +2061,106 @@ def test_hybrid_existing_hair_draw_preserves_donor_skinning_and_validates(editor
     assert rebuilt.data
 
 
+def test_hybrid_draw_keeps_exact_donor_records_for_groomed_original_vertices(editor):
+    """Groomed original cards keep their own PAC records; new cards drop cloth."""
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    from cdmw.modding.pac_cloth import pac_cloth_binding
+    pac_bytes = _forge_unique_cloth_records(live)
+    donor = parse_mesh(pac_bytes, MESH)
+    assert all(pac_cloth_binding(pac_bytes, offset) is not None for offset in donor.submeshes[0].source_vertex_offsets)
+    donor_sub = donor.submeshes[0]
+    n_donor = len(donor_sub.vertices)
+    assert n_donor >= 3
+
+    head = copy.deepcopy(donor)
+    head.submeshes = head.submeshes[:1]
+    head.submeshes[0].vertices = [(-0.1, 1.5, 0.0), (0.1, 1.5, 0.0), (0.0, 1.8, 0.0)]
+    head.submeshes[0].faces = [(0, 1, 2)]
+    live.hair_state = None
+    prepare_hair_setup(
+        service, sid,
+        dict(
+            character="Damiane", mode="existing",
+            _archive_snapshot=SimpleNamespace(mesh=head, original_data=pac_bytes),
+            _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+        ),
+        None,
+    )
+
+    # Keep exact donor vertices 0..n_donor-1 + append 3 generated vertices (-1).
+    st = copy.deepcopy(live.hair_state.payload)
+    st["revision"] += 1
+    st["locks"] = [
+        {
+            "id": 1, "part": 0, "guide": None,
+            "vertices": list(range(n_donor)), "kind": "rigid",
+            "mirrored": None, "width_scale": 1.0, "cards": 0,
+        },
+        {
+            "id": 2, "part": 0, "guide": 0,
+            "vertices": [n_donor, n_donor + 1, n_donor + 2], "kind": "generated",
+            "mirrored": None, "width_scale": 1.0, "cards": 6,
+            "uv_rect": [0.1, 0.2, 0.4, 0.8],
+        },
+    ]
+    st["next_lock_id"] = 3
+    st["prepared_parts"] = [0]
+    src_map = list(range(n_donor)) + [-1, -1, -1]
+    st["vertex_sources"] = {"0": src_map}
+    root_pos = list(st["scalp"]["positions"][st["scalp"]["triangles"][0][0]])
+    st["guides"] = [{"root": {"triangle": 0, "barycentric": [1.0, 0.0, 0.0]}, "group": 0,
+                     "points": [root_pos, [root_pos[0], root_pos[1] - 0.1, root_pos[2]]]}]
+    st["bindings"] = [
+        {"part": 0, "vertex": n_donor + k, "guide": 0, "segment": 0, "t": 0.5, "smooth": True, "offset": [0.01 * k, 0.0, 0.0], "normal": [0.0, 0.0, 1.0]}
+        for k in range(3)
+    ]
+
+    sub = donor.submeshes[0]
+    # Grooming moves the original cards, so exact-position matching cannot
+    # recover their donor records; only the vertex provenance can.
+    positions = [[v[0], v[1] + 0.5, v[2]] for v in sub.vertices] + [[0.0, 1.5, 0.0], [0.05, 1.5, 0.0], [0.02, 1.4, 0.0]]
+    normals = [list(n) for n in sub.normals] + [[0.0, 0.0, 1.0]] * 3
+    uvs = [list(u) for u in sub.uvs] + [[0.1, 0.2], [0.4, 0.2], [0.4, 0.8]]
+    indices = [i for face in sub.faces for i in face] + [n_donor, n_donor + 1, n_donor + 2]
+
+    apply_hair_candidate(
+        authoring,
+        {
+            "hair": st,
+            "submeshes": [{
+                "positions": positions, "normals": normals, "uvs": uvs,
+                "indices": indices, "source_vertices": src_map,
+            }],
+        },
+        "Hybrid draw",
+    )
+    snap = service.capture_export_snapshot(sid)
+    part = snap.mesh.submeshes[0]
+    assert part.source_vertex_map == src_map
+    assert part.bone_indices[:n_donor] == list(donor_sub.bone_indices)
+    assert part.bone_weights[:n_donor] == list(donor_sub.bone_weights)
+    if donor_sub.source_vertex_offsets:
+        assert part.source_vertex_offsets[:n_donor] == list(donor_sub.source_vertex_offsets)
+        assert part.source_vertex_offsets[n_donor:] == [-1, -1, -1]
+    validate_hair_output(snap)
+    rebuilt = service._replacement_output_for_snapshot(snap).data
+    written = parse_mesh(rebuilt, MESH).submeshes[0]
+    assert len(written.vertices) == n_donor + 3
+    for vertex in range(n_donor):
+        before = donor_sub.source_vertex_offsets[vertex]
+        after = written.source_vertex_offsets[vertex]
+        # Skin, guide and shading lanes follow the vertex's own donor record.
+        assert rebuilt[after + 12:after + 16] == pac_bytes[before + 12:before + 16]
+        assert rebuilt[after + 20:after + 40] == pac_bytes[before + 20:before + 40]
+    for vertex in range(n_donor, n_donor + 3):
+        assert pac_cloth_binding(rebuilt, written.source_vertex_offsets[vertex]) is None
+
+
 def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
     from cdmw.services.mesh_rust_hair import hair_import_custom_command
     from cdmw.services.mesh_rust_replacement import run_replacement_command
@@ -2019,6 +2168,10 @@ def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
     _, authoring = editor
     service, sid = authoring.shadow_service, authoring.shadow_session_id
     live = service._session(sid)
+    _forge_unique_cloth_records(live)
+    hair = copy.deepcopy(live.hair_state.payload)
+    hair["template"]["sha256"] = hashlib.sha256(live.original_data).hexdigest()
+    live.hair_state = hair_state_from_payload(hair)
 
     cancelled = hair_import_custom_command(authoring, {"cancelled": True}, threading.Event())
     assert cancelled == {"status": "cancelled"}
@@ -2036,11 +2189,22 @@ def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
         "f 1/1/1 2/2/2 3/3/3\n",
         encoding="utf-8",
     )
+    # Choosing a file only opens the mapping: Hair Tools stay active until it is applied.
+    revision = live.revision
     choose = hair_import_custom_command(authoring, {"source_path": str(custom_obj)}, threading.Event())
     assert choose["status"] == "choose_mapping"
-    assert live.hair_state.payload["converted"] is True
+    assert not live.hair_state.payload["converted"]
+    assert live.revision == revision
     assert authoring.pending_replacement is not None
     assert authoring.pending_replacement.snapshot.mesh_revision == live.revision
+    # Cancelling the mapping dialog keeps the hairstyle editable.
+    assert run_replacement_command(authoring, "replacement_cancel", {}, threading.Event()) == {"status": "cancelled"}
+    assert not live.hair_state.payload["converted"]
+    assert live.revision == revision
+    assert authoring.pending_hair_import_token == ""
+
+    choose = hair_import_custom_command(authoring, {"source_path": str(custom_obj)}, threading.Event())
+    assert choose["status"] == "choose_mapping"
 
     part_id = live.replacement_state.parts[0].part_id
     run_replacement_command(
@@ -2049,9 +2213,100 @@ def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
         {"token": authoring.pending_replacement.token, "targets": [part_id], "materials": "original"},
         threading.Event(),
     )
+    # Applying converts the hair and replaces the mesh in one history step.
+    assert live.hair_state.payload["converted"] is True
+    assert live.revision == revision + 1
+    service.undo(sid)
+    assert not live.hair_state.payload["converted"]
+    assert live.hair_state.payload["guides"] == hair["guides"]
+    service.redo(sid)
+    assert live.hair_state.payload["converted"] is True
     snap = service.capture_export_snapshot(sid)
     validate_hair_output(snap)
-    rebuilt = service._replacement_output_for_snapshot(snap)
-    assert rebuilt.data
+    rebuilt = service._replacement_output_for_snapshot(snap).data
+    # Imported hair is static: no vertex keeps the donor's cloth guide binding.
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
+    assert any(pac_cloth_binding(live.original_data, offset) is not None
+               for offset in parse_mesh(live.original_data, MESH).submeshes[0].source_vertex_offsets)
+    for level in pac_cloth_lods(rebuilt):
+        assert all(pac_cloth_binding(rebuilt, offset) is None for offset in level.submeshes[0].source_vertex_offsets)
 
 
+
+
+def test_additive_hair_slot_conflicts_name_other_mods_at_the_same_barber_slot(tmp_path):
+    from cdmw.services.mesh_hair_output import additive_hair_slot_conflicts
+    rel = "character/descriptors/customizationmeta/meshparam_example_damian.xml.patch"
+
+    def patch(folder, index):
+        path = tmp_path / folder / rel
+        path.parent.mkdir(parents=True)
+        path.write_text(f'<xml-patch><insert into="ParamDesc" match-Index="2" match-UIKey="Hair">'
+                        f'<MeshSet Index="{index}"><MeshList MeshFileName="x"/></MeshSet></insert></xml-patch>',
+                        encoding="utf-8")
+    patch("Mine", 7)
+    patch("Other hair", 7)
+    patch("Later hair", 8)
+    (tmp_path / "Broken" / rel).parent.mkdir(parents=True)
+    (tmp_path / "Broken" / rel).write_text("<not xml", encoding="utf-8")
+    assert additive_hair_slot_conflicts(tmp_path, tmp_path / "Mine", rel, 7) == ("Other hair",)
+    assert additive_hair_slot_conflicts(tmp_path, tmp_path / "Mine", rel, 9) == ()
+
+
+def test_additive_donor_check_reports_a_mod_added_hairstyle(monkeypatch):
+    from cdmw.services import mesh_hair_output as hair_out
+    from cdmw.domain.hair_characters import hair_character
+    files = registration_fixture()
+    with pytest.raises(ValueError, match="Replace Existing Hairstyle"):
+        hair_out._read_additive_donor(files.__getitem__, hair_character("Damiane"),
+                                      MESH.replace(STEM, "cd_phw_00_hair_00_mod_only_player"))
+
+
+def _forge_session_cloth(authoring):
+    """Distinct donor cloth records, with the hair template following the new bytes."""
+    live = authoring.shadow_service._session(authoring.shadow_session_id)
+    _forge_unique_cloth_records(live)
+    hair = copy.deepcopy(live.hair_state.payload)
+    hair["template"]["sha256"] = hashlib.sha256(live.original_data).hexdigest()
+    live.hair_state = hair_state_from_payload(hair)
+    return live
+
+
+def _cloth_bindings(data):
+    from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
+    return [pac_cloth_binding(data, offset) for level in pac_cloth_lods(data)
+            for offset in level.submeshes[0].source_vertex_offsets]
+
+
+def test_generated_hair_part_exports_without_donor_cloth(editor):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = _forge_session_cloth(authoring)
+    assert all(binding is not None for binding in _cloth_bindings(live.original_data))
+    apply_hair_candidate(authoring, candidate(authoring, topology=True), "Generate bob")
+    rebuilt = service._replacement_output_for_snapshot(service.capture_export_snapshot(sid)).data
+    assert all(binding is None for binding in _cloth_bindings(rebuilt))
+
+
+def test_converting_donor_hair_keeps_its_cloth_physics(editor):
+    """Convert to ordinary mesh is not an import: the donor's own cards keep their guides."""
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = _forge_session_cloth(authoring)
+    snap = service.capture_export_snapshot(sid)
+    state = copy.deepcopy(snap.hair_state.payload)
+    state["groups"][0]["mode"] = "existing"
+    state["converted"] = True
+    state["revision"] += 1
+    part = replace(snap.replacement_state.parts[0], import_positions=tuple(snap.mesh.submeshes[0].vertices),
+                   import_normals=tuple(snap.mesh.submeshes[0].normals), source_label="Hair guides")
+    output = replace(snap.replacement_state, parts=(part, *snap.replacement_state.parts[1:]),
+                     revision=snap.replacement_state.revision + 1)
+    prepared = service.prepare_working_mesh_replacement(
+        sid, snap.mesh, replacement_state=output, hair_state=hair_state_from_payload(state),
+        replace_hair_state=True, validation_output_policy=REPLACEMENT_POLICY)
+    service.commit_prepared_working_mesh_replacement(prepared, history_action="hair_convert",
+        history_label="Convert", output_policy=REPLACEMENT_POLICY, require_reversible_history=True)
+    rebuilt = service._replacement_output_for_snapshot(service.capture_export_snapshot(sid)).data
+    assert _cloth_bindings(rebuilt) == _cloth_bindings(live.original_data)

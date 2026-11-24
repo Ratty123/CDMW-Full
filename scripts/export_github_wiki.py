@@ -152,6 +152,7 @@ _CONTROLS = (
     "Copy shape", "Remove shape", "Scale all sizes", "Apply shape edits", "Restore source shapes",
     "Collision sources", "Cloth profile",
     "Fit to Original", "Reset Placement", "Keep Original Materials", "Quick turn", "Open Package in CDMW...",
+    "Import custom hair mesh...", "Apply edited DDS...", "Apply hair color", "Reference pieces",
 )
 # A sentence that opens with a control's name and describes it is not a step.
 _CONTROL_SUBJECT = re.compile(

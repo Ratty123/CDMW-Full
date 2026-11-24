@@ -1985,6 +1985,7 @@
       "Texture / mod": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "Texture px": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "Textures": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
+      "Textures (*.dds *.png *.jpg *.jpeg *.webp *.bmp)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "Textures (.dds)": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "The backup manifest in {value_0} cannot be read: its file list is not a list.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",
       "These mods cannot be combined into one package. CDMW combines mods built from item packages.": "Reviewed as a product name, technical identifier, file-format term, or intentionally language-neutral interface label.",

@@ -236,6 +236,13 @@ impl LabApplication {
         self.hair
             .drawn_previews
             .retain(|id, _| drawing.contains(id));
+        let reserved = self
+            .hair
+            .preview
+            .as_ref()
+            .or(self.document.as_deref())
+            .map(|document| geometry::reserved_original_vertices(stroke, document))
+            .unwrap_or_default();
         for id in &drawing {
             if !self.hair.drawn_previews.contains_key(id)
                 && let Ok(generated) = hair::generate_cached(
@@ -244,6 +251,7 @@ impl LabApplication {
                     &scene.scalp_picking,
                     &scene.scalp_indices,
                     Some(&[*id]),
+                    &reserved,
                 )
             {
                 self.hair.drawn_previews.insert(*id, generated);

@@ -632,6 +632,7 @@ class MeshDirectOutputWorker(QObject):
                     raise ValueError("Hairstyles require Build Mod → DMM Archive Group or DMM Loose Mod.")
                 rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
                 use_additive = self.hair_export_mode != "add_full"
+                notes: list[str] = []
                 if self.send_to_dmm_mods is not None:
                     title = (
                         str(getattr(self.package_info, "title", "") or "").strip()
@@ -643,6 +644,7 @@ class MeshDirectOutputWorker(QObject):
                         export_kwargs = {
                             "stop_event": self.stop_event,
                             "on_log": lambda message: self.progress_changed.emit(self.request_id, 25, message),
+                            "notes": notes,
                         }
                         if self.package_info is not None:
                             export_kwargs["package_info"] = self.package_info
@@ -655,7 +657,7 @@ class MeshDirectOutputWorker(QObject):
                         export_hair_package(snapshot, rebuilt, self.entry, staged_dir, **export_kwargs)
 
                     output, _replaced = export_hair_to_dmm(
-                        self.send_to_dmm_mods, title, _export_staged, stop_event=self.stop_event,
+                        self.send_to_dmm_mods, title, _export_staged, stop_event=self.stop_event, notes=notes,
                     )
                     zip_path = None
                 else:
@@ -664,6 +666,7 @@ class MeshDirectOutputWorker(QObject):
                     export_kwargs = {
                         "stop_event": self.stop_event,
                         "on_log": lambda message: self.progress_changed.emit(self.request_id, 25, message),
+                        "notes": notes,
                     }
                     if self.package_info is not None:
                         export_kwargs["package_info"] = self.package_info
@@ -680,7 +683,7 @@ class MeshDirectOutputWorker(QObject):
                     zip_path = candidate_zip if (self.create_zip and candidate_zip.is_file()) else None
                 result = MeshDirectOutputResult(
                     kind=self.kind, output_path=output, manager_profile="dmm",
-                    rebuild_report=report, zip_path=zip_path,
+                    rebuild_report=report, zip_path=zip_path, notes=tuple(notes),
                 )
                 result = self._register_saved_work(snapshot, result)
                 self.completed.emit(self.request_id, result)
