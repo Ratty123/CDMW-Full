@@ -2216,6 +2216,11 @@ def test_hair_import_custom_cancel_rollback_and_obj_export(editor, tmp_path):
     # Applying converts the hair and replaces the mesh in one history step.
     assert live.hair_state.payload["converted"] is True
     assert live.revision == revision + 1
+    service.undo(sid)
+    assert not live.hair_state.payload["converted"]
+    assert live.hair_state.payload["guides"] == hair["guides"]
+    service.redo(sid)
+    assert live.hair_state.payload["converted"] is True
     snap = service.capture_export_snapshot(sid)
     validate_hair_output(snap)
     rebuilt = service._replacement_output_for_snapshot(snap).data
@@ -2256,3 +2261,52 @@ def test_additive_donor_check_reports_a_mod_added_hairstyle(monkeypatch):
     with pytest.raises(ValueError, match="Replace Existing Hairstyle"):
         hair_out._read_additive_donor(files.__getitem__, hair_character("Damiane"),
                                       MESH.replace(STEM, "cd_phw_00_hair_00_mod_only_player"))
+
+
+def _forge_session_cloth(authoring):
+    """Distinct donor cloth records, with the hair template following the new bytes."""
+    live = authoring.shadow_service._session(authoring.shadow_session_id)
+    _forge_unique_cloth_records(live)
+    hair = copy.deepcopy(live.hair_state.payload)
+    hair["template"]["sha256"] = hashlib.sha256(live.original_data).hexdigest()
+    live.hair_state = hair_state_from_payload(hair)
+    return live
+
+
+def _cloth_bindings(data):
+    from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
+    return [pac_cloth_binding(data, offset) for level in pac_cloth_lods(data)
+            for offset in level.submeshes[0].source_vertex_offsets]
+
+
+def test_generated_hair_part_exports_without_donor_cloth(editor):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = _forge_session_cloth(authoring)
+    assert all(binding is not None for binding in _cloth_bindings(live.original_data))
+    apply_hair_candidate(authoring, candidate(authoring, topology=True), "Generate bob")
+    rebuilt = service._replacement_output_for_snapshot(service.capture_export_snapshot(sid)).data
+    assert all(binding is None for binding in _cloth_bindings(rebuilt))
+
+
+def test_converting_donor_hair_keeps_its_cloth_physics(editor):
+    """Convert to ordinary mesh is not an import: the donor's own cards keep their guides."""
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = _forge_session_cloth(authoring)
+    snap = service.capture_export_snapshot(sid)
+    state = copy.deepcopy(snap.hair_state.payload)
+    state["groups"][0]["mode"] = "existing"
+    state["converted"] = True
+    state["revision"] += 1
+    part = replace(snap.replacement_state.parts[0], import_positions=tuple(snap.mesh.submeshes[0].vertices),
+                   import_normals=tuple(snap.mesh.submeshes[0].normals), source_label="Hair guides")
+    output = replace(snap.replacement_state, parts=(part, *snap.replacement_state.parts[1:]),
+                     revision=snap.replacement_state.revision + 1)
+    prepared = service.prepare_working_mesh_replacement(
+        sid, snap.mesh, replacement_state=output, hair_state=hair_state_from_payload(state),
+        replace_hair_state=True, validation_output_policy=REPLACEMENT_POLICY)
+    service.commit_prepared_working_mesh_replacement(prepared, history_action="hair_convert",
+        history_label="Convert", output_policy=REPLACEMENT_POLICY, require_reversible_history=True)
+    rebuilt = service._replacement_output_for_snapshot(service.capture_export_snapshot(sid)).data
+    assert _cloth_bindings(rebuilt) == _cloth_bindings(live.original_data)

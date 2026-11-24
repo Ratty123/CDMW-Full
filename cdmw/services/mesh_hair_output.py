@@ -41,6 +41,10 @@ from cdmw.services.new_item_provenance import SourceTracker
 PBD_CONFIG = "character/descriptors/pbd/pbdconfig.xml"
 
 
+#: The replacement-part source label of geometry committed by Hair Tools itself.
+HAIR_GUIDES_SOURCE = "Hair guides"
+
+
 def apply_hair_physics_paint(data, snapshot):
     """Disable retained cloth on painted rows and on all new hair in the rebuilt PAC.
 
@@ -59,10 +63,16 @@ def apply_hair_physics_paint(data, snapshot):
     targets = {indices[part.part_id]: part.target_index for part in output.parts if part.included}
     fixed = {}
     if state.get("converted"):
-        # Every vertex of an imported part is new geometry.
+        # After conversion, ordinary mesh edits make lock and binding indices stale,
+        # so whole parts are made static: those Import custom hair mesh replaced
+        # (an import names its file; Hair Tools' own commits are HAIR_GUIDES_SOURCE)
+        # and those that held generated hair. Donor parts keep their cloth binding.
+        generated_parts = {group["part"] for group in state["groups"] if group["mode"] == "generated"}
+        generated_parts |= {lock["part"] for lock in state.get("locks", ()) if lock["kind"] == "generated"}
         for part in output.parts:
             source = indices[part.part_id]
-            if part.included and part.import_positions and source in targets:
+            imported = bool(part.import_positions) and part.source_label != HAIR_GUIDES_SOURCE
+            if part.included and source in targets and (imported or source in generated_parts):
                 fixed[targets[source]] = None  # all vertices, at every LOD
     else:
         painted = {i: guide for i, guide in enumerate(state["guides"]) if guide.get("pinned")}
@@ -78,6 +88,10 @@ def apply_hair_physics_paint(data, snapshot):
             target = targets.get(lock["part"])
             if lock["kind"] == "generated" and target is not None:
                 fixed.setdefault(target, set()).update(lock["vertices"])
+        # A Generated group's part is rebuilt whole from guides: all of it is new hair.
+        for group in state["groups"]:
+            if group["mode"] == "generated" and group["part"] in targets:
+                fixed[targets[group["part"]]] = None
     if not fixed:
         return data
     from cdmw.modding.pac_cloth import pac_cloth_lods
