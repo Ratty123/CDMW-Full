@@ -143,6 +143,14 @@ class MeshModExportDialog(QDialog):
         form.addRow("Author", self.author)
         form.addRow("Description", self.description)
         layout.addLayout(form)
+        self.hair_dmm_entries_hint = QLabel(self.tr(
+            "DMM lists this mod as two entries: the hairstyle and its item registrations. Enable both, in "
+            "DMM 4.4.0 or newer; without the item registrations the new hairstyle does not load."
+        ), self)
+        self.hair_dmm_entries_hint.setObjectName("hair_dmm_entries_hint")
+        self.hair_dmm_entries_hint.setWordWrap(True)
+        layout.addWidget(self.hair_dmm_entries_hint)
+        self.hair_dmm_entries_hint.setVisible(False)
         # Step 8: each edited texture, written in the original's format, size and mips.
         # With a body a Fit follows, the list follows Include the body: the body's
         # textures are left out with it (item 5).
@@ -297,6 +305,7 @@ class MeshModExportDialog(QDialog):
         if not self._hair_mode:
             return
         adding = self.hair_export_choice() != "hair_replace_loose"
+        self.hair_dmm_entries_hint.setVisible(self.hair_export_choice() == "hair_add")
         self._hair_stem_label.setVisible(adding)
         self.hair_stem.setVisible(adding)
         self._custom_icon_label.setVisible(adding)

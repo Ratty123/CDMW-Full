@@ -42,41 +42,55 @@ PBD_CONFIG = "character/descriptors/pbd/pbdconfig.xml"
 
 
 def apply_hair_physics_paint(data, snapshot):
-    """Disable retained cloth only at painted guide rows in the rebuilt PAC.
+    """Disable retained cloth on painted rows and on all new hair in the rebuilt PAC.
 
-    Physical paint restores the donor on the next rebuild. It never fabricates
-    cloth guides or changes skeletal weights, geometry, or material channels.
+    The rebuild clones the nearest donor record for every new vertex, cloth
+    binding included. CDMW never authors cloth guides, so drawn, generated and
+    imported hair would follow the donor hairstyle's old guide geometry. Those
+    vertices are made static; original donor hair keeps its binding unless it
+    is painted Static. Skeletal weights, geometry and materials are unchanged.
     """
     hair = getattr(snapshot, "hair_state", None)
     if hair is None:
         return data
     state = hair.payload
-    if state.get("converted"):
-        return data
-    painted = {i: guide for i, guide in enumerate(state["guides"]) if guide.get("pinned")}
-    if not painted:
-        return data
     output = snapshot.replacement_state
     indices = bound_part_indices(snapshot.mesh, output)
     targets = {indices[part.part_id]: part.target_index for part in output.parts if part.included}
     fixed = {}
-    for binding in state["bindings"]:
-        guide = painted.get(binding["guide"])
-        target = targets.get(binding["part"])
-        if guide is None or target is None:
-            continue
-        row = binding["segment"] + int(binding["t"] >= .5)
-        if row == 0 or guide["pinned"][row]:
-            fixed.setdefault(target, set()).add(binding["vertex"])
+    if state.get("converted"):
+        # Every vertex of an imported part is new geometry.
+        for part in output.parts:
+            source = indices[part.part_id]
+            if part.included and part.import_positions and source in targets:
+                fixed[targets[source]] = None  # all vertices, at every LOD
+    else:
+        painted = {i: guide for i, guide in enumerate(state["guides"]) if guide.get("pinned")}
+        for binding in state["bindings"]:
+            guide = painted.get(binding["guide"])
+            target = targets.get(binding["part"])
+            if guide is None or target is None:
+                continue
+            row = binding["segment"] + int(binding["t"] >= .5)
+            if row == 0 or guide["pinned"][row]:
+                fixed.setdefault(target, set()).add(binding["vertex"])
+        for lock in state.get("locks", ()):
+            target = targets.get(lock["part"])
+            if lock["kind"] == "generated" and target is not None:
+                fixed.setdefault(target, set()).update(lock["vertices"])
     if not fixed:
         return data
-    from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
-    from cdmw.modding.mesh_parser import PAC_SKIN_EXTRA_INDEX_SENTINEL
+    from cdmw.modding.pac_cloth import pac_cloth_lods
     from cdmw.modding.mesh_builder_common import _build_spatial_hash, _nearest_point_index
     levels = pac_cloth_lods(data)
     result = bytearray(data)
     for target, vertices in fixed.items():
         part = levels[0].submeshes[target]
+        if vertices is None:
+            for level in levels:
+                for offset in level.submeshes[target].source_vertex_offsets:
+                    _make_static(data, result, offset)
+            continue
         source = next(index for index, mapped in targets.items() if mapped == target)
         if (len(part.vertices) != len(snapshot.mesh.submeshes[source].vertices)
                 or any(not 0 <= vertex < len(part.vertices) for vertex in vertices)):
@@ -90,15 +104,21 @@ def apply_hair_physics_paint(data, snapshot):
                 i for i, point in enumerate(current.vertices)
                 if _nearest_point_index(point, part.vertices, cell, grid) in vertices}
             for vertex in selected:
-                offset = current.source_vertex_offsets[vertex]
-                if pac_cloth_binding(data, offset) is None:
-                    continue
-                group = struct.unpack_from("<I", data, offset + 24)[0]
-                struct.pack_into("<I", result, offset + 24, group & 0xC00003FF)
-                result[offset + 12:offset + 16] = PAC_SKIN_EXTRA_INDEX_SENTINEL
-                result[offset + 32:offset + 36] = bytes(4)
-                result[offset + 39] = (data[offset + 39] & 0xC0) | 63
+                _make_static(data, result, current.source_vertex_offsets[vertex])
     return bytes(result)
+
+
+def _make_static(data, result, offset):
+    """Clear one PAC record's cloth guide binding, keeping its skeletal skin."""
+    from cdmw.modding.pac_cloth import pac_cloth_binding
+    from cdmw.modding.mesh_parser import PAC_SKIN_EXTRA_INDEX_SENTINEL
+    if pac_cloth_binding(data, offset) is None:
+        return
+    group = struct.unpack_from("<I", data, offset + 24)[0]
+    struct.pack_into("<I", result, offset + 24, group & 0xC00003FF)
+    result[offset + 12:offset + 16] = PAC_SKIN_EXTRA_INDEX_SENTINEL
+    result[offset + 32:offset + 36] = bytes(4)
+    result[offset + 39] = (data[offset + 39] & 0xC0) | 63
 
 
 def material_texture_paths(data):
@@ -252,15 +272,29 @@ def validate_hair_output(snapshot):
 
 def encode_hair_icon_dds(source_path: Path | str, donor_icon_dds: bytes, stop_event=None) -> bytes:
     """Convert a custom image or DDS into a barber icon matching the donor DDS shape and mip count."""
+    return encode_dds_like(source_path, donor_icon_dds, stop_event=stop_event)
+
+
+#: Image files that Hair Tools re-encodes into a donor's DDS layout.
+DDS_SOURCE_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+
+
+def encode_dds_like(source_path: Path | str, donor_dds: bytes, *, stop_event=None) -> bytes:
+    """Convert an image or DDS into ``donor_dds``'s size, format and mip count.
+
+    A DDS that already has that layout is used unchanged. Anything else is
+    decoded, resized to the donor's size and encoded in the donor's format, so
+    the game reads it exactly like the file it replaces.
+    """
     from PIL import Image
     from cdmw.core.texture_native import decode_dds_preview_with_directxtex, encode_dds_with_directxtex
 
     source = Path(source_path)
-    if not source.is_file() or not 1 <= source.stat().st_size <= 64 * 1024 * 1024:
-        raise ValueError("Choose an existing image or DDS file smaller than 64 MiB for the barber icon.")
-    donor_info = inspect_dds_native(donor_icon_dds)
+    if not source.is_file() or not 1 <= source.stat().st_size <= 128 * 1024 * 1024:
+        raise ValueError("Choose an existing image or DDS file smaller than 128 MiB.")
+    donor_info = inspect_dds_native(donor_dds)
     if donor_info.reason or not donor_info.mip_levels or not donor_info.format_name:
-        raise ValueError("The donor barber icon DDS format could not be inspected.")
+        raise ValueError("The original DDS format could not be inspected.")
     width, height = int(donor_info.width), int(donor_info.height)
     mip_count = max(1, len(donor_info.mip_levels))
     suffix = source.suffix.lower()
@@ -268,21 +302,21 @@ def encode_hair_icon_dds(source_path: Path | str, donor_icon_dds: bytes, stop_ev
         raw = source.read_bytes()
         src_info = inspect_dds_native(raw)
         if src_info.reason or not src_info.mip_levels:
-            raise ValueError(f"Invalid custom icon DDS: {src_info.reason or source.name}")
-        if dds_shape(raw) == dds_shape(donor_icon_dds):
+            raise ValueError(f"Invalid DDS file: {src_info.reason or source.name}")
+        if dds_shape(raw) == dds_shape(donor_dds):
             return with_stored_mip_sizes(raw)
-    elif suffix not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
-        raise ValueError("Choose a PNG, JPG, WEBP, BMP, or DDS file for the custom barber icon.")
+    elif suffix not in DDS_SOURCE_IMAGE_SUFFIXES:
+        raise ValueError("Choose a PNG, JPG, WEBP, BMP, or DDS file.")
 
-    with tempfile.TemporaryDirectory(prefix="cdmw-hair-icon-") as directory:
+    with tempfile.TemporaryDirectory(prefix="cdmw-hair-dds-") as directory:
         root = Path(directory)
-        png_path = root / "icon_rgba.png"
+        png_path = root / "source_rgba.png"
         if suffix == ".dds":
             raw_png = root / "decoded.png"
-            raise_if_cancelled(stop_event, "Hair icon encoding cancelled.")
+            raise_if_cancelled(stop_event, "Hair texture encoding cancelled.")
             if not decode_dds_preview_with_directxtex(source, raw_png, max_dimension=0,
                                                       requested_mip=0, stop_event=stop_event):
-                raise ValueError("The native DDS decoder could not read the custom barber icon DDS.")
+                raise ValueError("The native DDS decoder could not read this DDS file.")
             source_image_path = raw_png
         else:
             source_image_path = source
@@ -291,13 +325,13 @@ def encode_hair_icon_dds(source_path: Path | str, donor_icon_dds: bytes, stop_ev
             if rgba.size != (width, height):
                 rgba = rgba.resize((width, height), Image.Resampling.LANCZOS)
             rgba.save(png_path, format="PNG")
-        raise_if_cancelled(stop_event, "Hair icon encoding cancelled.")
-        out_dds = root / "icon.dds"
+        raise_if_cancelled(stop_event, "Hair texture encoding cancelled.")
+        out_dds = root / "encoded.dds"
         if not encode_dds_with_directxtex(
             png_path, out_dds, dds_format=donor_info.format_name,
             width=width, height=height, mip_count=mip_count, stop_event=stop_event,
         ):
-            raise ValueError("The native DDS encoder could not encode the custom barber icon.")
+            raise ValueError("The native DDS encoder could not encode this image.")
         encoded = out_dds.read_bytes()
     encoded_info = inspect_dds_native(encoded)
     if (
@@ -305,10 +339,10 @@ def encode_hair_icon_dds(source_path: Path | str, donor_icon_dds: bytes, stop_ev
         and encoded_info.format_name == donor_info.format_name
         and [m.byte_count for m in encoded_info.mip_levels] == [m.byte_count for m in donor_info.mip_levels]
     ):
-        encoded = bytes(donor_icon_dds[:donor_info.data_offset]) + bytes(encoded[encoded_info.data_offset:])
+        encoded = bytes(donor_dds[:donor_info.data_offset]) + bytes(encoded[encoded_info.data_offset:])
     inspect_dds_native(encoded)
-    if dds_shape(encoded) != dds_shape(donor_icon_dds):
-        raise ValueError("Encoded custom barber icon does not match the donor icon layout.")
+    if dds_shape(encoded) != dds_shape(donor_dds):
+        raise ValueError("The encoded DDS does not match the original layout.")
     return with_stored_mip_sizes(encoded)
 
 
@@ -490,32 +524,69 @@ def _apply_dmm_mounted_hair_sources(root: Path, entry, files: dict[str, bytes], 
                 files[tex_key] = mounted_tex
 
 
-def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None,
-                        package_info=None, create_zip: bool = False,
-                        use_dmm_additive_tables: bool = True,
-                        target_stem_override: str = "",
-                        custom_icon_path: Path | str | None = None):
-    """Build and reparse a complete DMM package outside the installed game."""
-    from cdmw.domain.archives.filters import archive_entry_game_root
-    from cdmw.services.mesh_mod_publish import publish_mesh_mod_output
+HAIR_REGISTRATION_DESCRIPTION = (
+    "Registers the new hairstyle's part so the barber can load it. Enable it together with "
+    "the hairstyle mod. Requires DMM 4.4.0 or newer.")
 
-    root = archive_entry_game_root(entry)
-    output = Path(output).resolve()
-    if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
-        raise ValueError("Hair output must be a new folder outside the installed game.")
-    state = validate_hair_output(snapshot)
-    from cdmw.domain.hair_characters import hair_character
-    profile = hair_character(state["template"]["character"])
-    donor_path = state["template"]["path"].replace("\\", "/").casefold()
-    new_stem = str(target_stem_override or "").strip() or state["template"]["target_stem"]
-    validate_hair_stem(new_stem)
-    if custom_icon_path is not None and str(custom_icon_path).strip():
-        icon_source = Path(custom_icon_path)
-        if not icon_source.is_file():
-            raise ValueError(f"Custom barber icon not found: {icon_source}")
-    else:
-        icon_source = None
-    tracker = SourceTracker(lambda item: read_archive_entry_data(item, stop_event)[0])
+
+def hair_dmm_entries_note(title: str) -> str:
+    """What an additive hairstyle needs enabled in DMM."""
+    return (f'In DMM 4.4.0 or newer, enable both "{title}" and "{title} (item registrations)". '
+            "Without the item registrations entry the new hairstyle does not load.")
+
+
+def _barber_slot_note(profile, index: int) -> str:
+    return (f"Another enabled mod already uses barber slot {index} in {profile.name}'s hairstyle list. "
+            "How the game handles two hairstyles at one slot is not checked yet; until it is, enable only one "
+            f"mod that adds hairstyles for {profile.name}.")
+
+
+def _served_barber_slot_conflict(root: Path, profile, index: int) -> bool:
+    """Whether DMM currently serves a barber list that already has a hairstyle at ``index``."""
+    from cdmw.domain.hair_registration import HairRegistrationError
+    from cdmw.services.dmm_runtime_mount import DmmManifestError, read_runtime_mount
+    try:
+        mount = read_runtime_mount(root)
+    except (OSError, DmmManifestError):
+        return False
+    served = mount.files.get(profile.mesh_param_path) if mount is not None and mount.serving else None
+    if served is None or not served.source.is_file():
+        return False
+    try:
+        return len(read_hair_choices(served.source.read_bytes())) > index
+    except (OSError, HairRegistrationError):
+        # A list this tool cannot read was changed by a mod too.
+        return True
+
+
+def additive_hair_slot_conflicts(mods_dir: Path | str, own_folder: Path | str, patch_rel: str,
+                                 index: int) -> tuple[str, ...]:
+    """Other mods in DMM's folder whose barber-list patch inserts a hairstyle at ``index``."""
+    mods, own = Path(mods_dir), Path(own_folder).resolve()
+    depth = len(PurePosixPath(patch_rel).parts)
+    found = []
+    for patch in sorted(mods.glob(f"*/{patch_rel}")):
+        folder = patch.parents[depth - 1]
+        if folder.resolve() == own:
+            continue
+        try:
+            data = patch.read_bytes()
+            if len(data) > 1024 * 1024:
+                continue
+            root = ET.fromstring(data)
+        except (OSError, ET.ParseError):
+            continue
+        if any(node.tag == "MeshSet" and node.get("Index") == str(index)
+               for insert in root.iter("insert") if insert.get("into") == "ParamDesc" for node in insert):
+            found.append(folder.name)
+    return tuple(found)
+
+
+def _scan_hair_entries(root: Path, tracker, profile, new_stem: str, stop_event=None, on_log=None):
+    """The game's own archive entries a hairstyle export reads, DLC copies first.
+
+    Read-only. Returns ``(entries, dlc_layers, mount_bytes)``.
+    """
     for name in ("0.papgt", "0.pathc", "0.paver"):
         tracker.pin_file(root / "meta" / name)
     mount_bytes = (root / "meta/0.papgt").read_bytes()
@@ -544,12 +615,18 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
             for item in parse_archive_pamt(pamt):
                 raise_if_cancelled(stop_event, "Hair catalogue scan cancelled.")
                 key = item.path.replace("\\", "/").casefold()
-                if ("/hair/" in key or key.startswith(("character/texture/", "ui/texture/",
-                        "character/descriptors/pbd/")) or key in {profile.mesh_param_path, PART_PREFAB_TABLE}
-                        or new_stem in key):
+                if (key.startswith(HAIR_DEPENDENCY_PREFIXES) or "/hair/" in key
+                        or key in {profile.mesh_param_path, PART_PREFAB_TABLE}
+                        or (new_stem and new_stem in key)):
                     entries.setdefault(key, item)
-    files = {}
+    return entries, dlc_layers, mount_bytes
 
+
+#: Besides ``/hair/`` paths, the folders a hairstyle export reads from.
+HAIR_DEPENDENCY_PREFIXES = ("character/texture/", "ui/texture/", "character/descriptors/pbd/")
+
+
+def _hair_reader(entries, files, tracker):
     def read(path):
         key = path.replace("\\", "/").casefold()
         if key not in files:
@@ -558,25 +635,102 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
                 raise ValueError(f"Missing or oversized hair dependency: {path}")
             files[key] = tracker.read(item)
         return files[key]
+    return read
 
+
+def _read_additive_donor(read, profile, donor_path: str):
+    """Read and check everything Add New Barber Hairstyle copies from the donor.
+
+    Shared by the export and by the check when Hair Tools opens a hairstyle, so a
+    donor the export would refuse is reported before any grooming.
+    """
     choices = read_hair_choices(read(profile.mesh_param_path))
     donor_stem = PurePosixPath(donor_path).stem.lower()
     choice = next((row for row in choices if row.usable and row.prefab_stem == donor_stem), None)
     if choice is None:
-        raise ValueError("The loaded hair is not a current barber choice for this character.")
-    record = parse_pappt(read(PART_PREFAB_TABLE)).find(donor_stem)
+        raise ValueError(
+            f"This hairstyle is not in the game's own barber list for {profile.name}; it may come from another mod. "
+            "Add New Barber Hairstyle copies one of the game's hairstyle slots. Use Replace Existing Hairstyle "
+            "to edit this one, or start from one of the game's hairstyles.")
+    table = parse_pappt(read(PART_PREFAB_TABLE))
+    record = table.find(donor_stem)
     if record is None:
         raise ValueError("The donor hair prefab registration is missing.")
     validate_hair_prefab_donor(read(record.prefab_path), donor_path)
     read(donor_path)
     physics_path = donor_path.replace("character/model/", "character/bin__/meshphysics/", 1)[:-4] + ".hkx"
-    read(physics_path)
-    icon_donor_path = icon_donor_for(choices, choice.index)
-    donor_icon_bytes = read(icon_donor_path)
+    try:
+        read(physics_path)
+    except ValueError:
+        raise ValueError(f"This hairstyle has no hair physics file ({physics_path}), which a new barber "
+                         "hairstyle copies.") from None
     material_path = donor_path.replace("character/model/", "character/modelproperty/", 1) + "_xml"
-    _, textures = material_texture_paths(read(material_path))
+    root, textures = material_texture_paths(read(material_path))
+    if not textures or {node.get("_pbdSimulationMaterialName") for node in root.iter()
+                        if node.get("_pbdSimulationMaterialName")} != {"Hair"}:
+        raise ValueError("Required textured Hair material and game physics profile are unavailable.")
     for path in textures:
         read(path)
+    return choices, choice
+
+
+def additive_donor_problem(entry, donor_path: str, character: str, stop_event=None) -> str:
+    """Why Add New Barber Hairstyle would refuse this donor, or "" when it would not.
+
+    Read-only, for a worker. Replace Existing Hairstyle does not need these files.
+    """
+    from cdmw.domain.archives.filters import archive_entry_game_root
+    from cdmw.domain.hair_characters import hair_character
+    from cdmw.domain.hair_registration import HairRegistrationError
+    try:
+        root = archive_entry_game_root(entry)
+        profile = hair_character(character)
+        tracker = SourceTracker(lambda item: read_archive_entry_data(item, stop_event)[0])
+        entries, _layers, _mounts = _scan_hair_entries(root, tracker, profile, "", stop_event)
+        _read_additive_donor(_hair_reader(entries, {}, tracker), profile,
+                             str(donor_path).replace("\\", "/").casefold())
+    except (ValueError, OSError, HairRegistrationError, KeyError) as exc:
+        return str(exc)
+    return ""
+
+
+def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on_log=None,
+                        package_info=None, create_zip: bool = False,
+                        use_dmm_additive_tables: bool = True,
+                        target_stem_override: str = "",
+                        custom_icon_path: Path | str | None = None,
+                        notes: list | None = None):
+    """Build and reparse a complete DMM package outside the installed game.
+
+    ``notes`` receives what the user must know beside the built mod.
+    """
+    from cdmw.domain.archives.filters import archive_entry_game_root
+    from cdmw.services.mesh_mod_publish import publish_mesh_mod_output
+
+    root = archive_entry_game_root(entry)
+    output = Path(output).resolve()
+    if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
+        raise ValueError("Hair output must be a new folder outside the installed game.")
+    state = validate_hair_output(snapshot)
+    from cdmw.domain.hair_characters import hair_character
+    profile = hair_character(state["template"]["character"])
+    donor_path = state["template"]["path"].replace("\\", "/").casefold()
+    new_stem = str(target_stem_override or "").strip() or state["template"]["target_stem"]
+    validate_hair_stem(new_stem)
+    if custom_icon_path is not None and str(custom_icon_path).strip():
+        icon_source = Path(custom_icon_path)
+        if not icon_source.is_file():
+            raise ValueError(f"Custom barber icon not found: {icon_source}")
+    else:
+        icon_source = None
+    tracker = SourceTracker(lambda item: read_archive_entry_data(item, stop_event)[0])
+    entries, dlc_layers, mount_bytes = _scan_hair_entries(root, tracker, profile, new_stem, stop_event, on_log)
+    files = {}
+    read = _hair_reader(entries, files, tracker)
+    choices, choice = _read_additive_donor(read, profile, donor_path)
+    donor_stem = PurePosixPath(donor_path).stem.lower()
+    icon_donor_path = icon_donor_for(choices, choice.index)
+    donor_icon_bytes = read(icon_donor_path)
     _apply_dmm_mounted_hair_sources(
         root, entry, files, tracker,
         donor_path=donor_path, donor_stem=donor_stem, profile=profile,
@@ -672,7 +826,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         patch_rel = profile.mesh_param_path + ".patch"
         if use_dmm_additive_tables:
             from cdmw.services.dmm_send import write_operations
-            write_operations(stage, title, pappt_targets)
+            write_operations(stage, title, pappt_targets, description=HAIR_REGISTRATION_DESCRIPTION)
             patch_target = stage / patch_rel
             patch_target.parent.mkdir(parents=True, exist_ok=True)
             patch_target.write_bytes(xml_patch_bytes)
@@ -702,14 +856,23 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
             raise ValueError("The game registries changed while building hair.")
         raise_if_cancelled(stop_event, "Hair package cancelled before publication.")
         publish_mesh_mod_output(stage, output, manager_profile="dmm", create_zip=bool(create_zip), stop_event=stop_event)
+        if notes is not None and use_dmm_additive_tables:
+            notes.append(hair_dmm_entries_note(title))
+            if _served_barber_slot_conflict(root, profile, plan.choice_index):
+                notes.append(_barber_slot_note(profile, plan.choice_index))
         return output
     finally:
         if stage.exists():
             shutil.rmtree(stage)
 
 
-def export_hair_to_dmm(mods_dir: Path | str, title: str, build_staged, *, stop_event=None) -> tuple[Path, bool]:
-    """Build a hair mod outside DMM's mods folder and atomically publish/replace it inside."""
+def export_hair_to_dmm(mods_dir: Path | str, title: str, build_staged, *, stop_event=None,
+                       notes: list | None = None) -> tuple[Path, bool]:
+    """Build a hair mod outside DMM's mods folder and atomically publish/replace it inside.
+
+    ``notes`` also receives a warning when another mod in the folder adds a
+    hairstyle at the same barber slot.
+    """
     from cdmw.services import dmm_send
 
     mods = Path(mods_dir)
@@ -719,6 +882,26 @@ def export_hair_to_dmm(mods_dir: Path | str, title: str, build_staged, *, stop_e
         staged = Path(staging) / folder.name
         build_staged(staged)
         raise_if_cancelled(stop_event, "Send to DMM cancelled.")
+        conflicts, index, character = _staged_slot(staged, mods, folder)
         dmm_send.destination(mods, title)
         dmm_send._publish(staged, folder, Path(staging))
+    if notes is not None and conflicts:
+        verb = "adds" if len(conflicts) == 1 else "add"
+        notes.append(f"{', '.join(conflicts)} also {verb} a hairstyle at barber slot {index} for {character}. "
+                     "How the game handles two hairstyles at one slot is not checked yet; until it is, "
+                     "enable only one of these mods.")
     return folder, replaced
+
+
+def _staged_slot(staged: Path, mods: Path, folder: Path) -> tuple[tuple[str, ...], int, str]:
+    """Other DMM mods inserting a hairstyle at the staged hairstyle's barber slot."""
+    try:
+        manifest = json.loads((staged / "manifest.json").read_text(encoding="utf-8"))
+        evidence = json.loads((staged / "hair-authoring.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return (), 0, ""
+    patch_rel, index = manifest.get("xml_patch"), evidence.get("choice_index")
+    if not isinstance(patch_rel, str) or type(index) is not int:
+        return (), 0, ""
+    character = str((evidence.get("donor") or {}).get("character") or "this character")
+    return additive_hair_slot_conflicts(mods, folder, patch_rel, index), index, character

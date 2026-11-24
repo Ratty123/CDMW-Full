@@ -431,6 +431,34 @@ impl LabApplication {
         self.hair.topology_busy = false;
         self.hair.pending_finish = false;
         self.hair.state = state;
+        self.sync_hair_reference_piece();
+    }
+
+    /// Converted hair is drawn by the ordinary mesh path, which has no hair
+    /// scene. Its fitting bust becomes a view-only reference piece there, so
+    /// imported hair can still be aligned against the character's head.
+    pub(super) fn sync_hair_reference_piece(&mut self) {
+        let previous = self
+            .cdmw_reference_pieces
+            .iter()
+            .find(|p| p.index == HAIR_REFERENCE_PIECE)
+            .map(|p| p.visible);
+        self.cdmw_reference_pieces
+            .retain(|p| p.index != HAIR_REFERENCE_PIECE);
+        let piece = self
+            .hair
+            .state
+            .as_ref()
+            .filter(|s| s.converted)
+            .and_then(hair_reference_piece);
+        let added = piece.is_some();
+        if let Some(mut piece) = piece {
+            piece.visible = previous.unwrap_or(self.hair.show_reference);
+            self.cdmw_reference_pieces.push(piece);
+        }
+        if (added || previous.is_some()) && self.renderer.is_some() {
+            self.refresh_cdmw_mesh_display();
+        }
     }
 
     fn queue_hair(&mut self, state: HairState, label: &str, operation: Preparation) {
@@ -1059,6 +1087,64 @@ impl LabApplication {
         }
     }
 
+    /// Imported (converted) hair keeps its appearance controls and the
+    /// fitting reference; geometry is edited with the ordinary mesh tools.
+    fn draw_converted_hair_controls(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        ui.weak(crate::localization::tr(
+            "Converted to ordinary mesh. Undo restores Hair editing.",
+        ));
+        ui.label(crate::localization::tr(
+            "Edit the imported hair with the Mesh Editor tools. Use Reference pieces to show or hide the character bust while you fit it.",
+        ));
+        ui.label(crate::localization::tr(
+            "Imported hair is exported as static hair: it does not move with the donor's cloth physics.",
+        ));
+        crate::localization::collapsing("Appearance").show(ui, |ui| {
+            self.draw_hair_colour_controls(ui, actions);
+            self.draw_hair_texture_controls(ui, actions);
+        });
+    }
+
+    fn draw_hair_colour_controls(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let color_available = self.cdmw_state["hair"]["texture_slots"].as_array().is_some_and(|slots|
+            slots.iter().any(|slot| slot["role"] == "base_color"));
+        ui.horizontal(|ui| {
+            ui.label(crate::localization::tr("Hair color"));
+            ui.color_edit_button_srgb(&mut self.hair.color);
+        });
+        if ui.add_enabled(color_available && self.cdmw_state["hair"]["materials_ready"] == true,
+            egui::Button::new(crate::localization::tr("Apply hair color")))
+            .on_hover_text(crate::localization::tr("Uses the original base-color DDS files to retain strand shading and transparency. Replaces color-map edits; Flow and surface maps stay unchanged. Undo restores the previous textures."))
+            .on_hover_text(crate::localization::tr("This recolours the texture. The barber's dye colours are applied on top of it in game, so a dyed hairstyle shows both."))
+            .on_disabled_hover_text(crate::localization::tr("Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.")).clicked() {
+            actions.push(UiAction::CdmwCommand{command:"hair_color",arguments:json!({"color":self.hair.color.map(|v| v as f32 / 255.0)}),label:"Change hair color"});
+        }
+    }
+
+    fn draw_hair_texture_controls(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
+        if !textures.is_empty() {
+            self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
+            let texture_label = ui.label(crate::localization::tr("Texture to edit"));
+            ui.weak(crate::localization::tr("All material DDS files are used together."))
+                .on_hover_text(crate::localization::tr("This choice selects one file for editing. It does not disable the other textures or change the material slots used by exported hair."));
+            egui::ComboBox::from_id_salt("Hair texture").width(ui.available_width()).truncate()
+                .selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
+                for (i,path) in textures.iter().enumerate(){ui.selectable_value(&mut self.hair.texture_index,i,path.rsplit('/').next().unwrap_or(path));}
+            }).response.labelled_by(texture_label.id).on_hover_text(&textures[self.hair.texture_index]);
+            if let Some(slots) = self.cdmw_state["hair"]["texture_slots"].as_array() {
+                for slot in slots.iter().filter(|slot| slot["path"].as_str() == Some(textures[self.hair.texture_index].as_str())) {
+                    let parameter = slot["parameter"].as_str().filter(|s| !s.is_empty()).unwrap_or("Unspecified slot");
+                    ui.label(crate::localization::tr(parameter)).on_hover_text(slot["material"].as_str().unwrap_or(""));
+                    if slot["available"] != true { ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::LIGHT_RED), crate::localization::tr("Missing DDS")); }
+                }
+            }
+            for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {
+                if ui.button(crate::localization::tr(title)).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
+            }
+        }
+    }
+
     pub(super) fn draw_hair_controls(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let available = self.cdmw_state["hair"]["available"]
             .as_bool()
@@ -1074,10 +1160,21 @@ impl LabApplication {
             ui.label(crate::localization::tr("Use Hair Tools above the editor to choose a character and create or edit a hairstyle."));
             return;
         }
+        if let Some(problem) = self.cdmw_state["hair"]["additive_problem"]
+            .as_str()
+            .filter(|p| !p.is_empty())
+        {
+            // Checked once when the hairstyle opened, as Build Mod will check it.
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                crate::localization::tr(
+                    "Add New Barber Hairstyle cannot use this hairstyle. Replace Existing Hairstyle can still export it.",
+                ),
+            )
+            .on_hover_text(problem);
+        }
         if self.hair.state.as_ref().is_some_and(|s| s.converted) {
-            ui.weak(crate::localization::tr(
-                "Converted to ordinary mesh. Undo restores Hair editing.",
-            ));
+            self.draw_converted_hair_controls(ui, actions);
             return;
         }
         let ready = self.hair_input_ready() || self.hair_draw_input_ready();
@@ -1140,6 +1237,28 @@ impl LabApplication {
             self.hair.style_name,
             self.hair.selected.len()
         )));
+        if let Some(used) = self
+            .hair
+            .preview
+            .as_ref()
+            .or(self.document.as_deref())
+            .and_then(|d| d.lods.first())
+            .and_then(|lod| lod.submeshes.get(active_group_part as usize))
+            .map(|part| part.positions.len())
+        {
+            let limit = hair::MAX_PART_VERTICES;
+            let text = crate::localization::tr(format!(
+                "Vertices in this material part: {used} of {limit}"
+            ));
+            let label = if used * 10 >= limit * 9 {
+                egui::RichText::new(text).color(ui.visuals().warn_fg_color)
+            } else {
+                egui::RichText::new(text)
+            };
+            ui.label(label).on_hover_text(crate::localization::tr(
+                "A PAC material part holds at most 65535 vertices. Dense hair uses fewer card sections per lock as it nears the limit.",
+            ));
+        }
         if ui
             .small_button(crate::localization::tr("Keyboard Shortcuts..."))
             .clicked()
@@ -1177,6 +1296,8 @@ impl LabApplication {
                     ui.selectable_value(&mut self.hair.paint_static, true, crate::localization::tr("Static"));
                     ui.selectable_value(&mut self.hair.paint_static, false, crate::localization::tr("Physical"));
                 });
+                ui.weak(crate::localization::tr("Drawn and generated locks are exported as static hair. Physics paint on them changes only this preview."))
+                    .on_hover_text(crate::localization::tr("CDMW does not author cloth guides for new hair, so new locks never inherit the donor's cloth physics."));
                 ui.checkbox(&mut self.hair.physics_selected_only, crate::localization::tr("Selected locks only"))
                     .on_hover_text(crate::localization::tr("Restrict painting to selected locks. Turn off to brush any visible hair."));
                 if self.hair.physics_selected_only && self.hair.selected.is_empty() {
@@ -1325,18 +1446,7 @@ impl LabApplication {
                     ui.label(crate::localization::tr("Background color"));
                     ui.color_edit_button_srgba(&mut self.viewport_background_colour);
                 });
-                let color_available = self.cdmw_state["hair"]["texture_slots"].as_array().is_some_and(|slots|
-                    slots.iter().any(|slot| slot["role"] == "base_color"));
-                ui.horizontal(|ui| {
-                    ui.label(crate::localization::tr("Hair color"));
-                    ui.color_edit_button_srgb(&mut self.hair.color);
-                });
-                if ui.add_enabled(color_available && self.cdmw_state["hair"]["materials_ready"] == true,
-                    egui::Button::new(crate::localization::tr("Apply hair color")))
-                    .on_hover_text(crate::localization::tr("Uses the original base-color DDS files to retain strand shading and transparency. Replaces color-map edits; Flow and surface maps stay unchanged. Undo restores the previous textures."))
-                    .on_disabled_hover_text(crate::localization::tr("Requires declared base-color slots and all material DDS files. Unknown slots can be edited in Texture Editor.")).clicked() {
-                    actions.push(UiAction::CdmwCommand{command:"hair_color",arguments:json!({"color":self.hair.color.map(|v| v as f32 / 255.0)}),label:"Change hair color"});
-                }
+                self.draw_hair_colour_controls(ui, actions);
                 ui.add_enabled_ui(!self.hair.selected.is_empty(),|ui| {
                     ui.add(crate::cdmw_ui::numeric::slider(&mut self.hair.width,0.0001..=(span*0.2).clamp(0.001,10.0)).text(crate::localization::tr("Lock width")));
                     ui.add_enabled(supported,crate::cdmw_ui::numeric::slider(&mut self.hair.density,1..=32).text(crate::localization::tr("Follower cards")))
@@ -1373,27 +1483,7 @@ impl LabApplication {
                     }
                     if ui.button(crate::localization::tr("Apply to selected locks")).clicked(){actions.push(UiAction::Hair(HairAction::Settings));}
                 });
-                let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
-                if !textures.is_empty() {
-                    self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
-                    let texture_label = ui.label(crate::localization::tr("Texture to edit"));
-                    ui.weak(crate::localization::tr("All material DDS files are used together."))
-                        .on_hover_text(crate::localization::tr("This choice selects one file for editing. It does not disable the other textures or change the material slots used by exported hair."));
-                    egui::ComboBox::from_id_salt("Hair texture").width(ui.available_width()).truncate()
-                        .selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
-                        for (i,path) in textures.iter().enumerate(){ui.selectable_value(&mut self.hair.texture_index,i,path.rsplit('/').next().unwrap_or(path));}
-                    }).response.labelled_by(texture_label.id).on_hover_text(&textures[self.hair.texture_index]);
-                    if let Some(slots) = self.cdmw_state["hair"]["texture_slots"].as_array() {
-                        for slot in slots.iter().filter(|slot| slot["path"].as_str() == Some(textures[self.hair.texture_index].as_str())) {
-                            let parameter = slot["parameter"].as_str().filter(|s| !s.is_empty()).unwrap_or("Unspecified slot");
-                            ui.label(crate::localization::tr(parameter)).on_hover_text(slot["material"].as_str().unwrap_or(""));
-                            if slot["available"] != true { ui.colored_label(crate::cdmw_ui::cdmw_readable(ui, Color32::LIGHT_RED), crate::localization::tr("Missing DDS")); }
-                        }
-                    }
-                    for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {
-                        if ui.button(crate::localization::tr(title)).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
-                    }
-                }
+                self.draw_hair_texture_controls(ui, actions);
             });
         });
         ui.separator();
@@ -1788,6 +1878,57 @@ fn build_scene(
         show_reference: reference,
         applied: false,
     }
+}
+
+/// Reference piece index used for the converted-hair fitting bust.
+pub(super) const HAIR_REFERENCE_PIECE: usize = usize::MAX - 1;
+
+fn hair_reference_piece(state: &HairState) -> Option<crate::cdmw_session::LoadedReferencePiece> {
+    let mut snapshot = DrawSnapshot {
+        shader_masks: Vec::new(),
+        tangents: Vec::new(),
+        mesh_identity: u64::MAX - 2,
+        draw_revision: 0,
+        topology_generation: 0,
+        positions: vec![],
+        normals: vec![],
+        uvs: vec![],
+        indices: vec![],
+        triangle_materials: vec![],
+        selected_vertices: vec![],
+        fingerprint: format!("hair-reference-{}", state.scalp.identity),
+    };
+    for mesh in std::iter::once(&state.scalp).chain(&state.references) {
+        if mesh.identity.starts_with("collision:") {
+            continue;
+        }
+        let first = snapshot.positions.len() as u32;
+        let indices: Vec<_> = mesh.triangles.iter().flatten().copied().collect();
+        let mut reference_normals = vec![];
+        normals(&mesh.positions, &indices, &mut reference_normals);
+        snapshot.positions.extend_from_slice(&mesh.positions);
+        snapshot
+            .shader_masks
+            .extend(std::iter::repeat_n([1.0, 1.0, 0.0], mesh.positions.len()));
+        snapshot.normals.extend(reference_normals);
+        snapshot
+            .uvs
+            .extend(std::iter::repeat_n([0.0; 2], mesh.positions.len()));
+        snapshot.indices.extend(indices.iter().map(|i| i + first));
+        snapshot
+            .triangle_materials
+            .extend(std::iter::repeat_n(0, indices.len() / 3));
+    }
+    (!snapshot.indices.is_empty()).then(|| crate::cdmw_session::LoadedReferencePiece {
+        index: HAIR_REFERENCE_PIECE,
+        name: crate::localization::tr("Character bust"),
+        visible: true,
+        snapshot,
+        part_count: 1,
+        textures: vec![],
+        layers: vec![],
+        material_presentations: vec![],
+    })
 }
 
 fn hair_bounds(state: &HairState) -> (Vec3, Vec3) {

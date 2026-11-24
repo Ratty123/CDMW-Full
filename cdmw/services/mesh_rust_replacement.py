@@ -257,6 +257,7 @@ def run_replacement_command(authoring, command, args, stop_event):
         return result
     if command == "replacement_cancel":
         authoring.pending_replacement = None
+        authoring.pending_hair_import_token = ""
         authoring.replacement_weight_notes = ()
         return {"status": "cancelled"}
     if command == "replacement_compare":
@@ -324,8 +325,16 @@ def run_replacement_command(authoring, command, args, stop_event):
         authoring._preflight_mesh_document_capacity(mesh)
         from cdmw.services.mesh_rust_replacement_materials import stage_replacement_materials
         stage_replacement_materials(authoring, mesh, state, stop_event)
-        result = commit_replacement(service, snapshot, mesh, state, label="Import replacement", stop_event=stop_event)
+        hair_state, label = None, "Import replacement"
+        if (authoring.pending_hair_import_token == pending.token and snapshot.hair_state is not None
+                and not snapshot.hair_state.payload.get("converted")):
+            # Import custom hair mesh converts only once the mapping is applied.
+            from cdmw.services.mesh_rust_hair import converted_hair_state
+            hair_state, label = converted_hair_state(snapshot.hair_state.payload), "Import custom hair mesh"
+        result = commit_replacement(service, snapshot, mesh, state, label=label, stop_event=stop_event,
+                                    hair_state=hair_state)
         authoring.pending_replacement = None
+        authoring.pending_hair_import_token = ""
         authoring.replacement_weight_notes = tuple(dict.fromkeys(skin_notes))
     elif command == "replacement_include":
         result = set_part_inclusion(service, snapshot, args.get("part_ids", ()), bool(args.get("included", True)),

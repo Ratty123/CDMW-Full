@@ -3,7 +3,7 @@
 
 use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 
@@ -15,6 +15,11 @@ pub mod surface;
 pub const MAX_GUIDES: usize = 4096;
 pub const MAX_POINTS: usize = 64;
 pub const MAX_HAIR_VERTICES: usize = 500_000;
+/// A PAC draw section indexes its vertices with 16 bits. Every hair material
+/// part is one draw section, so generated cards and surviving original cards
+/// in the same part share this budget. `MAX_HAIR_VERTICES` still bounds the
+/// fitting references, which are never written to the PAC.
+pub const MAX_PART_VERTICES: usize = 65_535;
 
 #[derive(Debug, Error)]
 pub enum HairError {
@@ -22,6 +27,9 @@ pub enum HairError {
     Invalid(String),
     #[error("Hair preparation cancelled")]
     Cancelled,
+    /// A user-facing limit, worded as the sentence the Hair panel shows.
+    #[error("{0}")]
+    Budget(String),
 }
 type Result<T> = std::result::Result<T, HairError>;
 
@@ -825,10 +833,104 @@ pub fn root_blend(distance: f32, width: f32) -> f32 {
 }
 
 pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeometry>> {
+    generate_within(state, cancelled, &BTreeMap::new())
+}
+
+/// Generate with `reserved[part]` vertices already used in each part by
+/// surviving original hair, so the result still fits one PAC draw section.
+pub fn generate_within(
+    state: &HairState,
+    cancelled: &AtomicBool,
+    reserved: &BTreeMap<u32, usize>,
+) -> Result<Vec<HairGeometry>> {
     state.validate()?;
     let indices: Vec<_> = state.scalp.triangles.iter().flatten().copied().collect();
     let scalp = surface::SurfaceIndex::new(&state.scalp.positions, &indices);
-    generate_cached(state, cancelled, &scalp, &indices, None)
+    generate_cached(state, cancelled, &scalp, &indices, None, reserved)
+}
+
+/// Vertices one generated lock costs at a card subdivision level.
+pub fn lock_vertices(points: usize, cards: u32, subdivisions: usize) -> usize {
+    (points.saturating_sub(1) * subdivisions + 1) * 2 * cards as usize
+}
+
+/// Generated vertex use for one material part.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartBudget {
+    /// Generated vertices at the chosen subdivision level.
+    pub generated: usize,
+    /// Original vertices already in the part.
+    pub reserved: usize,
+    pub subdivisions: usize,
+}
+
+impl PartBudget {
+    pub fn used(&self) -> usize {
+        self.generated + self.reserved
+    }
+}
+
+fn is_generated_guide(state: &HairState, gi: usize, group: &HairGroup) -> bool {
+    group.mode == GroupMode::Generated
+        || state
+            .locks
+            .iter()
+            .any(|l| l.guide == Some(gi as u32) && l.kind == locks::LockKind::Generated)
+}
+
+/// Card subdivision per part, chosen from every generated guide in the part so
+/// a partial stroke preview and the committed result use the same level.
+/// Three card sections per simulation segment smooth bends; dense styles drop
+/// to fewer sections before they would exceed the PAC draw-section limit.
+pub fn part_budgets(
+    state: &HairState,
+    reserved: &BTreeMap<u32, usize>,
+) -> Result<BTreeMap<u32, PartBudget>> {
+    let mut totals: BTreeMap<u32, (usize, usize)> = BTreeMap::new();
+    for group in &state.groups {
+        for (i, guide) in
+            state.guides.iter().enumerate().filter(|(i, guide)| {
+                guide.group == group.id && is_generated_guide(state, *i, group)
+            })
+        {
+            let edges = 2 * state
+                .locks
+                .iter()
+                .find(|l| l.guide == Some(i as u32) && l.cards > 0)
+                .map_or(group.cards_per_guide, |l| l.cards) as usize;
+            let entry = totals.entry(group.part).or_default();
+            entry.0 += guide.points.len() * edges;
+            entry.1 += guide.points.len().saturating_sub(1) * edges;
+        }
+    }
+    let mut result = BTreeMap::new();
+    let mut total = 0;
+    for (part, (count, spans)) in totals {
+        let kept = reserved.get(&part).copied().unwrap_or(0);
+        let available = MAX_PART_VERTICES.saturating_sub(kept);
+        if count > available {
+            return Err(HairError::Budget(format!(
+                "This hair would need {} vertices in one material part, and a PAC part holds at most {MAX_PART_VERTICES}. Remove some locks or lower Cards.",
+                count + kept
+            )));
+        }
+        let subdivisions = 1 + ((available - count) / spans.max(1)).min(2);
+        let generated = count + spans * (subdivisions - 1);
+        total += generated;
+        result.insert(
+            part,
+            PartBudget {
+                generated,
+                reserved: kept,
+                subdivisions,
+            },
+        );
+    }
+    require(
+        total <= MAX_HAIR_VERTICES,
+        "generated hair exceeds the vertex budget",
+    )?;
+    Ok(result)
 }
 
 /// Preview an active stroke against the resident scalp index. The host still
@@ -839,6 +941,7 @@ pub fn generate_cached(
     scalp: &surface::SurfaceIndex,
     scalp_indices: &[u32],
     selected: Option<&[u64]>,
+    reserved: &BTreeMap<u32, usize>,
 ) -> Result<Vec<HairGeometry>> {
     let included = |i: usize| {
         selected.is_none_or(|ids| {
@@ -848,38 +951,8 @@ pub fn generate_cached(
                 .any(|l| l.guide == Some(i as u32) && ids.contains(&l.id))
         })
     };
-    let is_generated = |gi: usize, group: &HairGroup| -> bool {
-        group.mode == GroupMode::Generated
-            || state
-                .locks
-                .iter()
-                .any(|l| l.guide == Some(gi as u32) && l.kind == locks::LockKind::Generated)
-    };
-    let mut count = 0;
-    let mut spans = 0;
-    for group in &state.groups {
-        for (i, guide) in state
-            .guides
-            .iter()
-            .enumerate()
-            .filter(|(i, guide)| guide.group == group.id && included(*i) && is_generated(*i, group))
-        {
-            let edges = 2 * state
-                .locks
-                .iter()
-                .find(|l| l.guide == Some(i as u32) && l.cards > 0)
-                .map_or(group.cards_per_guide, |l| l.cards) as usize;
-            count += guide.points.len() * edges;
-            spans += guide.points.len().saturating_sub(1) * edges;
-        }
-    }
-    require(
-        count <= MAX_HAIR_VERTICES,
-        "generated hair exceeds the vertex budget",
-    )?;
-    // Three card sections per simulation segment smooth bends without adding
-    // physics work. Dense older styles can still be edited within their budget.
-    let subdivisions = 1 + ((MAX_HAIR_VERTICES - count) / spans.max(1)).min(2);
+    let is_generated = |gi: usize, group: &HairGroup| is_generated_guide(state, gi, group);
+    let budgets = part_budgets(state, reserved)?;
     let mut result = Vec::new();
     for group in &state.groups {
         let matching: Vec<_> = state
@@ -904,6 +977,7 @@ pub fn generate_cached(
                 guide.points.len() >= 2,
                 "a hair guide needs at least two points",
             )?;
+            let subdivisions = budgets.get(&group.part).map_or(1, |b| b.subdivisions);
             let curve = locks::Curve::new(&guide.points);
             let row_count = (guide.points.len() - 1) * subdivisions + 1;
             let mut rows = Vec::with_capacity(row_count);
@@ -2080,15 +2154,29 @@ mod tests {
         state.guides[0].points = (0..64)
             .map(|i| (root + Vec3::Y * (i as f32 * 0.002)).to_array())
             .collect();
-        state.guides = vec![state.guides[0].clone(); 100];
+        let one = state.guides[0].clone();
         state.groups[0].cards_per_guide = 32;
-        let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
-        assert_eq!(
-            mesh.positions.len(),
-            409_600,
-            "existing dense styles must still be editable"
+        // 409,600 vertices cannot be one PAC draw section; refuse it with a
+        // sentence the panel can show instead of failing at commit.
+        state.guides = vec![one.clone(); 100];
+        let error = generate(&state, &AtomicBool::new(false)).unwrap_err();
+        assert!(
+            matches!(&error, HairError::Budget(text) if text.contains("65535")),
+            "{error}"
         );
-        assert!(mesh.positions.len() <= MAX_HAIR_VERTICES);
+        // A dense style within the part limit drops to fewer card sections.
+        state.guides = vec![one; 8];
+        let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
+        assert_eq!(mesh.positions.len(), 65_024);
+        assert!(mesh.positions.len() <= MAX_PART_VERTICES);
+        // Surviving original cards in a Hybrid part share the same budget.
+        let reserved = BTreeMap::from([(state.groups[0].part, 1_000)]);
+        let mesh = generate_within(&state, &AtomicBool::new(false), &reserved)
+            .unwrap()
+            .remove(0);
+        assert_eq!(mesh.positions.len(), 32_768);
+        let budget = part_budgets(&state, &reserved).unwrap()[&state.groups[0].part];
+        assert_eq!((budget.used(), budget.subdivisions), (33_768, 1));
     }
 
     #[test]

@@ -159,7 +159,8 @@ def test_single_setup_requires_character_and_catalogue_and_rejects_stale_choices
     monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda entry: (XML, ""))
     # The real utility callable accepts its logger argument.
     choices = tasks[0]["task"](lambda _: None)
-    assert choices[0].prefab_stem == STEM
+    assert choices.choices[0].prefab_stem == STEM
+    assert choices.mod_added == frozenset()
     dialog.character.setCurrentIndex(dialog.character.findData("Kliff"))
     tasks[0]["on_complete"](choices)
     assert dialog._picker is None

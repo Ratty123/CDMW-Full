@@ -1,4 +1,6 @@
 """One cancellable setup surface shared by Finder and the Mesh Editor."""
+from typing import NamedTuple
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton,
@@ -181,12 +183,15 @@ class HairSetupDialog(QDialog):
                 raise ValueError("The barber registration exceeds its supported size.")
             data = read_archive_entry_data(entry)[0]
             try:
-                return read_hair_choices(data)
+                choices = read_hair_choices(data)
             except HairRegistrationError as error:
                 return error  # Not a failed read: the table itself is one this tool does not understand.
-        def ready(choices):
+            return BarberChoices(choices, _mod_added_stems(entry, choices))
+        def ready(result):
             if self._closed or generation != self._generation:
                 return
+            choices, mod_added = ((result.choices, result.mod_added) if isinstance(result, BarberChoices)
+                                  else (result, frozenset()))
             if isinstance(choices, Exception):
                 self._failed(f"CDMW cannot read {profile.name}'s barber list ({profile.mesh_param_path}): {choices} "
                              "A game update or another mod may have changed it. Loading again will not change this; "
@@ -233,6 +238,14 @@ class HairSetupDialog(QDialog):
                     if custom_donor
                     else "Choose an existing hairstyle to load and edit."
                 )
+                added = sorted(c.prefab_stem for c in choices if c.prefab_stem in mod_added)
+                if added:
+                    # The barber list was read through DMM. Add New Barber Hairstyle copies a
+                    # slot of the game's own list, so a mod's hairstyle cannot be its donor.
+                    shown = ", ".join(added[:3]) + (", …" if len(added) > 3 else "")
+                    self.status.setText(
+                        f"Some hairstyles here come from another DMM mod ({shown}). Edit them only with "
+                        "Replace Existing Hairstyle; Add New Barber Hairstyle needs one of the game's own hairstyles.")
                 self.resize(1060, 800)
         def failed(message):
             if generation == self._generation:
@@ -315,3 +328,29 @@ class HairSetupDialog(QDialog):
             if self._picker and not self._picker._closed:
                 self._picker.reject()
         super().done(result)
+
+
+class BarberChoices(NamedTuple):
+    """A character's barber list, and the hairstyles in it that a DMM mod adds."""
+    choices: tuple
+    mod_added: frozenset
+
+
+def _mod_added_stems(entry, choices) -> frozenset[str]:
+    """Hairstyles in a DMM-served barber list that the game's own list lacks.
+
+    Runs on the utility worker. Returns nothing when the list is not served by
+    DMM or the game's own copy cannot be read.
+    """
+    from dataclasses import replace
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.domain.hair_registration import HairRegistrationError, read_hair_choices
+    from cdmw.services.dmm_runtime_mount import is_dmm_note
+    if getattr(entry, "prepared_path", None) is None or not is_dmm_note(getattr(entry, "prepared_note", "")):
+        return frozenset()
+    try:
+        game = replace(entry, prepared_path=None, prepared_sha256="", prepared_size=None, prepared_note="")
+        vanilla = {choice.prefab_stem for choice in read_hair_choices(read_archive_entry_data(game)[0])}
+    except (HairRegistrationError, OSError, ValueError, TypeError):
+        return frozenset()
+    return frozenset(choice.prefab_stem for choice in choices if choice.prefab_stem not in vanilla)

@@ -1263,7 +1263,8 @@ class MeshEditorRustProcessMixin:
             from PySide6.QtWidgets import QFileDialog
             self._archive_refit_picker_active = True
             try:
-                path, _ = QFileDialog.getOpenFileName(self.window(), "Apply Edited Hair DDS", "", "DDS textures (*.dds)")
+                path, _ = QFileDialog.getOpenFileName(self.window(), "Apply Edited Hair Texture", "",
+                                                      "Textures (*.dds *.png *.jpg *.jpeg *.webp *.bmp)")
             finally:
                 self._archive_refit_picker_active = False
             if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
