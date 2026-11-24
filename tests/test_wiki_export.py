@@ -141,7 +141,7 @@ def test_compact_pamt_reader_limit_is_translated_in_help_and_wiki(wiki_pages):
 
 
 def test_manuals_have_one_native_named_page_per_language_and_21_guide_entries(wiki_manuals):
-    assert len(wiki_manuals) == 30
+    assert len(wiki_manuals) == 28
     assert set(wiki_manuals) == {
         *(manual_path(language.code) for language in BUILTIN_LANGUAGES),
         *(Path(manual_path(language.code)).with_name("_Sidebar.md").as_posix() for language in BUILTIN_LANGUAGES),
@@ -362,8 +362,8 @@ def test_manual_migration_requires_every_source_guide(wiki_pages):
 
 
 def test_all_14_locales_have_complete_guides_and_same_language_navigation(wiki_pages):
-    assert len(BUILTIN_LANGUAGES) == 14
-    assert len(wiki_pages) == 21 * 14 + 3
+    assert len(BUILTIN_LANGUAGES) == 13
+    assert len(wiki_pages) == 21 * 13 + 3
     for language in BUILTIN_LANGUAGES:
         for page in PAGE_TOPICS:
             name = page_slug(page, language.code)
@@ -682,6 +682,16 @@ def test_error_library_is_linked_and_folded_without_rewording_diagnostics(wiki_m
         assert '0xC0000005' in manual and '0xC0000142' in manual
 
 
+def test_russian_has_no_wiki_manual_and_its_help_opens_the_english_one(tmp_path) -> None:
+    """The Russian manual kept reaching GitHub's page limit and was taken off the Wiki
+    (2026-11-24); Help in Russian opens the English manual instead of a missing page."""
+    from cdmw.ui.shell.wiki_links import documentation_url
+
+    assert "ru" not in {language.code for language in BUILTIN_LANGUAGES}
+    assert documentation_url("ru", "mesh_editor") == documentation_url("en", "mesh_editor")
+    assert documentation_url("de", "mesh_editor") != documentation_url("en", "mesh_editor")
+
+
 def test_complete_wiki_assets_preserve_every_message_source_and_translated_remedy(wiki_manuals):
     import hashlib
     import json
@@ -691,7 +701,7 @@ def test_complete_wiki_assets_preserve_every_message_source_and_translated_remed
     from cdmw.ui.shell.error_reference import ERROR_REFERENCE_GROUPS
 
     assets = build_reference_assets()
-    assert len(assets) == 14 * (1 + len(MESSAGE_AREAS) + len(ERROR_REFERENCE_GROUPS))
+    assert len(assets) == 13 * (1 + len(MESSAGE_AREAS) + len(ERROR_REFERENCE_GROUPS))
     assert not any(path.endswith('.md') for path in assets)
     for language in BUILTIN_LANGUAGES:
         for group in ERROR_REFERENCE_GROUPS:

@@ -17,6 +17,10 @@ from cdmw.constants import APP_REPOSITORY_URL
 from cdmw.domain.localization import BUILTIN_LANGUAGE_BY_CODE
 
 WIKI = APP_REPOSITORY_URL + "/wiki/"
+#: Interface languages without a Wiki manual; their Help opens the English one. The
+#: Russian manual kept reaching GitHub's page limit (Cyrillic is two bytes a letter)
+#: and was removed from the Wiki on 2026-11-24; the app keeps its Russian interface.
+WIKI_EXCLUDED_LANGUAGES = frozenset({"ru"})
 #: Topics whose own anchor the manual does not keep, and the section it uses instead.
 TOPIC_ANCHORS = {"documentation_index": "guide-tools-and-navigation"}
 
@@ -35,7 +39,8 @@ def manual_url(locale: str, anchor: str = "") -> str:
 def documentation_url(language_code: str = "en", topic_id: str = "") -> str:
     """The Wiki manual in ``language_code`` (English for an imported language), at ``topic_id``."""
 
-    locale = language_code if language_code in BUILTIN_LANGUAGE_BY_CODE else "en"
+    locale = (language_code if language_code in BUILTIN_LANGUAGE_BY_CODE
+              and language_code not in WIKI_EXCLUDED_LANGUAGES else "en")
     topic = str(topic_id or "").strip()
     return manual_url(locale, TOPIC_ANCHORS.get(topic, topic))
 
@@ -50,4 +55,4 @@ def open_documentation(language_code: str = "en", topic_id: str = "") -> bool:
     return open_url(documentation_url(language_code, topic_id))
 
 
-__all__ = ["WIKI", "documentation_url", "manual_slug", "manual_url", "open_documentation", "open_url"]
+__all__ = ["WIKI", "WIKI_EXCLUDED_LANGUAGES", "documentation_url", "manual_slug", "manual_url", "open_documentation", "open_url"]
