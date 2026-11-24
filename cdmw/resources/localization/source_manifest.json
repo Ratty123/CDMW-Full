@@ -23522,16 +23522,6 @@
       "manual": true
     },
     {
-      "key": "Brush strokes, such as sculpt brushes and the Hair Tools brushes, need a hand on the pointer and have no tool. An AI app uses the selection, move and numeric tools instead.",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 1139,
-          "sink": "python-return:_build_reference_sections"
-        }
-      ]
-    },
-    {
       "key": "Brush tip",
       "origins": [
         {
@@ -175713,6 +175703,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 533,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "The Hair Tools brushes need a hand on the pointer and have no tool; an AI app uses the selection, move and numeric tools instead. The Mesh Editor's sculpt brushes have a tool of their own, which draws a stroke through the view.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1139,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },

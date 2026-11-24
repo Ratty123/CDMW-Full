@@ -38,7 +38,10 @@ INSTRUCTIONS = (
     "Paths a tool takes are absolute. Long work returns a job; follow it with app_job (app_jobs lists them all). "
     "Do the user's request inside CDMW with these tools. Do not export files, write scripts or run other "
     "programs to inspect or change what CDMW holds unless the user asked for that: the read tools page "
-    "through everything (mesh_geometry, mesh_vertex_inspect). When the tools cannot do what was asked, say "
+    "through everything (mesh_geometry, mesh_vertex_inspect). To reshape a model, mesh_landmarks says which "
+    "way it faces and where its bones and their flesh are, mesh_select_region selects by place or bone, and "
+    "mesh_sculpt draws the Sculpt brushes; check each step with view_capture. A part's colours are "
+    "mesh_part_options' material_colours. When the tools cannot do what was asked, say "
     "what is missing and ask the user before doing anything outside CDMW."
 )
 

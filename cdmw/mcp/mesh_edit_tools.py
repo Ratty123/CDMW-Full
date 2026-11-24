@@ -11,6 +11,7 @@ selection, so a refusal is seen, not just "sent".
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from pathlib import Path
@@ -22,6 +23,11 @@ from cdmw.mcp.tools import ON_CALL, ON_WORKER, Tool, object_schema
 
 SETTLE_S = 30.0
 ARRIVE_S = 5.0
+#: How long after the reply a stop still counts as this call's.
+STOP_GRACE_S = 0.3
+#: The helper reads one message per line and drops a line over 256 KiB (cdmw_session.rs),
+#: which closes the editor; a command's arguments stay well below that.
+MAX_COMMAND_BYTES = 200 * 1024
 NO_EDIT_COMMANDS = ("This Mesh Editor helper does not take editing commands from CDMW; it is older than "
                     "this app (host_edit_commands_v1).")
 OUTPUT_POLICIES = ("exact_game_asset", "replacement_game_asset", "free_edit_rebuild")
@@ -63,9 +69,10 @@ def settle(call, mark: int, history_before: object, *, timeout: float = SETTLE_S
     then say what changed. A helper that refuses locally (busy, nothing selected) sends no
     request: its status line then says why, after a short wait."""
 
-    from cdmw.mcp.mesh_tools import _busy, _state, shown_document
+    from cdmw.mcp.mesh_tools import _busy, _state, editor_identity, editor_stopped, shown_document
 
     context = call.context
+    identity = context.ui_call(lambda: editor_identity(shown_document(context)))
 
     def progress() -> tuple[int, bool]:
         tab = shown_document(context)
@@ -81,15 +88,32 @@ def settle(call, mark: int, history_before: object, *, timeout: float = SETTLE_S
         if (arrived and not busy) or (not arrived and waited > ARRIVE_S) or waited > timeout:
             break
         time.sleep(0.05)
+
+    def gone() -> tuple[str, bool]:
+        tab = shown_document(context)
+        return editor_stopped(tab), editor_identity(tab) != identity
+
+    # A helper that cannot apply CDMW's answer closes a moment after it (the "protocol
+    # failure" cancel follows the reply), so look again briefly before calling it done.
+    stopped, restarted = context.ui_call(gone)
+    grace = time.monotonic() + STOP_GRACE_S
+    while arrived and not stopped and time.monotonic() < grace:
+        time.sleep(0.05)
+        stopped, restarted = context.ui_call(gone)
+    if stopped:
+        # It answered and then closed or restarted: the call did not take (2026-11-24).
+        raise ToolError(FAILED, f"The Mesh Editor stopped: {stopped} Retry on its page (app_ui_act) reopens it; "
+                                "check the result there before trying again.")
     after = _state(call)
-    status = str(after.get("status") or "")
-    if status.startswith("Mesh Editor stopped"):
-        # It answered and then closed: the call did not take (2026-11-24, the captures folder).
-        raise ToolError(FAILED, f"{status} Retry on its page (app_ui_act) reopens it.")
     outcome: dict[str, object] = {"done": arrived and not busy, "status": after.get("status", ""),
                                   "history_before": history_before, "history": after.get("history"),
                                   "selection": after.get("selection"), "revision": after.get("revision")}
-    if not arrived:
+    if restarted:
+        # Finish and Import Replacement reopen the document on purpose; a crash restarts it.
+        outcome["restarted"] = True
+        outcome["message"] = ("The Mesh Editor reopened its document during this call; check the result "
+                              "(mesh_state, view_capture) before going on.")
+    elif not arrived:
         outcome["message"] = ("The Mesh Editor did not send the request; its status line says why (for "
                               "example nothing is selected, or Free Edit output is needed).")
     elif busy:
@@ -120,6 +144,11 @@ def _send_edit(call, command: str, arguments: dict[str, object]) -> dict[str, ob
     from cdmw.mcp.mesh_tools import BUSY, _act, _busy, ready_document
 
     context = call.context
+    size = len(json.dumps(arguments, separators=(",", ":")))
+    if size > MAX_COMMAND_BYTES:
+        raise ToolError(INVALID_ARGUMENTS, f"That is too much for one Mesh Editor command ({size // 1024} KiB; at most "
+                                           f"{MAX_COMMAND_BYTES // 1024} KiB, about 30,000 vertex numbers). Select "
+                                           "whole parts, a smaller region, or in several steps with operation 'add'.")
     before = history_now(call)
     mark = request_mark(context)
 

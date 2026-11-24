@@ -25,8 +25,11 @@ def has_control(call, control: str) -> bool:
     return bool(call.context.ui_call(lambda: control in editor_controls(shown_document(call.context))))
 
 
-def editor_control(call, control: str, arguments: dict[str, object]) -> dict[str, object]:
-    """Send one control and return its answer: ``ok``, ``message`` and ``state``."""
+def editor_control(call, control: str, arguments: dict[str, object], *,
+                   answer_s: float = ANSWER_S) -> dict[str, object]:
+    """Send one control and return its answer: ``ok``, ``message`` and ``state``. A control
+    that edits (a sculpt stroke) waits longer, so a slow answer is not taken for none and
+    the edit tried twice."""
 
     from cdmw.mcp.mesh_tools import ready_document, shown_document
     from cdmw.ui.mesh_editor.editor_controls import editor_controls, take_editor_control_answer
@@ -43,14 +46,15 @@ def editor_control(call, control: str, arguments: dict[str, object]) -> dict[str
         return token
 
     token = context.ui_call(send)
-    deadline = time.monotonic() + ANSWER_S
+    deadline = time.monotonic() + answer_s
     while time.monotonic() < deadline:
         call.check_cancelled()
         answer = context.ui_call(lambda: take_editor_control_answer(shown_document(context), token))
         if answer is not None:
             return answer
         time.sleep(0.03)
-    raise ToolError(FAILED, "The Mesh Editor did not answer.")
+    raise ToolError(FAILED, "The Mesh Editor did not answer in time. It may still have done it: check mesh_state's "
+                            "history and view_capture before trying again.")
 
 
 def control_outcome(answer: dict[str, object], key: str) -> dict[str, object]:

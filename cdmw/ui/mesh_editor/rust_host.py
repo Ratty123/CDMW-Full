@@ -497,6 +497,14 @@ class RustMeshEditorHostFrame(QFrame):
         self._pages.setCurrentWidget(self._status_page)
         self._pages.setVisible(True)
 
+    def failure_shown(self) -> str:
+        """The error this page shows with Retry, in the interface's language, or "" while it
+        shows anything else (read by AI tools, which must not go by the message's words)."""
+
+        if self._pages.currentWidget() is self._status_page and not self._retry_button.isHidden():
+            return str(self._status_label.text() or "Mesh Editor failed.")
+        return ""
+
     def show_editor(self) -> None:
         self._auto_returned = False
         self._editor_visible = True

@@ -26,7 +26,10 @@ _KEY_BONES = ("pelvis", "spine", "spine1", "spine2", "neck", "head", "l chest", 
               "r clavicle", "l upperarm", "r upperarm", "l forearm", "r forearm", "l hand", "r hand",
               "l thigh", "r thigh", "l calf", "r calf", "l foot", "r foot", "l toe0", "r toe0")
 _MAX_LISTED_BONES = 400
-_MAX_REGION_VERTICES = 200000
+#: One select command must stay below the helper's 256 KiB line (MAX_COMMAND_BYTES).
+_MAX_REGION_VERTICES = 30000
+#: A stroke is at most 512 brush applications (SCULPT_MAX_APPLICATIONS in Rust).
+SCULPT_ANSWER_S = 60.0
 
 
 # ----- reading the shown document ---------------------------------------------------------
@@ -278,7 +281,7 @@ def _sculpt(call) -> dict[str, object]:
         raise ToolError(UNAVAILABLE, older_helper("sculpt"))
     arguments = {key: value for key, value in call.arguments.items() if value is not None}
     before, mark = history_now(call), request_mark(call.context)
-    answer = editor_control(call, "sculpt", arguments)
+    answer = editor_control(call, "sculpt", arguments, answer_s=SCULPT_ANSWER_S)
     outcome = control_outcome(answer, "stroke")
     if answer.get("ok"):
         settled = settle(call, mark, before)
@@ -333,14 +336,17 @@ def mesh_shape_tools() -> list[Tool]:
                          "smooth, linear or constant; 'symmetry' x mirrors across X=0 (the body's left and "
                          "right). The points must be in view: aim mesh_camera at them first (mesh_landmarks "
                          "says which yaw shows the front). A selection clips the brush to it, so "
-                         "mesh_select_region first keeps a stroke off nearby parts of the body. Check the "
-                         "result with view_capture; mesh_undo takes it back.",
+                         "mesh_select_region first keeps a stroke off nearby parts of the body. A stroke is "
+                         "refused when, in the current view, the brush would reach a surface far from the points "
+                         "(the camera looks at another side). The answer says how many vertices it reached. "
+                         "Check the result with view_capture; mesh_undo takes it back.",
              input_schema=object_schema({
                  "tool": {"type": "string", "enum": ["inflate", "smooth", "pinch", "grab"]},
                  "points": {"type": "array", "minItems": 1, "maxItems": 256, "items": _VEC3},
                  "radius": {"type": "number", "minimum": 1e-05, "maximum": 10000},
                  "strength": {"type": "number", "minimum": -1, "maximum": 1},
-                 "dabs": {"type": "integer", "minimum": 1, "maximum": 32, "default": 1},
+                 "dabs": {"type": "integer", "minimum": 1, "maximum": 32, "default": 1,
+                          "description": "Points × dabs is at most 512."},
                  "falloff": {"type": "string", "enum": ["smooth", "linear", "constant"]},
                  "symmetry": {"type": "string", "enum": ["off", "x", "y", "z"]}},
                  ["tool", "points", "radius"]),

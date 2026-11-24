@@ -62,10 +62,11 @@ def shown_document(context):
 def ready_document(context, *, commands: bool = False):
     tab = shown_document(context)
     if tab is None or getattr(tab, "standalone_rust_authoring_session", None) is None:
-        stopped = _status(tab) if tab is not None else ""
-        if stopped.startswith("Mesh Editor stopped"):
+        stopped = editor_stopped(tab)
+        if stopped:
             # Its page shows the reason and a Retry button; the document's edits are kept.
-            raise ToolError(UNAVAILABLE, f"{stopped} Retry on its page (app_ui_act) reopens it.")
+            raise ToolError(UNAVAILABLE, f"The Mesh Editor stopped: {stopped} Retry on its page (app_ui_act) "
+                                         "reopens it.")
         raise ToolError(UNAVAILABLE, NO_EDITOR)
     if not getattr(tab, "standalone_rust_ready", False):
         raise ToolError(UNAVAILABLE, NOT_READY)
@@ -73,6 +74,25 @@ def ready_document(context, *, commands: bool = False):
         raise ToolError(UNAVAILABLE, "This Mesh Editor helper does not take commands from CDMW; it is older "
                                      "than this app.")
     return tab
+
+
+def editor_stopped(tab) -> str:
+    """The error the document's page shows with Retry when its editor stopped, or ""."""
+
+    host = getattr(tab, "standalone_native_host_frame", None) if tab is not None else None
+    shown = getattr(host, "failure_shown", None)
+    try:
+        return str(shown() or "") if callable(shown) else ""
+    except RuntimeError:  # the page is being deleted
+        return ""
+
+
+def editor_identity(tab) -> tuple:
+    """What changes when the editor stops, crashes or restarts: its session and process."""
+
+    session = getattr(tab, "standalone_rust_authoring_session", None) if tab is not None else None
+    return (id(session) if session is not None else None,
+            int(getattr(tab, "standalone_rust_process_generation", 0) or 0) if tab is not None else 0)
 
 
 def _busy(tab) -> bool:

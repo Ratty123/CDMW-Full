@@ -2395,7 +2395,7 @@ ERROR_REFERENCE = [
       "The Action Chart Editor did not open in time. Browse Archives' status says why (a shared action table cannot be edited).",
       "The HKX Physics Editor did not open in time.",
       "The HKX Physics Editor did not save in time.",
-      "The Mesh Editor did not answer.",
+      "The Mesh Editor did not answer in time. It may still have done it: check mesh_state's history and view_capture before trying again.",
       "The Mesh Editor did not report its camera.",
       "The Mesh Editor did not report its view settings.",
       "The Mesh Editor did not take the camera.",
@@ -2404,6 +2404,7 @@ ERROR_REFERENCE = [
       "The Mesh Editor did not take the message.",
       "The Mesh Editor did not take the selection.",
       "The Mesh Editor did not take the view settings.",
+      "The Mesh Editor stopped: {stopped} Retry on its page (app_ui_act) reopens it; check the result there before trying again.",
       "The Mesh Editor wrote its picture outside its session folder.",
       "The archive worker did not answer in time.",
       "The call's safety class could not be worked out.",
@@ -2416,7 +2417,6 @@ ERROR_REFERENCE = [
       "The reference search did not finish in time.",
       "The {editor.kind} editor did not finish the history step.",
       "The {editor.kind} history moved outside the turn.",
-      "{status} Retry on its page (app_ui_act) reopens it.",
       "{table} row {key} is in {stem}, but CDMW cannot decode it: {reason}",
       "{title} did not finish in time. {status}",
       "{what} did not finish in time.",
@@ -2559,6 +2559,7 @@ ERROR_REFERENCE = [
       "Supply true or false.",
       "That cell holds a number.",
       "That cell holds a whole number.",
+      "That is too much for one Mesh Editor command ({size // 1024} KiB; at most {MAX_COMMAND_BYTES // 1024} KiB, about 30,000 vertex numbers). Select whole parts, a smaller region, or in several steps with operation 'add'.",
       "That name is empty once cleaned up.",
       "That page token belongs to another tool.",
       "The Speed & Prefabs tab offers these tables: {detail}. Other tables open in the dialog.",
@@ -39299,7 +39300,7 @@ MESSAGE_REFERENCE = [
     "message": "A drag is in progress in the 3D view; try again when it ends.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 87
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 99
     }
   },
   {
@@ -39331,7 +39332,7 @@ MESSAGE_REFERENCE = [
     "message": "A part can be in show_parts or hide_parts, not both.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 622
+      "cdmw/mcp/mesh_edit_tools.py": 651
     }
   },
   {
@@ -39523,7 +39524,7 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} needs {', '.join(missing)}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 230,
+      "cdmw/mcp/mesh_hair_tools.py": 232,
       "cdmw/mcp/mesh_viewport_tools.py": 49
     }
   },
@@ -39532,7 +39533,7 @@ MESSAGE_REFERENCE = [
     "message": "Action {action} takes {', '.join(ACTION_ARGUMENTS[action]) or 'nothing more'}; not {extra[0]}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 226
+      "cdmw/mcp/mesh_hair_tools.py": 228
     }
   },
   {
@@ -39700,7 +39701,7 @@ MESSAGE_REFERENCE = [
     "message": "An edge of part {part} is not two of its vertices 0 to {count - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 284
+      "cdmw/mcp/mesh_edit_tools.py": 313
     }
   },
   {
@@ -39909,7 +39910,7 @@ MESSAGE_REFERENCE = [
     "message": "At this camera distance the radius is {brush_pixels:.1} pixels; move the camera (mesh_camera distance) so it is 2 to 4096 pixels.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 94
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 106
     }
   },
   {
@@ -40978,7 +40979,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives could not show this set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 500
+      "cdmw/mcp/mesh_tools.py": 520
     }
   },
   {
@@ -40986,7 +40987,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not find the set's files in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 523
+      "cdmw/mcp/mesh_tools.py": 543
     }
   },
   {
@@ -40994,7 +40995,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {first} as part of the set.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 578
+      "cdmw/mcp/mesh_tools.py": 598
     }
   },
   {
@@ -41002,7 +41003,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives did not show {wanted} as a mesh it can open. search_archive finds the path of a .pac, .pam or .pamlod file.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 648
+      "cdmw/mcp/mesh_tools.py": 668
     }
   },
   {
@@ -41010,7 +41011,7 @@ MESSAGE_REFERENCE = [
     "message": "Browse Archives is listing its files again; call mesh_open once more.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 658
+      "cdmw/mcp/mesh_tools.py": 678
     }
   },
   {
@@ -41154,7 +41155,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW did not find the head and body in time.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 175
+      "cdmw/mcp/mesh_hair_tools.py": 177
     }
   },
   {
@@ -44170,7 +44171,7 @@ MESSAGE_REFERENCE = [
     "message": "Export PAC As writes a .pac file.",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 371
+      "cdmw/mcp/mesh_edit_tools.py": 400
     }
   },
   {
@@ -44178,7 +44179,7 @@ MESSAGE_REFERENCE = [
     "message": "Export a .glb, .fbx or .obj file, as the editor's Export menu offers.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 919
+      "cdmw/mcp/mesh_tools.py": 939
     }
   },
   {
@@ -44194,7 +44195,7 @@ MESSAGE_REFERENCE = [
     "message": "Export rig GLB writes into 'folder', an existing folder outside the game.",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 540
+      "cdmw/mcp/mesh_edit_tools.py": 569
     }
   },
   {
@@ -45309,7 +45310,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit writes an editable package: give 'destination', an existing folder outside the game.",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 337
+      "cdmw/mcp/mesh_edit_tools.py": 366
     }
   },
   {
@@ -45637,7 +45638,7 @@ MESSAGE_REFERENCE = [
     "message": "Give 'donor', the hairstyle's archive path (.pac), to edit.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 280
+      "cdmw/mcp/mesh_hair_tools.py": 282
     }
   },
   {
@@ -45645,7 +45646,7 @@ MESSAGE_REFERENCE = [
     "message": "Give 'donor', the hairstyle's archive path (.pac), to take its material and textures.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 280
+      "cdmw/mcp/mesh_hair_tools.py": 282
     }
   },
   {
@@ -45653,7 +45654,7 @@ MESSAGE_REFERENCE = [
     "message": "Give 'path', a new .json file outside the game.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 543
+      "cdmw/mcp/mesh_edit_tools.py": 572
     }
   },
   {
@@ -45669,7 +45670,7 @@ MESSAGE_REFERENCE = [
     "message": "Give a sphere, a box or bones (any of them narrow each other).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 243
+      "cdmw/mcp/mesh_shape_tools.py": 246
     }
   },
   {
@@ -45677,7 +45678,7 @@ MESSAGE_REFERENCE = [
     "message": "Give path, set or ticked_parts, not more than one.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 621
+      "cdmw/mcp/mesh_tools.py": 641
     }
   },
   {
@@ -45717,7 +45718,7 @@ MESSAGE_REFERENCE = [
     "message": "Give translate, rotate_degrees or scale.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 319
+      "cdmw/mcp/mesh_edit_tools.py": 348
     }
   },
   {
@@ -45773,7 +45774,7 @@ MESSAGE_REFERENCE = [
     "message": "Grab moves the surface from the first point to the last: give at least two points",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 62
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 68
     }
   },
   {
@@ -45869,7 +45870,7 @@ MESSAGE_REFERENCE = [
     "message": "Hair Tools did not start in time, so its setup was closed. It said: {text}",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 341
+      "cdmw/mcp/mesh_hair_tools.py": 343
     }
   },
   {
@@ -48202,7 +48203,7 @@ MESSAGE_REFERENCE = [
     "message": "Load the archives in Browse Archives first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 512
+      "cdmw/mcp/mesh_tools.py": 532
     }
   },
   {
@@ -48219,7 +48220,7 @@ MESSAGE_REFERENCE = [
     "recovery": "configuration",
     "sources": {
       "cdmw/mcp/mesh_document_tools.py": 92,
-      "cdmw/mcp/mesh_tools.py": 618
+      "cdmw/mcp/mesh_tools.py": 638
     }
   },
   {
@@ -49252,7 +49253,7 @@ MESSAGE_REFERENCE = [
     "message": "Mesh Editor unavailable: {reason}",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 98
+      "cdmw/mcp/mesh_tools.py": 118
     }
   },
   {
@@ -51303,7 +51304,7 @@ MESSAGE_REFERENCE = [
     "message": "Morph presets and fitting setups are saved as .json files.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 546
+      "cdmw/mcp/mesh_edit_tools.py": 575
     }
   },
   {
@@ -52120,7 +52121,7 @@ MESSAGE_REFERENCE = [
     "message": "No mesh is open.",
     "recovery": "internal",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 84
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 96
     }
   },
   {
@@ -52192,7 +52193,7 @@ MESSAGE_REFERENCE = [
     "message": "No vertex is in that region; mesh_landmarks gives the bones and bounds.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 259
+      "cdmw/mcp/mesh_shape_tools.py": 262
     }
   },
   {
@@ -52624,7 +52625,7 @@ MESSAGE_REFERENCE = [
     "message": "Offered for a model that is part of a worn set opened from Item Finder.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 585
+      "cdmw/mcp/mesh_tools.py": 605
     }
   },
   {
@@ -52664,7 +52665,7 @@ MESSAGE_REFERENCE = [
     "message": "Open a hairstyle with Hair Tools first (mesh_hair_setup).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 146
+      "cdmw/mcp/mesh_hair_tools.py": 148
     }
   },
   {
@@ -52680,10 +52681,10 @@ MESSAGE_REFERENCE = [
     "message": "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives > Open in Mesh Editor).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 244,
+      "cdmw/mcp/mesh_edit_tools.py": 273,
       "cdmw/mcp/mesh_session_tools.py": 85,
-      "cdmw/mcp/mesh_shape_tools.py": 40,
-      "cdmw/mcp/mesh_tools.py": 69
+      "cdmw/mcp/mesh_shape_tools.py": 43,
+      "cdmw/mcp/mesh_tools.py": 70
     }
   },
   {
@@ -52724,7 +52725,7 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_document_tools.py": 31,
-      "cdmw/mcp/mesh_hair_tools.py": 254
+      "cdmw/mcp/mesh_hair_tools.py": 256
     }
   },
   {
@@ -54510,7 +54511,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {index} has extra UV sets {listed}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 432
+      "cdmw/mcp/mesh_tools.py": 452
     }
   },
   {
@@ -54518,7 +54519,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {index} has no UV set beyond UV0: a game file's UV1 is not decoded here, and an imported model carries extra sets only when its file has them.",
     "recovery": "format",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 432
+      "cdmw/mcp/mesh_tools.py": 452
     }
   },
   {
@@ -54526,7 +54527,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {index} has no morph targets.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 439
+      "cdmw/mcp/mesh_tools.py": 459
     }
   },
   {
@@ -54534,7 +54535,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {index} has the morphs {sorted(part.morph_targets)}; give 'morph'.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 439
+      "cdmw/mcp/mesh_tools.py": 459
     }
   },
   {
@@ -54542,7 +54543,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {part} has triangles 0 to {count - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 280
+      "cdmw/mcp/mesh_edit_tools.py": 309
     }
   },
   {
@@ -54550,7 +54551,7 @@ MESSAGE_REFERENCE = [
     "message": "Part {part} has vertices 0 to {count - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 276
+      "cdmw/mcp/mesh_edit_tools.py": 305
     }
   },
   {
@@ -54818,6 +54819,30 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/domain/mesh/cloth_guides.py": 44
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Point {index}: in this view the brush reaches the surface around [{:.3}, {:.3}, {:.3}], {distance:.3} from the point; the camera looks at another side of the model. Turn mesh_camera to face the point (mesh_landmarks says which yaw shows the front).",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 191
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Point {index}: the brush cannot be placed there ({error}).",
+    "recovery": "input",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 173
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "Point {index}: the brush reaches no surface there in this view; give a point on the model and aim mesh_camera at it.",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 184
     }
   },
   {
@@ -57935,7 +57960,7 @@ MESSAGE_REFERENCE = [
     "message": "Select a mesh in Browse Archives first, or give its path.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 652
+      "cdmw/mcp/mesh_tools.py": 672
     }
   },
   {
@@ -59482,6 +59507,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
+    "message": "That is too much for one Mesh Editor command ({size // 1024} KiB; at most {MAX_COMMAND_BYTES // 1024} KiB, about 30,000 vertex numbers). Select whole parts, a smaller region, or in several steps with operation 'add'.",
+    "recovery": "input",
+    "sources": {
+      "cdmw/mcp/mesh_edit_tools.py": 149
+    }
+  },
+  {
+    "area": "mesh",
     "message": "That name is empty once cleaned up.",
     "recovery": "empty",
     "sources": {
@@ -59510,6 +59543,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_host_controls.rs": 106
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The 3D view is not ready.",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 165
     }
   },
   {
@@ -59589,7 +59630,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not open this set; app_state shows why.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 590
+      "cdmw/mcp/mesh_tools.py": 610
     }
   },
   {
@@ -59597,7 +59638,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not report its camera.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 595
+      "cdmw/mcp/mesh_edit_tools.py": 624
     }
   },
   {
@@ -59605,7 +59646,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not report its view settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 643
+      "cdmw/mcp/mesh_edit_tools.py": 672
     }
   },
   {
@@ -59613,7 +59654,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the camera.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 587
+      "cdmw/mcp/mesh_edit_tools.py": 616
     }
   },
   {
@@ -59621,8 +59662,8 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the command.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 133,
-      "cdmw/mcp/mesh_tools.py": 752
+      "cdmw/mcp/mesh_edit_tools.py": 162,
+      "cdmw/mcp/mesh_tools.py": 772
     }
   },
   {
@@ -59630,7 +59671,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the export.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 928
+      "cdmw/mcp/mesh_tools.py": 948
     }
   },
   {
@@ -59638,7 +59679,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the selection.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 701
+      "cdmw/mcp/mesh_tools.py": 721
     }
   },
   {
@@ -59646,7 +59687,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the view settings.",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 634
+      "cdmw/mcp/mesh_edit_tools.py": 663
     }
   },
   {
@@ -59662,7 +59703,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has no command {call.arguments['command']}. commands_list with context mesh_editor lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 729
+      "cdmw/mcp/mesh_tools.py": 749
     }
   },
   {
@@ -59678,7 +59719,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor has {len(rows)} open documents.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 688
+      "cdmw/mcp/mesh_tools.py": 708
     }
   },
   {
@@ -59686,7 +59727,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is not asking whether to continue a draft.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 673
+      "cdmw/mcp/mesh_tools.py": 693
     }
   },
   {
@@ -59694,7 +59735,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor is still preparing this mesh; mesh_state says when it is ready.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 71
+      "cdmw/mcp/mesh_tools.py": 72
     }
   },
   {
@@ -59703,8 +59744,8 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/mcp/mesh_document_tools.py": 154,
-      "cdmw/mcp/mesh_edit_tools.py": 131,
-      "cdmw/mcp/mesh_tools.py": 926,
+      "cdmw/mcp/mesh_edit_tools.py": 160,
+      "cdmw/mcp/mesh_tools.py": 946,
       "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_islands_host.rs": 75
     }
   },
@@ -59713,7 +59754,23 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor shows LOD {shown}; a {fmt.upper() or 'mesh'} file's other LODs are not decoded here. Only a PAMLOD's stored levels can be read.",
     "recovery": "format",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 378
+      "cdmw/mcp/mesh_tools.py": 398
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor stopped: {stopped} Retry on its page (app_ui_act) reopens it.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_tools.py": 68
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "The Mesh Editor stopped: {stopped} Retry on its page (app_ui_act) reopens it; check the result there before trying again.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/mcp/mesh_edit_tools.py": 105
     }
   },
   {
@@ -59721,7 +59778,7 @@ MESSAGE_REFERENCE = [
     "message": "The Scene panel has no ticked parts of a set to open.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 603
+      "cdmw/mcp/mesh_tools.py": 623
     }
   },
   {
@@ -59777,7 +59834,7 @@ MESSAGE_REFERENCE = [
     "message": "The archives have no file {missing[0]}.",
     "recovery": "missing",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 495
+      "cdmw/mcp/mesh_tools.py": 515
     }
   },
   {
@@ -59985,7 +60042,7 @@ MESSAGE_REFERENCE = [
     "message": "The characters are {', '.join(names.values())}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 274
+      "cdmw/mcp/mesh_hair_tools.py": 276
     }
   },
   {
@@ -60185,7 +60242,7 @@ MESSAGE_REFERENCE = [
     "message": "The export did not write {path}.",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 952
+      "cdmw/mcp/mesh_tools.py": 972
     }
   },
   {
@@ -60193,7 +60250,7 @@ MESSAGE_REFERENCE = [
     "message": "The export did not write {path}. {status}",
     "recovery": "write",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 952
+      "cdmw/mcp/mesh_tools.py": 972
     }
   },
   {
@@ -60378,9 +60435,9 @@ MESSAGE_REFERENCE = [
     "message": "The mesh has parts 0 to {len(parts) - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 288,
-      "cdmw/mcp/mesh_shape_tools.py": 54,
-      "cdmw/mcp/mesh_tools.py": 396
+      "cdmw/mcp/mesh_edit_tools.py": 317,
+      "cdmw/mcp/mesh_shape_tools.py": 57,
+      "cdmw/mcp/mesh_tools.py": 416
     }
   },
   {
@@ -60620,7 +60677,7 @@ MESSAGE_REFERENCE = [
     "message": "The region holds {total} vertices; narrow it below {_MAX_REGION_VERTICES}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 261
+      "cdmw/mcp/mesh_shape_tools.py": 264
     }
   },
   {
@@ -60836,7 +60893,7 @@ MESSAGE_REFERENCE = [
     "message": "The selection is on the shown LOD; leave out 'lod'.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 419
+      "cdmw/mcp/mesh_tools.py": 439
     }
   },
   {
@@ -60844,7 +60901,7 @@ MESSAGE_REFERENCE = [
     "message": "The set names a file twice.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 625
+      "cdmw/mcp/mesh_tools.py": 645
     }
   },
   {
@@ -60876,7 +60933,7 @@ MESSAGE_REFERENCE = [
     "message": "The shown document has an unfinished edit and no other can be opened; finish or close it first.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 260
+      "cdmw/mcp/mesh_hair_tools.py": 262
     }
   },
   {
@@ -60916,7 +60973,7 @@ MESSAGE_REFERENCE = [
     "message": "The skeleton has no bone {unknown[0]}; mesh_landmarks lists them.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 250
+      "cdmw/mcp/mesh_shape_tools.py": 253
     }
   },
   {
@@ -61036,7 +61093,7 @@ MESSAGE_REFERENCE = [
     "message": "The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 211
+      "cdmw/mcp/mesh_edit_tools.py": 240
     }
   },
   {
@@ -61060,7 +61117,7 @@ MESSAGE_REFERENCE = [
     "message": "There is no package at {path}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 529
+      "cdmw/mcp/mesh_edit_tools.py": 558
     }
   },
   {
@@ -61101,7 +61158,7 @@ MESSAGE_REFERENCE = [
     "message": "These parts' bone slots are not resolved to bones (PAC files with an attached skeleton only).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 253
+      "cdmw/mcp/mesh_shape_tools.py": 256
     }
   },
   {
@@ -61117,7 +61174,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor cannot light a part up.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 712
+      "cdmw/mcp/mesh_tools.py": 732
     }
   },
   {
@@ -61125,7 +61182,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take commands from CDMW; it is older than this app.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 73
+      "cdmw/mcp/mesh_tools.py": 74
     }
   },
   {
@@ -61133,7 +61190,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take editing commands from CDMW; it is older than this app (host_edit_commands_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 129
+      "cdmw/mcp/mesh_edit_tools.py": 158
     }
   },
   {
@@ -61141,7 +61198,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its camera from CDMW; it is older than this app (host_camera_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 583
+      "cdmw/mcp/mesh_edit_tools.py": 612
     }
   },
   {
@@ -61149,7 +61206,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its hair control from CDMW; it is older than this app (host_editor_controls_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 117
+      "cdmw/mcp/mesh_hair_tools.py": 119
     }
   },
   {
@@ -61157,7 +61214,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its lighting or Studio look from CDMW; it is older than this app (host_view_look_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 630
+      "cdmw/mcp/mesh_edit_tools.py": 659
     }
   },
   {
@@ -61165,8 +61222,8 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its panels' commands from CDMW; it is older than this app (host_panel_commands_v1).",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 221,
-      "cdmw/mcp/mesh_hair_tools.py": 192
+      "cdmw/mcp/mesh_edit_tools.py": 250,
+      "cdmw/mcp/mesh_hair_tools.py": 194
     }
   },
   {
@@ -61174,7 +61231,7 @@ MESSAGE_REFERENCE = [
     "message": "This Mesh Editor helper does not take its view settings from CDMW; it is older than this app (host_view_state_v1).",
     "recovery": "configuration",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 628
+      "cdmw/mcp/mesh_edit_tools.py": 657
     }
   },
   {
@@ -61370,7 +61427,7 @@ MESSAGE_REFERENCE = [
     "message": "This file has LODs 0 to {max(0, len(levels) - 1)}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_tools.py": 377
+      "cdmw/mcp/mesh_tools.py": 397
     }
   },
   {
@@ -63591,7 +63648,7 @@ MESSAGE_REFERENCE = [
     "message": "box min must not be above box max on any axis.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_shape_tools.py": 239
+      "cdmw/mcp/mesh_shape_tools.py": 242
     }
   },
   {
@@ -63991,7 +64048,7 @@ MESSAGE_REFERENCE = [
     "message": "colours.{name} must be #RRGGBB.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 619
+      "cdmw/mcp/mesh_edit_tools.py": 648
     }
   },
   {
@@ -64239,7 +64296,7 @@ MESSAGE_REFERENCE = [
     "message": "dds_path must be the full path of an existing .dds, .png, .jpg, .jpeg, .webp or .bmp file; an image is re-encoded to the template's DDS layout.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_hair_tools.py": 199
+      "cdmw/mcp/mesh_hair_tools.py": 201
     }
   },
   {
@@ -64399,7 +64456,7 @@ MESSAGE_REFERENCE = [
     "message": "each point must be [x, y, z]",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 38
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 44
     }
   },
   {
@@ -64407,7 +64464,7 @@ MESSAGE_REFERENCE = [
     "message": "each point must be [x, y, z] with finite numbers",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 43
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 49
     }
   },
   {
@@ -65042,7 +65099,7 @@ MESSAGE_REFERENCE = [
     "message": "falloff must be smooth, linear or constant",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 73
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 85
     }
   },
   {
@@ -70558,7 +70615,15 @@ MESSAGE_REFERENCE = [
     "message": "points must list 1 to {SCULPT_MAX_POINTS} positions",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 29
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 35
+    }
+  },
+  {
+    "area": "mesh",
+    "message": "points × dabs is {}; one stroke takes at most {SCULPT_MAX_APPLICATIONS}",
+    "recovery": "internal",
+    "sources": {
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 76
     }
   },
   {
@@ -72622,7 +72687,7 @@ MESSAGE_REFERENCE = [
     "message": "symmetry must be off, x, y or z",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 81
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 93
     }
   },
   {
@@ -72958,7 +73023,7 @@ MESSAGE_REFERENCE = [
     "message": "tool must be grab, smooth, inflate or pinch",
     "recovery": "input",
     "sources": {
-      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 59
+      "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": 65
     }
   },
   {
@@ -74440,22 +74505,6 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "mesh",
-    "message": "{status} Retry on its page (app_ui_act) reopens it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 88
-    }
-  },
-  {
-    "area": "mesh",
-    "message": "{stopped} Retry on its page (app_ui_act) reopens it.",
-    "recovery": "internal",
-    "sources": {
-      "cdmw/mcp/mesh_tools.py": 68
-    }
-  },
-  {
-    "area": "mesh",
     "message": "{target_name} receives {oversized_groups[0]} vertices; legacy merge mode exceeds the {_STATIC_REPLACEMENT_VERTEX_LIMIT}-vertex draw-section limit.",
     "recovery": "limits",
     "sources": {
@@ -74507,7 +74556,7 @@ MESSAGE_REFERENCE = [
     "message": "{what}: '{key}' is not a part number.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 260
+      "cdmw/mcp/mesh_edit_tools.py": 289
     }
   },
   {
@@ -74515,7 +74564,7 @@ MESSAGE_REFERENCE = [
     "message": "{what}: the mesh has parts 0 to {len(parts) - 1}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/mesh_edit_tools.py": 262
+      "cdmw/mcp/mesh_edit_tools.py": 291
     }
   },
   {
@@ -75880,7 +75929,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW does not offer {method}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 274
+      "cdmw/mcp/server.py": 277
     }
   },
   {
@@ -75944,7 +75993,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW has no tool {name or '(none)'}.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 336
+      "cdmw/mcp/server.py": 339
     }
   },
   {
@@ -75952,7 +76001,7 @@ MESSAGE_REFERENCE = [
     "message": "CDMW is not running or AI connections are off.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 388
+      "cdmw/mcp/server.py": 391
     }
   },
   {
@@ -76029,7 +76078,7 @@ MESSAGE_REFERENCE = [
     "sources": {
       "cdmw/mcp/jobs.py": 112,
       "cdmw/mcp/read_tools.py": 523,
-      "cdmw/mcp/server.py": 91,
+      "cdmw/mcp/server.py": 94,
       "cdmw/ui/ai_connections/catalogue_calls.py": 101,
       "cdmw/ui/ai_connections/context.py": 149
     }
@@ -84597,10 +84646,10 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
-    "message": "The Mesh Editor did not answer.",
+    "message": "The Mesh Editor did not answer in time. It may still have done it: check mesh_state's history and view_capture before trying again.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/editor_control.py": 53
+      "cdmw/mcp/editor_control.py": 56
     }
   },
   {
@@ -84616,7 +84665,7 @@ MESSAGE_REFERENCE = [
     "message": "The Mesh Editor did not take the message.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/editor_control.py": 42
+      "cdmw/mcp/editor_control.py": 45
     }
   },
   {
@@ -84928,7 +84977,7 @@ MESSAGE_REFERENCE = [
     "message": "The call's safety class could not be worked out.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 417
+      "cdmw/mcp/server.py": 420
     }
   },
   {
@@ -93161,7 +93210,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is a command, not a tool of its own: run it with app_run_command, command {tool.command_id}.",
     "recovery": "input",
     "sources": {
-      "cdmw/mcp/server.py": 391
+      "cdmw/mcp/server.py": 394
     }
   },
   {
@@ -93169,7 +93218,7 @@ MESSAGE_REFERENCE = [
     "message": "{tool.wire} is not built yet.",
     "recovery": "internal",
     "sources": {
-      "cdmw/mcp/server.py": 393
+      "cdmw/mcp/server.py": 396
     }
   },
   {
@@ -110093,8 +110142,8 @@ SOURCE_COVERAGE = {
     "report": 1
   },
   "cdmw/mcp/mesh_edit_tools.py": {
-    "code": 22,
-    "raise": 44,
+    "code": 23,
+    "raise": 45,
     "report": 1
   },
   "cdmw/mcp/mesh_hair_tools.py": {
@@ -115086,8 +115135,8 @@ SOURCE_COVERAGE = {
     "native_message": 4
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_sculpt_control.rs": {
-    "native_handoff": 12,
-    "native_message": 10
+    "native_handoff": 17,
+    "native_message": 16
   },
   "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_session/mesh_document_binary.rs": {
     "native_handoff": 9,

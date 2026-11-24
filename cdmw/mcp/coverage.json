@@ -1068,13 +1068,13 @@
     {
       "id": "mesh.stroke",
       "area": "Mesh Editor",
-      "what": "Sculpt strokes (Grab, Smooth, Inflate, Pinch, Bend)",
+      "what": "Bend strokes",
       "class": "edit",
       "gap": "accepted",
       "also": [
         "mesh.transform"
       ],
-      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
+      "reason": "Accepted 2026-11-24: Bend needs a hand on the pointer; Grab, Smooth, Inflate and Pinch are mesh.sculpt."
     },
     {
       "id": "mesh.findings",
@@ -4192,13 +4192,11 @@
     },
     {
       "key": "helper_control:tool.grab",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
+      "tool": "mesh.sculpt"
     },
     {
       "key": "helper_control:tool.inflate",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
+      "tool": "mesh.sculpt"
     },
     {
       "key": "helper_control:tool.move",
@@ -4206,8 +4204,7 @@
     },
     {
       "key": "helper_control:tool.pinch",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
+      "tool": "mesh.sculpt"
     },
     {
       "key": "helper_control:tool.select",
@@ -4215,8 +4212,7 @@
     },
     {
       "key": "helper_control:tool.smooth",
-      "gap": "accepted",
-      "reason": "Accepted 2026-11-20: brush strokes need a hand on the pointer; an AI app uses the transform, selection and numeric tools instead."
+      "tool": "mesh.sculpt"
     },
     {
       "key": "helper_control:topology.bridge",

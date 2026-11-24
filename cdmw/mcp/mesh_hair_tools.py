@@ -112,7 +112,9 @@ def _local(call, action: str) -> dict[str, object]:
 # ----- the panel's commands CDMW carries out ---------------------------------------------
 def _require_new_helper(call) -> None:
     from cdmw.mcp.editor_control import has_control
+    from cdmw.mcp.mesh_tools import ready_document
 
+    call.context.ui_call(lambda: ready_document(call.context))  # a stopped editor says so first
     if not has_control(call, "hair"):
         raise ToolError(UNAVAILABLE, NO_EDITOR_CONTROLS)
 

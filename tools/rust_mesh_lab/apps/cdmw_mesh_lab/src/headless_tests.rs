@@ -4108,6 +4108,7 @@ fn the_sculpt_control_strokes_through_the_view_like_the_brush_and_puts_the_panel
     );
     assert!(outcome.ok, "{}", outcome.message);
     assert_eq!(outcome.state["dabs"], 3);
+    assert!(outcome.state["vertices_reached"].as_u64().unwrap_or(0) > 0, "{}", outcome.state);
     let mesh = application.mesh.as_ref().ok_or("mesh")?;
     let left_position = Vec3::from_array(mesh.vertex(left).ok_or("left")?.position);
     let right_position = Vec3::from_array(mesh.vertex(right).ok_or("right")?.position);
@@ -4127,6 +4128,20 @@ fn the_sculpt_control_strokes_through_the_view_like_the_brush_and_puts_the_panel
         &serde_json::json!({"tool": "smooth", "points": [[1.0e4, 0.0, 0.0]], "radius": radius}),
     );
     assert!(!off_screen.ok && off_screen.message.contains("not in the 3D view"), "{}", off_screen.message);
+    // A point on the same line of sight, far in front of the surface the brush would reach:
+    // the camera looks at another side than the point, so nothing is sculpted.
+    let ray = (left_position - application.camera.eye()).normalize();
+    let toward_eye = left_position - ray * radius * 6.0;
+    let wrong_side = application.apply_editor_control(
+        "sculpt",
+        &serde_json::json!({"tool": "inflate", "points": [toward_eye.to_array()], "radius": radius}),
+    );
+    assert!(!wrong_side.ok && wrong_side.message.contains("another side"), "{}", wrong_side.message);
+    let too_long = application.apply_editor_control(
+        "sculpt",
+        &serde_json::json!({"tool": "smooth", "points": vec![left_position.to_array(); 32], "radius": radius, "dabs": 32}),
+    );
+    assert!(!too_long.ok && too_long.message.contains("at most"), "{}", too_long.message);
     assert_eq!(application.history.undo_len(), 1);
     Ok(())
 }

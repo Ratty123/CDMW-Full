@@ -1367,7 +1367,7 @@ AI_CONNECTIONS_SECTION = {
     <ul>
       <li>Tried against the installed game for 0.12.0-alpha.6: an AI app opened a mesh in the Mesh Editor, edited it by numbers, undid and redid the edits, finished it and built it into a mod; the Texture Editor and Create New Item were tried the same way. The other tools are covered by CDMW's tests only.</li>
       <li>Some editor buttons have no tool of their own yet, such as swapping collision in the HKX Physics Editor or adding sounds to a random container. An AI app reaches them one control at a time through the generic tools.</li>
-      <li>Brush strokes, such as sculpt brushes and the Hair Tools brushes, need a hand on the pointer and have no tool. An AI app uses the selection, move and numeric tools instead.</li>
+      <li>The Hair Tools brushes need a hand on the pointer and have no tool; an AI app uses the selection, move and numeric tools instead. The Mesh Editor's sculpt brushes have a tool of their own, which draws a stroke through the view.</li>
       <li>The Mesh Editor's own panels are drawn by its helper, so the list of controls leaves them out; the Mesh Editor's state and command tools cover them.</li>
       <li>Refit's Load Body and Load Armor and Cloth's collision inputs from the game archives take the archive file the AI app names, so no picker opens; without a file the tool refuses.</li>
       <li>One AI app at a time: a second one is refused until the first closes its connection.</li>

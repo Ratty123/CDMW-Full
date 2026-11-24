@@ -9,6 +9,12 @@ use crate::cdmw_host_controls::{control_number, ControlOutcome};
 /// At most this many points in one stroke, and dabs at each.
 pub(crate) const SCULPT_MAX_POINTS: usize = 256;
 pub(crate) const SCULPT_MAX_DABS: usize = 32;
+/// At most this many brush applications (points × dabs) in one stroke, so it ends well
+/// inside the time CDMW waits for the answer.
+pub(crate) const SCULPT_MAX_APPLICATIONS: usize = 512;
+/// How far (in brush radii) the surface the brush reaches may be from the point given
+/// before the stroke is refused as aimed at another side of the model.
+const SCULPT_AIM_RADII: f32 = 2.5;
 
 fn sculpt_tool(name: &str) -> Option<ViewportTool> {
     match name {
@@ -65,6 +71,12 @@ impl LabApplication {
         let strength_range = if tool == ViewportTool::Inflate { -1.0 } else { 0.01 };
         let strength = control_number(arguments, "strength", strength_range, 1.0)?;
         let dabs = control_number(arguments, "dabs", 1.0, SCULPT_MAX_DABS as f32)?.map_or(1, |dabs| dabs as usize);
+        if points.len() * dabs > SCULPT_MAX_APPLICATIONS {
+            return Err(format!(
+                "points × dabs is {}; one stroke takes at most {SCULPT_MAX_APPLICATIONS}",
+                points.len() * dabs
+            ));
+        }
         let falloff = match arguments.get("falloff").and_then(Value::as_str) {
             None => None,
             Some("smooth") => Some(BrushFalloff::Smooth),
@@ -106,6 +118,7 @@ impl LabApplication {
                 })?;
             screen.push(projected);
         }
+        let reached = self.sculpt_aim(rectangle, &points, &screen, radius, brush_pixels)?;
 
         let saved = (self.viewport_tool, self.brush_radius, self.brush_strength, self.brush_falloff, self.sculpt_symmetry);
         self.viewport_tool = tool;
@@ -131,8 +144,57 @@ impl LabApplication {
             "radius_pixels": brush_pixels,
             "strength": used_strength,
             "symmetry": used_symmetry,
+            "vertices_reached": reached,
             "status": status,
         }))
+    }
+
+    /// The vertices the brush reaches along the stroke (before symmetry and selection
+    /// clipping), refused when at a point it reaches nothing, or reaches a surface far from
+    /// the point given: the camera then looks at another side of the model, and a stroke
+    /// meant for the front would land on the back (2026-11-24).
+    fn sculpt_aim(
+        &mut self,
+        rectangle: egui::Rect,
+        points: &[Vec3],
+        screen: &[Vec2],
+        radius: f32,
+        brush_pixels: f32,
+    ) -> Result<usize, String> {
+        if !self.ensure_projection(rectangle) {
+            return Err(if self.status.is_empty() { "The 3D view is not ready.".to_owned() } else { self.status.clone() });
+        }
+        let (Some(mesh), Some(projection)) = (&self.mesh, &self.projection) else {
+            return Err("No mesh is open.".into());
+        };
+        let mut reached = std::collections::HashSet::new();
+        for (index, (point, position)) in points.iter().zip(screen).enumerate() {
+            let weights = brush_vertex_weights(mesh, projection, *position, brush_pixels, true, BrushFalloff::Smooth)
+                .map_err(|error| format!("Point {index}: the brush cannot be placed there ({error})."))?;
+            let mut total = Vec3::ZERO;
+            let mut count = 0usize;
+            for handle in weights.keys() {
+                if let Some(vertex) = mesh.vertex(*handle) {
+                    total += Vec3::from_array(vertex.position);
+                    count += 1;
+                }
+            }
+            if count == 0 {
+                return Err(format!(
+                    "Point {index}: the brush reaches no surface there in this view; give a point on the model and aim mesh_camera at it."
+                ));
+            }
+            let centre = total / count as f32;
+            let distance = centre.distance(*point);
+            if distance > radius * SCULPT_AIM_RADII {
+                return Err(format!(
+                    "Point {index}: in this view the brush reaches the surface around [{:.3}, {:.3}, {:.3}], {distance:.3} from the point; the camera looks at another side of the model. Turn mesh_camera to face the point (mesh_landmarks says which yaw shows the front).",
+                    centre.x, centre.y, centre.z
+                ));
+            }
+            reached.extend(weights.keys().copied());
+        }
+        Ok(reached.len())
     }
 
     fn drive_sculpt_stroke(&mut self, rectangle: egui::Rect, screen: &[Vec2], dabs: usize) -> Result<String, String> {

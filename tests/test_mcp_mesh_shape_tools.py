@@ -92,7 +92,7 @@ def test_sculpt_sends_one_stroke_and_waits_for_its_history_step(answered, monkey
     sent = []
     monkeypatch.setattr(editor_control, "has_control", lambda call, control: control == "sculpt")
 
-    def fake(call, control, arguments):
+    def fake(call, control, arguments, **_options):
         sent.append((control, dict(arguments)))
         return {"ok": True, "state": {"tool": arguments["tool"], "status": "Inflate committed"}}
 
@@ -105,7 +105,8 @@ def test_sculpt_sends_one_stroke_and_waits_for_its_history_step(answered, monkey
     assert result["done"] and result["stroke"]["tool"] == "inflate" and "history" in result
 
     monkeypatch.setattr(editor_control, "editor_control",
-                        lambda call, control, arguments: {"ok": False, "message": "Point 0 is not in the 3D view"})
+                        lambda call, control, arguments, **_options: {"ok": False,
+                                                                       "message": "Point 0 is not in the 3D view"})
     refused = mcp.ok("mesh_sculpt", stroke)
     assert not refused["done"] and "not in the 3D view" in refused["message"]
     assert mcp.error("mesh_sculpt", {"tool": "carve", "points": [[0, 0, 0]], "radius": 0.1})["code"] == \
@@ -122,3 +123,42 @@ def test_the_instructions_keep_an_ai_app_inside_cdmw() -> None:
 def test_export_takes_only_a_full_path(answered) -> None:  # noqa: F811
     error = answered.mcp.error("mesh_export", {"path": "relative\\body.obj"})
     assert error["code"] == "refused" and "absolute" in error["message"]
+
+
+def test_a_call_the_editor_stopped_after_fails_in_any_language_and_a_restart_is_flagged(answered, monkeypatch) -> None:  # noqa: F811
+    """The stop is read from the page's Retry state, not from its English words."""
+    from cdmw.mcp import mesh_tools
+
+    mcp = answered.mcp
+    monkeypatch.setattr(mesh_tools, "editor_stopped", lambda tab: "Der Mesh-Editor wurde angehalten.")
+    stopped = mcp.error("mesh_select", {"vertices": {"0": [0]}})
+    assert stopped["code"] == "failed" and "Mesh-Editor wurde angehalten" in stopped["message"]
+    assert "Retry" in stopped["message"]
+
+    monkeypatch.setattr(mesh_tools, "editor_stopped", lambda tab: "")
+    calls = iter(range(1000))
+    monkeypatch.setattr(mesh_tools, "editor_identity", lambda tab: ("session", next(calls)))
+    restarted = mcp.ok("mesh_select", {"vertices": {"0": [0]}})
+    assert restarted["restarted"] and "reopened" in restarted["message"]
+
+
+def test_a_selection_too_large_for_one_editor_message_is_refused_before_it_is_sent(answered, monkeypatch) -> None:  # noqa: F811
+    from cdmw.mcp import mesh_edit_tools
+
+    editor, mcp = answered, answered.mcp
+    # The stand-in part is small, so the limit is lowered to what its selection needs.
+    monkeypatch.setattr(mesh_edit_tools, "MAX_COMMAND_BYTES", 16)
+    sent = len(editor.sent)
+    refused = mcp.error("mesh_select", {"vertices": {"0": [0, 1, 2, 3]}})
+    assert refused["code"] == "invalid_arguments" and "too much for one Mesh Editor command" in refused["message"]
+    assert len(editor.sent) == sent
+
+
+def test_a_stopped_editor_is_named_by_hair_tools_too(answered, monkeypatch) -> None:  # noqa: F811
+    from cdmw.mcp import mesh_tools
+
+    editor, mcp = answered, answered.mcp
+    monkeypatch.setattr(editor.ui, "standalone_rust_authoring_session", None)
+    monkeypatch.setattr(mesh_tools, "editor_stopped", lambda tab: "Mesh Editor stopped because of a test.")
+    refused = mcp.error("mesh_hair", {"action": "state"})
+    assert "Mesh Editor stopped" in refused["message"] and "older" not in refused["message"]
