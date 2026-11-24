@@ -17,6 +17,7 @@ mod cdmw_hair;
 mod cdmw_handoff;
 mod cdmw_history;
 mod cdmw_host_controls;
+mod cdmw_sculpt_control;
 mod cdmw_jiggle;
 mod cdmw_live_textures;
 mod cdmw_preview;

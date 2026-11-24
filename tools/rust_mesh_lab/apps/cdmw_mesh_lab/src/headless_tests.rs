@@ -4091,6 +4091,47 @@ fn pinch_smooth_and_inflate_keep_mirror_partners_symmetric_in_one_history_entry(
 }
 
 #[test]
+fn the_sculpt_control_strokes_through_the_view_like_the_brush_and_puts_the_panel_back() -> TestResult {
+    let mut application = symmetry_application()?;
+    let (left, right, unmatched) = symmetry_handles(&application)?;
+    application.viewport_rect = Some(viewport());
+    let mesh = application.mesh.as_ref().ok_or("mesh")?;
+    let target = mesh.vertex(left).ok_or("left")?.position;
+    let unmatched_before = mesh.vertex(unmatched).ok_or("unmatched")?.position;
+    let left_before = Vec3::from_array(target);
+    let radius = 48.0 * application.camera.world_units_per_pixel(viewport());
+    let panel = (application.viewport_tool, application.brush_radius, application.brush_strength);
+    let outcome = application.apply_editor_control(
+        "sculpt",
+        &serde_json::json!({"tool": "inflate", "points": [target], "radius": radius, "strength": 0.3,
+                            "symmetry": "x", "dabs": 3}),
+    );
+    assert!(outcome.ok, "{}", outcome.message);
+    assert_eq!(outcome.state["dabs"], 3);
+    let mesh = application.mesh.as_ref().ok_or("mesh")?;
+    let left_position = Vec3::from_array(mesh.vertex(left).ok_or("left")?.position);
+    let right_position = Vec3::from_array(mesh.vertex(right).ok_or("right")?.position);
+    assert!(left_position.distance(left_before) > 1.0e-5, "the stroke did not move the surface");
+    assert!(
+        (right_position.x + left_position.x).abs() < 1.0e-4
+            && (right_position.y - left_position.y).abs() < 1.0e-4
+            && (right_position.z - left_position.z).abs() < 1.0e-4,
+        "symmetry was not kept: left={left_position:?}, right={right_position:?}"
+    );
+    assert_eq!(mesh.vertex(unmatched).ok_or("unmatched")?.position, unmatched_before);
+    assert_eq!(application.history.undo_len(), 1, "one stroke is one Undo step");
+    assert_eq!((application.viewport_tool, application.brush_radius, application.brush_strength), panel);
+
+    let off_screen = application.apply_editor_control(
+        "sculpt",
+        &serde_json::json!({"tool": "smooth", "points": [[1.0e4, 0.0, 0.0]], "radius": radius}),
+    );
+    assert!(!off_screen.ok && off_screen.message.contains("not in the 3D view"), "{}", off_screen.message);
+    assert_eq!(application.history.undo_len(), 1);
+    Ok(())
+}
+
+#[test]
 fn mirrored_sculpt_commit_attempts_one_cdmw_candidate_transaction() -> TestResult {
     let root = tempdir()?;
     let mut application = symmetry_application()?;

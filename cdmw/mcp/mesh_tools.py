@@ -62,6 +62,10 @@ def shown_document(context):
 def ready_document(context, *, commands: bool = False):
     tab = shown_document(context)
     if tab is None or getattr(tab, "standalone_rust_authoring_session", None) is None:
+        stopped = _status(tab) if tab is not None else ""
+        if stopped.startswith("Mesh Editor stopped"):
+            # Its page shows the reason and a Retry button; the document's edits are kept.
+            raise ToolError(UNAVAILABLE, f"{stopped} Retry on its page (app_ui_act) reopens it.")
         raise ToolError(UNAVAILABLE, NO_EDITOR)
     if not getattr(tab, "standalone_rust_ready", False):
         raise ToolError(UNAVAILABLE, NOT_READY)
@@ -927,6 +931,28 @@ def _export(call) -> dict[str, object]:
     return _act(call, send)
 
 
+def _export_checked(call) -> dict[str, object]:
+    """Export, waited for, and ok only when the file is there: the editor can answer and then
+    stop (2026-11-24), which the status line alone does not show."""
+
+    path = Path(str(call.arguments["path"]))
+    try:
+        before = path.stat().st_mtime_ns
+    except OSError:
+        before = None
+    result = _settled(_export)(call)
+    try:
+        written = path.is_file() and path.stat().st_mtime_ns != before
+    except OSError:
+        written = False
+    if not written and result.get("done") is False:
+        return result  # not sent, or still exporting: its message says which and what to do
+    if not written:
+        status = str(result.get("status") or "")
+        raise ToolError(FAILED, f"The export did not write {path}." + (f" {status}" if status else ""))
+    return {**result, "written": str(path), "bytes": path.stat().st_size}
+
+
 def _replacement(name: str):
     """Import Replacement's steps, by the functions the automated runs use (the panel's own messages)."""
 
@@ -1132,10 +1158,11 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.export", family="mesh", title="Export Mesh File",
              description="Export Mesh File: the shown document's mesh as GLB, FBX or OBJ at 'path' (a new "
                          "file outside the game; the suffix picks the format), as the editor's Export menu does "
-                         "after its file chooser. Waits for the export; the status line says how it went.",
+                         "after its file chooser. Waits for the export and checks that the file was written. Use it when "
+                         "the user asks for a file, not to read the mesh: mesh_geometry pages through every vertex.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}},
                                         ["path"]),
-             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_settled(_export), runs_on=ON_WORKER,
+             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_export_checked, runs_on=ON_WORKER,
              output_paths=("path",)),
         Tool(name="mesh.replacement_state", family="mesh", title="Import Replacement state",
              description="Import Replacement in the shown document: whether it is offered and why not, the "

@@ -8468,6 +8468,28 @@ def test_companion_reference_payload_names_are_owned_binary_names(tmp_path):
 
 
 
+def test_the_session_tree_accepts_the_editors_view_captures_and_nothing_else_in_them(tmp_path: Path) -> None:
+    """view_capture of the Mesh Editor leaves a captures folder in the session; the next
+    command's reply was refused and the editor closed (2026-11-24)."""
+    import pytest
+
+    session = tmp_path / "session"
+    captures = session / "captures"
+    captures.mkdir(parents=True)
+    (session / "manifest.json").write_text("{}", encoding="utf-8")
+    assert rust_authoring_module._validate_owned_session_tree(session)[0] == 2  # empty, as left after a read
+    (captures / "view-1.png").write_bytes(b"PNG")
+    assert rust_authoring_module._validate_owned_session_tree(session)[0] == 3
+
+    (captures / "notes.txt").write_text("x", encoding="utf-8")
+    with pytest.raises(rust_authoring_module.RustMeshProtocolError, match="view capture entry"):
+        rust_authoring_module._validate_owned_session_tree(session)
+    (captures / "notes.txt").unlink()
+    (captures / "nested").mkdir()
+    with pytest.raises(rust_authoring_module.RustMeshProtocolError, match="view capture entry"):
+        rust_authoring_module._validate_owned_session_tree(session)
+
+
 def test_the_session_tree_accepts_live_texture_edits_and_nothing_else_beside_them(tmp_path: Path) -> None:
     import pytest
 

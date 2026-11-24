@@ -766,7 +766,7 @@ pub const HOST_EDITOR_CONTROLS_CAPABILITY: &str = "host_editor_controls_v1";
 /// diagnostic overlays, rig helpers and material inspection aids; capture draws the 3D
 /// view to a PNG in the session folder. The helper checks each action as its button
 /// checks it.
-pub const HOST_EDITOR_CONTROLS: [&str; 5] = ["hair", "islands", "document", "overlays", "capture"];
+pub const HOST_EDITOR_CONTROLS: [&str; 6] = ["hair", "islands", "document", "overlays", "capture", "sculpt"];
 
 /// The name of a control CDMW may send in `editor_control`, as the helper knows it.
 pub fn host_editor_control(name: &str) -> Option<&'static str> {

@@ -82,6 +82,10 @@ def settle(call, mark: int, history_before: object, *, timeout: float = SETTLE_S
             break
         time.sleep(0.05)
     after = _state(call)
+    status = str(after.get("status") or "")
+    if status.startswith("Mesh Editor stopped"):
+        # It answered and then closed: the call did not take (2026-11-24, the captures folder).
+        raise ToolError(FAILED, f"{status} Retry on its page (app_ui_act) reopens it.")
     outcome: dict[str, object] = {"done": arrived and not busy, "status": after.get("status", ""),
                                   "history_before": history_before, "history": after.get("history"),
                                   "selection": after.get("selection"), "revision": after.get("revision")}
@@ -149,9 +153,9 @@ OUTPUT_COMMANDS = ("vertex_edit", "hair_begin", "hair_texture_export", "export_f
 
 
 def _require(call, flag: str, message: str) -> None:
-    from cdmw.mcp.mesh_tools import shown_document
+    from cdmw.mcp.mesh_tools import ready_document
 
-    if not call.context.ui_call(lambda: bool(getattr(shown_document(call.context), flag, False))):
+    if not call.context.ui_call(lambda: bool(getattr(ready_document(call.context), flag, False))):
         raise ToolError(UNAVAILABLE, message)
 
 
@@ -207,7 +211,11 @@ def _panel(family: str):
             raise ToolError(INVALID_ARGUMENTS, f"The {family} commands are: {', '.join(PANEL_COMMANDS[family])}.")
 
         def supported() -> bool:
-            return bool(getattr(shown_document(call.context), "standalone_rust_host_panel_commands_supported", False))
+            from cdmw.mcp.mesh_tools import ready_document
+
+            # A stopped editor has no capabilities: say it stopped, not that it is too old.
+            return bool(getattr(ready_document(call.context), "standalone_rust_host_panel_commands_supported",
+                                False))
 
         if not call.context.ui_call(supported):
             raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)

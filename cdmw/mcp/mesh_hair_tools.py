@@ -184,8 +184,10 @@ def _host(call, action: str) -> dict[str, object]:
     from cdmw.mcp.mesh_edit_tools import NO_PANEL_COMMANDS, _send_edit, _send_output
 
     a = call.arguments
+    from cdmw.mcp.mesh_tools import ready_document
+
     supported = call.context.ui_call(
-        lambda: bool(getattr(_shown(call.context), "standalone_rust_host_panel_commands_supported", False)))
+        lambda: bool(getattr(ready_document(call.context), "standalone_rust_host_panel_commands_supported", False)))
     if not supported:
         raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
     if action == "color":

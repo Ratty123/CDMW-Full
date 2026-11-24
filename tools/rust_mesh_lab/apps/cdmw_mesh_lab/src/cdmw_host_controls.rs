@@ -70,6 +70,7 @@ impl LabApplication {
             "document" => self.document_host_control(arguments),
             "overlays" => self.overlays_host_control(arguments),
             "capture" => self.capture_host_control(arguments),
+            "sculpt" => self.sculpt_host_control(arguments),
             _ => ControlOutcome::refused(format!("The editor has no control {control}."), Value::Null),
         };
         self.egui_context.request_repaint();

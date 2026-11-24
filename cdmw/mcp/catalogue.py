@@ -23,6 +23,7 @@ def typed_tools() -> list[Tool]:
     from cdmw.mcp.mesh_edit_tools import mesh_edit_tools
     from cdmw.mcp.mesh_hair_tools import mesh_hair_tools
     from cdmw.mcp.mesh_viewport_tools import mesh_viewport_tools
+    from cdmw.mcp.mesh_shape_tools import mesh_shape_tools
     from cdmw.mcp.mesh_document_tools import mesh_document_tools
     from cdmw.mcp.mesh_session_tools import mesh_session_tools
     from cdmw.mcp.mesh_tools import mesh_tools
@@ -50,7 +51,7 @@ def typed_tools() -> list[Tool]:
     from cdmw.mcp.view_tools import view_tools
 
     return [*app_tools(), *control_tools(), *archive_tools(), *read_tools(), *app_read_tools(), *view_tools(), *mesh_tools(), *mesh_session_tools(),
-            *mesh_edit_tools(), *mesh_hair_tools(), *mesh_viewport_tools(), *mesh_document_tools(), *texture_tools(), *texture_replace_tools(), *texture_recolor_tools(), *texture_upscale_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(), *hkx_tools(), *sound_tools(), *action_chart_tools(), *skeleton_tools(), *prefab_tools(), *game_table_tools(), *decal_tools(),
+            *mesh_edit_tools(), *mesh_hair_tools(), *mesh_viewport_tools(), *mesh_shape_tools(), *mesh_document_tools(), *texture_tools(), *texture_replace_tools(), *texture_recolor_tools(), *texture_upscale_tools(), *new_item_tools(), *placement_tools(), *browse_archive_tools(), *hkx_tools(), *sound_tools(), *action_chart_tools(), *skeleton_tools(), *prefab_tools(), *game_table_tools(), *decal_tools(),
             *local_file_tools(), *saved_work_tools(), *mod_management_tools(), *translation_tools(),
             *text_search_tools(), *model_library_tools(), *item_icon_tools(), *research_tools(), *settings_tools(), *setup_tools(),
             *speed_tools(), *diagnostics_tools(), *dmm_mount_tools(), *turn_tools(), *npc_tools(), *character_finder_tools()]

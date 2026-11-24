@@ -138,6 +138,12 @@ _LIVE_TEXTURE_EDITS_DIR = "texture_edits"
 _LIVE_TEXTURE_EDIT_RE = re.compile(r"[0-9a-f]{16}-r[0-9]{1,9}\.(?:dds|partial)\Z")
 _LIVE_TEXTURE_EDITS_MAX_ENTRIES = 512
 _LIVE_TEXTURE_EDIT_MAX_FILE_BYTES = 8192 * 8192 * 4 + 4096
+#: Pictures of the 3D view the editor draws for an AI app (``editor_control`` "capture",
+#: cdmw_host_controls.rs), read and removed by view_tools._helper_picture.
+_VIEW_CAPTURES_DIR = "captures"
+_VIEW_CAPTURE_RE = re.compile(r"view-[0-9]{1,19}\.png\Z")
+_VIEW_CAPTURES_MAX_ENTRIES = 64
+_VIEW_CAPTURE_MAX_FILE_BYTES = 2048 * 2048 * 4 + 4096
 _LOGGER = logging.getLogger(__name__)
 _REFERENCE_FILE_RE = re.compile(r"(?:reference-(?:0[1-9]|[12][0-9]|3[0-2])|companion-(?:0[1-9]|[12][0-9]|3[0-3]))\.bin\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
@@ -1937,6 +1943,23 @@ def _validate_owned_texture_edits_tree(root: Path, session_root: Path) -> int:
     return entry_count
 
 
+def _validate_owned_view_captures(root: Path, session_root: Path) -> int:
+    """The editor's view pictures: plain ``view-N.png`` files, and nothing else. Without this,
+    the first command after a capture was refused and the editor closed (2026-11-24)."""
+
+    entry_count = 0
+    for item in root.iterdir():
+        entry_count += 1
+        if entry_count > _VIEW_CAPTURES_MAX_ENTRIES:
+            raise RustMeshProtocolError("View captures contain too many entries")
+        _require_owned_path(item, session_root)
+        if item.is_symlink() or not item.is_file() or _VIEW_CAPTURE_RE.fullmatch(item.name) is None:
+            raise RustMeshProtocolError(f"Unexpected view capture entry: {item.name}")
+        if item.stat().st_size > _VIEW_CAPTURE_MAX_FILE_BYTES:
+            raise RustMeshProtocolError(f"View capture is too large: {item.name}")
+    return entry_count
+
+
 def _validate_owned_session_tree(
     root: Path,
     expected_root_identity: tuple[int, int] | None = None,
@@ -1985,6 +2008,9 @@ def _validate_owned_session_tree(
             # Live texture edits (B): without this, any reply carrying the document after a
             # texture edit was refused and the editor closed (B pass 4, 2026-11-16).
             entry_count += _validate_owned_texture_edits_tree(item, owned_root)
+            continue
+        if item.is_dir() and not item.is_symlink() and name == _VIEW_CAPTURES_DIR:
+            entry_count += _validate_owned_view_captures(item, owned_root)
             continue
         raise RustMeshProtocolError(f"Unexpected Mesh session entry: {name}")
     if entry_count > _SESSION_MAX_ENTRIES:
