@@ -2490,6 +2490,7 @@
   "The selected material has no colour row named {value_0}.",
   "The selected parts use different materials. Select parts that share one material to change its colours.",
   "The set changed while its material file was read. Try again.",
+  "The set's material preview metadata exceeds the 16 MiB session limit",
   "The setup file and its stored identity disagree.",
   "The shader mask is unavailable: {value_0}. Reopen this mesh from Browse Archives.",
   "The shader preview mask is missing: {value_0}. Reopen this mesh from Browse Archives.",

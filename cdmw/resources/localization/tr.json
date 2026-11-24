@@ -15619,6 +15619,7 @@
     "The session receipt exceeds its size limit.": "Oturum alındısı boyut sınırını aşıyor.",
     "The session receipt location is not a directory.": "Oturum alındısı konumu bir dizin değil.",
     "The set changed while its material file was read. Try again.": "Malzeme dosyası okunurken set değişti. Yeniden deneyin.",
+    "The set's material preview metadata exceeds the 16 MiB session limit": "Setin malzeme önizlemesi meta verileri 16 MiB oturum sınırını aşıyor",
     "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.": "Ayarlar, belge şeması veya protokol bu derlemeyle eşleşmiyor. Uygulama ve yardımcıların eşleşen sürümlerini kullanın, belirtilen ayarı kontrol edin ve desteklenen biçimle yeniden açın veya dışa aktarın. Değiştirmeden önce özgün yapılandırmayı saklayın.",
     "The setup file and its stored identity disagree.": "Ayar dosyası ile kayıtlı kimliği uyuşmuyor.",
     "The shader changed while painting.": "Boyama sırasında gölgelendirici değişti.",

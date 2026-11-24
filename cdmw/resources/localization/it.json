@@ -15619,6 +15619,7 @@
     "The session receipt exceeds its size limit.": "La ricevuta di sessione supera il limite di dimensione.",
     "The session receipt location is not a directory.": "La posizione della ricevuta di sessione non è una cartella.",
     "The set changed while its material file was read. Try again.": "Il set è cambiato mentre il suo file di materiale veniva letto. Riprova.",
+    "The set's material preview metadata exceeds the 16 MiB session limit": "I metadati dell’anteprima dei materiali del set superano il limite di sessione di 16 MiB",
     "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.": "Impostazioni, schema del documento o protocollo non corrispondono a questa compilazione. Usa versioni corrispondenti di applicazione e ausiliari, controlla l'impostazione indicata e riapri o riesporta nel formato supportato. Conserva la configurazione originale prima di modificarla.",
     "The setup file and its stored identity disagree.": "Il file della configurazione e la sua identità salvata non concordano.",
     "The shader changed while painting.": "Lo shader è cambiato durante la pittura.",

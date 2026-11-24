@@ -15619,6 +15619,7 @@
     "The session receipt exceeds its size limit.": "The session receipt exceeds its size limit.",
     "The session receipt location is not a directory.": "The session receipt location is not a directory.",
     "The set changed while its material file was read. Try again.": "The set changed while its material file was read. Try again.",
+    "The set's material preview metadata exceeds the 16 MiB session limit": "The set's material preview metadata exceeds the 16 MiB session limit",
     "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.": "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.",
     "The setup file and its stored identity disagree.": "The setup file and its stored identity disagree.",
     "The shader changed while painting.": "The shader changed while painting.",

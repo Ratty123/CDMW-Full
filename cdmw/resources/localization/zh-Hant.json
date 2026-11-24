@@ -15619,6 +15619,7 @@
     "The session receipt exceeds its size limit.": "工作階段回條超出大小限制。",
     "The session receipt location is not a directory.": "工作階段回條位置不是目錄。",
     "The set changed while its material file was read. Try again.": "讀取材質檔案期間套裝發生了變化。請重試。",
+    "The set's material preview metadata exceeds the 16 MiB session limit": "套裝的材質預覽中繼資料超過了工作階段的 16 MiB 限制",
     "The settings, document schema or protocol does not match what this build expects. Use matching application and helper versions, check the named setting and reopen or re-export with the supported format. Preserve the original configuration before changing it.": "設定、文件結構描述或通訊協定與此建置的需求不符。請使用相符的應用程式和輔助程式版本，檢查指出的設定，並以支援的格式重新開啟或匯出。修改前先保留原始設定。",
     "The setup file and its stored identity disagree.": "設定檔案與儲存的識別資訊不一致。",
     "The shader changed while painting.": "繪製過程中著色器已更改。",
