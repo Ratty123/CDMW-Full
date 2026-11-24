@@ -260,10 +260,19 @@ def test_the_editors_commands_run_by_id_with_their_reason_and_class(mesh, settin
     assert mcp.read()["isError"] and "topology.delete_selection" not in ran
 
 
-def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp_path, settings) -> None:
+def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp_path, settings,
+                                                                      monkeypatch) -> None:
+    from cdmw.mcp import mesh_edit_tools
+
     mcp = mesh.mcp
+    # Nothing answers here, so each step waits only briefly for the helper's request
+    # (tests/test_mcp_mesh_tool_repairs.py drives them with a helper that answers).
+    monkeypatch.setattr(mesh_edit_tools, "ARRIVE_S", 0.2)
+    mcp.controller.server.quick_result_s = 30.0
     target = tmp_path / "part.obj"
-    assert mcp.ok("mesh_export", {"path": str(target)}) == {"sent": True, "path": str(target), "format": "obj"}
+    exported = mcp.ok("mesh_export", {"path": str(target)})
+    assert (exported["sent"], exported["path"], exported["format"]) == (True, str(target), "obj")
+    assert not exported["done"] and "did not send" in exported["message"]
     sent = mesh.sent[-1]
     assert (sent["event"], sent["command"]) == ("cdmw_command", "export_mesh")
     assert sent["arguments"] == {"path": str(target), "format": "obj"}
@@ -283,7 +292,11 @@ def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp
 
     state = mcp.ok("mesh_replacement_state")
     assert state["ready"] and state["supported"] and state["pending"] is None and state["parts"]
-    assert mcp.error("mesh_replacement_import", {"path": str(tmp_path / "model.fbx")})["code"] == "invalid_arguments"
+    fbx_model = tmp_path / "model.fbx"
+    fbx_model.write_bytes(b"Kaydara FBX Binary")
+    monkeypatch.setattr("cdmw.ui.new_item.blender_setting.blender_for_fbx", lambda: "")
+    no_blender = mcp.error("mesh_replacement_import", {"path": str(fbx_model)})
+    assert no_blender["code"] == "invalid_arguments" and "no Blender is chosen" in no_blender["message"]
     assert mcp.error("mesh_replacement_import", {"path": str(tmp_path / "missing.obj")})["code"] == (
         "invalid_arguments")
     assert "import one first" in mcp.error("mesh_replacement_apply")["message"]
@@ -292,6 +305,14 @@ def test_export_and_import_replacement_send_the_panel_buttons_messages(mesh, tmp
     assert mcp.ok("mesh_replacement_import", {"path": str(model)})["sent"]
     sent = mesh.sent[-1]
     assert sent["command"] == "replacement_choose" and sent["arguments"] == {"scope": "entire", "part_ids": []}
+    # Nothing came back to use it: the path does not wait to answer the user's next Import click.
+    from cdmw.ui.mesh_editor import replacement_flow
+
+    assert replacement_flow.source_path_override is None
+    # With a Blender chosen, an FBX goes the same way; the button's own Blender chooser is not asked.
+    monkeypatch.setattr("cdmw.ui.new_item.blender_setting.blender_for_fbx", lambda: "C:/Blender/blender.exe")
+    assert mcp.ok("mesh_replacement_import", {"path": str(fbx_model)})["sent"]
+    assert mesh.sent[-1]["command"] == "replacement_choose"
     assert mcp.ok("mesh_replacement_cancel")["sent"] and mesh.sent[-1]["command"] == "replacement_cancel"
 
 
@@ -303,23 +324,30 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     holder = QWidget()
     validated, building, built = [False], [False], []
 
-    hair = [False]
+    hair = [False, None]
+    bodies, included = [()], []
 
     def press() -> None:  # the button's handler, cut down to its question and its dialog
-        if hair[0]:  # a hairstyle asks for the folder with a chooser instead of the dialog
-            from PySide6.QtWidgets import QFileDialog
-
-            built.append(("hair", QFileDialog.getExistingDirectory(None, "Build Additional Hairstyle"), None, None))
-            building[0] = bool(built[-1][1])
+        if hair[0]:  # a hairstyle gets the dialog in its hairstyle form
+            dialog = tab_direct_output.MeshModExportDialog(
+                holder, title="Damiane - Braids", description="", output_parent="", output_choice="hair_add",
+                manager_profile="dmm", hair_mode=True, hair_stem="cd_phw_00_hair_00_braids_player",
+                hair_character="Damiane", dmm_install=hair[1])
+            if dialog.exec() == dialog.DialogCode.Accepted:
+                built.append(("hair", dialog.hair_export_choice(), dialog.target_stem(), dialog.custom_icon(),
+                              dialog.send_to_dmm_enabled(), str(dialog.output_path())))
+                building[0] = True
             return
         if not validated[0]:
             QMessageBox.warning(None, "Build Mod", "Run validation successfully before building a mesh mod.")
             return
         dialog = tab_direct_output.MeshModExportDialog(holder, title="Probe Mesh Mod", description="",
-                                                       output_parent="", output_choice="", manager_profile="dmm")
+                                                       output_parent="", output_choice="", manager_profile="dmm",
+                                                       body_files=bodies[0])
         if dialog.exec() == dialog.DialogCode.Accepted:
             built.append((dialog.mod_name.text(), dialog.output_parent.text(), dialog.create_zip.isChecked(),
                           dialog.open_folder.isChecked()))
+            included.append(dialog.include_body.isChecked())
             building[0] = True
 
     ui._start_mesh_mod_build_requested = press
@@ -352,10 +380,62 @@ def test_build_mod_presses_the_button_with_its_dialog_filled_and_reports_a_refus
     assert "does not write into" in mcp.error("mesh_build_mod", {"output_folder": str(game)})["message"]
     assert mcp.error("mesh_build_mod", {"output_folder": str(tmp_path / "missing" / "x")})["code"] == "refused"
     assert len(built) == 2 and tab_direct_output.MeshModExportDialog.__name__ == "MeshModExportDialog"
-    # A hairstyle: the same folder answers its chooser.
+    # Include the body is offered for a worn garment, and the call's answer is taken (the dialog is
+    # never shown, so none of its controls is ever "visible").
+    bodies[0], building[0] = ("cd_phm_00_body.pac",), False
+    body = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "With body", "include_body": True})
+    assert body["started"] and body["include_body"] and included[-1] is True
+    bodies[0], building[0] = (), False
+    del built[-1]
+    # A hairstyle: its package mode, Hairstyle ID, barber icon and Send to DMM.
     hair[0], building[0] = True, False
-    assert mcp.ok("mesh_build_mod", {"output_folder": str(out)})["started"]
-    assert built[-1] == ("hair", str(out), None, None)
+    hairstyle = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids"})
+    assert hairstyle["started"] and hairstyle["manager"] == "hair_add" and not hairstyle["send_to_dmm"]
+    assert built[-1][:5] == ("hair", "hair_add", "cd_phw_00_hair_00_braids_player", None, False)
+    assert hairstyle["destination"] == built[-1][5] and Path(built[-1][5]).parent == out
+    icon = tmp_path / "icon.png"
+    icon.write_bytes(b"png")
+    building[0] = False
+    full = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "manager": "hair_add_full",
+                                     "hair_stem": "cd_phw_00_hair_00_mine_player", "custom_icon_path": str(icon)})
+    assert full["started"] and built[-1][:4] == ("hair", "hair_add_full", "cd_phw_00_hair_00_mine_player", icon)
+    building[0] = False
+    count = len(built)
+    for wrong, text in (({"hair_stem": "Not A Stem"}, "lowercase"),
+                        ({"custom_icon_path": str(tmp_path / "none.png")}, "existing image"),
+                        ({"send_to_dmm": True}, "DMM"),
+                        ({"manager": "hair_replace_loose", "hair_stem": "cd_phw_00_hair_00_x_player"}, "keeps"),
+                        ({"keep_layers": [CLOTHING_LAYERS[0]]}, "no layers")):
+        error = mcp.error("mesh_build_mod", {"output_folder": str(out), **wrong})
+        assert error["code"] == "invalid_arguments" and text in error["message"], (wrong, error)
+    assert len(built) == count
+    # With DMM's mods folder found, Send to DMM writes there instead of the output folder.
+    dmm = tmp_path / "DMM"
+    (dmm / "mods").mkdir(parents=True)
+    (dmm / "DMM.exe").write_bytes(b"")
+    hair[1] = dmm
+    sent = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
+    assert sent["started"] and sent["send_to_dmm"] and built[-1][4]
+    assert Path(sent["destination"]).parent == dmm / "mods"
+    # CDMW's earlier copy there is replaced only when the call says so, as New Item's Send to DMM does.
+    Path(sent["destination"]).mkdir()
+    building[0], count = False, len(built)
+    again = mcp.error("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
+    assert again["code"] == "invalid_arguments" and "replace" in again["message"] and len(built) == count
+    replaced = mcp.ok("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True,
+                                         "replace": True})
+    assert replaced["started"] and replaced["destination"] == sent["destination"]
+    # Never into the game (set as the game folder above): a DMM kept inside it is refused.
+    inside = game / "DMM"
+    (inside / "mods").mkdir(parents=True)
+    (inside / "DMM.exe").write_bytes(b"")
+    hair[1], building[0], count = inside, False, len(built)
+    refused_game = mcp.error("mesh_build_mod", {"output_folder": str(out), "mod_name": "Braids", "send_to_dmm": True})
+    assert "game" in refused_game["message"] and len(built) == count
+    hair[1] = None
+    # A mesh mod takes none of the hairstyle's options.
+    hair[0], building[0] = False, False
+    assert "Hair Tools" in mcp.error("mesh_build_mod", {"output_folder": str(out), "hair_stem": "x"})["message"]
     # After Finish the helper and its session are gone; the finished document still builds.
     hair[0], building[0] = False, False
     session, ui.standalone_rust_authoring_session = ui.standalone_rust_authoring_session, None

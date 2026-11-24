@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_REPLACEMENT_SUFFIXES = {".obj", ".dae", ".gltf", ".glb"}
+_REPLACEMENT_SUFFIXES = {".obj", ".dae", ".gltf", ".glb", ".fbx"}
 _EXPORT_FORMATS = {"obj", "glb"}
 _LOOKUP_ATTRIBUTE = "_automation_archive_find_lookup"
 _found: dict[str, dict[str, object]] = {}
@@ -186,10 +186,17 @@ def replacement_import(window, args: dict) -> dict[str, object]:
     from cdmw.ui.mesh_editor import replacement_flow
 
     path = Path(str(args.get("path") or ""))
-    if path.suffix.lower() == ".fbx":
-        raise ValueError("An FBX asks for Blender with a second chooser; give an OBJ, DAE, glTF or GLB file.")
     if path.suffix.lower() not in _REPLACEMENT_SUFFIXES or not path.is_absolute() or not path.is_file():
-        raise ValueError("Give the full path of an existing OBJ, DAE, glTF or GLB file.")
+        raise ValueError("Give the full path of an existing OBJ, DAE, glTF, GLB or FBX file.")
+    if path.suffix.lower() == ".fbx":
+        from cdmw.ui.new_item.blender_setting import blender_for_fbx
+
+        # The Blender chosen before reads it, as the button's second chooser would; with none
+        # chosen yet that chooser would ask, so this refuses instead.
+        if not blender_for_fbx():
+            raise ValueError("An FBX is read with Blender, and no Blender is chosen yet. Choose blender.exe once "
+                             "(Import Replacement asks for it with an FBX, as does Create New Item's Model step), "
+                             "or give an OBJ, DAE, glTF or GLB file.")
     scope = str(args.get("scope") or "entire")
     part_ids = [str(value) for value in args.get("part_ids") or ()]
     if scope not in {"entire", "selected"} or (scope == "selected" and not part_ids):

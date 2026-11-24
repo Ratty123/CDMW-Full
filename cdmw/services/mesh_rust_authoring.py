@@ -6851,6 +6851,18 @@ def _selection_from_payload(payload: object) -> MeshEditSelection:
     )
 
 
+#: The Layers list's Copy targets (copy_selection), in the order a selection's own domain is read.
+_COPY_TARGETS = ("face", "edge", "vertex")
+
+
+def _selection_domain(selection: MeshEditSelection) -> str:
+    """What a selection holds, as the Layers list's Copy names it: faces, then edges, then vertices."""
+
+    holds = (any(items for _part, items in selection.faces_by_submesh) or bool(selection.source_indices),
+             any(items for _part, items in selection.edges_by_submesh), True)
+    return _COPY_TARGETS[holds.index(True)]
+
+
 def _require_argument_keys(
     args: Mapping[str, object],
     allowed: frozenset[str],
@@ -10262,11 +10274,15 @@ class RustMeshAuthoringSession:
                 str(args.get("layer_id", "") or ""),
             )
         elif command == "layer_copy":
-            result = self.shadow_service.copy_selection(
-                self.shadow_session_id,
-                target=str(args.get("target", "face") or "face"),
-                selection=_selection_from_payload(args.get("selection")),
-            )
+            # The Layers list's Copy sends its selection and domain. A copy sent by name (an AI
+            # connection's) carries neither: it copies the session's selection, as Copy would.
+            given = args.get("selection")
+            selection = _selection_from_payload(given) if isinstance(given, Mapping) else None
+            target = str(args.get("target", "") or "")
+            if not target:
+                target = _COPY_TARGETS[0] if selection is not None else _selection_domain(
+                    self.shadow_service.session_view(self.shadow_session_id).selection)
+            result = self.shadow_service.copy_selection(self.shadow_session_id, target=str(target), selection=selection)
         elif command == "layer_paste":
             result = self.shadow_service.paste_selection(self.shadow_session_id)
         elif command.startswith("morph_") or command.startswith("refit_"):

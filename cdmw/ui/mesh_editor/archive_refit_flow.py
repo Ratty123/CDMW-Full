@@ -51,7 +51,15 @@ def prepare_archive_refit_event(tab, session, event):
     if role not in {"body", "armor"}:
         raise ValueError("Choose a body or armor archive mesh")
     target = tab._current_target_entry()
-    entry, dependencies = controller.choose(target, role)
+    from cdmw.ui.mesh_editor.host_archive_choice import REFIT_COMMAND, take
+
+    # A file already chosen for this request (an AI connection names it): the picker's answer, unasked.
+    offered = take(tab, REFIT_COMMAND)
+    if offered is not None:
+        chosen = offered.arguments_for(tab, role)
+        entry, dependencies = chosen["_archive_entry"], chosen["_archive_dependencies"]
+    else:
+        entry, dependencies = controller.choose(target, role)
     if tab.standalone_rust_authoring_session is not session or tab.standalone_rust_closing:
         raise ValueError("The edit session closed while the archive picker was open")
     if tab._current_target_entry().identity != target.identity:

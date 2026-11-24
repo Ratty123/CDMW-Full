@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from cdmw.mcp.errors import FAILED, INVALID_ARGUMENTS, NOT_FOUND, UNAVAILABLE, ToolError
+from cdmw.mcp.mesh_panel_schemas import PANELS, PARAMS, actions_text, check, union_schema
 from cdmw.mcp.names import EDIT, OUTPUT, READ
 from cdmw.mcp.tools import ON_CALL, ON_WORKER, Tool, object_schema
 
@@ -212,6 +213,13 @@ def _panel(family: str):
             raise ToolError(UNAVAILABLE, NO_PANEL_COMMANDS)
         command = f"{family}_{action}"
         arguments = dict(call.arguments.get("arguments") or {})
+        if family in PANELS:
+            check(PANELS[family], action, arguments, f"mesh {family}")
+        from cdmw.mcp.mesh_archive_choice import picks_from_archive, send_with_choice
+
+        if picks_from_archive(command, arguments):
+            # Its button opens a picker; the call names the file instead, so none opens.
+            return send_with_choice(call, command, arguments, _send_edit)
         if command in OUTPUT_COMMANDS:
             return _send_output(call, command, arguments)
         return _send_edit(call, command, arguments)
@@ -284,9 +292,11 @@ def _labelled(command: str):
     def handler(call) -> dict[str, object]:
         a = call.arguments
         action = str(a["action"])
+        params = dict(a.get("params") or {})
+        if action in PARAMS[command]:
+            check(PARAMS[command], action, params, f"{command.replace('_', ' ')} params for")
         label = str(a.get("label") or action.replace("_", " ").capitalize())
-        return _send_edit(call, command, {"action": action, "params": dict(a.get("params") or {}),
-                                          "label": label})
+        return _send_edit(call, command, {"action": action, "params": params, "label": label})
 
     return handler
 
@@ -396,41 +406,116 @@ PANEL_SECTIONS = ("skeleton", "rig_influence", "morph_refit", "geometry_layers",
 
 _PANEL_TOOLS = (
     ("rig", "mesh.weights", "Weights",
-     "The Rig page's weight commands on the shown document's selected vertices, as its buttons send them: "
-     "select_bone {bone_index}, adjust_weight {delta}, normalize_weights {}, transfer_weights {}."),
+     "The Rig page's weight commands on the shown document's selected vertices, as its buttons send them."),
     ("morph", "mesh.morph", "Morphs",
-     "The Morph & Refit page's morph commands, by the names its controls send (activate, create, set_value, "
-     "set_macro, set_side_value, set_symmetry, set_influence, set_driver_region, bake, reset, save_profile, "
-     "apply_preset, save_preset, import_preset, corrections ...), with the arguments the page sends; "
-     "mesh_panels shows the morph state they work on."),
+     "The Morph & Refit page's morph commands, by the names its controls send; mesh_panels' morph_refit shows "
+     "the profiles, sliders, presets and body controls they work on."),
     ("refit", "mesh.refit", "Refit",
-     "The Morph & Refit page's refit commands: set_driver {submesh_indices}, use_loaded_body, load_mesh, "
-     "choose_archive, bind {submesh_indices}, configure {submesh_indices, clearance_percent, intensity_percent, "
-     "tightness_percent, skin_pull_percent, mode, enabled}, island_configure, fit_to_body, restore_shape_preview, "
-     "restore_shape_apply, restore_shape_cancel, clear, diagnostics."),
+     "The Morph & Refit page's refit commands. choose_archive is Load Body or Load Armor from the game "
+     "archives: 'archive_path' names the file, as search_archive lists it, in place of the picker."),
     ("cloth", "mesh.cloth", "Cloth",
-     "The Cloth page's commands on the selected vertices: pin_set {value}, paint_set {value}, "
-     "collision_input {role, source}."),
+     "The Cloth page's commands on the selected vertices, and the cloth preview's collision inputs: "
+     "collision_input takes {role, archive_path} (body or head: a .pabv, weapon: a .pac, from the game "
+     "archives, in place of the picker), {role, path} (such a file on disk), {clear: true} or "
+     "{weapon_placement: {offset: [x, y, z], rotation: [x, y, z] in degrees}} (moves the weapon chosen before)."),
     ("layer", "mesh.layers", "Layers",
-     "The Layers list's commands: activate {layer_id}, rename {layer_id, name}, move {layer_id, direction}, "
-     "visibility {layer_id, visible}, copy, paste, delete {layer_id}."),
+     "The Layers list's commands. copy copies the current selection, as Copy does."),
     ("hair", "mesh.hair", "Hair",
      "Hair Tools' commands for a hairstyle being made: begin {change_references: true} (Change references…, "
      "which asks for the references as the button does), color {color: [r, g, b]}, texture {texture_path} "
      "(Apply edited DDS…, which asks for the DDS), texture_export {texture_path} (Open in Texture Editor)."),
     ("replacement", "mesh.part_options", "Part options",
-     "The Inspector's per-part options for the selected parts ('part_ids' as mesh_panels lists them), as its "
-     "controls send them: shader_controls (Shader experiments, {part_ids, shader_controls}), material_colours "
-     "(Material colours: {part_ids, colours: {row: '#RRGGBB'}} or {part_ids, reset: true}, changing the tint and "
-     "dye rows mesh_panels lists under material_colours; parts sharing the material change together), emission, "
-     "translucency, jiggle, physics_profile, collision_volumes, weapon_collisions, cloth, guides, islands, "
-     "include {part_ids, included}; and Import Replacement's fit, compare and reset."),
+     "The Inspector's per-part options, as its controls send them ('part_ids' as mesh_panels' replacement "
+     "section lists them; parts sharing a material change together), and Import Replacement's fit, compare and "
+     "reset. shader_controls are the Shader experiments: its 'texture_files' gives a texture slot a file."),
 )
+
+
+#: The Vertex Parameters inspector's page size (cdmw/services/mesh_vertex_parameters.py, MAX_PAGE_SIZE).
+VERTEX_PAGE_SIZE = 128
+_TOKEN_SCHEMA = object_schema({
+    "session_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "mesh_revision": {"type": "integer", "minimum": 0},
+    "selection_revision": {"type": "integer", "minimum": 0},
+    "topology_generation": {"type": "integer", "minimum": 0},
+}, ["session_id", "mesh_revision", "selection_revision", "topology_generation"])
+_TOKEN_SCHEMA["description"] = ("The 'token' mesh_vertex_inspect returned, as it is: it names the selection and "
+                                "mesh revision it read, so an edit after either changed is refused.")
+
+
+def _component(width: int, *, nullable: bool = True) -> dict[str, object]:
+    item = {"type": ["number", "null"]} if nullable else {"type": "number"}
+    return {"type": "array", "minItems": width, "maxItems": width, "items": item}
+
+
+def _channel_edit(width: int, what: str, *, offsets: bool = True) -> dict[str, object]:
+    schema = object_schema({"mode": {"type": "string", "enum": ["set", "offset"] if offsets else ["set"],
+                                     "default": "set"},
+                            "values": _component(width)}, ["values"])
+    schema["description"] = what
+    return schema
+
+
+_VERTEX_EDITS = object_schema({
+    "position": _channel_edit(3, "Model-space position [x, y, z]; null keeps that axis. 'offset' adds to it."),
+    "uv0": _channel_edit(2, "UV0 [u, v]; null keeps that component. 'offset' adds to it."),
+    "normal": _channel_edit(3, "The normal direction [x, y, z], all three given; it is normalised.", offsets=False),
+    "weights": {**object_schema({
+        "mode": {"type": "string", "enum": ["set", "offset", "remove", "normalize"]},
+        "bone": {"type": "integer", "minimum": 0,
+                 "description": "The skeleton bone (a 'bones' row's 'bone'), not its palette slot."},
+        "value": {"type": "number", "minimum": -1, "maximum": 1}}, ["mode"]),
+        "description": "Skin weights: set or offset one bone's influence (the others are scaled to keep the "
+                       "total 1), remove it, or normalize each vertex's row."},
+})
+
+
+def _vertex_request(session) -> dict[str, object]:
+    """The identity the helper's own inspector requests carry, for the inspection route."""
+
+    from cdmw.services.mesh_rust_contract import RUST_MESH_EDITOR_PROTOCOL
+
+    view = session.shadow_service.session_view(session.shadow_session_id)
+    return {"protocol": RUST_MESH_EDITOR_PROTOCOL, "session_id": session.session_id,
+            "process_generation": session.process_generation, "base_revision": int(view.revision)}
+
+
+def _vertex_inspect(call) -> dict[str, object]:
+    """The Vertex Parameters inspector's page, read through the route its helper uses."""
+
+    from cdmw.mcp.mesh_tools import NO_EDITOR, NOT_READY, _session_of
+    from cdmw.services.mesh_rust_authoring import _json_safe
+    from cdmw.services.mesh_vertex_parameters import inspection_token
+
+    _facts, session = _session_of(call)
+    if session is None:
+        raise ToolError(UNAVAILABLE, NO_EDITOR)
+    page = int(call.arguments.get("page") or 0)
+    size = int(call.arguments.get("page_size") or VERTEX_PAGE_SIZE)
+    last_error = ""
+    # The selection or mesh can change between reading the token and reading the page: read again once.
+    for _attempt in range(2):
+        call.check_cancelled()
+        try:
+            request = {**_vertex_request(session),
+                       "arguments": {"token": inspection_token(session), "page": page, "page_size": size}}
+            result = session.vertex_inspect(request)
+        except ValueError as exc:
+            last_error = str(exc)
+            continue
+        except (KeyError, RuntimeError) as exc:
+            raise ToolError(UNAVAILABLE, str(exc) or NOT_READY) from None
+        payload = _json_safe(result)
+        payload["pages"] = max(1, -(-int(payload.get("count") or 0) // size))
+        if not payload.get("count"):
+            payload["message"] = "No vertices are selected: select some first (mesh_select)."
+        return payload
+    raise ToolError(UNAVAILABLE, last_error or NOT_READY)
 
 
 def _vertex_edit(call) -> dict[str, object]:
     a = call.arguments
-    return _send_output(call, "vertex_edit", {"token": a["token"], "edits": dict(a["edits"])})
+    return _send_output(call, "vertex_edit", {"token": dict(a["token"]), "edits": dict(a["edits"])})
 
 
 def _open_package(call) -> dict[str, object]:
@@ -583,7 +668,9 @@ def mesh_edit_tools() -> list[Tool]:
                          "works on PAC faces only (not PAM or PAMLOD), and deleting whole Parts (params "
                          "delete_parts) needs Free Edit; untick Include instead. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_topology_actions())},
-                                         "params": {"type": "object"}, "label": label}, ["action"]),
+                                         "params": union_schema(PARAMS["topology"], "The action's params: "
+                                                                + actions_text(PARAMS["topology"])),
+                                         "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command topology", handler=_labelled("topology"),
              runs_on=ON_WORKER),
         Tool(name="mesh.mesh_action", family="mesh", title="Mesh action",
@@ -598,7 +685,9 @@ def mesh_edit_tools() -> list[Tool]:
                          "files store no normals or tangents. generate_tangents that would split vertices along a "
                          "UV seam needs Free Edit. One History step.",
              input_schema=object_schema({"action": {"type": "string", "enum": list(_mesh_actions())},
-                                         "params": {"type": "object"}, "label": label}, ["action"]),
+                                         "params": union_schema(PARAMS["mesh_action"], "The action's params: "
+                                                                + actions_text(PARAMS["mesh_action"])),
+                                         "label": label}, ["action"]),
              effect=EDIT, route="helper:cdmw_command mesh_action", handler=_labelled("mesh_action"),
              runs_on=ON_WORKER),
         Tool(name="mesh.transform", family="mesh", title="Move, rotate, scale",
@@ -625,10 +714,13 @@ def mesh_edit_tools() -> list[Tool]:
              effect=EDIT, route="helper:cdmw_command configure_output_policy", handler=_output_policy,
              runs_on=ON_WORKER, output_folders=("destination",)),
         *[Tool(name=name, family="mesh", title=title,
-               description=text + " CDMW checks each as it checks the panel's own; the result is the history "
-                                  "before and after and the status line, which says why a command was refused.",
+               description=text + (" Arguments by action (? marks an optional one): " + actions_text(PANELS[family])
+                                   if family in PANELS else "")
+                           + " CDMW checks each as it checks the panel's own; the result is the history "
+                             "before and after and the status line, which says why a command was refused.",
                input_schema=object_schema({"action": {"type": "string", "enum": list(PANEL_COMMANDS[family])},
-                                           "arguments": {"type": "object"}}, ["action"]),
+                                           "arguments": union_schema(PANELS[family], "The action's arguments.")
+                                           if family in PANELS else {"type": "object"}}, ["action"]),
                effect=EDIT, route=f"helper:cdmw_command {family}_*", handler=_panel(family), runs_on=ON_WORKER)
           for family, name, title, text in _PANEL_TOOLS],
         Tool(name="mesh.panels", family="mesh", title="Mesh Editor panels",
@@ -694,13 +786,28 @@ def mesh_edit_tools() -> list[Tool]:
                  "light_rotation": {"type": "number", "minimum": -180, "maximum": 180}}),
              effect=EDIT, effect_of=_view_effect, route="helper:set_view_state", handler=_view,
              runs_on=ON_WORKER),
+        Tool(name="mesh.vertex_inspect", family="mesh", title="Inspect vertex parameters",
+             description="The Vertex Parameters inspector on the shown document's selected vertices, as its "
+                         "page reads them: each vertex's part, position, UV0, normal and tangent, its skin "
+                         "weights (palette slot, skeleton bone, bone name and weight), cloth influence "
+                         "(original, effective, fixed), its source vertex and topology lineage, summaries over "
+                         "the whole selection, 'capabilities' (whether each channel can be edited here and why "
+                         "not), 'bones' (the bones a weight edit can name) and the 'token' mesh_vertex_edit "
+                         "needs. Pages of at most 128 vertices: 'page' counts from 0, 'pages' says how many.",
+             input_schema=object_schema({"page": {"type": "integer", "minimum": 0, "default": 0},
+                                         "page_size": {"type": "integer", "minimum": 1,
+                                                       "maximum": VERTEX_PAGE_SIZE,
+                                                       "default": VERTEX_PAGE_SIZE}}),
+             effect=READ, route="service:RustMeshAuthoringSession.vertex_inspect", handler=_vertex_inspect,
+             runs_on=ON_WORKER),
         Tool(name="mesh.vertex_edit", family="mesh", title="Edit vertex parameters",
-             description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' and the "
-                         "channels it may edit come from mesh_panels' vertex_parameters section; 'edits' are as "
-                         "the inspector sends them (for example {position: {values: [null, null, 0.25]}} or "
-                         "{weights: {mode: set, bone: 3, value: 0.5}}). One History step.",
-             input_schema=object_schema({"token": {"type": "string", "minLength": 1, "maxLength": 256},
-                                         "edits": {"type": "object"}}, ["token", "edits"]),
+             description="The Vertex Parameters inspector's Apply on the selected vertices: 'token' is the one "
+                         "mesh_vertex_inspect returned for this selection, and only channels its "
+                         "'capabilities' mark editable are taken. 'edits' holds one or more channels, for "
+                         "example {position: {values: [null, null, 0.25]}} (null keeps an axis), {uv0: {mode: "
+                         "offset, values: [0.1, 0]}}, {normal: {values: [0, 0, 1]}} or {weights: {mode: set, "
+                         "bone: 3, value: 0.5}}. One History step; inspect again before the next edit.",
+             input_schema=object_schema({"token": _TOKEN_SCHEMA, "edits": _VERTEX_EDITS}, ["token", "edits"]),
              effect=EDIT, route="helper:cdmw_command vertex_edit", handler=_vertex_edit, runs_on=ON_WORKER),
         Tool(name="mesh.open_package", family="mesh", title="Open an editable package",
              description="The Output page's Import editable package: open a Free Edit package folder (or its "

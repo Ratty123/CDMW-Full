@@ -802,7 +802,7 @@
     {
       "id": "mesh.geometry",
       "area": "Mesh Editor",
-      "what": "A part's vertices, triangles, UVs, normals and selection",
+      "what": "A part's vertices, triangles, UVs (and extra UV sets), normals, tangents, vertex colours, bone indices and weights, morph target offsets and selection, on the shown LOD or a PAMLOD's stored level",
       "class": "read",
       "tool": "mesh.geometry"
     },
@@ -928,7 +928,7 @@
     {
       "id": "hair.build",
       "area": "Hair Tools",
-      "what": "Build Mod for a hairstyle",
+      "what": "Build Mod for a hairstyle: package mode, Hairstyle ID, custom barber icon and Send to DMM",
       "class": "output",
       "tool": "mesh.build_mod"
     },
@@ -973,6 +973,13 @@
       "what": "Paint strokes, by points",
       "class": "edit",
       "tool": "textures.stroke"
+    },
+    {
+      "id": "textures.close_panel",
+      "area": "Texture Editor",
+      "what": "Close Editor: hide the Mesh Editor's docked Texture Editor panel, keeping its texture and edits",
+      "class": "read",
+      "tool": "textures.close_panel"
     },
     {
       "id": "textures.undo",
@@ -1166,6 +1173,13 @@
       "what": "Selection shape, operation and X-ray, brush radius, strength and falloff, overlay colours and sizes, part visibility, Lighting and the Studio look's Wetness, Exposure and Light rotation (experimental)",
       "class": "edit",
       "tool": "mesh.view"
+    },
+    {
+      "id": "mesh.vertex_inspect",
+      "area": "Mesh Editor",
+      "what": "Vertex Parameters: read the selected vertices' positions, UVs, normals, tangents, weights, cloth and lineage, and which channels can be edited",
+      "class": "read",
+      "tool": "mesh.vertex_inspect"
     },
     {
       "id": "mesh.vertex_edit",

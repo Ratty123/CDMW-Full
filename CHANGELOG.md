@@ -38,6 +38,15 @@ experimental-feature notes do not establish equivalent in-game behavior.
 - **Browse Archives** no longer shows a long list of unrelated item names (Kliff coupons, House keys, Goyen and Kairos armour and others) on some house, door and window models.
 - **Build Mod** to DMM: a mod built while CDMW ran as administrator now loads in the game. Its files kept the private permissions of CDMW's temporary build folder, so DMM could read them but the game, started normally, could not open them. Mods and other files CDMW writes now take the permissions of the folder they are saved to. Mods built with earlier versions need rebuilding, or their permissions reset.
 - **Browse Archives** no longer stops a set's preview with "Preview timed out while loading" when the set is shown (with Add to scene, Item Finder or a search) while the same model's own preview is still loading. The timeout message no longer points to the removed Fast Detail option.
+- **AI connections (experimental)**: Mesh Editor tools that were listed but failed or stalled now work.
+  - `mesh_vertex_edit` takes the token from the new `mesh_vertex_inspect`. That tool reads the selected vertices' positions, UVs, normals, tangents, skin weights with bone names and cloth influence, and says which values can be edited and why not.
+  - Refit's **Load Body** and **Load Armor** and Cloth's collision inputs from the game archives take the archive path the AI app names. Before, they opened a picker nothing could answer, and the Mesh Editor waited on it.
+  - A Layers **Copy** sent by an AI app copies the current selection; it copied nothing before.
+  - `mesh_build_mod` sets a hairstyle's package mode, Hairstyle ID, barber icon and Send to DMM, and **Include the body** is now applied.
+  - Export Mesh File and Import Replacement wait for the editor and report a refusal. Import Replacement takes an FBX when a Blender to read it is already chosen.
+  - The panel tools (`mesh_weights`, `mesh_morph`, `mesh_refit`, `mesh_cloth`, `mesh_layers`, `mesh_part_options`) and the topology and mesh-action params list each action's fields, typed. A wrong field is refused before anything is sent.
+  - `mesh_geometry` also reads tangents, vertex colours, extra UV sets, bone indices and weights, morph targets and a PAMLOD's other LODs.
+  - `textures_close_panel` closes the Mesh Editor's Texture Editor panel and keeps its edits.
 
 ### Docs
 

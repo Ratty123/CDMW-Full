@@ -31176,7 +31176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8381,
+          "line": 8393,
           "sink": "report"
         }
       ]
@@ -34086,7 +34086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -35081,7 +35081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -38166,7 +38166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 33,
+          "line": 40,
           "sink": "ValueError"
         }
       ]
@@ -53186,7 +53186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 11419,
+          "line": 11435,
           "sink": "RuntimeError"
         }
       ]
@@ -96861,7 +96861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9122,
+          "line": 9134,
           "sink": "done"
         }
       ]
@@ -101656,7 +101656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10535,
+          "line": 10551,
           "sink": "RuntimeError"
         }
       ]
@@ -101666,7 +101666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10531,
+          "line": 10547,
           "sink": "RuntimeError"
         }
       ]
@@ -101676,7 +101676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 10506,
+          "line": 10522,
           "sink": "RuntimeError"
         }
       ]
@@ -126366,7 +126366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8375,
+          "line": 8387,
           "sink": "report"
         }
       ]
@@ -126821,7 +126821,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9201,
+          "line": 9213,
           "sink": "progress"
         }
       ]
@@ -126831,7 +126831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8120,
+          "line": 8132,
           "sink": "report"
         }
       ]
@@ -126841,7 +126841,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8145,
+          "line": 8157,
           "sink": "report"
         }
       ]
@@ -138293,6 +138293,16 @@
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 1624,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit's Load Body and Load Armor and Cloth's collision inputs from the game archives take the archive file the AI app names, so no picker opens; without a file the tool refuses.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 1139,
+          "sink": "python-return:_build_reference_sections"
         }
       ]
     },
@@ -153121,7 +153131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 23,
+          "line": 30,
           "sink": "RemoteArchiveOriginalDialog"
         }
       ]
@@ -156737,7 +156747,7 @@
       "manual": true
     },
     {
-      "key": "Select by numbers, move, rotate and scale, change topology, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
+      "key": "Select by numbers, move, rotate and scale, change topology, read and edit vertex values, weights, morphs, refit, cloth, layers and hair, set the camera and view, finish, export and build the mod.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -176262,6 +176272,16 @@
       ]
     },
     {
+      "key": "The archive file was chosen for {value_0}, not {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 42,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The archive helper did not become ready within the startup limit. Check missing files, security blocking and the diagnostic tail.",
       "origins": [
         {
@@ -177756,7 +177776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
-          "line": 56,
+          "line": 64,
           "sink": "ValueError"
         }
       ]
@@ -177776,7 +177796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/cloth_collision_flow.py",
-          "line": 36,
+          "line": 43,
           "sink": "ValueError"
         }
       ]
@@ -178343,6 +178363,16 @@
           "path": "cdmw/ui/new_item/painting_dialog.py",
           "line": 286,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "The game archives changed after the archive file was chosen; choose it again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 44,
+          "sink": "ValueError"
         }
       ]
     },
@@ -179147,11 +179177,21 @@
       ]
     },
     {
+      "key": "The loaded archive mesh changed after the archive file was chosen.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/host_archive_choice.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The loaded archive mesh changed during selection",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
-          "line": 58,
+          "line": 66,
           "sink": "ValueError"
         }
       ]
@@ -208576,7 +208616,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8617,
+          "line": 8629,
           "sink": "open_edit_session"
         },
         {
@@ -215506,12 +215546,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7570,
+          "line": 7582,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7668,
+          "line": 7680,
           "sink": "RuntimeError"
         }
       ]

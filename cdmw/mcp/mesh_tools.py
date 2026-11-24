@@ -33,7 +33,8 @@ NO_EDITOR = "Open a mesh in the Mesh Editor first (mesh_open, or Browse Archives
 NOT_READY = "The Mesh Editor is still preparing this mesh; mesh_state says when it is ready."
 BUSY = "The Mesh Editor is working on the last request; try again in a moment."
 OPEN_TIMEOUT_S = 60.0
-GEOMETRY = ("summary", "vertices", "triangles", "uvs", "normals", "selection")
+GEOMETRY = ("summary", "vertices", "triangles", "uvs", "normals", "tangents", "vertex_colors", "uv_sets",
+            "bone_indices", "bone_weights", "morph_targets", "selection")
 _PART = {"type": "integer", "minimum": 0, "description": "A part's number, as mesh_state lists it."}
 
 
@@ -71,8 +72,10 @@ def ready_document(context, *, commands: bool = False):
 
 
 def _busy(tab) -> bool:
+    # A picker opened for the request being prepared holds it too, before its worker starts.
     return bool(getattr(tab, "standalone_rust_protocol_thread", None) is not None
-                or getattr(tab, "standalone_rust_protocol_queue", None))
+                or getattr(tab, "standalone_rust_protocol_queue", None)
+                or getattr(tab, "_archive_refit_picker_active", False))
 
 
 def _status(tab) -> str:
@@ -320,35 +323,97 @@ def _textures(session, mesh, view, owners) -> dict[str, object] | None:
 
 
 # ----- mesh.geometry --------------------------------------------------------------------
+def _palette(session, part) -> dict[str, object]:
+    """How a part's bone indices (palette slots) name skeleton bones, as Vertex Parameters reads them."""
+
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+
+    skeleton = getattr(session, "skeleton", None)
+    bones = tuple(getattr(skeleton, "bones", ()) or ())
+    data = bytes(getattr(session, "original_data", b"") or b"")
+    if not bones:
+        return {"palette_reason": "No skeleton is attached, so the slots are not resolved to bones."}
+    if str(getattr(session.working_mesh, "format", "") or "").lower() != "pac" or not data:
+        return {"palette_reason": "Bone slots are resolved to bones for PAC files only."}
+    try:
+        palette = tuple(resolve_pac_bone_palette(data, skeleton))
+    except (ValueError, IndexError, TypeError) as exc:
+        return {"palette_reason": str(exc) or "The PAC bone palette is not resolved."}
+    if not palette:
+        return {"palette_reason": "The linked skeleton does not resolve the PAC bone palette."}
+    used = sorted({slot for row in part.bone_indices for slot in row})
+    rows = []
+    for slot in used:
+        ordinal = palette[slot] if 0 <= slot < len(palette) else -1
+        bone = bones[ordinal] if 0 <= ordinal < len(bones) else None
+        rows.append({"slot": slot, "bone": getattr(bone, "index", None), "name": getattr(bone, "name", None)})
+    return {"palette": rows}
+
+
+def _lod_parts(service, session_id, view, lod: int | None):
+    """(the parts at ``lod``, where they come from). The shown LOD is the working edit; another is read
+    from the file as stored (PAMLOD keeps every level; PAC and PAM files decode only the shown one)."""
+
+    shown = int(view.lod_index)
+    mesh = service.working_mesh(session_id)
+    if lod is None or lod == shown:
+        return list(getattr(mesh, "submeshes", ()) or ()), "working"
+    levels = list(getattr(mesh, "lod_levels", ()) or ())
+    if 0 <= lod < len(levels) and levels[lod]:
+        return list(levels[lod]), "working"
+    fmt = str(getattr(view, "mesh_format", "") or getattr(mesh, "format", "") or "").lower()
+    data = bytes(getattr(service._session(session_id), "original_data", b"") or b"")
+    if fmt == "pamlod" and data:
+        from cdmw.modding.mesh_parser import parse_pamlod
+
+        stored = parse_pamlod(data, str(getattr(mesh, "path", "") or ""), lod_level=lod)
+        levels = list(stored.lod_levels or ())
+        if 0 <= lod < len(levels) and levels[lod]:
+            return list(levels[lod]), "file"
+        raise ToolError(NOT_FOUND, f"This file has LODs 0 to {max(0, len(levels) - 1)}.")
+    raise ToolError(UNAVAILABLE, f"The Mesh Editor shows LOD {shown}; a {fmt.upper() or 'mesh'} file's other LODs "
+                                 "are not decoded here. Only a PAMLOD's stored levels can be read.")
+
+
 def _geometry(call) -> dict[str, object]:
     facts, session = _session_of(call)
     if session is None:
         raise ToolError(UNAVAILABLE, NO_EDITOR)
     service, session_id = session.shadow_service, session.shadow_session_id
+    a = call.arguments
+    lod = a.get("lod")
     try:
         view = service.session_view(session_id)
-        mesh = service.working_mesh(session_id)
+        parts, source_of = _lod_parts(service, session_id, view, None if lod is None else int(lod))
     except (KeyError, RuntimeError) as exc:
         raise ToolError(UNAVAILABLE, str(exc) or NOT_READY) from None
-    parts = list(getattr(mesh, "submeshes", ()) or ())
-    index = int(call.arguments["part"])
+    index = int(a["part"])
     if not 0 <= index < len(parts):
         raise ToolError(NOT_FOUND, f"The mesh has parts 0 to {len(parts) - 1}.")
     part = parts[index]
-    what = str(call.arguments.get("what") or "summary")
-    head = {"part": index, "name": str(part.name or ""), "what": what, "revision": int(view.revision)}
+    what = str(a.get("what") or "summary")
+    head = {"part": index, "name": str(part.name or ""), "what": what, "revision": int(view.revision),
+            "lod": int(view.lod_index) if lod is None else int(lod)}
+    if source_of == "file":
+        head["source"] = "file"
+        head["note"] = "This LOD is read from the file as stored; edits in the Mesh Editor are on the shown LOD."
     if what == "summary":
         weights = [len(row) for row in part.bone_weights]
         return {**head, "material": str(part.material or ""), "texture": str(part.texture or ""),
                 "vertices": len(part.vertices), "triangles": len(part.faces), "bounds": _bounds(part.vertices),
                 "uv_sets": 1 + len(part.uv_sets) if part.uvs else len(part.uv_sets),
+                "extra_uv_sets": sorted(int(key) for key in part.uv_sets),
                 "has_normals": bool(part.normals), "has_tangents": bool(part.tangents),
                 "has_vertex_colours": bool(part.vertex_colors),
                 "skinned": bool(part.bone_indices),
                 "bones": len({bone for row in part.bone_indices for bone in row}),
                 "most_weights_per_vertex": max(weights) if weights else 0,
-                "morphs": sorted(part.morph_targets)}
+                "morphs": sorted(part.morph_targets),
+                "lod_shown": int(view.lod_index)}
     if what == "selection":
+        if source_of == "file":
+            raise ToolError(INVALID_ARGUMENTS, "The selection is on the shown LOD; leave out 'lod'.")
+
         def of(field):
             return next((list(items) for owner, items in getattr(view.selection, field, ()) or ()
                          if int(owner) == index), [])
@@ -356,9 +421,37 @@ def _geometry(call) -> dict[str, object]:
         return {**head, "whole_part": index in set(view.selection.source_indices),
                 "vertices": of("vertices_by_submesh"), "faces": of("faces_by_submesh"),
                 "edges": [list(edge) for edge in of("edges_by_submesh")]}
-    source = {"vertices": part.vertices, "triangles": part.faces, "uvs": part.uvs, "normals": part.normals}[what]
+    if what == "uv_sets":
+        number = int(a.get("uv_set") or 1)
+        if number not in part.uv_sets:
+            listed = sorted(int(key) for key in part.uv_sets)
+            raise ToolError(NOT_FOUND, f"Part {index} has extra UV sets {listed}." if listed else (
+                f"Part {index} has no UV set beyond UV0: a game file's UV1 is not decoded here, and an "
+                "imported model carries extra sets only when its file has them."))
+        return {**head, "uv_set": number, "rows": [list(row) for row in part.uv_sets[number]]}
+    if what == "morph_targets":
+        name = str(a.get("morph") or "")
+        if name not in part.morph_targets:
+            raise ToolError(NOT_FOUND, f"Part {index} has the morphs {sorted(part.morph_targets)}; give 'morph'."
+                            if part.morph_targets else f"Part {index} has no morph targets.")
+        # Row n is vertex n's offset from its rest position.
+        return {**head, "morph": name, "weight": part.morph_weights.get(name),
+                "rows": [list(row) for row in part.morph_targets[name]]}
+    source = {"vertices": part.vertices, "triangles": part.faces, "uvs": part.uvs, "normals": part.normals,
+              "tangents": part.tangents, "vertex_colors": part.vertex_colors, "bone_indices": part.bone_indices,
+              "bone_weights": part.bone_weights}[what]
+    extra: dict[str, object] = {}
+    if what == "bone_indices":
+        # Palette slots, not skeleton bones: say which bone each slot is.
+        extra = _palette(service._session(session_id), part) if source_of == "working" else {}
+    if not source and what in ("tangents", "vertex_colors", "bone_indices", "bone_weights"):
+        extra["message"] = {
+            "tangents": "This part has no tangents (PAM and PAMLOD files store none).",
+            "vertex_colors": "This part has no decoded vertex colours: a game file's colour bytes are not decoded "
+                             "here; an imported model carries them when its file has them.",
+        }.get(what, "This part is not skinned.")
     # Row n is vertex n (or triangle n: its three vertex numbers).
-    return {**head, "rows": [list(row) for row in source]}
+    return {**head, **extra, "rows": [list(row) for row in source]}
 
 
 # ----- acting ----------------------------------------------------------------------------
@@ -721,9 +814,35 @@ def _build_mod(call) -> dict[str, object]:
                             str(self.manager.itemData(row)[0]) for row in range(self.manager.count())) + "."
                         return int(self.DialogCode.Rejected)
                     self.manager.setCurrentIndex(index)
-                if a.get("include_body") is not None and self.include_body.isVisible():
+                # The dialog is never shown, so its controls are never "visible": the ones it
+                # leaves out for this build are the ones it hid.
+                offers_body = not self.include_body.isHidden()
+                if a.get("include_body") is not None and offers_body:
                     self.include_body.setChecked(bool(a["include_body"]))
+                hair = bool(getattr(self, "_hair_mode", False))
+                if not hair:
+                    for name in ("hair_stem", "custom_icon_path", "send_to_dmm"):
+                        if a.get(name):
+                            shown["refused"] = f"'{name}' is for a hairstyle made with Hair Tools; this is a mesh mod."
+                            return int(self.DialogCode.Rejected)
+                else:
+                    if a.get("hair_stem") is not None:
+                        if self.hair_stem.isHidden():
+                            shown["refused"] = "Replace Existing Hairstyle keeps the replaced hairstyle's ID: leave out 'hair_stem'."
+                            return int(self.DialogCode.Rejected)
+                        self.hair_stem.setText(str(a["hair_stem"]))
+                    if a.get("custom_icon_path"):
+                        self.custom_icon_path.setText(str(a["custom_icon_path"]))
+                    if a.get("send_to_dmm"):
+                        if not self.send_to_dmm.isEnabled() or self.send_to_dmm.isHidden():
+                            shown["refused"] = (self.send_to_dmm.toolTip()
+                                                or "DMM's mods folder was not found; open DMM once so it exists.")
+                            return int(self.DialogCode.Rejected)
+                    self.send_to_dmm.setChecked(bool(a.get("send_to_dmm")))
                 layers = [str(name) for name in a.get("keep_layers") or ()]
+                if layers and hair:
+                    shown["refused"] = "A hairstyle mod keeps no layers underneath."
+                    return int(self.DialogCode.Rejected)
                 self.keep_layers.setChecked(bool(layers))
                 names = {str(self.layers.item(row).data(QT_USER_ROLE)): row for row in range(self.layers.count())}
                 unknown = sorted(set(layers) - set(names))
@@ -733,13 +852,40 @@ def _build_mod(call) -> dict[str, object]:
                     return int(self.DialogCode.Rejected)
                 for name, row in names.items():
                     self.layers.item(row).setCheckState(QT_CHECKED if name in layers else QT_UNCHECKED)
+                if not self.build_button.isEnabled():
+                    # The dialog's own check: Build Mod stays disabled, and its line says why.
+                    shown["refused"] = (self.destination.text().strip()
+                                        or "Build Mod's options are incomplete: give a mod name and an output folder.")
+                    return int(self.DialogCode.Rejected)
+                if hair and self.send_to_dmm_enabled():
+                    # Send to DMM writes outside 'output_folder', which the server checked: the same
+                    # rule for its own folder. CDMW's earlier copy there is replaced only when asked.
+                    from cdmw.domain.output_paths import OutputPathRefused, check_output_path
+
+                    destination = self.output_path()
+                    try:
+                        check_output_path(destination, game_folder=game_folder,
+                                          allow_existing=bool(a.get("replace")))
+                    except OutputPathRefused as refused:
+                        exists = destination.exists() and not a.get("replace")
+                        shown["refused"] = (f"{destination} is already in DMM's mods folder: send again with replace "
+                                            "to replace CDMW's earlier copy." if exists else str(refused))
+                        return int(self.DialogCode.Rejected)
+                elif a.get("replace"):
+                    shown["refused"] = "'replace' is for Send to DMM only."
+                    return int(self.DialogCode.Rejected)
                 shown.update(mod_name=self.mod_name.text(), output_folder=self.output_parent.text(),
                              manager=str(self.manager.currentData()[0]), kept_layers=list(self.kept_layers()),
-                             include_body=bool(self.include_body.isVisible() and self.include_body.isChecked()))
+                             include_body=bool(offers_body and self.include_body.isChecked()),
+                             destination=str(self.output_path()))
+                if hair:
+                    shown.update(hair_stem=self.target_stem(), send_to_dmm=bool(self.send_to_dmm_enabled()),
+                                 custom_icon_path=str(self.custom_icon() or ""))
                 return int(self.DialogCode.Accepted)
 
         from PySide6.QtCore import Qt
 
+        game_folder = str(getattr(context, "game_folder", lambda: "")() or "")
         QT_USER_ROLE, QT_CHECKED, QT_UNCHECKED = (Qt.ItemDataRole.UserRole, Qt.CheckState.Checked,
                                                   Qt.CheckState.Unchecked)
         tab_direct_output.MeshModExportDialog = _Answered
@@ -752,8 +898,7 @@ def _build_mod(call) -> dict[str, object]:
         busy = getattr(tab, "_mesh_direct_output_busy", None)
         return {"started": bool(busy()) if callable(busy) else bool(shown), **shown, "status": _status(tab)}
 
-    # A hairstyle's Build Mod asks for the folder with a chooser, not the dialog: the same answer.
-    outcome = _act(call, build, {"folder": folder})
+    outcome = _act(call, build)
     if not outcome.get("started"):
         outcome["message"] = ("Build Mod did not start: 'asked' and 'status' say why. A mesh edit must be "
                               "finished (mesh_finish) and pass validation first.")
@@ -817,6 +962,22 @@ def _settled(handler):
     return settled(handler)
 
 
+def _replacement_import(call) -> dict[str, object]:
+    """Import Replacement, waited for. The chooser's answer is used by this import only: when the
+    helper sent nothing (it refused, or was busy), the answer must not wait for the user's next click."""
+
+    from cdmw.ui.mesh_editor import replacement_flow
+
+    try:
+        return _settled(_replacement("replacement_import"))(call)
+    finally:
+        def forget() -> None:
+            if replacement_flow.source_path_override == str(Path(str(call.arguments.get("path") or ""))):
+                replacement_flow.source_path_override = None
+
+        call.context.ui_call(forget)
+
+
 def mesh_tools() -> list[Tool]:
     text = {"type": "string", "maxLength": 256}
     return [
@@ -833,10 +994,18 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.geometry", family="mesh", title="Mesh geometry",
              description="One part's geometry in the shown document: 'summary' (counts, bounds, UV sets, "
                          "skinning, morphs), 'vertices' (positions; row n is vertex n), 'triangles' (three "
-                         "vertex numbers each), 'uvs', 'normals', or 'selection' (the selected vertex, face and "
-                         "edge numbers of this part).",
+                         "vertex numbers each), 'uvs' (UV0), 'normals', 'tangents', 'vertex_colors' (RGBA), "
+                         "'uv_sets' (an extra UV set, UV1 and up: 'uv_set'), 'bone_indices' (each vertex's "
+                         "palette slots, with 'palette' naming the skeleton bone of each slot), 'bone_weights' "
+                         "(each vertex's weights, in the same order), 'morph_targets' (one morph's per-vertex "
+                         "offsets: 'morph', as the summary lists them), or 'selection' (the selected vertex, face "
+                         "and edge numbers of this part). 'lod' reads another LOD: the shown one is the working "
+                         "edit; another is a PAMLOD's level as stored in the file.",
              input_schema=object_schema({"part": _PART, "what": {"type": "string", "enum": list(GEOMETRY),
-                                                                  "default": "summary"}}, ["part"]),
+                                                                  "default": "summary"},
+                                         "uv_set": {"type": "integer", "minimum": 1, "maximum": 7, "default": 1},
+                                         "morph": {"type": "string", "maxLength": 256},
+                                         "lod": {"type": "integer", "minimum": 0, "maximum": 15}}, ["part"]),
              effect=READ, route="service:MeshService.working_mesh", handler=_geometry, runs_on=ON_WORKER,
              paged="rows"),
         Tool(name="mesh.open", family="mesh", title="Open in Mesh Editor",
@@ -912,7 +1081,9 @@ def mesh_tools() -> list[Tool]:
         Tool(name="mesh.build_mod", family="mesh", title="Build Mod",
              description="Build Mod for the shown document, as its button does, with the options dialog "
                          "filled from the call: the mod is written as a new folder inside 'output_folder' "
-                         "(an existing folder outside the game). Returns once the build has started; "
+                         "(an existing folder outside the game), named in 'destination'. A hairstyle made with "
+                         "Hair Tools gets the hairstyle dialog: its package mode ('manager'), Hairstyle ID, "
+                         "barber icon and Send to DMM. Returns once the build has started; "
                          "mesh_state shows 'building' until it is done. When it does not start, 'asked' and "
                          "'status' carry the app's reason.",
              input_schema=object_schema({"output_folder": {"type": "string", "minLength": 3, "maxLength": 1024},
@@ -920,8 +1091,13 @@ def mesh_tools() -> list[Tool]:
                                          "author": text, "description": {"type": "string", "maxLength": 1024},
                                          "create_zip": {"type": "boolean", "default": False},
                                          "manager": {"type": "string", "maxLength": 64,
-                                                     "description": "dmm_loose (DMM Loose Mesh, the default) or "
-                                                                    "dmm_archive (DMM Archive Group)."},
+                                                     "description": "For a mesh: dmm_loose (DMM Loose Mesh, the "
+                                                                    "default) or dmm_archive (DMM Archive Group). "
+                                                                    "For a hairstyle made with Hair Tools (Package "
+                                                                    "mode): hair_add (Add New Barber Hairstyle, DMM "
+                                                                    "Additive), hair_replace_loose (Replace Existing "
+                                                                    "Hairstyle, DMM Loose Mod) or hair_add_full (Add "
+                                                                    "New Barber Hairstyle, Full Tables Archive)."},
                                          "include_body": {"type": "boolean",
                                                           "description": "Include the body (offered for worn "
                                                                          "garments only)."},
@@ -929,17 +1105,37 @@ def mesh_tools() -> list[Tool]:
                                                          "items": {"type": "string", "maxLength": 64},
                                                          "description": "Keep layers underneath "
                                                                         "(experimental): the clothing layers "
-                                                                        "this garment stops cutting."}},
+                                                                        "this garment stops cutting."},
+                                         "hair_stem": {"type": "string", "maxLength": 64,
+                                                       "description": "Hairstyle only: the new hairstyle's ID "
+                                                                      "(Hairstyle ID), for hair_add and "
+                                                                      "hair_add_full. By default it follows the "
+                                                                      "mod name."},
+                                         "custom_icon_path": {"type": "string", "minLength": 3, "maxLength": 1024,
+                                                              "description": "Hairstyle only: an existing image "
+                                                                             "or DDS file for the barber icon; "
+                                                                             "without it the donor's icon is "
+                                                                             "used."},
+                                         "send_to_dmm": {"type": "boolean", "default": False,
+                                                         "description": "Hairstyle only: write the mod straight "
+                                                                        "into DMM's mods folder instead of "
+                                                                        "'output_folder', replacing CDMW's earlier "
+                                                                        "folder of the same name there only with "
+                                                                        "'replace'. Refused when DMM's mods folder "
+                                                                        "is not found or is inside the game."},
+                                         "replace": {"type": "boolean", "default": False,
+                                                     "description": "With send_to_dmm: replace the copy CDMW sent "
+                                                                    "earlier under the same name."}},
                                         ["output_folder"]),
              effect=OUTPUT, route="ui:_start_mesh_mod_build_requested", handler=_build_mod, runs_on=ON_CALL,
              output_folders=("output_folder",)),
         Tool(name="mesh.export", family="mesh", title="Export Mesh File",
              description="Export Mesh File: the shown document's mesh as GLB, FBX or OBJ at 'path' (a new "
                          "file outside the game; the suffix picks the format), as the editor's Export menu does "
-                         "after its file chooser.",
+                         "after its file chooser. Waits for the export; the status line says how it went.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024}},
                                         ["path"]),
-             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_export, runs_on=ON_CALL,
+             effect=OUTPUT, route="helper:cdmw_command export_mesh", handler=_settled(_export), runs_on=ON_WORKER,
              output_paths=("path",)),
         Tool(name="mesh.replacement_state", family="mesh", title="Import Replacement state",
              description="Import Replacement in the shown document: whether it is offered and why not, the "
@@ -948,21 +1144,23 @@ def mesh_tools() -> list[Tool]:
              input_schema=object_schema(), effect=READ, route="service:mesh_rust_replacement.replacement_ui_state",
              handler=_replacement("replacement_state"), runs_on=ON_UI),
         Tool(name="mesh.replacement_import", family="mesh", title="Import Replacement",
-             description="Import Replacement... with the mesh file at 'path' (OBJ, DAE, glTF or GLB): scope "
-                         "'entire' (Entire Mesh) or 'selected' with 'part_ids'. The model then waits in the "
-                         "mapping step: read it with mesh_replacement_state.",
+             description="Import Replacement... with the mesh file at 'path' (OBJ, DAE, glTF, GLB, or FBX "
+                         "when a Blender to read it is already chosen): scope 'entire' (Entire Mesh) or "
+                         "'selected' with 'part_ids'. Waits for the import; the model then waits in the "
+                         "mapping step: read it with mesh_replacement_state. The status line says why when "
+                         "the import was refused.",
              input_schema=object_schema({"path": {"type": "string", "minLength": 3, "maxLength": 1024},
                                          "scope": {"type": "string", "enum": ["entire", "selected"],
                                                    "default": "entire"},
                                          "part_ids": {"type": "array", "maxItems": 4096,
                                                       "items": {"type": "string", "maxLength": 128}}}, ["path"]),
              effect=EDIT, route="helper:cdmw_command replacement_choose",
-             handler=_replacement("replacement_import"), runs_on=ON_CALL),
+             handler=_replacement_import, runs_on=ON_WORKER),
         Tool(name="mesh.replacement_apply", family="mesh", title="Apply Replacement",
              description="Apply Replacement on the model in the mapping step: 'targets' gives each imported "
                          "part's target part id (by default the suggested ones), 'materials' is original or "
                          "imported, 'weights' the choice for a rigged model (preserve, reduce, fold, extend or "
-                         "transfer).",
+                         "transfer). One History step; returns the history before and after and the status line.",
              input_schema=object_schema({"targets": {"type": "array", "maxItems": 4096,
                                                      "items": {"type": "string", "maxLength": 128}},
                                          "fallback_target": {"type": "string", "maxLength": 128},
@@ -971,11 +1169,11 @@ def mesh_tools() -> list[Tool]:
                                          "weights": {"type": "string", "enum": ["preserve", "reduce", "fold",
                                                                                 "extend", "transfer"]}}),
              effect=EDIT, route="helper:cdmw_command replacement_apply",
-             handler=_replacement("replacement_apply"), runs_on=ON_CALL),
+             handler=_settled(_replacement("replacement_apply")), runs_on=ON_WORKER),
         Tool(name="mesh.replacement_cancel", family="mesh", title="Cancel Import",
              description="Cancel Import in Import Replacement's mapping step.",
              input_schema=object_schema(), effect=EDIT, route="helper:cdmw_command replacement_cancel",
-             handler=_replacement("replacement_cancel"), runs_on=ON_CALL),
+             handler=_settled(_replacement("replacement_cancel")), runs_on=ON_WORKER),
     ]
 
 
