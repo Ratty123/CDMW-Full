@@ -309,3 +309,47 @@ def test_cancelled_material_preparation_removes_temporary_dds_without_changing_m
             pytest.fail("Cancelled material preparation completed")
     assert staged and all(not path.parent.exists() for path in staged)
     assert not any(getattr(part, "preview_material_texture_inputs", ()) for part in snapshot.mesh.submeshes)
+
+
+def test_placeholder_engine_textures_are_skipped_while_real_textures_stay_required(editor, tmp_path):
+    service, sid = editor
+    mesh = service.capture_export_snapshot(sid).mesh
+    mesh.submeshes = [mesh.submeshes[0]]
+    mesh.lod_levels = [mesh.submeshes]
+    dds = tmp_path / "overlay.dds"
+    Image.new("RGBA", (4, 4), (210, 30, 60, 255)).save(dds)
+
+    def sidecar(rows):
+        return ReplacementFile(
+            "character/model/replacement.pac_xml",
+            (
+                '<Root><SkinnedMeshMaterialWrapper _subMeshName="target0">'
+                '<Material Name="_resourceMaterial" _materialName="SkinnedMeshStandard_Ver2">'
+                f'<Vector Name="_parameters">{rows}</Vector></Material></SkinnedMeshMaterialWrapper></Root>'
+            ).encode(),
+        )
+
+    neutral_row = (
+        '<MaterialParameterTexture StringItemID="_detailDiffuseMaskR" ItemID="1028073018359806" '
+        '_name="_detailDiffuseMaskR" Index="0"><ResourceReferencePath_ITexture Name="_value" '
+        '_path="texture/nonetexture0xff888888.dds"/></MaterialParameterTexture>'
+    )
+    overlay_row = (
+        '<MaterialParameterTexture StringItemID="_overlayColorTexture" ItemID="1" '
+        '_name="_overlayColorTexture" Index="1"><ResourceReferencePath_ITexture Name="_value" '
+        '_path="character/texture/overlay.dds"/></MaterialParameterTexture>'
+    )
+    overlay_file = ReplacementFile("character/texture/overlay.dds", dds.read_bytes())
+
+    with prepared_replacement_material_mesh(mesh, (sidecar(neutral_row + overlay_row), overlay_file), required=True) as prepared:
+        inputs = getattr(prepared.submeshes[0], "preview_material_texture_inputs", ())
+        assert [item.parameter_name for item in inputs] == ["_overlayColorTexture"]
+        assert all("nonetexture" not in item.source_texture_path.casefold() for item in inputs)
+
+    with pytest.raises(ValueError, match="Missing prepared texture for target0: character/texture/overlay.dds"):
+        with prepared_replacement_material_mesh(mesh, (sidecar(neutral_row + overlay_row),), required=True):
+            pytest.fail("Missing real prepared texture was accepted")
+
+    with pytest.raises(ValueError, match="Imported material has no prepared texture binding: target0"):
+        with prepared_replacement_material_mesh(mesh, (sidecar(neutral_row),), required=True):
+            pytest.fail("Placeholder-only material binding was accepted")

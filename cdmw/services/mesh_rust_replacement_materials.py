@@ -59,6 +59,7 @@ def _replacement_texture_path(value):
 def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None):
     """Bind captured DDS bytes for the duration of normal material compilation."""
     from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
+    from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
     from cdmw.core.final_package_preview_model import _material_semantics_for_binding
     from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
     from cdmw.modding.asset_replacement import classify_texture_binding
@@ -136,9 +137,13 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                 binding_names = {name.casefold() for binding in bindings for name in
                                  (binding.material_name, binding.submesh_name, binding.part_name) if name}
                 owner_name = material_binding_name(part, binding_names)
+                # Built-in engine placeholders (e.g. Ver2 neutral-grey _detailDiffuseMaskR
+                # texture/nonetexture0xff888888.dds) live in the game archives rather than
+                # in prepared companion files; real texture bindings stay strictly required.
                 owned = [binding for binding in bindings
                          if owner_name in {name.casefold() for name in
                                            (binding.material_name, binding.submesh_name, binding.part_name) if name}
+                         and not _is_placeholder_model_texture(binding.texture_path)
                          and _material_input_texture_role(binding) not in retained_roles]
                 missing = [binding.texture_path for binding in owned
                            if binding.texture_path.replace("\\", "/").casefold() not in files]

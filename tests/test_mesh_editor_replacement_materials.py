@@ -1252,3 +1252,113 @@ def test_ver2_neutral_diffuse_applies_only_to_ver2_variant_and_preserves_explici
     assert changed == 1
     assert "character/texture/custom_diffuse.dds" in edited
     assert "texture/nonetexture0xff888888.dds" not in edited
+
+
+@pytest.mark.parametrize("surface_args", [{}, {"roughness": 1.0, "metallic": 0.0}])
+def test_ver2_replacement_apply_stages_preview_and_exports_with_neutral_diffuse(editor, tmp_path, surface_args, request):
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.services.mesh_service import MeshService
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from cdmw.workers.mesh_editor_workers import MeshDirectOutputWorker
+    from tests.editor_session_check import assert_editor_accepts
+    from tests.test_mesh_rust_replacement import command
+    import json
+
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot, shader="SkinnedMeshStandard_Ver2")
+    sidecar_entry = context.entries_by_basename["replacement.pac_xml"][0]
+    ver2_xml = sidecar_entry.paz_file.read_text().replace("_diffuseTexture", "_overlayColorTexture")
+    prepared_sidecar = entry(tmp_path, sidecar_entry.path, ver2_xml.encode())
+    context.entries_by_basename[Path(prepared_sidecar.path).name.casefold()] = [prepared_sidecar]
+    context.entries_by_normalized_path[prepared_sidecar.path.casefold()] = [prepared_sidecar]
+
+    host = RustMeshAuthoringSession.create(
+        SimpleNamespace(mesh_service=service, active_session_id=session_id),
+        tmp_path / "host",
+        process_generation=1,
+    )
+    try:
+        chosen = command(
+            host,
+            "replacement_choose",
+            {
+                "scope": "selected",
+                "part_ids": [initial_replacement_state(snapshot).parts[0].part_id],
+                "source_path": str(model),
+                "_archive_entry": target,
+                "_archive_dependencies": context,
+            },
+        )
+        key = chosen["state"]["replacement"]["pending"]["targets"][0]["id"]
+        applied = command(host, "replacement_apply", {"targets": [key], "materials": "imported", **surface_args})
+        material_key = applied["state"]["archive_refit_materials"]["key"]
+        assert material_key != "base"
+        textures = host.archive_refit_material_cache[material_key]["textures"]
+        base_texture = next(
+            row for row in textures if row["role"] == "base_color" and 0 in row["material_indices_by_lod"][0]
+        )
+        with Image.open(host.root / base_texture["file"]["path"]) as image:
+            assert image.convert("RGBA").getpixel((0, 0)) == (210, 30, 60, 255)
+
+        assert command(host, "replacement_compare", {"mode": "original"})["state"]["archive_refit_materials"]["key"] == "base"
+        assert command(host, "replacement_compare", {"mode": "output"})["state"]["archive_refit_materials"]["key"] == material_key
+        command(host, "replacement_compare", {"mode": "edit"})
+        command(host, "undo")
+        assert command(host, "redo")["state"]["archive_refit_materials"]["key"] == material_key
+
+        host.rewrite_for_relaunch(3)
+        assert_editor_accepts(host.manifest_path)
+
+        from tests.test_mesh_rust_authoring_exact_output import _request
+        host.finish(_request(host, "finish_request", 51))
+        snapshot = service.capture_export_snapshot(session_id)
+        bundle = service._replacement_output_for_snapshot(snapshot)
+
+        pac_xml_text = next(file for file in bundle.companion_files if file.path.endswith(".pac_xml")).data.decode()
+        replaced_part, untouched_part = pac_xml_text.split('_subMeshName="target1"')
+        assert '_name="_detailDiffuseMaskR"' in replaced_part
+        assert "texture/nonetexture0xff888888.dds" in replaced_part
+        assert "_detailDiffuseMaskR" not in untouched_part
+
+        draft = tmp_path / "draft" / "mesh_layers.json"
+        service._session(session_id).mesh_layer_project_path = draft
+        service.retry_mesh_layer_autosave(session_id)
+        seed = parse_mesh(snapshot.original_data, snapshot.mesh.path)
+        seed._cdmw_original_data = snapshot.original_data
+        seed._cdmw_mesh_layer_project_path = str(draft)
+        restored_service = MeshService()
+        restored = restored_service.open_edit_session(seed)
+        try:
+            reopened = RustMeshAuthoringSession.create(
+                SimpleNamespace(mesh_service=restored_service, active_session_id=restored.session_id),
+                tmp_path / "reopened-host",
+                process_generation=2,
+            )
+            try:
+                assert_editor_accepts(reopened.manifest_path)
+                assert reopened.state_payload()["archive_refit_materials"]["key"] == material_key
+                manifest = json.loads(reopened.manifest_path.read_text())
+                assert {row["path"] for row in manifest["replacement_material_states"]} == {
+                    "material-state-base.json",
+                    f"material-state-{material_key}.json",
+                }
+            finally:
+                reopened.cancel()
+        finally:
+            restored_service.close_edit_session(restored.session_id)
+
+        mod_dir = tmp_path / "mod"
+        worker = MeshDirectOutputWorker(1, service, session_id, target, kind="loose_mod", output_path=mod_dir)
+        errors, completed = [], []
+        worker.error.connect(lambda _id, message: errors.append(message))
+        worker.completed.connect(lambda _id, result: completed.append(result))
+        worker.run()
+        assert not errors
+        assert completed
+        assert (mod_dir / target.path).read_bytes() == bundle.data
+        for file in bundle.companion_files:
+            assert (mod_dir / file.path).read_bytes() == file.data
+    finally:
+        if not host.closed:
+            host.cancel()
