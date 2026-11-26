@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
+import os
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -27,6 +30,7 @@ from cdmw.models import ArchiveEntry, DdsInfo
 from cdmw.core.atomic_file import atomic_publish_directory
 from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
 from cdmw.core.filesystem import filesystem_path
+from cdmw.core.protected_roots import ProtectedGameFolderWrite
 from cdmw.core.archive_extraction import (
     _dds_bytes_per_block,
     _dds_surface_size,
@@ -58,6 +62,31 @@ from cdmw.core.temp_cache import (
 from cdmw.core.texture_pipeline.inspection import inspect_crimson_dds, parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.core.upscale_profiles import classify_texture_type, infer_texture_semantics
+
+_logger = logging.getLogger(__name__)
+
+
+def _is_locked_cache_permission_error(exc: BaseException) -> bool:
+    return isinstance(exc, PermissionError) and not isinstance(exc, ProtectedGameFolderWrite)
+
+
+def _clear_readonly(path: Path | str) -> None:
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+
+
+def _rmtree_clearing_readonly(path: Path) -> None:
+    def _onexc(func, failed_path, exc) -> None:
+        if _is_locked_cache_permission_error(exc):
+            _clear_readonly(failed_path)
+            func(failed_path)
+            return
+        raise exc
+
+    shutil.rmtree(path, onexc=_onexc)
+
 
 def _decode_dds_fourcc(fourcc: bytes) -> str:
     if not fourcc:
@@ -390,7 +419,8 @@ def ensure_archive_preview_source(
 
     # A prepared entry's bytes are its prepared file, which can differ from the
     # archive's (a file DMM serves, an edited result): they are part of the key.
-    # v2 drops folders keyed on the archive alone, which could hold a prepared file.
+    # v2 drops folders keyed on the archive alone; v3 bypasses any admin-locked
+    # v2 folders created before Windows published-directory permissions were reset.
     prepared_stamp = ""
     if getattr(entry, "prepared_path", None) is not None:
         prepared_stamp = (
@@ -405,50 +435,82 @@ def ensure_archive_preview_source(
                 prepared_stamp += "|missing_prepared"
     cache_key = hashlib.sha256(
         (
-            f"v2|{entry.path}|{entry.pamt_path.resolve()}|{pamt_stamp}|{entry.paz_file.resolve()}|{paz_stamp}|"
+            f"v3|{entry.path}|{entry.pamt_path.resolve()}|{pamt_stamp}|{entry.paz_file.resolve()}|{paz_stamp}|"
             f"{entry.offset}|{entry.comp_size}|{entry.orig_size}|{entry.flags}{pathc_stamp}{prepared_stamp}"
         ).encode("utf-8")
     ).hexdigest()
     suffix = Path(entry.path).suffix or ".bin"
     filename = sanitize_cache_filename(f"{Path(entry.path).stem}{suffix}")
-    cache_dir = filesystem_path(app_temp_cache_path("archive_preview_cache", cache_key))
-    target_path = cache_dir / filename
-    with app_temp_cache_build(cache_dir):
-        try:
-            if target_path.is_file() and target_path.stat().st_size > 0:
-                note_path = cache_dir / ".note"
-                note = note_path.read_text(encoding="utf-8") if note_path.is_file() else ""
-                mark_app_temp_cache_recent(cache_dir)
-                return target_path, note
-        except (OSError, UnicodeError):
-            pass
+    candidate_keys = (cache_key, *(f"{cache_key}-r{index}" for index in range(1, 9)))
+    extracted: tuple[bytes, str] | None = None
+    for slot_index, candidate_key in enumerate(candidate_keys):
+        has_fallback = slot_index + 1 < len(candidate_keys)
+        cache_dir = filesystem_path(app_temp_cache_path("archive_preview_cache", candidate_key))
+        target_path = cache_dir / filename
+        with app_temp_cache_build(cache_dir):
+            try:
+                if target_path.is_file() and target_path.stat().st_size > 0:
+                    with target_path.open("rb"):
+                        pass
+                    note_path = cache_dir / ".note"
+                    note = note_path.read_text(encoding="utf-8") if note_path.is_file() else ""
+                    mark_app_temp_cache_recent(cache_dir)
+                    return target_path, note
+            except (OSError, UnicodeError):
+                pass
 
-        cache_dir.parent.mkdir(parents=True, exist_ok=True)
-        staging_dir = Path(
-            tempfile.mkdtemp(
-                prefix=f".{cache_key}.",
-                suffix=".staging",
-                dir=cache_dir.parent,
+            if cache_dir.is_dir():
+                try:
+                    with os.scandir(cache_dir):
+                        pass
+                except PermissionError as exc:
+                    if not _is_locked_cache_permission_error(exc) or not has_fallback:
+                        raise
+                    _logger.debug("Skipping inaccessible archive preview cache slot %s: %s", cache_dir, exc)
+                    continue
+
+            cache_dir.parent.mkdir(parents=True, exist_ok=True)
+            staging_dir = Path(
+                tempfile.mkdtemp(
+                    prefix=f".{candidate_key}.",
+                    suffix=".staging",
+                    dir=cache_dir.parent,
+                )
             )
-        )
-        try:
-            with app_temp_cache_use(staging_dir):
-                data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
-                raise_if_cancelled(stop_event, "Archive preview extraction cancelled.")
-                (staging_dir / filename).write_bytes(data)
-                if note:
-                    (staging_dir / ".note").write_text(note, encoding="utf-8")
-                if cache_dir.is_symlink() or cache_dir.is_file():
-                    cache_dir.unlink()
-                elif cache_dir.is_dir():
-                    shutil.rmtree(cache_dir)
-                atomic_publish_directory(staging_dir, cache_dir)
-        finally:
-            shutil.rmtree(staging_dir, ignore_errors=True)
+            try:
+                with app_temp_cache_use(staging_dir):
+                    if extracted is None:
+                        data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
+                        raise_if_cancelled(stop_event, "Archive preview extraction cancelled.")
+                        extracted = (data, note)
+                    else:
+                        data, note = extracted
+                    (staging_dir / filename).write_bytes(data)
+                    if note:
+                        (staging_dir / ".note").write_text(note, encoding="utf-8")
+                    try:
+                        if cache_dir.is_symlink() or cache_dir.is_file():
+                            _clear_readonly(cache_dir)
+                            cache_dir.unlink()
+                        elif cache_dir.is_dir():
+                            _rmtree_clearing_readonly(cache_dir)
+                        atomic_publish_directory(staging_dir, cache_dir)
+                    except PermissionError as exc:
+                        if not _is_locked_cache_permission_error(exc) or not has_fallback:
+                            raise
+                        _logger.debug(
+                            "Retrying archive preview cache in fallback slot after %s failed: %s",
+                            cache_dir,
+                            exc,
+                        )
+                        continue
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
 
-        mark_app_temp_cache_recent(cache_dir)
-        request_app_temp_cache_prune()
-        return target_path, note
+            mark_app_temp_cache_recent(cache_dir)
+            request_app_temp_cache_prune()
+            return target_path, note
+    raise RuntimeError("Archive preview cache lookup exhausted without a result.")
 
 
 

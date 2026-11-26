@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from cdmw.core.atomic_file import atomic_publish_directory
 from cdmw.core.common import raise_if_cancelled
+from cdmw.core.file_permissions import inherit_parent_permissions
 from cdmw.core.mod_package import (
     MeshLooseModFile,
     ModPackageExportOptions,
@@ -102,6 +103,7 @@ def _publish_fresh_package(staged_root: Path, package_root: Path) -> None:
         if staged_zip.exists():
             os.replace(staged_zip, package_zip)
             zip_published = True
+            inherit_parent_permissions(package_zip)
     except Exception:
         if zip_published:
             package_zip.unlink(missing_ok=True)

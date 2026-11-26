@@ -11,6 +11,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
+from cdmw.core.file_permissions import inherit_parent_permissions
+
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _LOCK_STRIPE_COUNT = 64
 _LOCK_STRIPES = tuple(threading.Lock() for _ in range(_LOCK_STRIPE_COUNT))
@@ -158,6 +160,8 @@ def publish_preview_pair(staged_png: Path, final_png: Path, report: Mapping[str,
     try:
         os.replace(staged_sidecar, final_sidecar)
         os.replace(staged_png, final_png)
+        inherit_parent_permissions(final_sidecar)
+        inherit_parent_permissions(final_png)
         if not preview_pair_is_valid(final_png):
             raise ValueError(f"Published preview cache entry failed validation: {final_png}")
     except Exception:

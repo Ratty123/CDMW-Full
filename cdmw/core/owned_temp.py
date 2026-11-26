@@ -15,6 +15,7 @@ import time
 from uuid import uuid4
 
 from cdmw.constants import APP_NAME
+from cdmw.core.file_permissions import inherit_parent_permissions
 
 OWNER_MARKER = ".cdmw-owned-temp.json"
 OWNER_SCHEMA = "cdmw_owned_temp_v1"
@@ -70,6 +71,7 @@ def create_owned_temp_directory(*, prefix: str, parent: Path | None = None) -> P
         parent = Path(parent).resolve()
         parent.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix=prefix, dir=parent)).resolve()
+    inherit_parent_permissions(root)
     handle = None
     try:
         handle = (root / OWNER_MARKER).open("x+b")

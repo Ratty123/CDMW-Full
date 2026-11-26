@@ -7557,7 +7557,7 @@ MESSAGE_REFERENCE = [
     "message": "- Requires PATHC/manifest registration: {'Yes' if crimson_info.requires_pathc else 'No'}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 295
+      "cdmw/core/archive_media_preview.py": 324
     }
   },
   {
@@ -9052,6 +9052,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "archive",
+    "message": "Archive preview cache lookup exhausted without a result.",
+    "recovery": "internal",
+    "sources": {
+      "cdmw/core/archive_media_preview.py": 513
+    }
+  },
+  {
+    "area": "archive",
     "message": "Archive preview dependency set has no selected entry.",
     "recovery": "empty",
     "sources": {
@@ -9529,7 +9537,7 @@ MESSAGE_REFERENCE = [
     "recovery": "format",
     "sources": {
       "cdmw/core/archive_audio.py": 76,
-      "cdmw/core/archive_media_preview.py": 600
+      "cdmw/core/archive_media_preview.py": 662
     }
   },
   {
@@ -11698,7 +11706,7 @@ MESSAGE_REFERENCE = [
     "message": "Loose file preview from: {resolved_path} This loose file type cannot be previewed as an image.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 524
+      "cdmw/core/archive_media_preview.py": 586
     }
   },
   {
@@ -12019,7 +12027,7 @@ MESSAGE_REFERENCE = [
     "message": "Missing DDS header.",
     "recovery": "missing",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 147
+      "cdmw/core/archive_media_preview.py": 176
     }
   },
   {
@@ -13618,7 +13626,7 @@ MESSAGE_REFERENCE = [
     "message": "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them.",
     "recovery": "format",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 767
+      "cdmw/core/archive_media_preview.py": 829
     }
   },
   {
@@ -18687,7 +18695,7 @@ MESSAGE_REFERENCE = [
       "cdmw/core/archive_accelerator.py": 94,
       "cdmw/core/archive_attachment_iteminfo.py": 38,
       "cdmw/core/archive_format.py": 244,
-      "cdmw/core/archive_media_preview.py": 713,
+      "cdmw/core/archive_media_preview.py": 775,
       "cdmw/core/archive_mesh_import_supplemental.py": 557,
       "cdmw/core/archive_name_search.py": 1151,
       "cdmw/core/archive_preview_result_builder.py": 1174,
@@ -18830,7 +18838,7 @@ MESSAGE_REFERENCE = [
     "message": "strict",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/archive_media_preview.py": 66
+      "cdmw/core/archive_media_preview.py": 95
     }
   },
   {
@@ -37333,7 +37341,7 @@ MESSAGE_REFERENCE = [
     "message": "Refusing to publish material sidecar package outside the export root: {package_root}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/material_sidecar_package.py": 54
+      "cdmw/core/material_sidecar_package.py": 55
     }
   },
   {
@@ -45164,7 +45172,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit OBJ face count changed during output validation",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 88
+      "cdmw/services/mesh_free_edit_output.py": 89
     }
   },
   {
@@ -45172,7 +45180,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit OBJ vertex count changed during output validation",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 86
+      "cdmw/services/mesh_free_edit_output.py": 87
     }
   },
   {
@@ -45180,7 +45188,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit export did not create its OBJ geometry",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 74
+      "cdmw/services/mesh_free_edit_output.py": 75
     }
   },
   {
@@ -45188,7 +45196,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output already exists: {target}",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 46
+      "cdmw/services/mesh_free_edit_output.py": 47
     }
   },
   {
@@ -45196,7 +45204,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output cancelled",
     "recovery": "cancelled",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 124,
+      "cdmw/services/mesh_free_edit_output.py": 126,
       "cdmw/workers/mesh_free_edit_output_worker.py": 33
     }
   },
@@ -45245,7 +45253,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output must not overwrite the source asset",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 51,
+      "cdmw/services/mesh_free_edit_output.py": 52,
       "cdmw/services/mesh_service.py": 2454
     }
   },
@@ -45262,7 +45270,7 @@ MESSAGE_REFERENCE = [
     "message": "Free Edit output parent does not exist: {target.parent}",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 48
+      "cdmw/services/mesh_free_edit_output.py": 49
     }
   },
   {
@@ -59622,7 +59630,7 @@ MESSAGE_REFERENCE = [
     "message": "The Free Edit source asset changed while output was prepared",
     "recovery": "stale",
     "sources": {
-      "cdmw/services/mesh_free_edit_output.py": 107
+      "cdmw/services/mesh_free_edit_output.py": 108
     }
   },
   {
@@ -70783,7 +70791,7 @@ MESSAGE_REFERENCE = [
     "message": "preview JSON resource is not an object",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 260
+      "cdmw/services/mesh_rust_preview_files.py": 262
     }
   },
   {
@@ -70903,7 +70911,7 @@ MESSAGE_REFERENCE = [
     "message": "preview output policy must be read-only",
     "recovery": "unsupported",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 203
+      "cdmw/services/mesh_rust_preview_files.py": 205
     }
   },
   {
@@ -70928,7 +70936,7 @@ MESSAGE_REFERENCE = [
     "recovery": "cancelled",
     "sources": {
       "cdmw/services/mesh_rust_preview_cache.py": 92,
-      "cdmw/services/mesh_rust_preview_files.py": 123,
+      "cdmw/services/mesh_rust_preview_files.py": 124,
       "cdmw/services/mesh_rust_preview_package.py": 423
     }
   },
@@ -70945,7 +70953,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource SHA-256 does not match",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 275
+      "cdmw/services/mesh_rust_preview_files.py": 277
     }
   },
   {
@@ -70953,7 +70961,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource count is invalid",
     "recovery": "input",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 229
+      "cdmw/services/mesh_rust_preview_files.py": 231
     }
   },
   {
@@ -70961,7 +70969,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource has conflicting identities",
     "recovery": "conflict",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 242
+      "cdmw/services/mesh_rust_preview_files.py": 244
     }
   },
   {
@@ -70969,7 +70977,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource path is not contained",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 177
+      "cdmw/services/mesh_rust_preview_files.py": 179
     }
   },
   {
@@ -70977,7 +70985,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource reference is incomplete",
     "recovery": "format",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 227
+      "cdmw/services/mesh_rust_preview_files.py": 229
     }
   },
   {
@@ -70985,7 +70993,7 @@ MESSAGE_REFERENCE = [
     "message": "preview resource size does not match",
     "recovery": "internal",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 239
+      "cdmw/services/mesh_rust_preview_files.py": 241
     }
   },
   {
@@ -70993,7 +71001,7 @@ MESSAGE_REFERENCE = [
     "message": "preview session identity is missing",
     "recovery": "integrity",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 200
+      "cdmw/services/mesh_rust_preview_files.py": 202
     }
   },
   {
@@ -71009,7 +71017,7 @@ MESSAGE_REFERENCE = [
     "message": "preview {group} file reference is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 214
+      "cdmw/services/mesh_rust_preview_files.py": 216
     }
   },
   {
@@ -71017,7 +71025,7 @@ MESSAGE_REFERENCE = [
     "message": "preview {name} reference is missing",
     "recovery": "missing",
     "sources": {
-      "cdmw/services/mesh_rust_preview_files.py": 208
+      "cdmw/services/mesh_rust_preview_files.py": 210
     }
   },
   {
@@ -77553,7 +77561,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not give %s the permissions of its folder (error %s); other programs may not be able to open it.",
     "recovery": "permission",
     "sources": {
-      "cdmw/core/file_permissions.py": 66
+      "cdmw/core/file_permissions.py": 198
     }
   },
   {
@@ -77633,7 +77641,7 @@ MESSAGE_REFERENCE = [
     "message": "Could not prepare permissions for %s (error %s).",
     "recovery": "permission",
     "sources": {
-      "cdmw/core/file_permissions.py": 58
+      "cdmw/core/file_permissions.py": 190
     }
   },
   {
@@ -77666,6 +77674,14 @@ MESSAGE_REFERENCE = [
     "recovery": "internal",
     "sources": {
       "cdmw/services/diagnostic_bundle_service.py": 71
+    }
+  },
+  {
+    "area": "other",
+    "message": "Could not retain user permissions on %s after clearing inherited protection (error %s).",
+    "recovery": "permission",
+    "sources": {
+      "cdmw/core/file_permissions.py": 206
     }
   },
   {
@@ -83082,6 +83098,14 @@ MESSAGE_REFERENCE = [
   },
   {
     "area": "other",
+    "message": "Parent folder permissions for %s did not grant current-user access; retained explicit user access alongside inheritance.",
+    "recovery": "permission",
+    "sources": {
+      "cdmw/core/file_permissions.py": 211
+    }
+  },
+  {
+    "area": "other",
     "message": "Part {name} has no prefab in this item export; refusing to copy another mod's registration.",
     "recovery": "input",
     "sources": {
@@ -83117,7 +83141,7 @@ MESSAGE_REFERENCE = [
     "message": "Permission lists are read on Windows only.",
     "recovery": "permission",
     "sources": {
-      "cdmw/core/file_permissions.py": 78
+      "cdmw/core/file_permissions.py": 222
     }
   },
   {
@@ -84377,7 +84401,7 @@ MESSAGE_REFERENCE = [
     "message": "Temporary directory has no CDMW ownership record.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/owned_temp.py": 57
+      "cdmw/core/owned_temp.py": 58
     }
   },
   {
@@ -84385,7 +84409,7 @@ MESSAGE_REFERENCE = [
     "message": "Temporary directory identity changed.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/owned_temp.py": 61
+      "cdmw/core/owned_temp.py": 62
     }
   },
   {
@@ -84393,7 +84417,7 @@ MESSAGE_REFERENCE = [
     "message": "Temporary directory prefix must be a single filename component.",
     "recovery": "input",
     "sources": {
-      "cdmw/core/owned_temp.py": 68
+      "cdmw/core/owned_temp.py": 69
     }
   },
   {
@@ -84401,7 +84425,7 @@ MESSAGE_REFERENCE = [
     "message": "Temporary directory was redirected.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/owned_temp.py": 53
+      "cdmw/core/owned_temp.py": 54
     }
   },
   {
@@ -84409,7 +84433,7 @@ MESSAGE_REFERENCE = [
     "message": "Temporary directory was replaced during retirement.",
     "recovery": "internal",
     "sources": {
-      "cdmw/core/owned_temp.py": 154
+      "cdmw/core/owned_temp.py": 156
     }
   },
   {
@@ -104440,7 +104464,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview helper produced an invalid PNG: {staged_png}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_decode_cache.py": 148
+      "cdmw/core/texture_decode_cache.py": 150
     }
   },
   {
@@ -104448,7 +104472,7 @@ MESSAGE_REFERENCE = [
     "message": "Preview helper produced an invalid report sidecar: {staged_sidecar}",
     "recovery": "input",
     "sources": {
-      "cdmw/core/texture_decode_cache.py": 156
+      "cdmw/core/texture_decode_cache.py": 158
     }
   },
   {
@@ -104480,7 +104504,7 @@ MESSAGE_REFERENCE = [
     "message": "Published preview cache entry failed validation: {final_png}",
     "recovery": "write",
     "sources": {
-      "cdmw/core/texture_decode_cache.py": 162
+      "cdmw/core/texture_decode_cache.py": 166
     }
   },
   {
@@ -108960,7 +108984,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/archive_media_preview.py": {
     "diagnostic_field": 3,
-    "raise": 2,
+    "raise": 6,
     "report": 2,
     "validation": 2
   },
@@ -109210,7 +109234,7 @@ SOURCE_COVERAGE = {
   },
   "cdmw/core/file_permissions.py": {
     "diagnostic_field": 2,
-    "log": 2,
+    "log": 4,
     "raise": 4
   },
   "cdmw/core/filesystem.py": {},

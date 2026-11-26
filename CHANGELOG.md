@@ -7,6 +7,10 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Import Replacement, Archive Previews, and Mod Exports**: preview cache folders, generated temporary directories, and remaining mod and preview outputs now take their folder's permissions (while keeping user access if a parent folder's permissions do not inherit), and locked or read-only preview cache folders no longer block **Import Replacement** or archive previews.
+
 ## [0.12.0-alpha.7] - 2026-11-24
 
 ### Highlights

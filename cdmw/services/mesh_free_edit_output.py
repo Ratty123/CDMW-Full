@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.file_permissions import inherit_parent_permissions
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.models import RunCancelled
@@ -106,6 +107,7 @@ def publish_free_edit_output(
         if _file_sha256(source) != source_hash_before:
             raise RuntimeError("The Free Edit source asset changed while output was prepared")
         os.replace(staging, target)
+        inherit_parent_permissions(target)
         return MeshFreeEditOutputResult(
             output_dir=target,
             obj_path=target / obj_path.relative_to(staging),

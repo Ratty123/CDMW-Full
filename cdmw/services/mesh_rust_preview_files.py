@@ -17,6 +17,7 @@ from functools import wraps
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
+from cdmw.core.file_permissions import inherit_parent_permissions
 from cdmw.domain.cancellation import RunCancelled
 
 # One SHA-256 per file per process. Preview files are immutable once
@@ -132,6 +133,7 @@ def atomic_preview_publication(builder):
                 edit_operations_path=destination / result.edit_operations_path.relative_to(package_dir),
             )
             os.rename(package_dir, destination)
+            inherit_parent_permissions(destination)
             return published
         finally:
             # Only this freshly allocated sibling is owned by this invocation.

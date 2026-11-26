@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Mapping, Optional, Sequence, Tuple
 
+from cdmw.core.file_permissions import inherit_parent_permissions
+
 
 # Discard packages baked before authored PAC colour-layer opacity was retained.
 NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA = 4
@@ -617,6 +619,7 @@ def store_native_preview_package_cache(
                     return None
                 shutil.rmtree(staging_entry_dir, ignore_errors=True)
                 return hit
+            inherit_parent_permissions(final_entry_dir)
             _mark_cache_key_recent(cache_root, key)
             stored_hit = NativePreviewPackageCacheHit(
                 key,
