@@ -5,7 +5,7 @@ use the latest release's availability and limitations when deciding what to use.
 Related changes are grouped under Added, Changed, Fixed and Docs. Preview and
 experimental-feature notes do not establish equivalent in-game behavior.
 
-## [Unreleased]
+## [0.12.0-alpha.7-hotfix] - 2026-11-26
 
 ### Added
 
@@ -13,16 +13,12 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ### Fixed
 
+- **Import Replacement, Archive Previews, and Mod Exports**: preview cache folders, generated temporary directories, and remaining mod and preview outputs now take their folder's permissions (while keeping user access if a parent folder's permissions do not inherit), and locked or read-only preview cache folders no longer block **Import Replacement** or archive previews.
+- **Mesh Editor — Import Replacement (Imported Materials & Textures)**: replaced Ver2 equipment and cloth models no longer turn mostly black with faint coloured fringes in game; their materials now bind neutral 50% grey beneath the imported colour texture so the full imported pattern shows cleanly in game.
 - **Create New Item, Archive Browser & Game Table Editing**: updated game-table readers and writers for Crimson Desert `1.0.0.3840` (variable-length `.staticinfoheader` directories, indexed rows, and inline conditions across base and DLC tables), fixing the ItemInfo decode failure on updated installations.
 - **Action Charts & Placement Studio**: added support for `1.0.0.3840` action charts (`2.06` layout and updated frame event sizes) while preserving compatibility with earlier charts.
 - **Bow & Quiver Mods (Placement Studio, Attachment Patching & Create New Item)**: quiver and bow prefabs (such as `cd_phm_04_quiver_0020.prefab`) now resolve their weapon class for attachment patching, match all arrow/quiver meshes on multi-mesh prefabs for socket-attached imports in Create New Item, and automatically pair bows with their companion quiver descriptor rows and quiver socket files in Placement Studio.
-
-## [0.12.0-alpha.7-hotfix] - 2026-11-26
-
-### Fixed
-
-- **Import Replacement, Archive Previews, and Mod Exports**: preview cache folders, generated temporary directories, and remaining mod and preview outputs now take their folder's permissions (while keeping user access if a parent folder's permissions do not inherit), and locked or read-only preview cache folders no longer block **Import Replacement** or archive previews.
-- **Mesh Editor — Import Replacement (Imported Materials & Textures)**: replaced Ver2 equipment and cloth models no longer turn mostly black with faint coloured fringes in game; their materials now bind neutral 50% grey beneath the imported colour texture so the full imported pattern shows cleanly in game.
+- **Mesh Editor Startup Handshake**: prevented `cdmw_rust_mesh_editor_protocol_v1` handshake stalls and false timeouts when opening from Browse Archives or under heavy startup load (immediate `open_session_over_view` processing even if hidden/minimized, emitting `hello` before GPU renderer/texture setup, draining buffered replies on timeout, falling back to a standalone helper if a shared Browse process stalls, raising the initial handshake deadline to 30 seconds, and surfacing stderr diagnostics).
 
 ## [0.12.0-alpha.7] - 2026-11-24
 

@@ -43,7 +43,7 @@ from cdmw.ui.mesh_editor.rust_theme_transport import protocol_line, rust_theme_d
 RUST_SAVE_STATUS_POLL_MS = 2000
 
 _RUST_PROTOCOL_QUEUE_LIMIT = 128
-_RUST_READY_TIMEOUT_MS = 10_000
+_RUST_READY_TIMEOUT_MS = 30_000
 _RUST_RENDERER_READY_TIMEOUT_MS = 60_000
 _RUST_FINISH_EXIT_TIMEOUT_MS = 3_000
 _RUST_DIAGNOSTIC_BUFFER_LIMIT = 16 * 1024
@@ -1780,15 +1780,49 @@ class MeshEditorRustProcessMixin:
     def _handle_rust_ready_timeout(self) -> None:
         if self.standalone_rust_ready:
             return
+        was_hello = self.standalone_rust_hello_received
+        process = self.standalone_rust_process
+        if process is not None:
+            self._drain_rust_process_output(process)
+        if self.standalone_rust_ready or self.standalone_rust_failure_reported:
+            return
+        if not was_hello and self.standalone_rust_hello_received:
+            # hello was already buffered in stdout and restarted the 60 s renderer timer.
+            return
+        suffix = self._rust_process_diagnostic_suffix()
         if self.standalone_rust_hello_received:
             self._fail_rust_editor(
                 "Mesh Editor did not finish preparing its renderer and textures."
             )
+            if suffix:
+                self._append_rust_timeout_diagnostic(suffix)
+            return
+        session = self.standalone_rust_authoring_session
+        if process is not None and hasattr(process, "refusal") and session is not None and not session.closed:
+            # A borrowed Browse engine channel timed out before hello: detach it and
+            # fall back once to a fresh standalone helper instead of failing incompatibly.
+            self.standalone_rust_process = None
+            self.standalone_rust_stdout_buffer = b""
+            self.standalone_rust_ready_timer.stop()
+            reason = "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake."
+            self._record_engine_edit_refusal(process, reason)
+            try:
+                process.terminate()
+            except (RuntimeError, AttributeError):
+                pass
+            # Refuse both bound-viewport and own-window borrowing on this session so
+            # fallback goes straight to a fresh standalone helper process.
+            self._engine_window_refused_session = session
+            if not getattr(process, "own_window", False):
+                self._leave_bound_viewport(reason)
+            self._launch_rust_editor_process(session)
             return
         self._fail_rust_editor(
             "Mesh Editor did not complete the cdmw_rust_mesh_editor_protocol_v1 handshake.",
             incompatible=True,
         )
+        if suffix:
+            self._append_rust_timeout_diagnostic(suffix)
 
     def _handle_rust_finish_exit_timeout(self) -> None:
         if self.standalone_rust_finish_accepted and self._rust_editor_process_running():
@@ -2079,6 +2113,19 @@ class MeshEditorRustProcessMixin:
         closed = getattr(self, "closed", None)
         if closed is not None and hasattr(closed, "emit"):
             closed.emit()
+
+    def _append_rust_timeout_diagnostic(self, suffix: str) -> None:
+        if not suffix:
+            return
+        if self.standalone_rust_incompatible_reason and suffix not in self.standalone_rust_incompatible_reason:
+            self.standalone_rust_incompatible_reason = f"{self.standalone_rust_incompatible_reason}{suffix}"
+        label = getattr(self, "standalone_status_label", None)
+        if label is not None and suffix not in str(label.text() or ""):
+            label.setText(f"{label.text()}{suffix}")
+        host = getattr(self, "standalone_native_host_frame", None)
+        host_label = getattr(host, "_status_label", None)
+        if host_label is not None and suffix not in str(host_label.text() or ""):
+            host_label.setText(f"{host_label.text()}{suffix}")
 
     def _fail_rust_editor(self, message: str, *, incompatible: bool = False) -> None:
         release = getattr(self, "_release_background_warmups", None)

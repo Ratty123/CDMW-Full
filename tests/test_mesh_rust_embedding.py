@@ -795,3 +795,84 @@ def test_rejected_hello_cannot_extend_startup_deadline(tmp_path: Path) -> None:
     assert not tab.standalone_rust_hello_received
     assert tab.standalone_rust_ready_timer.interval() == 10_000
     tab.standalone_rust_ready_timer.stop()
+
+
+def test_startup_timeout_drains_buffered_hello_instead_of_failing(tmp_path: Path) -> None:
+    from cdmw.services.mesh_rust_contract import RUST_MESH_EDITOR_PROTOCOL
+
+    tab = _tab(tmp_path)
+    tab.standalone_rust_authoring_session = SimpleNamespace(  # type: ignore[assignment]
+        session_id="sess-1",
+        closed=False,
+        hair_start_mode=False,
+        shadow_session_id="shadow-1",
+        shadow_service=SimpleNamespace(
+            _session=lambda _sid: SimpleNamespace(hair_state=None),
+            session_revision=lambda _sid: 0,
+        ),
+    )
+    tab.standalone_rust_process_generation = 2
+    hello = json.dumps({
+        "event": "hello",
+        "protocol": RUST_MESH_EDITOR_PROTOCOL,
+        "session_id": "sess-1",
+        "process_generation": 2,
+        "renderer": RUST_MESH_RENDERER,
+        "edit_backend": RUST_MESH_EDIT_BACKEND,
+        "capabilities": ["embedded_child_window_v1"],
+        "child_hwnd": 123,
+        "embedded_parent_hwnd": 456,
+    }).encode("utf-8") + b"\n"
+    tab.standalone_rust_process = SimpleNamespace(  # type: ignore[assignment]
+        processId=lambda: 77,
+        readAllStandardOutput=lambda: hello,
+        readAllStandardError=lambda: b"",
+    )
+    tab.standalone_native_host_frame.attach_child_window = lambda *_args: (True, "")  # type: ignore[method-assign]
+    tab._send_rust_message = lambda _payload: True  # type: ignore[method-assign]
+    failures: list[object] = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append((message, kwargs))  # type: ignore[method-assign]
+
+    tab._handle_rust_ready_timeout()
+
+    assert not failures
+    assert tab.standalone_rust_hello_received is True
+    assert tab.standalone_rust_ready_timer.isActive()
+    assert tab.standalone_rust_ready_timer.interval() == 60_000
+    tab.standalone_rust_ready_timer.stop()
+
+
+@pytest.mark.parametrize("own_window", [False, True])
+def test_startup_timeout_on_borrowed_engine_channel_falls_back_to_fresh_launch(
+    tmp_path: Path, own_window: bool,
+) -> None:
+    from cdmw.ui.preview.engine_channel import EngineEditChannel
+
+    tab = _tab(tmp_path)
+    session = SimpleNamespace(session_id="sess-2", closed=False)
+    tab.standalone_rust_authoring_session = session  # type: ignore[assignment]
+    channel = EngineEditChannel(lambda data: len(bytes(data)), lambda: 55, lambda _ch: None, tab)
+    channel.own_window = own_window
+    tab.standalone_rust_process = channel  # type: ignore[assignment]
+    failures: list[object] = []
+    left_reasons: list[str] = []
+    relaunched: list[object] = []
+    tab._fail_rust_editor = lambda message, **kwargs: failures.append((message, kwargs))  # type: ignore[method-assign]
+    tab._leave_bound_viewport = lambda reason: left_reasons.append(reason)  # type: ignore[method-assign]
+    tab._launch_rust_editor_process = lambda current: relaunched.append(current)  # type: ignore[method-assign]
+
+    tab._handle_rust_ready_timeout()
+
+    assert not failures
+    assert not channel.is_running
+    assert tab._engine_window_refused_session is session
+    assert relaunched == [session]
+    assert bool(left_reasons) is (not own_window)
+
+
+def test_startup_timeout_attaches_stderr_diagnostic_suffix(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    tab.standalone_rust_stderr_diagnostic = "thread 'main' panicked at adapter init\n"
+    tab._handle_rust_ready_timeout()
+    assert "adapter init" in tab.standalone_rust_incompatible_reason
+    assert "cdmw_rust_mesh_editor_protocol_v1 handshake." in tab.standalone_rust_incompatible_reason

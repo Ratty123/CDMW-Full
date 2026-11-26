@@ -3648,18 +3648,27 @@ impl LabApplication {
             self.camera.keep_orbit_of(&camera);
         }
         self.apply_kept_view_parts();
+        if let Some(Err(error)) = self
+            .cdmw_bridge
+            .as_ref()
+            .map(|bridge| bridge.announce_hello(child_hwnd, parent_hwnd))
+        {
+            self.fail_pending_open(event_loop, format!("CDMW handshake failed: {error}"), None);
+            return;
+        }
+        let mut renderer_ok = true;
         if let Some(mut renderer) = self.renderer.take() {
             match self.configure_renderer(&mut renderer) {
                 Ok(()) => self.renderer = Some(renderer),
-                Err(error) => self.renderer_failed(error),
+                Err(error) => {
+                    renderer_ok = false;
+                    self.renderer_failed(error);
+                }
             }
         }
-        let announced = self.cdmw_bridge.as_ref().map(|bridge| {
-            bridge
-                .announce_hello(child_hwnd, parent_hwnd)
-                .and_then(|()| bridge.announce_ready())
-        });
-        if let Some(Err(error)) = announced {
+        if renderer_ok
+            && let Some(Err(error)) = self.cdmw_bridge.as_ref().map(CdmwBridge::announce_ready)
+        {
             self.fail_pending_open(event_loop, format!("CDMW handshake failed: {error}"), None);
             return;
         }
@@ -9493,6 +9502,9 @@ impl ApplicationHandler for LabApplication {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.poll_pending_session(event_loop);
         let changed = self.poll_loader() | self.poll_cdmw() | self.send_waiting_cdmw_finish();
+        if self.cdmw_pending.is_some() {
+            self.poll_pending_session(event_loop);
+        }
         if self.gpu_recovery.take_due(Instant::now())
             && let Some(window) = self.window.clone()
         {
