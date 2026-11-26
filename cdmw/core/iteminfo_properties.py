@@ -59,7 +59,7 @@ def read_item_properties(row):
     """Return verified name -> (value, byte offset, width) entries only."""
     from cdmw.core.item_layout import read_item_layout
     try:
-        layout = read_item_layout(row.raw)
+        layout = read_item_layout(row.raw, key_layout=getattr(row, "key_layout", None))
     except RecordError:
         layout = None
     if layout is not None:

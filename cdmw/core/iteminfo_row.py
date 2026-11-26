@@ -182,6 +182,7 @@ class ItemInfoRow:
     category_info_offset: Optional[int] = None
     layout_generation: str = "legacy"
     stack_count_offset: Optional[int] = None
+    key_layout: Optional[str] = None
 
     @property
     def max_stack_count_offset(self) -> int:
@@ -423,7 +424,7 @@ def _find_memo(raw: bytes, start: int) -> Optional[str]:
     return None
 
 
-def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, layout=None) -> ItemInfoRow:
+def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, layout=None, string_key: str = "") -> ItemInfoRow:
     """Decode one row. `item_keys` (every key in the table) tightens the stat-block anchor.
 
     Raises :class:`ItemInfoRowError` only when the prefix is not an ItemInfo row at
@@ -432,7 +433,7 @@ def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None
 
     if layout is not None and layout.generation == 'compact':
         from cdmw.core.iteminfo_compact import parse_compact_item
-        return parse_compact_item(layout)
+        return parse_compact_item(layout, string_key=string_key)
     data = bytes(raw or b"")
     if len(data) < 12:
         raise ItemInfoRowError("row is too short to hold a key and a name")
@@ -520,6 +521,7 @@ def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None
             socket_items=(), add_socket_materials=(), stat_block_offset=None, enchant_levels=(), enchant_count=None,
             price_list=(), stat_block_end=None,
             category_info=category_info, category_info_offset=category_info_offset,
+            key_layout=getattr(layout, "key_layout", None),
         )
     return ItemInfoRow(
         raw=data, key=key, string_key=string_key, is_blocked=is_blocked, max_stack_count=max_stack_count,
@@ -530,28 +532,29 @@ def _parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None
         stat_block_flags=tuple(block["flags"]),
         stat_block_marker=block["marker"],
         category_info=category_info, category_info_offset=category_info_offset,
+        key_layout=getattr(layout, "key_layout", None),
     )
 
 
-def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, structured=False) -> ItemInfoRow:
+def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None, structured=False, string_key: str = "", key_layout: Optional[str] = None) -> ItemInfoRow:
     """Retain the legacy fast path; qualify complete layouts when requested/needed."""
     from cdmw.core.item_layout import read_item_layout
     from cdmw.core.new_item_record import RecordError
-    if structured:
-        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw))
+    if structured or key_layout == "indexed":
+        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw, key_layout=key_layout), string_key=string_key)
     try:
         result = _parse_iteminfo_row(raw, item_keys=item_keys)
     except (ItemInfoRowError, struct.error) as original:
         try:
-            layout = read_item_layout(raw)
+            layout = read_item_layout(raw, key_layout=key_layout)
         except RecordError as exc:
             raise ItemInfoRowError(
                 f"Unsupported ItemInfo row layout. Legacy reader: {original}. Complete readers: {exc}"
             ) from exc
-        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=layout)
+        return _parse_iteminfo_row(raw, item_keys=item_keys, layout=layout, string_key=string_key)
     if result.desc_offset is None and bytes(raw).count(DESC_TAG + struct.pack('<I', result.key)) > 1:
         try:
-            return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw))
+            return _parse_iteminfo_row(raw, item_keys=item_keys, layout=read_item_layout(raw, key_layout=key_layout), string_key=string_key)
         except RecordError:
             pass
     return result
@@ -647,7 +650,7 @@ def clone_iteminfo_row(
     from cdmw.core.item_layout import read_item_layout, clone_layout_item
     from cdmw.core.new_item_record import RecordError
     try:
-        layout = read_item_layout(row.raw)
+        layout = read_item_layout(row.raw, key_layout=getattr(row, "key_layout", None))
     except RecordError:
         layout = None
     if layout is not None:
@@ -903,6 +906,9 @@ def parse_status_names(payload: bytes, header: bytes) -> Mapping[int, str]:
     table = parse_pabgh_table(bytes(header or b""), payload=bytes(payload or b""))
     names = {}
     for row, start, end in table.row_spans(len(payload)):
+        if table.key_layout == "indexed":
+            names[row.row_id] = row.string_key
+            continue
         if table.key_layout == 'named':
             from cdmw.core.new_item_record import named_prefix
             names[row.row_id] = named_prefix(payload[start:end], table.key_width, key=row.row_id)[1]

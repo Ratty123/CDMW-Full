@@ -18538,6 +18538,7 @@
     "placement-preview": "vista previa de ubicación",
     "placement-schematic-preview": "vista previa de esquema de ubicación",
     "placement-socket-preview": "placement-socket-preview",
+    "plain XML (<MaterialPermutationUsage>) under shadercache__/ listing pipeline passes, material entry hashes and unused shader macros (2 files on 1.0.0.3840)": "XML sin formato (<MaterialPermutationUsage>) en shadercache__/ que enumera fases de canalización, hashes de entrada de materiales y macros de sombreador sin usar (2 archivos en 1.0.0.3840)",
     "plain XML (ARFaceAnimation / ARFacePoseRecordedData): recorded facial capture": "XML simple (ARFaceAnimation / ARFacePoseRecordedData): captura facial grabada",
     "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData": "XML simple (SkinnedDecalProperty) que lleva ReflectObjectXMLData",
     "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text": "XML simple (SplineDataGroup) que lleva ReflectObjectXMLData, legible y enviable como texto",

@@ -136,7 +136,7 @@ def _row(before, after, current, where, path, compact=False):
 
 def _table(body, header):
     table = parse_pabgh_table(header, payload=body)
-    if len(header) != table.header_size + len(table.rows) * (table.key_width + 4):
+    if table.header_format != "indexed_3840" and len(header) != table.header_size + len(table.rows) * (table.key_width + 4):
         raise OverlayConflict('Unsupported table directory layout.')
     spans = table.row_spans(len(body))
     if len(spans) != len(table.rows) or (spans and spans[0][1] != 0):
@@ -152,7 +152,7 @@ def _table_pair(before, after, current, path, head):
     b, a, c = tables
     if len({(t.key_width, t.header_size, t.key_layout) for t, _ in tables}) != 1:
         raise OverlayConflict(f'Table layout changed in {path}.')
-    compact = c[0].key_layout == 'named'
+    compact = c[0].key_layout in ('named', 'indexed')
     def merge(old, new, present, where):
         key = next(value[0] for value in (new, present, old) if value is not None)
         raw = _row(old[1] if old else None, new[1] if new else None, present[1] if present else None,
@@ -167,7 +167,13 @@ def _table_pair(before, after, current, path, head):
     ordered = list(dict.fromkeys([r.key for t, _ in (c, a) for r in t.rows]))
     ordered = [key for key in ordered if key in offsets]
     count_width = c[0].header_size
-    header = len(rows).to_bytes(count_width, 'little') + b''.join(key + struct.pack('<I', offsets[key]) for key in ordered)
+    if c[0].header_format == 'indexed_3840':
+        from cdmw.core.structured_binary_editor import encode_staticinfo_3840_header
+        by_key = {row.key: row.string_key for table, _ in (c, a) for row in table.rows}
+        entries = [(key, by_key.get(key, ''), offsets[key], len(dict(rows)[key])) for key in ordered]
+        header = encode_staticinfo_3840_header(count_width, entries)
+    else:
+        header = len(rows).to_bytes(count_width, 'little') + b''.join(key + struct.pack('<I', offsets[key]) for key in ordered)
     _table(bytes(payload), header)
     return bytes(payload), header
 

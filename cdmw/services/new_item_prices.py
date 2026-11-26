@@ -22,12 +22,14 @@ def own_zero_price_perks(row_bytes, snapshot, reserved_keys=(), *, allocate_key=
         clone_key = allocate_item_key(used) if allocate_key is None else allocate_key(key, used)
         used.add(clone_key)
         name_key, desc_key = localization_keys(clone_key)
-        raw = clone_iteminfo_row(perk, key=clone_key, string_key=f"CDMW_Perk_{row.key}_{key}",
+        clone_name = f"CDMW_Perk_{row.key}_{key}"
+        key_layout = "indexed" if row.stack_count_offset and len(row_bytes) >= 9 and row_bytes[:4] == row.key.to_bytes(4, "little") else None
+        raw = clone_iteminfo_row(perk, key=clone_key, string_key=clone_name,
                                  name_key=name_key, desc_key=desc_key if perk.desc_key else None)
-        clone = parse_iteminfo_row(raw, item_keys=used)
+        clone = parse_iteminfo_row(raw, item_keys=used, string_key=clone_name)
         levels = tuple(replace(level, buy_prices=tuple(replace(p, price=0) for p in level.buy_prices)) for level in clone.enchant_levels)
         raw = rebuild_stat_block(clone, levels=levels, price_list=tuple(replace(p, price=0) for p in clone.price_list))
-        clone = parse_iteminfo_row(raw, item_keys=used)
+        clone = parse_iteminfo_row(raw, item_keys=used, string_key=clone_name)
         copies.append((perk, clone))
         mapped[key] = clone_key
     sockets = tuple(mapped[key] for key in row.socket_items)

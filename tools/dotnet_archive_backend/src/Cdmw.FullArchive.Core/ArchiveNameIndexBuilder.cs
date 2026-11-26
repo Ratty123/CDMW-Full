@@ -114,7 +114,10 @@ internal static class ArchiveNameIndexBuilder
 
         var stringHashes = sources.StringInfo is null
             ? new Dictionary<uint, string>()
-            : ParseStringInfo(DecodeSource(native, sources.StringInfo, cancellationToken), cancellationToken);
+            : ParseStringInfo(
+                DecodeSource(native, sources.StringInfo, cancellationToken),
+                cancellationToken,
+                sources.StringInfoHeader is null ? null : DecodeSource(native, sources.StringInfoHeader, cancellationToken));
         var itemInfoData = DecodeSource(native, sources.ItemInfo, cancellationToken);
         // The row directory gives every record an exact boundary. Without the
         // companion the marker scan below finds fewer rows, so fall back to it
@@ -133,7 +136,10 @@ internal static class ArchiveNameIndexBuilder
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (layer.StringInfo is not null)
-                foreach (var (hash, value) in ParseStringInfo(DecodeSource(native, layer.StringInfo, cancellationToken), cancellationToken))
+                foreach (var (hash, value) in ParseStringInfo(
+                    DecodeSource(native, layer.StringInfo, cancellationToken),
+                    cancellationToken,
+                    layer.StringInfoHeader is null ? null : DecodeSource(native, layer.StringInfoHeader, cancellationToken)))
                     stringHashes[hash] = value;
             if (layer.ItemInfo is null || layer.ItemInfoHeader is null) continue;
             var dlcRecords = ParseItemInfoRows(
@@ -261,13 +267,19 @@ internal static class ArchiveNameIndexBuilder
             sources.Offer(session.ReadEntry(entryIds[index]));
         }
         sources.Finish();
-        var result = new NameSources { ItemInfo = sources.ItemInfo, ItemInfoHeader = sources.ItemInfoHeader, StringInfo = sources.StringInfo };
+        var result = new NameSources
+        {
+            ItemInfo = sources.ItemInfo,
+            ItemInfoHeader = sources.ItemInfoHeader,
+            StringInfo = sources.StringInfo,
+            StringInfoHeader = sources.StringInfoHeader,
+        };
         foreach (var pair in sources.Localizations) result.Localization[pair.Key] = pair.Value;
         foreach (var suffix in sources.DlcTableSuffixes("iteminfo"))
         {
             var (itemInfo, itemInfoHeader) = sources.TablePair("iteminfo." + suffix);
-            var (stringInfo, _) = sources.TablePair("stringinfo." + suffix);
-            var layer = new DlcNameSources(itemInfo, itemInfoHeader, stringInfo);
+            var (stringInfo, stringInfoHeader) = sources.TablePair("stringinfo." + suffix);
+            var layer = new DlcNameSources(itemInfo, itemInfoHeader, stringInfo, stringInfoHeader);
             foreach (var pair in sources.DomainLocalizations("item." + suffix)) layer.Localization[pair.Key] = pair.Value;
             result.DlcLayers.Add(layer);
         }
@@ -389,9 +401,47 @@ internal static class ArchiveNameIndexBuilder
         return output;
     }
 
-    private static Dictionary<uint, string> ParseStringInfo(byte[] data, CancellationToken cancellationToken)
+    internal static Dictionary<uint, string> ParseStringInfo(
+        byte[] data,
+        CancellationToken cancellationToken,
+        byte[]? header = null)
     {
         var hashes = new Dictionary<uint, string>();
+        void RecordIcon(string text)
+        {
+            var prefix = ItemIconPrefixes.FirstOrDefault(
+                value => text.StartsWith(value, StringComparison.OrdinalIgnoreCase));
+            if (prefix is null) return;
+            var modelStem = NormalizeModelStem(text[prefix.Length..]);
+            if (modelStem.StartsWith("cd_", StringComparison.OrdinalIgnoreCase))
+            {
+                hashes[HashLittle(Encoding.UTF8.GetBytes(text), NameHashSeed)] = modelStem;
+                hashes[HashLittle(Encoding.UTF8.GetBytes(modelStem), NameHashSeed)] = modelStem;
+            }
+        }
+
+        if (header is { Length: > 0 })
+        {
+            var directory = ResolvePabghDirectory(header, data, TableKeyLayout.PrefixFourZeros);
+            if (directory is not null)
+            {
+                for (var index = 0; index < directory.Count; index++)
+                {
+                    if ((index & 0x3FF) == 0) cancellationToken.ThrowIfCancellationRequested();
+                    var row = directory[index];
+                    var start = checked((int)row.Offset);
+                    var end = row.Size > 0
+                        ? checked(start + row.Size)
+                        : (index + 1 < directory.Count ? checked((int)directory[index + 1].Offset) : data.Length);
+                    if (end > data.Length || end - start < 13 || data[start + 8] != 0) continue;
+                    var length = ReadUInt32(data, start + 9);
+                    if (length != (uint)(end - start - 13)) continue;
+                    RecordIcon(Encoding.UTF8.GetString(data, start + 13, (int)length).TrimEnd('\0'));
+                }
+                return hashes;
+            }
+        }
+
         var position = 0;
         while (position + 8 < data.Length)
         {
@@ -404,22 +454,7 @@ internal static class ArchiveNameIndexBuilder
                 position + 8L + stringLength <= data.Length)
             {
                 var text = Encoding.UTF8.GetString(data, position + 4, (int)stringLength).TrimEnd('\0');
-                var prefix = ItemIconPrefixes.FirstOrDefault(
-                    value => text.StartsWith(value, StringComparison.OrdinalIgnoreCase));
-                if (prefix is not null)
-                {
-                    var modelStem = NormalizeModelStem(text[prefix.Length..]);
-                    if (modelStem.StartsWith("cd_", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Every row is keyed by the hash of its own text, written before
-                        // the text. The four bytes after the text belong to the next row
-                        // (zero in the current tables), so reading them as this row's key
-                        // mapped 0 to the table's last icon stem and gave every ItemInfo
-                        // row a bogus related model.
-                        hashes[HashLittle(Encoding.UTF8.GetBytes(text), NameHashSeed)] = modelStem;
-                        hashes[HashLittle(Encoding.UTF8.GetBytes(modelStem), NameHashSeed)] = modelStem;
-                    }
-                }
+                RecordIcon(text);
                 position = checked(position + 8 + (int)stringLength);
                 continue;
             }
@@ -429,8 +464,66 @@ internal static class ArchiveNameIndexBuilder
     }
 
     /// <summary>One `.pabgh` row: a primary key and where the matching `.pabgb` row starts.</summary>
-    internal readonly record struct PabghDirectoryRow(byte[] Key, uint Offset, int KeyOffset = 0);
+    internal readonly record struct PabghDirectoryRow(
+        byte[] Key,
+        uint Offset,
+        int KeyOffset = 0,
+        string StringKey = "",
+        int Size = 0,
+        bool Indexed3840 = false);
     internal enum TableKeyLayout { Inline, Named, PrefixFourZeros }
+
+    private static List<PabghDirectoryRow>? ResolveIndexed3840Directory(byte[] header, byte[] payload)
+    {
+        foreach (var countWidth in PabghCountWidths)
+        {
+            if (header.Length < countWidth) continue;
+            long count = 0;
+            for (var i = 0; i < countWidth; i++) count |= (long)header[i] << (8 * i);
+            if (count == 0)
+            {
+                if (header.Length == countWidth && payload.Length == 0)
+                    return [];
+                continue;
+            }
+            foreach (var keyWidth in PabghKeyWidths)
+            {
+                var pos = countWidth;
+                var usable = true;
+                var rows = new List<PabghDirectoryRow>(checked((int)Math.Min(count, 1_000_000L)));
+                for (long index = 0; index < count; index++)
+                {
+                    if (pos + keyWidth + 4 > header.Length) { usable = false; break; }
+                    var key = new byte[keyWidth];
+                    Array.Copy(header, pos, key, 0, keyWidth);
+                    pos += keyWidth;
+                    var skLen = ReadUInt32(header, pos);
+                    pos += 4;
+                    if (skLen > 4096 || pos + (long)skLen + 8 > header.Length) { usable = false; break; }
+                    var sk = Encoding.UTF8.GetString(header, pos, (int)skLen);
+                    pos += (int)skLen;
+                    var offset = ReadUInt32(header, pos);
+                    var size = ReadUInt32(header, pos + 4);
+                    pos += 8;
+                    if (size < (uint)keyWidth || (long)offset + size > payload.Length) { usable = false; break; }
+                    if (!payload.AsSpan((int)offset, keyWidth).SequenceEqual(key)) { usable = false; break; }
+                    rows.Add(new PabghDirectoryRow(key, offset, 0, sk, checked((int)size), true));
+                }
+                if (!usable || pos != header.Length) continue;
+                var ordered = rows.OrderBy(static r => r.Offset).ThenBy(static r => r.Size);
+                long expected = 0;
+                var contiguous = true;
+                foreach (var r in ordered)
+                {
+                    if (r.Offset != expected) { contiguous = false; break; }
+                    expected += r.Size;
+                }
+                if (contiguous && expected == payload.Length)
+                    return rows;
+            }
+        }
+        return null;
+    }
 
     /// <summary>
     /// Resolve the header's count and key widths against the row payload.
@@ -532,7 +625,7 @@ internal static class ArchiveNameIndexBuilder
                 return rows;
             }
         }
-        return null;
+        return ResolveIndexed3840Directory(header, payload);
     }
 
     /// <summary>
@@ -604,18 +697,23 @@ internal static class ArchiveNameIndexBuilder
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            var rowStart = checked((int)directory[index].Offset);
-            var rowEnd = index + 1 < directory.Count ? checked((int)directory[index + 1].Offset) : data.Length;
+            var row = directory[index];
+            var rowStart = checked((int)row.Offset);
+            var rowEnd = row.Size > 0
+                ? checked(rowStart + row.Size)
+                : (index + 1 < directory.Count ? checked((int)directory[index + 1].Offset) : data.Length);
             if (rowStart >= rowEnd || rowEnd > data.Length)
             {
                 continue;
             }
-            var itemId = ReadUInt32(data, rowStart + directory[index].KeyOffset);
+            var itemId = ReadUInt32(data, rowStart + row.KeyOffset);
             if (!seenIds.Add(itemId))
             {
                 continue;
             }
-            var internalName = ReadItemInfoRowInternalName(data, rowStart, rowEnd, directory[index].KeyOffset != 0);
+            var internalName = row.Indexed3840
+                ? row.StringKey
+                : ReadItemInfoRowInternalName(data, rowStart, rowEnd, row.KeyOffset != 0);
             var nameKey = ReadItemInfoSubRecordKey(data, rowStart, rowEnd, 0x70);
             var localizationIds = nameKey.Length == 0 ? new List<string>() : [nameKey];
 
@@ -1278,15 +1376,21 @@ internal static class ArchiveNameIndexBuilder
         public ArchiveEntryDto? ItemInfoHeader { get; set; }
 
         public ArchiveEntryDto? StringInfo { get; set; }
+        public ArchiveEntryDto? StringInfoHeader { get; set; }
         public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<DlcNameSources> DlcLayers { get; } = [];
     }
 
-    private sealed class DlcNameSources(ArchiveEntryDto? itemInfo, ArchiveEntryDto? itemInfoHeader, ArchiveEntryDto? stringInfo)
+    private sealed class DlcNameSources(
+        ArchiveEntryDto? itemInfo,
+        ArchiveEntryDto? itemInfoHeader,
+        ArchiveEntryDto? stringInfo,
+        ArchiveEntryDto? stringInfoHeader = null)
     {
         public ArchiveEntryDto? ItemInfo { get; } = itemInfo;
         public ArchiveEntryDto? ItemInfoHeader { get; } = itemInfoHeader;
         public ArchiveEntryDto? StringInfo { get; } = stringInfo;
+        public ArchiveEntryDto? StringInfoHeader { get; } = stringInfoHeader;
         public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 

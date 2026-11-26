@@ -42,12 +42,13 @@ class EquipmentBuff:
         return self.minimum <= parameter <= self.maximum and (parameter == 0 or any(level.level == parameter for level in self.levels))
 
 
-def parse_equipment_buff(raw: bytes) -> EquipmentBuff:
+def parse_equipment_buff(raw: bytes, *, name: str = "", key_layout: str | None = None) -> EquipmentBuff:
     data = bytes(raw)
-    from cdmw.core.new_item_record import named_prefix,Cursor
-    if named_prefix(raw)[3] == 'compact':
+    from cdmw.core.new_item_record import named_prefix, Cursor
+    generation = named_prefix(raw, name=name, key_layout=key_layout)[3]
+    if generation in ('compact', 'indexed'):
         from cdmw.core.compact_static import read_compact_layout
-        layout = read_compact_layout(raw,'buffinfo')
+        layout = read_compact_layout(raw, 'buffinfo', key_layout=key_layout or ('indexed' if generation == 'indexed' else 'named'))
         groups = {}
         for member in layout.members:
             if member.path[:1] == ('_buffDataList',):
@@ -63,7 +64,8 @@ def parse_equipment_buff(raw: bytes) -> EquipmentBuff:
             levels.append(BuffLevel(int.from_bytes(raw[level_span.start:level_span.end],'little',signed=True),
                 value[1],description,raw[level_span.start:data_span.end]))
         block = layout.fields['_buffDataList']
-        result = EquipmentBuff(layout.integer('_key',width=4),Cursor(layout.data('_stringKey')).text(),
+        resolved_name = Cursor(layout.data('_stringKey')).text() if '_stringKey' in layout.fields else str(name or '')
+        result = EquipmentBuff(layout.integer('_key',width=4),resolved_name,
             bool(layout.integer('_isBlocked',width=1)),tuple(levels),
             int.from_bytes(layout.data('_minLevel'),'little',signed=True),int.from_bytes(layout.data('_maxLevel'),'little',signed=True),
             layout.integer('_buffLevelCalculateType',width=1),raw[:block.start+4],raw[block.end:])

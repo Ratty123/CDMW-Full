@@ -1,40 +1,40 @@
 {
   "note": "Patch-day baseline for tools/patch_day_check.py: the build it was taken on, its metadata, inventory and table names, and every real_game failure and skip already understood, each with its entry in the local register docs/patch-regressions.md. Refresh with --write-baseline only after the register is updated.",
-  "exe": "1.0.0.3732",
-  "steam_build": "26776744",
-  "recorded": "2026-11-19",
+  "exe": "1.0.0.3840",
+  "steam_build": "26949954",
+  "recorded": "2026-11-26",
   "meta": {
     "meta/0.paver": {
       "size": 28,
-      "sha256": "dc926e35fefb8e61c16ea783b12b713e30dfacd9fe91ceba3be7688a200c3886"
+      "sha256": "ca5958d040bcfe85980c76ea65e8d65ab0b60a98430ce1a869174c79eb3cbbd8"
     },
     "meta/0.papgt": {
       "size": 735,
-      "sha256": "2ac796282a76d3c3d3b028a2d52adb1be88ab700bc65dfa8ae8a65ee01ed6fa6"
+      "sha256": "9eae887b8387c369e5653366c799fd8eb3bd58a94d9dda88a1f943ecbf8c967b"
     },
     "meta/0.pathc": {
-      "size": 7581189,
-      "sha256": "34419d8e20031388d76bb4242a4f13ee3efd90f5f6a569d99fdf1ea34c0d74df"
+      "size": 7583989,
+      "sha256": "4e94fcb4d8f64255bb617bbb10fc5602ca645f609f10a399f97ce5900e0c1120"
     },
     "meta/0.papk": {
       "size": 32,
-      "sha256": "a83f3819f26c7541d9b50baf32d5f9f2c49f3df01244a244eb47d528707ed09a"
+      "sha256": "3190e07b089425f778114073d5357faaedeaa01e41bf4050d229c539aeb47722"
     },
     "dlc/dlc_01/meta/0.paver": {
       "size": 28,
-      "sha256": "3cbc62801ada279ab30a8598696eeebb771ae380339de6aebe0549a06e1c9762"
+      "sha256": "bb5421daecf02708bacca1044eb92237d3b4c10cc5706ac03496eda702e4ccad"
     },
     "dlc/dlc_01/meta/0.papgt": {
       "size": 735,
-      "sha256": "ddce5e656b784505c1c452aeda107f9dd2881052b5ed5298ad778e2580f32363"
+      "sha256": "c61712f83462f6d6de5a55aad9a91628d383adcb5e70cd0315327aa944eb0647"
     },
     "dlc/dlc_01/meta/0.pathc": {
-      "size": 1886183,
-      "sha256": "9755cc399fe31667f31d4dabb4d2efc81c6d8a8f31bacbc3074202ab4eac7985"
+      "size": 1884839,
+      "sha256": "e21018cbd910a07bee5e71066e476660d18f728df5f32714e6a8de63807aba27"
     },
     "dlc/dlc_01/meta/0.paeid": {
       "size": 75,
-      "sha256": "e76d3211909f748eb0f0f309f5218e96386abd9f57035a204bca29a03ecbeedc"
+      "sha256": "a6824bea1ba469adf3f58b80bfb16b6ef7605514cd723458f65584f21c7c3daa"
     }
   },
   "static_tables": [
@@ -139,8 +139,6 @@
     "fieldreviveinfo.dlc_01",
     "formationinfo",
     "formationinfo.dlc_01",
-    "frameeventattrgroupinfo",
-    "frameeventattrgroupinfo.dlc_01",
     "gameadvicegroupinfo",
     "gameadvicegroupinfo.dlc_01",
     "gameadviceinfo",
@@ -335,7 +333,7 @@
     "test_multichangeinfo_table::VanillaMultiChangeTests::test_every_shipped_row_parses_and_ziane_lists_fourteen_of_its_own": {
       "entry": "S-4",
       "reason": "only 1,508 items resolve MultiChange rows through the older helper; not yet classified",
-      "message": "AssertionError: 1508 not greater than 3500"
+      "message": "AssertionError: 1507 not greater than 3500"
     },
     "test_new_item_service::VanillaNewItemTests::test_snapshot_and_plans_against_the_shipped_archives": {
       "entry": "S-3",
@@ -346,46 +344,6 @@
       "entry": "S-1",
       "reason": "still expects CD_MainWeapon_Sword_R (P-18)",
       "message": "AssertionError: Lists differ: ['MainWeapon_Sword_R'] != ['CD_MainWeapon_Sword_R']"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[detectinfo]": {
-      "entry": "P-35",
-      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31",
-      "message": "AssertionError: ('detectinfo', 0, {'Unproven static record boundary': 44})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[factionspawndatainfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('factionspawndatainfo', 23, {\"Compact static list exceeds the supported bound at ('_patrolSpawnData', '_patrolGroupDataList', 0, '_partyDataList', 0, '_characterSpawnList').\": 40, 'Truncated static record': 68})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[missioninfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('missioninfo', 5077, {\"Compact static list exceeds the supported bound at ('_uiDesc', '_targetStageInfoList').\": 187, 'Static record list exceeds the supported bound': 926, 'Truncated static record': 300})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[skillgroupinfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('skillgroupinfo', 0, {'Truncated static record': 27})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[spawningpoolautospawninfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('spawningpoolautospawninfo', 0, {'Unproven static record boundary': 148})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[stageinfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('stageinfo', 53301, {'Invalid compact static presence flag.': 11})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[statusinfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('statusinfo', 83, {\"Compact static list exceeds the supported bound at ('_minPassiveSkillList',).\": 7})"
-    },
-    "test_patch_day_format_guards::test_static_table_decodes[uimaptextureinfo]": {
-      "entry": "P-31",
-      "reason": "generic table reader still refuses rows on this table",
-      "message": "AssertionError: ('uimaptextureinfo', 0, {'Static record list exceeds the supported bound': 1892, 'Truncated static record': 198})"
     },
     "test_posemodifier_xml::VanillaDescriptorTests::test_editing_one_value_changes_one_value": {
       "entry": "P-32",
@@ -406,11 +364,6 @@
       "entry": "P-32",
       "reason": "the descriptor is a stub pointing to PoseModifierData_Common",
       "message": "AssertionError: False is not true"
-    },
-    "test_static_table_records::test_every_installed_row_decodes_or_is_refused_by_a_closed_variant": {
-      "entry": "P-35",
-      "reason": "DetectInfo gained _detectDetailData after 1.0.0.3576; first bad table of P-31",
-      "message": "AssertionError: ('detectinfo', ((1, 'Unproven static record boundary'), (2, 'Unproven static record boundary'), (9, 'Unproven static record boundary')))"
     }
   },
   "expected_skips": {
@@ -424,66 +377,66 @@
     "test_stringinfo_table::VanillaStringInfoTests::test_every_shipped_row_is_keyed_by_its_own_hash": "S-2: looks for retired .pabgb/.pabgh or localizationstring files; guards nothing since 1.0.0.3392"
   },
   "inventory": {
-    ".wem": 488021,
-    ".dds": 389760,
-    ".paa": 389339,
-    ".paa_metabin": 197266,
-    ".padxil": 87034,
-    ".pami": 84389,
-    ".hkx": 68251,
-    ".pam": 66572,
-    ".prefab": 52908,
-    ".meshinfo": 38097,
-    ".palevel": 35719,
-    ".pamlod": 35622,
-    ".levelinfo": 27306,
-    ".pampg": 24672,
-    ".binarygimmick": 15733,
-    ".pac_xml": 13340,
-    ".pac": 13338,
-    ".roadsector": 11686,
-    ".xml": 8240,
-    ".pae": 6592,
+    ".wem": 488137,
+    ".dds": 389833,
+    ".paa": 387875,
+    ".paa_metabin": 196635,
+    ".pami": 84431,
+    ".hkx": 68302,
+    ".pam": 66599,
+    ".padxil": 63753,
+    ".prefab": 53114,
+    ".meshinfo": 38111,
+    ".palevel": 35731,
+    ".pamlod": 35660,
+    ".levelinfo": 27342,
+    ".pampg": 24643,
+    ".binarygimmick": 15749,
+    ".pac_xml": 13375,
+    ".pac": 13373,
+    ".roadsector": 11691,
+    ".xml": 8238,
+    ".pae": 6593,
     ".app_xml": 5691,
-    ".paseq": 4825,
-    ".paschedule": 4407,
-    ".pastage": 3877,
-    ".paschedulepath": 3810,
-    ".paseqc": 3456,
+    ".paseq": 5210,
+    ".paschedule": 4408,
+    ".pastage": 3878,
+    ".paschedulepath": 3812,
+    ".paseqc": 3739,
     ".bnk": 3452,
-    ".prefabdata_xml": 2702,
-    ".road": 1811,
-    ".motionblending": 1705,
+    ".prefabdata_xml": 2723,
+    ".road": 1828,
+    ".motionblending": 1706,
     ".paccd": 1641,
-    ".imp": 1613,
-    ".pat": 1498,
+    ".imp": 1622,
+    ".pat": 1507,
     ".paccd_xml": 1432,
-    ".paloc": 1155,
     ".mp4": 785,
     ".parg": 783,
+    ".paloc": 690,
     ".pbd": 636,
     ".seqmt": 618,
-    ".paac": 560,
+    ".paac": 561,
     ".paem": 560,
-    ".pabc": 503,
+    ".pabc": 523,
     ".uianiminit": 493,
-    ".material": 436,
+    ".material": 444,
     ".save": 401,
     ".uibinary": 356,
     ".pcg": 320,
-    ".staticinfoheader": 277,
-    ".pab": 269,
-    ".pars": 247,
+    ".staticinfoheader": 275,
+    ".pab": 268,
+    ".pars": 254,
     ".paatt": 229,
-    ".staticinfobody": 212,
-    ".css": 178,
+    ".staticinfobody": 211,
     ".html": 167,
     ".spline": 112,
     ".pabv": 101,
+    ".css": 94,
     ".spline2d": 87,
     ".png": 71,
     ".nav": 65,
-    ".ies": 58,
+    ".ies": 59,
     ".impostor": 45,
     ".pasg": 42,
     ".pamt": 34,
@@ -497,14 +450,15 @@
     ".technique": 16,
     ".staticinfomisc": 10,
     ".paproj": 9,
+    ".txt": 9,
     ".tga": 6,
-    ".txt": 4,
     ".ani": 3,
     ".vce_meta": 3,
     ".bak": 2,
     ".binarygimmickcacheddata": 2,
     ".contentgroupkeymap": 2,
     ".pai": 2,
+    ".pamu": 2,
     ".pappt": 2,
     ".pas": 2,
     ".roadidx": 2,

@@ -893,6 +893,21 @@ class ArchiveRelationshipTests(unittest.TestCase):
         self.assertEqual(("MainWeapon_Sword_R", "MainWeapon_Sword_IN_R"), result.patched_part_names)
         self.assertNotIn("CD_", result.text)
 
+    def test_ranged_and_quiver_part_names_and_prefabs_resolve_weapon_class(self):
+        cases = (
+            ("MainWeapon_Quiver", "quiver"),
+            ("CD_MainWeapon_Quiver", "quiver"),
+            ("MainWeapon_CrossBow_Quiver", "quiver"),
+            ("MainWeapon_Bow", "bow"),
+            ("MainWeapon_CrossBow", "crossbow"),
+            ("MainWeapon_Arw", "arrow"),
+            ("character/bin__/prefab/1_pc/1_phm/weapon/04_bow/cd_phm_04_quiver_0020.prefab", "quiver"),
+            ("character/bin__/prefab/1_pc/1_phm/weapon/04_bow/cd_phm_04_bow_0001.prefab", "bow"),
+        )
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(expected, infer_part_in_out_weapon_class(value))
+
     def test_body_location_choices_use_stack_groups_and_descriptor_child_sockets(self):
         socket_document = parse_socket_bone_data_xml(
             """

@@ -231,13 +231,14 @@ def clone_painting_gimmick(
         raise PaintingRecordError("The new prefab path must keep the source path's leading slash.")
     new_text_key = keys.gimmick_text_key
     edits = {
-        "_stringKey": field_bytes(layout, "_stringKey", text_bytes(keys.name)),
         "_key": field_bytes(layout, "_key", struct.pack("<I", keys.gimmick)),
         "_prefabPath": field_bytes(layout, "_prefabPath", text_bytes(str(prefab_value))),
         "_gimmickName": name[:1] + struct.pack("<Q", new_text_key) + text_bytes(str(new_text_key)),
         "_convertItemInfo": field_bytes(layout, "_convertItemInfo", struct.pack("<I", keys.item)),
         "_housingObjectInfo": field_bytes(layout, "_housingObjectInfo", struct.pack("<H", keys.housing)),
     }
+    if "_stringKey" in layout.fields:
+        edits["_stringKey"] = field_bytes(layout, "_stringKey", text_bytes(keys.name))
     return _replace(layout, edits).raw
 
 
@@ -250,10 +251,11 @@ def clone_painting_housing(raw: bytes, *, source_key: int, source_gimmick: int, 
     if _u(layout, "_gimmickInfo", 4) != int(source_gimmick):
         raise PaintingRecordError(f"HousingObjectInfo {source_key} does not name gimmick {source_gimmick}.")
     edits = {
-        "_stringKey": field_bytes(layout, "_stringKey", text_bytes(keys.name)),
         "_key": field_bytes(layout, "_key", struct.pack("<H", keys.housing)),
         "_gimmickInfo": field_bytes(layout, "_gimmickInfo", struct.pack("<I", keys.gimmick)),
     }
+    if "_stringKey" in layout.fields:
+        edits["_stringKey"] = field_bytes(layout, "_stringKey", text_bytes(keys.name))
     return _replace(layout, edits).raw
 
 

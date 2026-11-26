@@ -65,6 +65,7 @@ internal static class FullArchiveTestRunner
             ("item_catalogue_dlc_definitions", ItemCatalogueDefinitionTests.RunAsync),
             ("item_catalogue_dlc_rows_replace_base_rows", ItemCatalogTextTests.DlcRowsReplaceBaseRowsAsync),
             ("item_catalogue_text_encoding", ItemCatalogTextTests.EncodingAsync),
+            ("item_catalogue_indexed_3840", ItemCatalogTextTests.Indexed3840Async),
             ("item_catalogue_compressed_localization", ItemCatalogTextTests.CompressedAsync),
             ("item_catalogue_invalid_localization_container", ItemCatalogTextTests.InvalidContainerAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),

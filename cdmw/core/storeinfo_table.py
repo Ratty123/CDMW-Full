@@ -311,12 +311,12 @@ def _find_empty_head(raw: bytes, name_end: int) -> Optional[int]:
     return None
 
 
-def parse_store_row(raw: bytes, *, key: Optional[int] = None, layout: str = "legacy") -> StoreRow:
+def parse_store_row(raw: bytes, *, key: Optional[int] = None, layout: str = "legacy", name: str = "", key_layout: Optional[str] = None) -> StoreRow:
     """Decode one store row. `key` cross-checks the row's own u16 key when given."""
 
     if layout == 'compact':
         from cdmw.core.storeinfo_compact import parse_compact_store
-        return parse_compact_store(raw, key)
+        return parse_compact_store(raw, key, name=name, key_layout=key_layout)
     if layout not in ("legacy", "current"):
         raise StoreInfoError(f"unsupported StoreInfo layout {layout!r}")
     extra_size = 8 if layout == "current" else 0
@@ -512,12 +512,13 @@ def parse_store_table(
     """
 
     table = parse_pabgh_table(header, payload=payload)
-    if table.key_layout == 'named':
+    if table.key_layout in ('named', 'indexed'):
         layout = 'compact'
     rows = []
     for row, start, end in table.row_spans(len(payload)):
         raise_if_cancelled(stop_event)
-        rows.append(parse_store_row(payload[start:end], key=row.row_id, layout=layout))
+        rows.append(parse_store_row(payload[start:end], key=row.row_id, layout=layout,
+                                    name=row.string_key, key_layout=table.key_layout))
     for row in rows:
         raise_if_cancelled(stop_event)
         if encode_store_row(row) != row.raw:
@@ -534,7 +535,7 @@ def store_index(rows: Iterable[StoreRow]) -> Mapping[str, StoreRow]:
 def apply_store_row(payload: bytes, header: bytes, row: StoreRow) -> Tuple[bytes, bytes]:
     """Write `row` back into the table pair, shifting later rows if its size changed."""
 
-    return replace_table_row(payload, header, row.key, encode_store_row(row))
+    return replace_table_row(payload, header, row.key, encode_store_row(row), string_key=row.name)
 
 
 __all__ = [

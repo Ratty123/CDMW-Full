@@ -20,10 +20,11 @@ from tools.new_item_corpus import read_table
 def test_supported_current_records_roundtrip(stem,parser,encoder,minimum,record_property):
     pair=read_table(stem)
     supported,unsupported=0,Counter()
-    for directory,start,end in parse_pabgh_table(pair.header,payload=pair.payload).row_spans(len(pair.payload)):
+    table = parse_pabgh_table(pair.header, payload=pair.payload)
+    for directory,start,end in table.row_spans(len(pair.payload)):
         raw=pair.payload[start:end]
         try:
-            row=parser(raw)
+            row=parser(raw, name=directory.string_key, key_layout=table.key_layout)
         except ValueError as error:
             unsupported[str(error)]+=1
             continue

@@ -127,7 +127,7 @@ def _row(payload, header, key):
     table = parse_pabgh_table(header, payload=payload)
     for row, start, end in table.row_spans(len(payload)):
         if row.row_id == key:
-            return table, payload[start:end]
+            return table, row, payload[start:end]
     raise DmmOperationsError(f"Row {key} is missing from the table.")
 
 
@@ -141,12 +141,12 @@ def _append_stock(snapshot, payload, header, intent):
                                            encode_store_row, parse_store_row)
 
     key, value = intent["key"], intent["new"]
-    table, raw = _row(payload, header, key)
+    table, directory_row, raw = _row(payload, header, key)
     try:
         entry = stock_bytes(value)
         item = value["value"]["raw_q"]
-        if table.key_layout == "named":
-            row = parse_compact_store(raw, key)
+        if table.key_layout in ("named", "indexed"):
+            row = parse_compact_store(raw, key, name=directory_row.string_key, key_layout=table.key_layout)
         else:
             row = parse_store_row(raw, key=key, layout="current")
         _own_item(snapshot, item, f"Shop {row.name!r}")
@@ -154,11 +154,16 @@ def _append_stock(snapshot, payload, header, intent):
             raise DmmOperationsError(f"A stock line for shop {row.name!r} names another shop.")
         if row.entries_for(item):
             raise DmmOperationsError(f"Shop {row.name!r} already stocks item {item}.")
-        if table.key_layout == "named":
-            layout = read_compact_layout(raw, "storeinfo")
+        if table.key_layout in ("named", "indexed"):
+            layout = read_compact_layout(raw, "storeinfo", key_layout=table.key_layout)
             stock = layout.data("_stockDataList")
             grown = struct.pack("<I", struct.unpack_from("<I", stock)[0] + 1) + stock[4:] + entry
-            row = parse_compact_store(replace_layout_fields(layout, {"_stockDataList": grown}).raw, key)
+            row = parse_compact_store(
+                replace_layout_fields(layout, {"_stockDataList": grown}).raw,
+                key,
+                name=directory_row.string_key,
+                key_layout=table.key_layout,
+            )
         else:
             added = _parse_entry(entry, 0, len(entry), 8)
             if encode_stock_entry(added) != entry or added.item_key != item:
@@ -178,8 +183,8 @@ def _append_member(snapshot, payload, header, intent):
     from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, parse_item_group_row
 
     key, item = intent["key"], intent["new"]
-    _table, raw = _row(payload, header, key)
-    row = parse_item_group_row(raw, key=key)
+    table, directory_row, raw = _row(payload, header, key)
+    row = parse_item_group_row(raw, key=key, name=directory_row.string_key, key_layout=table.key_layout)
     _own_item(snapshot, item, f"Item group {row.name!r}")
     if item in row.members:
         raise DmmOperationsError(f"Item group {row.name!r} already lists item {item}.")

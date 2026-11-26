@@ -5256,7 +5256,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 98,
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -5786,7 +5786,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 63,
+          "line": 68,
           "sink": "ValueError"
         }
       ]
@@ -5796,7 +5796,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 98,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -5816,7 +5816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 85,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -5851,7 +5851,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 102,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -6131,7 +6131,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 93,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -6276,7 +6276,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 275,
+          "line": 284,
           "sink": "ValueError"
         }
       ]
@@ -6771,7 +6771,7 @@
         },
         {
           "path": "cdmw/services/new_item_acquisition_index.py",
-          "line": 97,
+          "line": 95,
           "sink": "raise_if_cancelled"
         },
         {
@@ -9116,7 +9116,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 776,
+          "line": 806,
           "sink": "log"
         }
       ]
@@ -14166,7 +14166,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 91,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -27781,7 +27781,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 411,
+          "line": 420,
           "sink": "ValueError"
         }
       ]
@@ -27871,7 +27871,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 90,
+          "line": 97,
           "sink": "ValueError"
         }
       ]
@@ -46086,7 +46086,7 @@
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 754,
+          "line": 784,
           "sink": "export_loose"
         }
       ]
@@ -52201,7 +52201,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 390,
+          "line": 399,
           "sink": "ValueError"
         }
       ]
@@ -52211,7 +52211,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 100,
+          "line": 107,
           "sink": "ValueError"
         }
       ]
@@ -52221,12 +52221,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 50,
+          "line": 55,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 53,
+          "line": 59,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -52236,7 +52236,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 130,
+          "line": 137,
           "sink": "add"
         }
       ]
@@ -54501,12 +54501,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 294,
+          "line": 299,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 467,
+          "line": 472,
           "sink": "ValueError"
         }
       ]
@@ -68231,7 +68231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 88,
+          "line": 89,
           "sink": "RuntimeError"
         }
       ]
@@ -68261,7 +68261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 86,
+          "line": 87,
           "sink": "RuntimeError"
         }
       ]
@@ -68291,7 +68291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 74,
+          "line": 75,
           "sink": "RuntimeError"
         }
       ]
@@ -68326,7 +68326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 124,
+          "line": 126,
           "sink": "RunCancelled"
         },
         {
@@ -68386,7 +68386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 51,
+          "line": 52,
           "sink": "ValueError"
         },
         {
@@ -68401,7 +68401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 48,
+          "line": 49,
           "sink": "FileNotFoundError"
         }
       ]
@@ -72741,7 +72741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 388,
+          "line": 393,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -76356,7 +76356,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 570,
+          "line": 599,
           "sink": "add"
         }
       ]
@@ -78226,7 +78226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 153,
+          "line": 158,
           "sink": "ValueError"
         }
       ]
@@ -94041,7 +94041,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 562,
+          "line": 591,
           "sink": "add"
         },
         {
@@ -99191,7 +99191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 152,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -105081,7 +105081,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 246,
+          "line": 251,
           "sink": "raise_if_cancelled"
         },
         {
@@ -105106,77 +105106,77 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 573,
+          "line": 576,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 636,
+          "line": 639,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 648,
+          "line": 651,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 676,
+          "line": 684,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 681,
+          "line": 689,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 705,
+          "line": 713,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 714,
+          "line": 722,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 716,
+          "line": 724,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 719,
+          "line": 727,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 790,
+          "line": 806,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 843,
+          "line": 859,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 851,
+          "line": 867,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 866,
+          "line": 882,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 916,
+          "line": 932,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 918,
+          "line": 934,
           "sink": "raise_if_cancelled"
         },
         {
@@ -105981,7 +105981,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 339,
+          "line": 348,
           "sink": "ValueError"
         }
       ]
@@ -106441,7 +106441,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 266,
+          "line": 275,
           "sink": "ValueError"
         }
       ]
@@ -120371,22 +120371,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 531,
+          "line": 560,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 584,
+          "line": 613,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 614,
+          "line": 644,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 786,
+          "line": 816,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -123336,7 +123336,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 559,
+          "line": 588,
           "sink": "add"
         }
       ]
@@ -124671,7 +124671,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 535,
+          "line": 564,
           "sink": "log"
         }
       ]
@@ -124681,7 +124681,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1133,
+          "line": 1150,
           "sink": "log"
         }
       ]
@@ -125811,7 +125811,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 567,
+          "line": 596,
           "sink": "add"
         }
       ]
@@ -126231,7 +126231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 545,
+          "line": 550,
           "sink": "ValueError"
         }
       ]
@@ -126241,7 +126241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 547,
+          "line": 552,
           "sink": "ValueError"
         }
       ]
@@ -127561,7 +127561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1152,
+          "line": 1169,
           "sink": "add"
         }
       ]
@@ -132693,6 +132693,11 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:origin"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:origin"
         }
       ]
     },
@@ -134426,7 +134431,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 637,
+          "line": 640,
           "sink": "_log_progress"
         }
       ]
@@ -134466,7 +134471,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 706,
+          "line": 714,
           "sink": "_log_progress"
         }
       ]
@@ -134476,7 +134481,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 677,
+          "line": 685,
           "sink": "_log_progress"
         }
       ]
@@ -134881,7 +134886,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 791,
+          "line": 807,
           "sink": "_log_progress"
         }
       ]
@@ -134966,12 +134971,12 @@
         },
         {
           "path": "cdmw/services/game_table_edits.py",
-          "line": 269,
+          "line": 272,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/game_table_edits.py",
-          "line": 278,
+          "line": 281,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -135086,17 +135091,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 320,
+          "line": 335,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 333,
+          "line": 348,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 807,
+          "line": 837,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -135216,7 +135221,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 856,
+          "line": 872,
           "sink": "_log_progress"
         }
       ]
@@ -136546,7 +136551,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 91,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -136576,7 +136581,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 81,
+          "line": 86,
           "sink": "ValueError"
         }
       ]
@@ -141941,7 +141946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 579,
+          "line": 584,
           "sink": "ValueError"
         }
       ]
@@ -141956,17 +141961,17 @@
         },
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 72,
+          "line": 73,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 98,
+          "line": 99,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_rust_replacement_materials.py",
-          "line": 216,
+          "line": 221,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -147401,7 +147406,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_reward_acquisition.py",
-          "line": 41,
+          "line": 47,
           "sink": "ValueError"
         }
       ]
@@ -147451,7 +147456,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_reward_acquisition.py",
-          "line": 22,
+          "line": 28,
           "sink": "ValueError"
         }
       ]
@@ -147461,7 +147466,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_reward_acquisition.py",
-          "line": 45,
+          "line": 51,
           "sink": "ValueError"
         }
       ]
@@ -165771,7 +165776,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 928,
+          "line": 944,
           "sink": "_log_progress"
         }
       ]
@@ -171916,7 +171921,7 @@
       "origins": [
         {
           "path": "cdmw/services/game_table_edits.py",
-          "line": 395,
+          "line": 398,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -173116,7 +173121,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 138,
+          "line": 145,
           "sink": "log"
         }
       ]
@@ -175691,7 +175696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_free_edit_output.py",
-          "line": 107,
+          "line": 108,
           "sink": "RuntimeError"
         }
       ]
@@ -175741,7 +175746,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 43,
+          "line": 48,
           "sink": "ValueError"
         }
       ]
@@ -176046,7 +176051,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 113,
+          "line": 120,
           "sink": "ValueError"
         }
       ]
@@ -178876,7 +178881,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 201,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -178886,7 +178891,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 204,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -180016,7 +180021,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 144,
+          "line": 152,
           "sink": "ValueError"
         }
       ]
@@ -181071,7 +181076,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 171,
+          "line": 180,
           "sink": "ValueError"
         }
       ]
@@ -181396,7 +181401,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_reward_acquisition.py",
-          "line": 35,
+          "line": 41,
           "sink": "ValueError"
         }
       ]
@@ -181591,7 +181596,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 413,
+          "line": 422,
           "sink": "ValueError"
         }
       ]
@@ -181601,12 +181606,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 186,
+          "line": 195,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 192,
+          "line": 201,
           "sink": "ValueError"
         }
       ]
@@ -182481,7 +182486,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 862,
+          "line": 878,
           "sink": "_log_progress"
         }
       ]
@@ -182641,7 +182646,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 157,
+          "line": 166,
           "sink": "ValueError"
         }
       ]
@@ -185491,7 +185496,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 36,
+          "line": 41,
           "sink": "ValueError"
         }
       ]
@@ -185636,7 +185641,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 120,
+          "line": 127,
           "sink": "ValueError"
         }
       ]
@@ -188386,7 +188391,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 128,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -195211,7 +195216,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 387,
+          "line": 396,
           "sink": "add"
         }
       ]
@@ -195221,7 +195226,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 348,
+          "line": 357,
           "sink": "add"
         }
       ]
@@ -195231,7 +195236,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 402,
+          "line": 411,
           "sink": "add"
         }
       ]
@@ -195241,7 +195246,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 415,
+          "line": 424,
           "sink": "add"
         }
       ]
@@ -195251,7 +195256,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 77,
+          "line": 86,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -195261,7 +195266,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 362,
+          "line": 371,
           "sink": "add"
         }
       ]
@@ -201481,7 +201486,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_painting.py",
-          "line": 787,
+          "line": 817,
           "sink": "log"
         },
         {
@@ -206786,7 +206791,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 130,
+          "line": 137,
           "sink": "add"
         }
       ]
@@ -206851,7 +206856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 106,
+          "line": 108,
           "sink": "python-return:roles"
         }
       ]
@@ -211971,7 +211976,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 106,
+          "line": 108,
           "sink": "python-return:roles"
         }
       ]
@@ -212186,7 +212191,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 1004,
+          "line": 1021,
           "sink": "add"
         }
       ]
@@ -214373,6 +214378,11 @@
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
           "sink": "json-presentation:group"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:group"
         }
       ]
     },
@@ -214838,6 +214848,11 @@
           "path": "cdmw/services/asset_authoring_service.py",
           "line": 87,
           "sink": "AssetAuthoringHelperSpec"
+        },
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:role"
         },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
@@ -215786,12 +215801,12 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 419,
+          "line": 424,
           "sink": "allocate_owned_keys"
         },
         {
           "path": "cdmw/services/new_item_recipes.py",
-          "line": 72,
+          "line": 77,
           "sink": "allocate_owned_keys"
         }
       ]
@@ -216664,6 +216679,11 @@
     {
       "key": "no schema model, so edits are unchecked text edits",
       "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:remaining"
+        },
         {
           "path": "schemas/archive_content_capabilities.v1.json",
           "line": 1,
@@ -218226,7 +218246,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 49,
+          "line": 54,
           "sink": "optional_pair"
         }
       ]
@@ -218533,6 +218553,16 @@
           "path": "cdmw/ui/archive_browser/attachment_visual_preview.py",
           "line": 178,
           "sink": "ModelPreviewData"
+        }
+      ]
+    },
+    {
+      "key": "plain XML (<MaterialPermutationUsage>) under shadercache__/ listing pipeline passes, material entry hashes and unused shader macros (2 files on 1.0.0.3840)",
+      "origins": [
+        {
+          "path": "schemas/archive_content_capabilities.v1.json",
+          "line": 1,
+          "sink": "json-presentation:evidence"
         }
       ]
     },
@@ -218986,7 +219016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 260,
+          "line": 262,
           "sink": "ValueError"
         }
       ]
@@ -219151,7 +219181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 203,
+          "line": 205,
           "sink": "ValueError"
         }
       ]
@@ -219206,7 +219236,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 123,
+          "line": 124,
           "sink": "RunCancelled"
         },
         {
@@ -219251,17 +219281,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 245,
+          "line": 247,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 249,
+          "line": 251,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 275,
+          "line": 277,
           "sink": "ValueError"
         }
       ]
@@ -219271,7 +219301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 229,
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -219281,7 +219311,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 242,
+          "line": 244,
           "sink": "ValueError"
         }
       ]
@@ -219291,22 +219321,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 167,
+          "line": 169,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 173,
+          "line": 175,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 177,
+          "line": 179,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 233,
+          "line": 235,
           "sink": "ValueError"
         }
       ]
@@ -219316,7 +219346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 227,
+          "line": 229,
           "sink": "ValueError"
         }
       ]
@@ -219326,7 +219356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 239,
+          "line": 241,
           "sink": "ValueError"
         }
       ]
@@ -219336,7 +219366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 200,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -219376,7 +219406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 214,
+          "line": 216,
           "sink": "ValueError"
         }
       ]
@@ -219386,7 +219416,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_files.py",
-          "line": 208,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -222656,7 +222686,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 965,
+          "line": 982,
           "sink": "add"
         }
       ]
@@ -223716,7 +223746,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 106,
+          "line": 108,
           "sink": "python-return:roles"
         }
       ]
@@ -224486,7 +224516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 953,
+          "line": 970,
           "sink": "add"
         }
       ]
@@ -225911,7 +225941,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 106,
+          "line": 108,
           "sink": "python-return:roles"
         }
       ]
@@ -228196,7 +228226,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 351,
+          "line": 373,
           "sink": "python-return:describe"
         }
       ]
@@ -232091,7 +232121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 408,
+          "line": 430,
           "sink": "python-return:describe"
         }
       ]
@@ -232626,7 +232656,7 @@
       "origins": [
         {
           "path": "cdmw/services/game_table_edits.py",
-          "line": 243,
+          "line": 246,
           "sink": "python-return:describe_edit"
         }
       ]
@@ -232976,7 +233006,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 474,
+          "line": 496,
           "sink": "python-return:describe"
         }
       ]
@@ -234581,12 +234611,12 @@
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 396,
+          "line": 405,
           "sink": "template_collision_copy"
         },
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 400,
+          "line": 409,
           "sink": "payload"
         }
       ]
@@ -235676,7 +235706,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 937,
+          "line": 954,
           "sink": "add"
         },
         {
@@ -236121,7 +236151,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 833,
+          "line": 847,
           "sink": "python-return:summary"
         }
       ]

@@ -93,7 +93,8 @@ def animation(index: int, *, end: float, arrays: dict, events: list, layout=ANIM
 
 
 def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"",
-                ai_move: int = 0, layout=ANIMATION_ARRAYS) -> bytes:
+                ai_move: int = 0, layout=ANIMATION_ARRAYS, has_share_value: bool = True,
+                events_data: bytes | None = None) -> bytes:
     """`ai_move` aiMoveSpeedInfo records go on the first animation, at `layout`'s width."""
 
     width = dict(layout)["aiMoveSpeedInfoArray"]
@@ -108,7 +109,8 @@ def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"",
     out += struct.pack("<III", 0, 0, 0)
     out += b"".join(strings(values) for values in tables)
     out += struct.pack("<fIIfBB", 1.0, 0, 0, 1.0, 0, 0)
-    out += strings(()) + struct.pack("<10H", *share_counts)
+    if has_share_value:
+        out += strings(()) + struct.pack("<10H", *share_counts)
     out += struct.pack("<6BHH", 0, 0, 1, 0, 1, 0, 2, 0)
     out += b"\0" * 40  # DefaultSocket
     out += struct.pack("<H", 0)  # include: table 0 entry 0
@@ -122,7 +124,7 @@ def chart_bytes(*, share_counts=(0,) * 10, tables=TABLES, trailing: bytes = b"",
     out += struct.pack("<I", 1) + b"\0" * 0x38 + struct.pack("<II", 0, 0)  # branchInstanceArray
     out += struct.pack("<HI", 0, 0)  # keyGuideInstanceArray
     out += struct.pack("<IB", 0, 0)  # key guide frame events
-    events = frame_events()
+    events = frame_events() if events_data is None else events_data
     out += struct.pack("<I", len(events)) + events
     out += struct.pack("<BI", 0, 0)  # child frame events, contents groups
     return out + trailing
@@ -392,6 +394,41 @@ def test_placement_studio_reads_socket_events_from_the_current_layout():
     assert [(event.part, event.mode, event.parent, event.child) for event in first.sockets] == [
         ("MainWeapon_Sword", 2, "RHand_Socket", "Bip01 R Hand")]
     assert first.other_types == (57,)
+
+
+def test_chart_206_without_share_value_decodes_and_round_trips():
+    data = chart_bytes(has_share_value=False)
+    chart = decode_action_chart(data, virtual_path="actionchart/bin__/upperaction/sword_upper.paac")
+    assert chart.array_layout == "2.06"
+    assert sum(span.size for span in chart.spans) == len(data)
+    new_clip = "1_pc/1_phm/cd_phm_longsword_3840.paa"
+    patched, _ = retarget_animation(data, CLIPS[0], new_clip)
+    assert decode_action_chart(patched).array_layout == "2.06"
+    assert retarget_animation(patched, new_clip, CLIPS[0])[0] == data
+
+
+@pytest.mark.parametrize("kind_sizes, expected_kinds", [
+    ([(MODEL_ATTACHMENT_SOCKET_KIND, 32), (5, 52), (58, 60), (102, 28), (131, 220), (161, 68), (178, 16)],
+     [MODEL_ATTACHMENT_SOCKET_KIND, 5, 58, 102, 131, 161, 178]),
+    ([(MODEL_ATTACHMENT_SOCKET_KIND, 32), (5, 44), (58, 64), (102, 28), (131, 216), (161, 56)],
+     [MODEL_ATTACHMENT_SOCKET_KIND, 5, 58, 102, 131, 161]),
+    ([(MODEL_ATTACHMENT_SOCKET_KIND, 32), (5, 44), (102, 24)],
+     [MODEL_ATTACHMENT_SOCKET_KIND, 5, 102]),
+])
+def test_frame_event_size_tables_cover_3840_3732_and_legacy(kind_sizes, expected_kinds):
+    socket = bytearray(struct.pack("<5H", MODEL_ATTACHMENT_SOCKET_KIND, 0, 0, 0x102, 0xFFFF) + b"\0\0"
+                       + struct.pack("<fIHHHBBBb", 0.0, 0, 0, 1, 0, 2, 0, 0, 0) + b"\0\0")
+    buf = bytes(socket)
+    for kind, size in kind_sizes[1:]:
+        buf += struct.pack("<5H", kind, 0, 0, 0, 0xFFFF) + b"\0" * (size - 10)
+    data = chart_bytes(has_share_value=False, events_data=buf)
+    chart = decode_action_chart(data)
+    events = walk_frame_events(data, chart.frame_event_buffer)
+    assert [ev.kind for ev in events] == expected_kinds
+    # Copying a shared socket event works regardless of which event size generation the buffer uses
+    edited = apply_event_edits(data, [EventEdit(0, 0, "parent socket", "Bip01 R Hand")])
+    after = decode_action_chart(edited)
+    assert len(walk_frame_events(edited, after.frame_event_buffer)) == len(expected_kinds) + 1
 
 
 @pytest.mark.real_game

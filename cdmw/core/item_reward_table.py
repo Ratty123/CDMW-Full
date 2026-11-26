@@ -24,6 +24,8 @@ class ItemReward:
     # Opaque byte following the compact 3663 enchantment level. Retained per
     # entry so cloning, appending and reordering rewards cannot lose it.
     compact_enchant_extra: bytes = field(default=b'', repr=False)
+    # Inline actor/target/region conditions carried by 1.0.0.3840 DropInfoData.
+    compact_condition_bytes: bytes = field(default=b'', repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,11 +52,11 @@ class ItemRewardSet:
                        entries=entries, total_weight=sum(r.weight for r in entries), original_string=source)
 
 
-def parse_item_reward_set(raw):
+def parse_item_reward_set(raw, *, name="", key_layout=None):
     from cdmw.core.new_item_record import named_prefix
-    if named_prefix(raw)[3] == 'compact':
+    if named_prefix(raw, key_layout=key_layout)[3] in ('compact', 'indexed'):
         from cdmw.core.acquisition_compact import parse_compact_reward
-        return parse_compact_reward(raw)
+        return parse_compact_reward(raw, name=name, key_layout=key_layout)
     reader = Cursor(raw)
     key, name = reader.unpack("I"), reader.text()
     if reader.take(1) != b"\0":

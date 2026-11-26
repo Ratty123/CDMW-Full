@@ -7,6 +7,16 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+### Added
+
+- **Archive Browser & Format Explorer**: added recognition and text/XML inspection support for `.pamu` shader permutation usage files introduced in Crimson Desert `1.0.0.3840`.
+
+### Fixed
+
+- **Create New Item, Archive Browser & Game Table Editing**: updated game-table readers and writers for Crimson Desert `1.0.0.3840` (variable-length `.staticinfoheader` directories, indexed rows, and inline conditions across base and DLC tables), fixing the ItemInfo decode failure on updated installations.
+- **Action Charts & Placement Studio**: added support for `1.0.0.3840` action charts (`2.06` layout and updated frame event sizes) while preserving compatibility with earlier charts.
+- **Bow & Quiver Mods (Placement Studio, Attachment Patching & Create New Item)**: quiver and bow prefabs (such as `cd_phm_04_quiver_0020.prefab`) now resolve their weapon class for attachment patching, match all arrow/quiver meshes on multi-mesh prefabs for socket-attached imports in Create New Item, and automatically pair bows with their companion quiver descriptor rows and quiver socket files in Placement Studio.
+
 ## [0.12.0-alpha.7-hotfix] - 2026-11-26
 
 ### Fixed

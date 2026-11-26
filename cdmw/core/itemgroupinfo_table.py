@@ -53,24 +53,24 @@ class ItemGroupRow:
         return len(self.prefix) + 4 + 2 * len(self.subgroups) + 4
 
 
-def parse_item_group_row(raw: bytes, *, key: Optional[int] = None, item_keys: Optional[Iterable[int]] = None) -> ItemGroupRow:
+def parse_item_group_row(raw: bytes, *, key: Optional[int] = None, item_keys: Optional[Iterable[int]] = None, name: str = "", key_layout: Optional[str] = None) -> ItemGroupRow:
     """Decode one row. `item_keys`, when given, must contain every member."""
 
     data = bytes(raw)
     from cdmw.core.new_item_record import named_prefix
     try:
-        own, name, _blocked, generation, _reader = named_prefix(data, 2, key=key)
+        own, resolved_name, _blocked, generation, _reader = named_prefix(data, 2, key=key, name=name, key_layout=key_layout)
     except ValueError:
         generation = 'legacy'
-    if generation == 'compact':
+    if generation in ('compact', 'indexed'):
         from cdmw.core.compact_static import read_compact_layout
         from cdmw.core.item_layout import counted_integers
-        layout = read_compact_layout(data, 'itemgroupinfo')
+        layout = read_compact_layout(data, 'itemgroupinfo', key_layout=key_layout or ('indexed' if generation == 'indexed' else 'named'))
         subgroups = counted_integers(layout, '_itemGroupInfoList', width=2)
         members = counted_integers(layout, '_itemInfoList')
         if item_keys is not None and set(members) - set(item_keys):
             raise ItemGroupError('Compact group contains an unknown item.')
-        return ItemGroupRow(data, own, name, b'', subgroups, members, b'', 'compact')
+        return ItemGroupRow(data, own, resolved_name, b'', subgroups, members, b'', 'compact')
     if len(data) < 6:
         raise ItemGroupError("row is too short for a key and a name length")
     row_key = struct.unpack_from("<H", data, 0)[0]
@@ -181,7 +181,7 @@ def parse_item_group_table(payload: bytes, header: bytes, *, item_keys: Optional
     table = parse_pabgh_table(header, payload=payload)
     known = frozenset(int(k) for k in item_keys) if item_keys is not None else None
     return tuple(
-        parse_item_group_row(payload[start:end], key=row.row_id, item_keys=known)
+        parse_item_group_row(payload[start:end], key=row.row_id, item_keys=known, name=row.string_key, key_layout=table.key_layout)
         for row, start, end in table.row_spans(len(payload))
     )
 
@@ -193,7 +193,7 @@ def groups_containing(rows: Iterable[ItemGroupRow], item_key: int) -> Tuple[Item
 def apply_item_group_row(payload: bytes, header: bytes, row: ItemGroupRow) -> Tuple[bytes, bytes]:
     """Write `row` back into the table pair, shifting later rows by its growth."""
 
-    return replace_table_row(payload, header, row.key, encode_item_group_row(row))
+    return replace_table_row(payload, header, row.key, encode_item_group_row(row), string_key=row.name)
 
 
 __all__ = [

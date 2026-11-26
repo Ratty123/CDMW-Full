@@ -114,7 +114,7 @@ def set_item_settings(raw, settings):
             raise RecordError('The selected full-width quantity is missing or ambiguous.')
         span = matches[0].span
         output[span.start:span.end] = edit.value.to_bytes(8, 'little', signed=edit.kind == 'stat')
-    final = read_item_layout(bytes(output), generation=layout.generation)
+    final = read_item_layout(bytes(output), generation=layout.generation, key_layout=getattr(layout, "key_layout", None))
     actual = {(value.kind, value.level, value.key): value.value for value in item_quantities(final)}
     if any(actual.get((edit.kind, edit.level, edit.key)) != edit.value for edit in settings.quantities):
         raise RecordError('The full-width quantity edit did not round-trip.')

@@ -221,10 +221,13 @@ def compose_table_edits(table: str, layers: Sequence[TableLayer], edits: Iterabl
             layer = next(item for item in layers if item.stem == stem)
             edited = apply_field_edits(table, layer.header, layer.body, values)
             directory = parse_pabgh_table(edited.header, payload=edited.body)
-            spans = {row.row_id: (start, end) for row, start, end in directory.row_spans(len(edited.body))}
+            spans = {row.row_id: (row, start, end) for row, start, end in directory.row_spans(len(edited.body))}
             for key in sorted({key for key, _target in values}):
-                start, end = spans[key]
-                body, header = replace_table_row(body, header, key, edited.body[start:end])
+                row_meta, start, end = spans[key]
+                body, header = replace_table_row(
+                    body, header, key, edited.body[start:end],
+                    string_key=row_meta.string_key if directory.header_format == "indexed_3840" else None,
+                )
     except (StaticTableError, ValueError) as exc:
         raise TableEditError(str(exc)) from exc
     return TableLayer(base.stem, header, body, base.source)

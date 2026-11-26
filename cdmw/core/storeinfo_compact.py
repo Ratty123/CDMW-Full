@@ -13,18 +13,19 @@ def drop_item(drop):
     if len(drop) < 9:
         raise RecordError('Compact shop drop data is truncated.')
     item = int.from_bytes(drop[:8], 'little') if drop[8] == 0 else 0
-    if item and (len(drop) not in (63, 64) or int.from_bytes(drop[-4:], 'little') != item):
+    if item and (len(drop) < 54 or int.from_bytes(drop[-4:], 'little') != item):
         raise RecordError('Compact shop item identity is inconsistent.')
     return item
 
 
-def parse_compact_store(raw, key=None):
+def parse_compact_store(raw, key=None, *, name='', key_layout=None):
     from cdmw.core.storeinfo_table import StoreRow, StockEntry
-    layout = read_compact_layout(raw, 'storeinfo')
+    layout = read_compact_layout(raw, 'storeinfo', key_layout=key_layout)
     own = layout.integer('_key', width=2)
     if key is not None and key != own:
         raise RecordError('Compact store identity differs from its directory.')
-    name = Cursor(layout.data('_stringKey')).text()
+    resolved_name = Cursor(layout.data('_stringKey')).text() if '_stringKey' in layout.fields else str(name or '')
+    stock_key_layout = 'indexed' if '_staticInfoIndex' in layout.fields else 'named'
     groups = {}
     for member in layout.members:
         if member.owner == 'StockData' and member.path[:1] == ('_stockDataList',):
@@ -33,7 +34,7 @@ def parse_compact_store(raw, key=None):
     for members in groups.values():
         start, end = min(m.span.start for m in members), max(m.span.end for m in members)
         entry_raw = raw[start:end]
-        entry = read_compact_layout(entry_raw, 'stockdata')
+        entry = read_compact_layout(entry_raw, 'stockdata', key_layout=stock_key_layout)
         def number(field, width=4, signed=False):
             return int.from_bytes(entry.data(field), 'little', signed=signed)
         drop = field_payload(entry, '_dropInfoData')
@@ -51,13 +52,13 @@ def parse_compact_store(raw, key=None):
             field_payload(entry,'_conditionOption'), records, start, end,
             entry.data('_maxRefillCondition'), compact_raw=entry_raw))
     stock = layout.fields['_stockDataList']
-    return StoreRow(raw, own, name, raw[:stock.start], layout.integer('_buyableStockCount',width=4),
+    return StoreRow(raw, own, resolved_name, raw[:stock.start], layout.integer('_buyableStockCount',width=4),
         layout.integer('_sellableStockCount',width=4), layout.integer('_storeType',width=1), tuple(entries),
         raw[stock.end:], stock.start, 'compact')
 
 
-def encode_compact_stock(entry):
-    layout = read_compact_layout(entry.compact_raw, 'stockdata')
+def encode_compact_stock(entry, *, key_layout=None):
+    layout = read_compact_layout(entry.compact_raw, 'stockdata', key_layout=key_layout)
     changes = {field: struct.pack(fmt, value) for field,fmt,value in (
         ('_storeInfo','<H',entry.store_key), ('_minPricePercent','<Q',entry.min_price_percent),
         ('_maxPricePercent','<Q',entry.max_price_percent), ('_maxRefillCount','<I',entry.count),
@@ -69,7 +70,7 @@ def encode_compact_stock(entry):
         ('_refillByResetStore','_isStockSellable','_isStockBuyable','_isRestoreItem'),entry.flags)})
     drop = bytearray(entry.drop_bytes)
     if entry.item_key:
-        if len(drop) not in (63, 64) or drop[8] != 0:
+        if len(drop) < 54 or drop[8] != 0:
             raise RecordError('This shop result is not an editable item.')
         struct.pack_into('<Q',drop,0,entry.item_key)
         struct.pack_into('<I',drop,len(drop)-4,entry.item_key)
@@ -82,8 +83,9 @@ def encode_compact_stock(entry):
 
 
 def encode_compact_store(row):
-    layout = read_compact_layout(row.raw,'storeinfo')
+    layout = read_compact_layout(row.raw, 'storeinfo')
+    stock_key_layout = 'indexed' if '_staticInfoIndex' in layout.fields else 'named'
     changes = {'_buyableStockCount':struct.pack('<I',row.buyable_count),
         '_sellableStockCount':struct.pack('<I',row.sellable_count), '_storeType':bytes([row.store_type]),
-        '_stockDataList':struct.pack('<I',len(row.entries))+b''.join(encode_compact_stock(v) for v in row.entries)}
+        '_stockDataList':struct.pack('<I',len(row.entries))+b''.join(encode_compact_stock(v, key_layout=stock_key_layout) for v in row.entries)}
     return replace_layout_fields(layout, changes).raw

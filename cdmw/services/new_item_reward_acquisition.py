@@ -4,7 +4,13 @@ from cdmw.core.item_reward_table import encode_item_reward_set
 from cdmw.core.item_use_reward import encode_item_use_reward, replace_item_use_reference
 from cdmw.core.iteminfo_row import parse_iteminfo_row
 from cdmw.domain.new_item.allocation import allocate_owned_record_keys
-from cdmw.core.structured_binary_editor import append_table_rows, replace_table_row
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    replace_table_row,
+    set_row_static_info_index,
+)
 from cdmw.services.new_item_acquisition_index import load_acquisition_index
 from cdmw.services.new_item_recipes import table_keys
 
@@ -27,7 +33,7 @@ def plan_reward_acquisition(planner):
     reward_body, reward_header = planner.table_data(reward_pair)
     use_keys = table_keys(use_body, use_header) | set(index.all_use_keys)
     reward_keys = table_keys(reward_body, reward_header) | set(index.rewards) | set(index.unsupported['dropsetinfo'])
-    use_rows, reward_rows, changed_items, manifests = [], [], {}, []
+    use_rows, use_names, reward_rows, reward_names, changed_items, manifests = [], [], [], [], {}, []
     for identity, edits in selected.items():
         planner.check()
         consumer = next((value for value in index.consumers if value[:2] == identity), None)
@@ -58,10 +64,12 @@ def plan_reward_acquisition(planner):
         owned_reward = source_reward.with_entries(products, key=reward_key, name=f"{spec.internal_name}_reward_{reward_key}")
         owned_use = replace(source_use, key=use_key, name=f"{spec.internal_name}_use_{use_key}", reward_key=reward_key)
         reward_rows.append(encode_item_reward_set(owned_reward))
+        reward_names.append(owned_reward.name)
         use_rows.append(encode_item_use_reward(owned_use))
+        use_names.append(owned_use.name)
         item = changed_items.get(item_key, snapshot.rows[item_key])
         raw = replace_item_use_reference(item, use_keys, use_index, source_use_key, use_key)
-        changed_items[item_key] = parse_iteminfo_row(raw, item_keys=set(snapshot.rows))
+        changed_items[item_key] = parse_iteminfo_row(raw, item_keys=set(snapshot.rows), string_key=item.string_key)
         manifests.append({"consumer_item_key": item_key, "consumer_name": item.string_key, "use_index": use_index,
                           "source_use_key": source_use_key, "use_key": use_key, "source_reward_key": source_reward_key,
                           "reward_key": reward_key, "operations": [{"mode": edit.mode, "entry_index": edit.entry_index,
@@ -70,13 +78,27 @@ def plan_reward_acquisition(planner):
                           "sub_weight": source_reward.entries[edit.entry_index].sub_weight,
                           "conditions": source_reward.entries[edit.entry_index].condition_references} for edit in edits],
                           "use_conditions": [value.hex() for value in source_use.conditions]})
-    use_body, use_header = append_table_rows(use_body, use_header, use_rows)
-    reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows)
+    use_table = parse_pabgh_table(use_header, payload=use_body)
+    if use_table.header_format == "indexed_3840":
+        next_use_idx = next_static_info_index(use_body, use_header)
+        use_rows = [set_row_static_info_index(r, use_table.key_width, next_use_idx + i)
+                    for i, r in enumerate(use_rows)]
+        use_body, use_header = append_table_rows(use_body, use_header, use_rows, string_keys=use_names)
+    else:
+        use_body, use_header = append_table_rows(use_body, use_header, use_rows)
+    reward_table = parse_pabgh_table(reward_header, payload=reward_body)
+    if reward_table.header_format == "indexed_3840":
+        next_reward_idx = next_static_info_index(reward_body, reward_header)
+        reward_rows = [set_row_static_info_index(r, reward_table.key_width, next_reward_idx + i)
+                       for i, r in enumerate(reward_rows)]
+        reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows, string_keys=reward_names)
+    else:
+        reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows)
     for item in changed_items.values():
         from cdmw.services.new_item_tables import row_pair
         pair = row_pair(snapshot,'iteminfo',item.key)
         item_body,item_header = planner.table_data(pair)
-        item_body, item_header = replace_table_row(item_body, item_header, item.key, item.raw)
+        item_body, item_header = replace_table_row(item_body, item_header, item.key, item.raw, string_key=item.string_key)
         planner.patch(pair.payload_entry,item_body,'ItemInfo: selected reward consumer')
         planner.patch(pair.header_entry,item_header,'Reward consumer directory')
     for pair, body, header in ((use_pair, use_body, use_header), (reward_pair, reward_body, reward_header)):

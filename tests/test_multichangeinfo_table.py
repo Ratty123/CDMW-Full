@@ -105,9 +105,18 @@ class VanillaMultiChangeTests(unittest.TestCase):
                "iteminfo.pabgb":items_pair.payload,"iteminfo.pabgh":items_pair.header}
         rows = {r.key: r for r in parse_multichange_table(found["multichangeinfo.pabgb"], found["multichangeinfo.pabgh"])}
         self.assertGreater(len(rows), 18000)
-        spans = parse_pabgh_table(found["iteminfo.pabgh"], payload=found["iteminfo.pabgb"]).row_spans(len(found["iteminfo.pabgb"]))
+        item_table = parse_pabgh_table(found["iteminfo.pabgh"], payload=found["iteminfo.pabgb"])
+        spans = item_table.row_spans(len(found["iteminfo.pabgb"]))
         keys = {row.row_id for row, _s, _e in spans}
-        items = {row.row_id: parse_iteminfo_row(found["iteminfo.pabgb"][s:e], item_keys=keys) for row, s, e in spans}
+        items = {
+            row.row_id: parse_iteminfo_row(
+                found["iteminfo.pabgb"][s:e],
+                item_keys=keys,
+                string_key=row.string_key,
+                key_layout=item_table.key_layout,
+            )
+            for row, s, e in spans
+        }
         ziane = items[1001295]
         listed = find_multichange_keys(ziane, rows)
         own = transition_rows_for(rows, listed, 1001295)

@@ -5,7 +5,7 @@ from cdmw.core.compact_static import field_bytes, field_payload
 from cdmw.core.new_item_record import Cursor, RecordError
 
 
-def parse_compact_item(layout):
+def parse_compact_item(layout, *, string_key=""):
     from cdmw.core.iteminfo_row import EnchantLevel, ItemInfoRow, OccupiedSlot, PriceEntry, StatValue
 
     def text(field, *, local=False):
@@ -81,7 +81,8 @@ def parse_compact_item(layout):
             tuple(v[1] for v in buff_entries), int.from_bytes(layout.raw[effect.start:effect.end], 'little'),
             passive_buffs=layout.raw[passive.start:passive.end]))
     start, end = layout.fields['_dropDefaultData'].start, layout.fields['_priceList'].end
-    return ItemInfoRow(raw=layout.raw, key=layout.integer('_key', width=4), string_key=text('_stringKey'),
+    name = text('_stringKey') if '_stringKey' in layout.fields else str(string_key or '')
+    return ItemInfoRow(raw=layout.raw, key=layout.integer('_key', width=4), string_key=name,
         is_blocked=layout.integer('_isBlocked', width=1), max_stack_count=layout.integer('_maxStackCount', width=8),
         name_key=text('_itemName', local=True), equip_type_key=layout.integer('_equipTypeInfo', width=4),
         occupied_slots=slots, prefix_end=layout.fields['_occupiedEquipSlotDataList'].end,
@@ -91,14 +92,15 @@ def parse_compact_item(layout):
         stat_block_offset=start, enchant_levels=tuple(levels), enchant_count=len(levels),
         price_list=prices(layout.fields['_priceList']), stat_block_end=end, stat_block_flags=flags,
         category_info=layout.integer('_categoryInfo', width=2), category_info_offset=layout.fields['_categoryInfo'].start,
-        layout_generation='compact', stack_count_offset=layout.fields['_maxStackCount'].start)
+        layout_generation='compact', stack_count_offset=layout.fields['_maxStackCount'].start,
+        key_layout=getattr(layout, 'key_layout', None))
 
 
 def encode_compact_stat_block(row, *, levels=None, price_list=None, socket_items=None, add_socket_materials=None):
     from cdmw.core.item_layout import read_item_layout, replace_layout_fields
     from cdmw.core.iteminfo_row import _encode_price_entry
 
-    layout = read_item_layout(row.raw, generation='compact')
+    layout = read_item_layout(row.raw, generation='compact', key_layout=getattr(row, 'key_layout', None))
     changes = {}
     sockets = tuple(row.socket_items if socket_items is None else socket_items)
     materials = tuple(row.add_socket_materials if add_socket_materials is None else add_socket_materials)

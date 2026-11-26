@@ -18538,6 +18538,7 @@
     "placement-preview": "yerleşim önizlemesi",
     "placement-schematic-preview": "yerleşim şeması önizlemesi",
     "placement-socket-preview": "placement-socket-preview",
+    "plain XML (<MaterialPermutationUsage>) under shadercache__/ listing pipeline passes, material entry hashes and unused shader macros (2 files on 1.0.0.3840)": "shadercache__/ altında ardışık düzen geçişlerini, malzeme girdi karmalarını ve kullanılmayan gölgelendirici makrolarını listeleyen düz XML (<MaterialPermutationUsage>) (1.0.0.3840 sürümünde 2 dosya)",
     "plain XML (ARFaceAnimation / ARFacePoseRecordedData): recorded facial capture": "düz XML (ARFaceAnimation / ARFacePoseRecordedData): kaydedilmiş yüz yakalama",
     "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData": "düz XML (SkinnedDecalProperty) ReflectObjectXMLData içerir",
     "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text": "düz XML (SplineDataGroup) ReflectObjectXMLData içerir, metin olarak okunabilir ve gönderilebilir",

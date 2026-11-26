@@ -72,11 +72,12 @@ def load_definition_index(snapshot, *, stop_event=None):
             unavailable.append(table)
             continue
         named = []
-        for key, raw in _rows(snapshot, table, key_width=width, stop_event=stop_event).items():
+        from cdmw.services.new_item_tables import row_metadata
+        for key, (raw, sk, kl) in row_metadata(snapshot, table, key_width=width, stop_event=stop_event).items():
             raise_if_cancelled(stop_event)
             try:
                 from cdmw.core.new_item_record import named_prefix
-                _key,name,blocked,_generation,_cursor = named_prefix(raw,width,key=key)
+                _key,name,blocked,_generation,_cursor = named_prefix(raw,width,key=key,name=sk,key_layout=kl)
                 if blocked == 0:
                     named.append((key, name))
             except (ValueError, UnicodeError):

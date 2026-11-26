@@ -348,6 +348,21 @@ and start builds are not established. Corpus and executable-label evidence only.
 `tools/patch_day_check.py` now runs every `real_game` guard after a patch and compares
 the result with `tests/patch_day_baseline.json`.
 
+**26 November 2026 static-table and format compatibility on `1.0.0.3840`:**
+executable `1.0.0.3840` (Steam build `26949954`) replaces the fixed-width `.staticinfoheader`
+directory with a variable-length directory (`key`, UTF-8 `_stringKey`, `offset`, `size`),
+moves `_stringKey` out of every root payload row in favour of an inline `u32 _staticInfoIndex`
+immediately after `_key`, inlines selected `ConditionInfo` references as optional inline
+records across static tables, retires `frameeventattrgroupinfo` (base and `dlc_01`),
+consolidates most DLC `.paloc` string tables into base archives (`1,155 -> 690` `.paloc`
+files), and adds two `.pamu` XML `<MaterialPermutationUsage>` files under
+`shadercache__/d3d12/windows/`. On read-only corpus checks across the installed `1.0.0.3840`
+archives, all 133 shipped static tables decode (`479,849` rows decoded, `25` expected
+closed-variant refusals, `0` open failures), and the `real_game` `patch_day_check.py` sweep
+reports `0` new failures while resolving all nine previously open static-table baseline failures.
+This is source and read-only corpus inspection only; archive mutation and in-game launch
+acceptance are not tested here.
+
 Numbered archive groups pair a `.pamt` index with numbered `.paz` payloads.
 The index records paths, payload locations, stored/original sizes and flags.
 `meta/0.papgt` describes mounted archive groups and their ordering. Correct
@@ -1883,9 +1898,12 @@ runtime dump, archives read-only):
   stores a file offset. Each read has a failure message naming the member it
   fills, which names the sections: per-animation `AnimationInfo` (a 0xA8-byte
   header plus eleven arrays and frame-event instances), ten string tables,
-  `ActionSpeedRate`, an always-empty `ShareValue` block, `CountInfo`,
+  `ActionSpeedRate`, an always-empty `ShareValue` block (omitted in `1.0.0.3840`
+  `2.06` charts; `2.05`/`2.04` fallbacks retained), `CountInfo`,
   `DefaultSocket`, included sub-chart names, 0x120-byte `actionChart` nodes,
-  condition, branch and key-guide arrays, and the frame-event buffers.
+  condition, branch and key-guide arrays, and the frame-event buffers (updated
+  for `1.0.0.3840` frame event sizes including `5: 52`, `58: 60`, `102: 28`,
+  `131: 220`, `161: 68`, and `178: 16`, with `3732` and legacy buffer fallbacks).
   `cdmw/core/action_chart_binary.py` owns the exact grammar.
 - **Coverage.** All 558 standard charts and `commonactioninfo.paac` parse
   exactly. `commonactioninfo_serialized.paac` parses except a 7,034-byte tail
@@ -4494,7 +4512,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.pastage` | PA | Surface | Constrained |
 | `.pma` | PA | Full | Full |
 
-### Materials and metadata (73 formats)
+### Materials and metadata (74 formats)
 
 | Extension | Origin | Read | Write |
 | --- | --- | --- | --- |
@@ -4537,6 +4555,7 @@ Source: [capability manifest](../schemas/archive_content_capabilities.v1.json).
 | `.pamlod_xml` | PA | Full | Full |
 | `.pampg` | PA | Surface | None |
 | `.pamt` | PA | None | None |
+| `.pamu` | PA | Full | Full |
 | `.pappt` | PA | Full | Constrained |
 | `.paproj` | PA | None | None |
 | `.paprojdesc` | PA | Full | Full |

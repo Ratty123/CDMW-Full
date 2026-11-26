@@ -45,17 +45,19 @@ def parse_attachment_equip_type_records(
     equiptype_header_data: bytes,
 ) -> Tuple[AttachmentEquipTypeRecord, ...]:
     """Parse equiptypeinfo enough to map equip-type row hashes to names."""
+    payload = bytes(equiptype_data or b"")
     try:
-        table = parse_pabgh_table(equiptype_header_data)
+        table = parse_pabgh_table(equiptype_header_data, payload=payload)
     except Exception:
         return ()
-    payload = bytes(equiptype_data or b"")
     records: List[AttachmentEquipTypeRecord] = []
     for row in tuple(getattr(table, "rows", ()) or ()):
         row_offset = int(getattr(row, "offset", -1))
         if row_offset < 0 or row_offset >= len(payload):
             continue
-        name = _attachment_length_prefixed_text_at(payload, row_offset, max_length=128)
+        name = str(getattr(row, "string_key", "") or "").strip()
+        if not name:
+            name = _attachment_length_prefixed_text_at(payload, row_offset, max_length=128)
         if not name:
             name = _attachment_length_prefixed_text_at(payload, row_offset + 4, max_length=128)
         if not name:

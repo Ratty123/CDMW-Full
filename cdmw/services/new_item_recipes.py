@@ -5,7 +5,12 @@ import struct
 from cdmw.core.item_recipe_table import RecipeIngredient, RecipeGroupIngredient, encode_item_recipe
 from cdmw.core.item_recipe_links import connected_recipe_keys
 from cdmw.core.multichangeinfo_table import find_multichange_keys
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    set_row_static_info_index,
+)
 from cdmw.domain.new_item.authoring import RecipeOverride
 from cdmw.domain.new_item.spec import EnhancementRows
 from cdmw.services.new_item_acquisition_index import load_acquisition_index
@@ -72,7 +77,7 @@ def plan_recipes(planner):
     recipe_keys = planner.allocate_owned_keys("multichangeinfo", tuple(f"recipe:{choice.recipe_key}" for choice in choices),
         table_keys(recipe_body, recipe_header) | set(index.recipes) | set(index.unsupported['multichangeinfo']))
     used_rewards = table_keys(reward_body, reward_header) | set(index.rewards) | set(index.unsupported['dropsetinfo'])
-    recipe_rows, reward_rows, mapping, manifests = [], [], {}, []
+    recipe_rows, recipe_names, reward_rows, reward_names, mapping, manifests = [], [], [], [], {}, []
     for choice, new_key in zip(choices, recipe_keys):
         planner.check()
         source = index.recipes.get(choice.recipe_key)
@@ -103,10 +108,13 @@ def plan_recipes(planner):
         new_rewards, additional, outputs, output_manifest = own_recipe_outputs(
             planner, index, source, choice, new_key, used_rewards)
         reward_rows.extend(outputs)
+        for idx, reward_key in enumerate(new_rewards + additional):
+            reward_names.append(f"{spec.internal_name}_recipe_{new_key}_{idx}")
         owned = replace(source, key=new_key, name=f"{spec.internal_name}_recipe_{new_key}", tool_key=tool,
                         knowledge_key=knowledge, ingredients=tuple(ingredients), group_ingredients=tuple(groups),
                         reward_keys=new_rewards, additional_reward_keys=additional)
         recipe_rows.append(encode_item_recipe(owned))
+        recipe_names.append(owned.name)
         mapping[source.key] = new_key
         manifests.append({"source_key": source.key, "key": new_key, "tool_key": tool, "knowledge_key": knowledge,
                           "reward_keys": new_rewards, "additional_reward_keys": additional, "outputs": output_manifest,
@@ -114,8 +122,22 @@ def plan_recipes(planner):
                           "inputs": [{"item_key": i.item_key, "quantity": i.quantity, "enhancement": i.enhancement} for i in ingredients],
                           "group_inputs": [{"group_key": i.group_key, "quantity": i.quantity, "enhancement": i.enhancement} for i in groups]})
     if recipe_rows:
-        recipe_body, recipe_header = append_table_rows(recipe_body, recipe_header, recipe_rows)
-        reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows)
+        recipe_table = parse_pabgh_table(recipe_header, payload=recipe_body)
+        if recipe_table.header_format == "indexed_3840":
+            next_recipe_idx = next_static_info_index(recipe_body, recipe_header)
+            recipe_rows = [set_row_static_info_index(r, recipe_table.key_width, next_recipe_idx + i)
+                           for i, r in enumerate(recipe_rows)]
+            recipe_body, recipe_header = append_table_rows(recipe_body, recipe_header, recipe_rows, string_keys=recipe_names)
+        else:
+            recipe_body, recipe_header = append_table_rows(recipe_body, recipe_header, recipe_rows)
+        reward_table = parse_pabgh_table(reward_header, payload=reward_body)
+        if reward_table.header_format == "indexed_3840":
+            next_reward_idx = next_static_info_index(reward_body, reward_header)
+            reward_rows = [set_row_static_info_index(r, reward_table.key_width, next_reward_idx + i)
+                           for i, r in enumerate(reward_rows)]
+            reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows, string_keys=reward_names)
+        else:
+            reward_body, reward_header = append_table_rows(reward_body, reward_header, reward_rows)
         for pair, body, header in ((recipe_pair, recipe_body, recipe_header), (reward_pair, reward_body, reward_header)):
             planner.patch(pair.payload_entry, body, f"{pair.payload_entry.path}: owned recipe dependencies")
             planner.patch(pair.header_entry, header, "Recipe dependency directory")

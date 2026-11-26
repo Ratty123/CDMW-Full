@@ -5,7 +5,12 @@ from types import MappingProxyType
 
 from cdmw.core.item_dye_material import material_dye_bindings, has_dye_wiring, copy_dye_materials
 from cdmw.core.partprefab_dye_table import parse_prefab_dye_row, encode_prefab_dye_row
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table, replace_table_row
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    replace_table_row,
+)
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_acquisition_index import optional_pair
 from cdmw.services.new_item_provenance import _stamp, StaleNewItemSource
@@ -48,8 +53,9 @@ def load_dye_index(snapshot, *, stop_event=None):
         return cached
     pair = optional_pair(snapshot,"partprefabdyeslotinfo")
     raise_if_cancelled(stop_event,"Dye index cancelled.")
-    from cdmw.services.new_item_tables import table_rows
-    rows = [parse_prefab_dye_row(raw) for raw in table_rows(snapshot,'partprefabdyeslotinfo',stop_event=stop_event).values()]
+    from cdmw.services.new_item_tables import row_metadata
+    rows = [parse_prefab_dye_row(raw, name=sk, key_layout=kl)
+            for raw, sk, kl in row_metadata(snapshot, 'partprefabdyeslotinfo', stop_event=stop_event).values()]
     raise_if_cancelled(stop_event,"Dye index cancelled.")
     result = DyeIndex(pair,MappingProxyType({row.model_path.casefold():row for row in rows}),
                       MappingProxyType(dict(snapshot.row_sources['partprefabdyeslotinfo'])))
@@ -61,7 +67,8 @@ def prepare_dye_preview_table(index, row, parts):
     """Replace only the selected dye row in the disposable preview table."""
     pair = index.sources[row.key] if index.sources is not None else index.pair
     return replace_table_row(pair.payload, pair.header, row.key,
-                             encode_prefab_dye_row(replace(row, submeshes=parts)))
+                             encode_prefab_dye_row(replace(row, submeshes=parts)),
+                             string_key=row.string_key)
 
 
 def _wired(bindings, name):
@@ -139,10 +146,15 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
     row = source.for_model(new_model,submeshes=submeshes)
     pair = index.pair
     body,header = planner.table_data(pair)
-    keys = {directory.row_id for directory in parse_pabgh_table(header,payload=body).rows} | {value.key for value in index.rows.values()}
+    table = parse_pabgh_table(header, payload=body)
+    keys = {directory.row_id for directory in table.rows} | {value.key for value in index.rows.values()}
     if row.key in keys:
         raise ValueError("The new model's dye identity collides with an existing record.")
-    body,header = append_table_rows(body,header,[encode_prefab_dye_row(row)])
+    if table.header_format == "indexed_3840":
+        row = replace(row, static_info_index=next_static_info_index(body, header))
+        body, header = append_table_rows(body, header, [encode_prefab_dye_row(row)], string_keys=[row.string_key])
+    else:
+        body, header = append_table_rows(body, header, [encode_prefab_dye_row(row)])
     planner.patch(pair.payload_entry,body,"DyeInfo: owned model/channel assignments")
     planner.patch(pair.header_entry,header,"DyeInfo directory")
     planner.manifest.setdefault("dyes",[]).append({"source_model":old_model,"model":new_model,"key":row.key,

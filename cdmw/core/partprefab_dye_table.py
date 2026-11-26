@@ -39,6 +39,7 @@ class PrefabDyeRow:
     submeshes: tuple[DyeSubmesh, ...]
     model_path: str
     generation: str = 'legacy'
+    static_info_index: int = 0
 
     def for_model(self, path: str, *, submeshes=None):
         normalized = path.replace("\\", "/")
@@ -75,9 +76,10 @@ class _Reader:
         return DyeMaterialBinding(tags, flags, index)
 
 
-def parse_prefab_dye_row(raw: bytes) -> PrefabDyeRow:
+def parse_prefab_dye_row(raw: bytes, *, name: str = "", key_layout: str | None = None) -> PrefabDyeRow:
     from cdmw.core.new_item_record import named_prefix
-    key,name,blocked,generation,prefix = named_prefix(raw)
+    key, resolved_name, blocked, generation, prefix = named_prefix(raw, name=name, key_layout=key_layout)
+    static_info_index = struct.unpack_from("<I", raw, 4)[0] if generation == "indexed" else 0
     reader = _Reader(raw)
     reader.pos = prefix.pos
     if blocked not in (0, 1):
@@ -100,7 +102,7 @@ def parse_prefab_dye_row(raw: bytes) -> PrefabDyeRow:
         raise DyeTableError("Unproven dye row boundary")
     if key != hashlittle(path.encode("utf-8"), 0xC5EDE):
         raise DyeTableError("Dye row key does not match its model path")
-    return PrefabDyeRow(key, name, bool(blocked), tuple(submeshes), path,generation)
+    return PrefabDyeRow(key, resolved_name, bool(blocked), tuple(submeshes), path, generation, static_info_index)
 
 
 def _text(value):
@@ -117,7 +119,15 @@ def _binding(value):
 
 
 def encode_prefab_dye_row(row: PrefabDyeRow) -> bytes:
-    prefix = (_text(row.string_key)+struct.pack('<I',row.key)) if row.generation == 'compact' else (struct.pack('<I',row.key)+_text(row.string_key))
+    if row.generation == "indexed":
+        prefix = struct.pack("<II", row.key, row.static_info_index)
+        key_layout = "indexed"
+    elif row.generation == "compact":
+        prefix = _text(row.string_key) + struct.pack("<I", row.key)
+        key_layout = "named"
+    else:
+        prefix = struct.pack("<I", row.key) + _text(row.string_key)
+        key_layout = "prefix"
     out = bytearray(prefix + bytes([row.blocked]))
     out += struct.pack("<I", len(row.submeshes))
     for part in row.submeshes:
@@ -127,15 +137,16 @@ def encode_prefab_dye_row(row: PrefabDyeRow) -> bytes:
         out += struct.pack("<I", len(part.overrides)) + b"".join(_binding(value) for value in part.overrides)
     out += _text(row.model_path)
     result = bytes(out)
-    if parse_prefab_dye_row(result) != row:
+    if parse_prefab_dye_row(result, name=row.string_key, key_layout=key_layout) != row:
         raise DyeTableError("Edited dye row did not round-trip")
     return result
 
 
 def parse_prefab_dye_table(body: bytes, header: bytes):
     rows = []
-    for directory, start, end in parse_pabgh_table(header, payload=body).row_spans(len(body)):
-        row = parse_prefab_dye_row(body[start:end])
+    table = parse_pabgh_table(header, payload=body)
+    for directory, start, end in table.row_spans(len(body)):
+        row = parse_prefab_dye_row(body[start:end], name=directory.string_key, key_layout=table.key_layout)
         if row.key != directory.row_id or encode_prefab_dye_row(row) != body[start:end]:
             raise DyeTableError("Dye table does not round-trip")
         rows.append(row)

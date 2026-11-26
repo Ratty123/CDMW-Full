@@ -46,7 +46,12 @@ from cdmw.core.pappt_format import PAPPT_PREFAB_ROOT, encode_pappt, insert_part_
 from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_any_length
 from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, swap_stock_item
 from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
-from cdmw.core.structured_binary_editor import append_table_rows
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    set_row_static_info_index,
+)
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import MAX_SHIPPED_SOCKET_SLOTS, ValidationIssue
@@ -462,7 +467,19 @@ class _Planner(EffectPlanningMixin):
             row_bytes = replace_recipe_references(cloned, self.snapshot.multichange_rows, self.recipe_keys,
                                                  source_keys=self.recipe_source_keys)
         pair = self.snapshot.iteminfo
-        payload, header = append_table_rows(*self.table_data(pair), [row_bytes, *(clone.raw for _source, clone in self.price_perks)])
+        body, header = self.table_data(pair)
+        table = parse_pabgh_table(header, payload=body)
+        appended_rows = [row_bytes, *(clone.raw for _source, clone in self.price_perks)]
+        if table.header_format == "indexed_3840":
+            next_index = next_static_info_index(body, header)
+            appended_rows = [
+                set_row_static_info_index(row_data, table.key_width, next_index + idx)
+                for idx, row_data in enumerate(appended_rows)
+            ]
+            names = [self.spec.internal_name, *(clone.string_key for _source, clone in self.price_perks)]
+            payload, header = append_table_rows(body, header, appended_rows, string_keys=names)
+        else:
+            payload, header = append_table_rows(body, header, appended_rows)
         self.manifest["iteminfo"] = {
             "template_key": template.key, "template_name": template.string_key,
             "item_key": int(self.spec.item_key), "internal_name": self.spec.internal_name,

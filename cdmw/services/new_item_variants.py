@@ -34,14 +34,23 @@ def variant_family(family, appearance):
 
 def _has_exact_socket_attachment(prefab_data, target_path):
     from cdmw.core.archive_attachment_patches import inspect_prefab_attachment_profile_fields
+    from cdmw.core.prefab_binary import PrefabBinaryError, decode_prefab_binary
 
     if not prefab_data:
         return False
     profile = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(prefab_data)}
-    return (
-        profile.get("_skinnedMeshFileName", "").replace("\\", "/").casefold()
-        == target_path.replace("\\", "/").casefold()
-        and all(profile.get(name) for name in ("_attachedSocketName", "_pivotSocketName", "_socketFileName"))
+    if not all(profile.get(name) for name in ("_attachedSocketName", "_pivotSocketName", "_socketFileName")):
+        return False
+    normalized_target = target_path.replace("\\", "/").casefold()
+    if profile.get("_skinnedMeshFileName", "").replace("\\", "/").casefold() == normalized_target:
+        return True
+    try:
+        document = decode_prefab_binary(bytes(prefab_data))
+    except PrefabBinaryError:
+        return False
+    return any(
+        item.text.replace("\\", "/").strip().casefold() == normalized_target
+        for item in document.resource_strings()
     )
 
 

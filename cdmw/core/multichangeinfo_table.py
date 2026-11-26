@@ -22,7 +22,12 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.iteminfo_row import ItemInfoRow
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    set_row_static_info_index,
+)
 from cdmw.domain.cancellation import raise_if_cancelled
 
 MULTICHANGEINFO_PAYLOAD_PATH = "gamedata/binary__/client/bin/multichangeinfo.pabgb"
@@ -55,22 +60,22 @@ class MultiChangeRow:
         return int(tail) if _sep and tail.isdigit() else None
 
 
-def parse_multichange_row(raw: bytes, *, key: Optional[int] = None) -> MultiChangeRow:
+def parse_multichange_row(raw: bytes, *, key: Optional[int] = None, name: str = "", key_layout: Optional[str] = None) -> MultiChangeRow:
     data = bytes(raw)
     from cdmw.core.new_item_record import named_prefix, RecordError
     try:
-        own, name, _blocked, generation, _reader = named_prefix(data)
+        own, resolved_name, _blocked, generation, _reader = named_prefix(data, key=key, name=name, key_layout=key_layout)
     except RecordError:
         generation = 'legacy'  # Preserve the legacy codec's specific diagnostics.
-    if generation == 'compact' and key is not None and own != key:
+    if generation in ('compact', 'indexed') and key is not None and own != key:
         raise MultiChangeError(f'row key {own} does not match the directory key {key}')
-    if generation == 'compact':
+    if generation in ('compact', 'indexed'):
         from cdmw.core.compact_static import read_compact_layout
-        layout = read_compact_layout(data, 'multichangeinfo')
+        layout = read_compact_layout(data, 'multichangeinfo', key_layout=key_layout or ('indexed' if generation == 'indexed' else 'named'))
         from cdmw.core.new_item_record import Cursor
         cursor = Cursor(layout.data('_fixedMaterialDataList'))
         item = cursor.unpack('I') if cursor.count() else None
-        return MultiChangeRow(data,own,name,item,'compact')
+        return MultiChangeRow(data, own, resolved_name, item, 'compact')
     if len(data) < 9:
         raise MultiChangeError("row is too short for a key and a name")
     row_key, length = struct.unpack_from("<II", data, 0)
@@ -93,7 +98,7 @@ def parse_multichange_table(
     rows = []
     for row, s, e in table.row_spans(len(payload)):
         raise_if_cancelled(stop_event)
-        rows.append(parse_multichange_row(payload[s:e], key=row.row_id))
+        rows.append(parse_multichange_row(payload[s:e], key=row.row_id, name=row.string_key, key_layout=table.key_layout))
     return tuple(rows)
 
 
@@ -108,7 +113,7 @@ def find_multichange_keys(row: ItemInfoRow, known_keys: Iterable[int]) -> Tuple[
     from cdmw.core.item_layout import read_item_layout, counted_integers
     from cdmw.core.new_item_record import RecordError
     try:
-        layout = read_item_layout(row.raw)
+        layout = read_item_layout(row.raw, key_layout=getattr(row, "key_layout", None))
     except RecordError:
         layout = None
     if layout is not None:
@@ -152,8 +157,10 @@ def clone_multichange_row(row: MultiChangeRow, *, key: int, name: str, item_key:
         if len(materials)<8 or row.item_key is None:
             raise MultiChangeError('Compact enhancement has no source item ingredient.')
         struct.pack_into('<I',materials,4,item_key)
-        return replace_layout_fields(layout,{'_key':struct.pack('<I',key),'_stringKey':text_bytes(name),
-            '_fixedMaterialDataList':bytes(materials)}).raw
+        changes = {'_key': struct.pack('<I', key), '_fixedMaterialDataList': bytes(materials)}
+        if '_stringKey' in layout.fields:
+            changes['_stringKey'] = text_bytes(name)
+        return replace_layout_fields(layout, changes).raw
     if row.item_key is None:
         raise MultiChangeError(f"multichange {row.key} ({row.name}) has no item key to repoint")
     encoded = str(name or "").encode("utf-8")
@@ -192,12 +199,20 @@ def clone_transition_rows(
         raise MultiChangeError("one new key per transition row")
     mapping = {}
     encoded = []
+    names = []
     for row, key in zip(rows, new_keys):
         suffix = row.level_suffix
         name = f"{new_item_name}_{suffix}" if suffix is not None else f"{new_item_name}_{row.name.rsplit('_', 1)[-1]}"
         encoded.append(clone_multichange_row(row, key=int(key), name=name, item_key=int(new_item_key)))
+        names.append(name)
         mapping[row.key] = int(key)
-    payload, header = append_table_rows(payload, header, encoded)
+    table = parse_pabgh_table(header, payload=payload)
+    if table.header_format == "indexed_3840":
+        next_index = next_static_info_index(payload, header)
+        encoded = [set_row_static_info_index(row, table.key_width, next_index + i) for i, row in enumerate(encoded)]
+        payload, header = append_table_rows(payload, header, encoded, string_keys=names)
+    else:
+        payload, header = append_table_rows(payload, header, encoded)
     return payload, header, mapping
 
 

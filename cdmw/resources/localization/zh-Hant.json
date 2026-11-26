@@ -18538,6 +18538,7 @@
     "placement-preview": "放置預覽",
     "placement-schematic-preview": "放置原理圖預覽",
     "placement-socket-preview": "放置掛點預覽",
+    "plain XML (<MaterialPermutationUsage>) under shadercache__/ listing pipeline passes, material entry hashes and unused shader macros (2 files on 1.0.0.3840)": "shadercache__/ 下的純文字 XML (<MaterialPermutationUsage>)，列出管線階段、材質項目雜湊與未使用的著色器巨集（1.0.0.3840 中有 2 個檔案）",
     "plain XML (ARFaceAnimation / ARFacePoseRecordedData): recorded facial capture": "純 XML（ARFaceAnimation / ARFacePoseRecordedData）：錄製的臉部捕捉",
     "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData": "純 XML（SkinnedDecalProperty）承載 ReflectObjectXMLData",
     "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text": "純 XML（SplineDataGroup）承載 ReflectObjectXMLData，可讀且可作為文本傳輸",

@@ -74,11 +74,11 @@ def _presentation(reader):
     return reader.raw[start:reader.pos]
 
 
-def parse_item_recipe(raw):
+def parse_item_recipe(raw, *, name="", key_layout=None):
     from cdmw.core.new_item_record import named_prefix
-    if named_prefix(raw)[3] == 'compact':
+    if named_prefix(raw, key_layout=key_layout)[3] in ('compact', 'indexed'):
         from cdmw.core.acquisition_compact import parse_compact_recipe
-        return parse_compact_recipe(raw)
+        return parse_compact_recipe(raw, name=name, key_layout=key_layout)
     reader = Cursor(raw)
     key, name = reader.unpack("I"), reader.text()
     if reader.take(1) != b"\0":

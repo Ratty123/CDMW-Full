@@ -17,11 +17,13 @@ class ItemUseReward:
     reward_key: int
     tail: bytes
     generation: str = 'legacy'
+    static_info_index: int = 0
 
 
-def parse_item_use_reward(raw):
+def parse_item_use_reward(raw, *, name="", key_layout=None):
     from cdmw.core.new_item_record import named_prefix
-    key,name,blocked,generation,reader = named_prefix(raw)
+    key, resolved_name, blocked, generation, reader = named_prefix(raw, name=name, key_layout=key_layout)
+    static_info_index = struct.unpack_from("<I", raw, 4)[0] if generation == 'indexed' else 0
     if blocked:
         raise RecordError("Blocked item use")
     header = reader.take(19)
@@ -35,15 +37,23 @@ def parse_item_use_reward(raw):
     if tail[:2] != b"\0\x0e" or tail[-1] not in (0, 1):
         raise RecordError("Unsupported item-use reward metadata")
     reader.finish()
-    return ItemUseReward(key, name, header, conditions, reward, tail,generation)
+    return ItemUseReward(key, resolved_name, header, conditions, reward, tail, generation, static_info_index)
 
 
 def encode_item_use_reward(row):
-    prefix = (text_bytes(row.name)+struct.pack('<I',row.key)) if row.generation == 'compact' else (struct.pack('<I',row.key)+text_bytes(row.name))
+    if row.generation == 'indexed':
+        prefix = struct.pack('<II', row.key, row.static_info_index)
+        key_layout = 'indexed'
+    elif row.generation == 'compact':
+        prefix = text_bytes(row.name) + struct.pack('<I', row.key)
+        key_layout = 'named'
+    else:
+        prefix = struct.pack('<I', row.key) + text_bytes(row.name)
+        key_layout = 'prefix'
     result = (prefix + b"\0" + row.use_header
               + struct.pack("<I", len(row.conditions)) + b"".join(row.conditions)
               + b"\1" + struct.pack("<I", row.reward_key) + row.tail)
-    if parse_item_use_reward(result) != row:
+    if parse_item_use_reward(result, name=row.name, key_layout=key_layout) != row:
         raise RecordError("Edited item-use reward did not round-trip")
     return result
 
@@ -52,7 +62,7 @@ def item_use_references(row, known_keys):
     """Return the bounded, nonempty ItemInfo use-list or reject its shape."""
     from cdmw.core.item_layout import read_item_layout, counted_integers
     try:
-        layout = read_item_layout(row.raw)
+        layout = read_item_layout(row.raw, key_layout=getattr(row, 'key_layout', None))
     except RecordError:
         layout = None
     if layout is not None:

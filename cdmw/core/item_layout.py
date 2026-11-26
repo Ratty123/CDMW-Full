@@ -41,6 +41,7 @@ class ItemLayout:
     fields: object
     members: tuple[Member, ...]
     variants: tuple[str, ...]
+    key_layout: object = None
 
     def data(self, field):
         span = self.fields[field]
@@ -166,12 +167,12 @@ class _Walker:
             pc += 1
 
 
-def _read(raw, kind, generation, *, enchant_width=2):
+def _read(raw, kind, generation, *, enchant_width=2, key_layout=None):
     if generation == 'compact':
         if kind == 'itemuseinfo':
-            return _read_compact_use(raw)
+            return _read_compact_use(raw, key_layout=key_layout)
         from cdmw.core.compact_static import read_compact_layout
-        return read_compact_layout(raw, kind)
+        return read_compact_layout(raw, kind, key_layout=key_layout)
     grammar, fields = (ITEMINFO_LAYOUT, ITEMINFO_FIELDS) if kind == 'iteminfo' else (ITEMUSE_LAYOUT, ITEMUSE_FIELDS)
     walk = _Walker(raw, grammar, generation, enchant_width=enchant_width)
     try:
@@ -185,16 +186,17 @@ def _read(raw, kind, generation, *, enchant_width=2):
                       tuple(walk.members), tuple(walk.variants))
 
 
-def read_item_layout(raw, *, generation=None):
+def read_item_layout(raw, *, generation=None, key_layout=None):
     """Qualify the entire row, including EOF; unknown/ambiguous layouts refuse."""
     if generation is not None:
         if generation not in ('legacy', 'current', 'compact'):
             raise RecordError('Unknown ItemInfo generation.')
-        return _read(raw, 'iteminfo', generation)
+        return _read(raw, 'iteminfo', generation, key_layout=key_layout)
     candidates, errors = [], []
-    for variant in ('legacy', 'current', 'compact'):
+    variants = ('compact',) if key_layout in ('named', 'indexed') else ('legacy', 'current', 'compact')
+    for variant in variants:
         try:
-            candidates.append(_read(raw, 'iteminfo', variant))
+            candidates.append(_read(raw, 'iteminfo', variant, key_layout=key_layout))
         except RecordError as exc:
             errors.append(f"{variant}: {exc}")
     if len(candidates) != 1:
@@ -203,35 +205,40 @@ def read_item_layout(raw, *, generation=None):
     return candidates[0]
 
 
-def read_item_use_layout(raw):
+def read_item_use_layout(raw, *, key_layout=None):
     from cdmw.core.new_item_record import named_prefix
-    generation = named_prefix(raw)[3]
-    result = _read(raw, 'itemuseinfo', 'compact' if generation == 'compact' else 'current')
+    generation = named_prefix(raw, key_layout=key_layout)[3]
+    result = _read(raw, 'itemuseinfo', 'compact' if generation in ('compact', 'indexed') else 'current', key_layout=key_layout)
     if result.integer('_isBlocked', width=1) != 0:
         raise RecordError('Blocked item-use definition.')
     return result
 
 
-def _read_compact_use(raw):
+def _read_compact_use(raw, *, key_layout=None):
     from cdmw.core.new_item_record import named_prefix, text_bytes
     from dataclasses import replace
-    key,name,blocked,generation,cursor = named_prefix(raw)
-    if generation != 'compact':
+    key, name, blocked, generation, cursor = named_prefix(raw, key_layout=key_layout)
+    if generation not in ('compact', 'indexed'):
         raise RecordError('Expected a compact item-use definition.')
     if cursor.pos == len(raw):
         raise RecordError('Truncated compact use action.')
     tag = raw[cursor.pos]
+    if generation == 'indexed':
+        from cdmw.core.compact_static import read_compact_layout
+        result = read_compact_layout(raw, 'itemuseinfo', key_layout='indexed')
+        variants = (ITEMUSE_LAYOUT[0][4][3][tag],) if tag in ITEMUSE_LAYOUT[0][4][3] else ()
+        return replace(result, variants=variants)
     if tag == 15:
         from cdmw.core.compact_static import read_compact_layout
-        result = read_compact_layout(raw,'itemuseinfo')
-        return replace(result,variants=(ITEMUSE_LAYOUT[0][4][3][tag],))
-    converted = key.to_bytes(4,'little') + text_bytes(name) + bytes([blocked]) + raw[cursor.pos:]
+        result = read_compact_layout(raw, 'itemuseinfo', key_layout=key_layout)
+        return replace(result, variants=(ITEMUSE_LAYOUT[0][4][3][tag],))
+    converted = key.to_bytes(4, 'little') + text_bytes(name) + bytes([blocked]) + raw[cursor.pos:]
     # A random box's inline DropInfoData carries the 1.0.0.3663 enchantment byte.
     # Rows without DropInfoData read the same at either width; others match one.
     results, errors = [], []
     for width in (2, 3):
         try:
-            results.append(_read(converted,'itemuseinfo','current', enchant_width=width))
+            results.append(_read(converted, 'itemuseinfo', 'current', enchant_width=width))
         except RecordError as exc:
             errors.append(exc)
         if width == 2 and results and not any(m.owner == 'DropInfoData' for m in results[0].members):
@@ -242,16 +249,16 @@ def _read_compact_use(raw):
         raise RecordError('Ambiguous compact item-use DropInfoData width.')
     result = results[0]
     fields = dict(result.fields)
-    fields['_stringKey'] = Span(0,len(text_bytes(name)))
-    fields['_key'] = Span(fields['_stringKey'].end,fields['_stringKey'].end+4)
-    return replace(result,raw=bytes(raw),generation='compact',fields=MappingProxyType(fields))
+    fields['_stringKey'] = Span(0, len(text_bytes(name)))
+    fields['_key'] = Span(fields['_stringKey'].end, fields['_stringKey'].end + 4)
+    return replace(result, raw=bytes(raw), generation='compact', fields=MappingProxyType(fields))
 
 
-def item_use_prefix(raw):
+def item_use_prefix(raw, *, key_layout=None):
     """Cheap read-only catalogue hint; edits still require a complete layout."""
     from cdmw.core.new_item_record import named_prefix
-    if named_prefix(raw)[3] == 'compact':
-        return counted_integers(read_item_layout(raw,generation='compact'),'_itemUseInfoList')
+    if named_prefix(raw, key_layout=key_layout)[3] in ('compact', 'indexed'):
+        return counted_integers(read_item_layout(raw, generation='compact', key_layout=key_layout), '_itemUseInfoList')
     walk = _Walker(raw, ITEMINFO_LAYOUT, 'current', stop_at='_itemUseInfoList')
     try:
         walk.run(ITEMINFO_LAYOUT[0], root=True)
@@ -272,7 +279,7 @@ def replace_layout_fields(layout, replacements):
     for field in sorted(replacements, key=lambda name: layout.fields[name].start, reverse=True):
         span = layout.fields[field]
         result[span.start:span.end] = replacements[field]
-    final = _read(bytes(result), layout.kind, layout.generation)
+    final = _read(bytes(result), layout.kind, layout.generation, key_layout=layout.key_layout)
     for field in layout.fields:
         expected = replacements.get(field, layout.data(field))
         if final.data(field) != expected:
@@ -345,8 +352,10 @@ def clone_layout_item(layout, *, key, string_key, name_key, desc_key, hashes, re
     description = layout.data('_itemDesc')
     if len(name) < 13 or name[:5] != b'\x07\x70\0\0\0':
         raise RecordError('Unsupported item-name localization layout.')
-    edits = {'_key': struct.pack('<I', key), '_stringKey': text_bytes(string_key),
+    edits = {'_key': struct.pack('<I', key),
              '_itemName': name[:5] + struct.pack('<I', key) + text_bytes(name_key)}
+    if '_stringKey' in layout.fields:
+        edits['_stringKey'] = text_bytes(string_key)
     if description[:5] == b'\x07\x71\0\0\0':
         if desc_key is None:
             raise RecordError('The template needs its owned description key.')

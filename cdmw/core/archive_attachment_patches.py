@@ -260,6 +260,11 @@ def infer_part_in_out_weapon_class(value: object) -> str:
             return class_name
 
     mainhand_part_map = (
+        ("mainweapon_crossbow_quiver", "quiver"),
+        ("mainweapon_quiver", "quiver"),
+        ("mainweapon_crossbow", "crossbow"),
+        ("mainweapon_bow", "bow"),
+        ("mainweapon_arw", "arrow"),
         ("mainweapon_sword", "onehand_sword"),
         ("mainweapon_dagger", "onehand_dagger"),
         ("mainweapon_axe", "axe"),
@@ -274,6 +279,15 @@ def infer_part_in_out_weapon_class(value: object) -> str:
         return "twohand_sword"
     if "cd_phm_01_sword" in path_stem or ("/1_onehandweapon/" in normalized and "sword" in path_stem):
         return "onehand_sword"
+    # Check quiver before crossbow/bow because quiver prefabs live under `/04_bow/` or `/4_bow/`.
+    if "quiver" in path_stem:
+        return "quiver"
+    if "crossbow" in path_stem:
+        return "crossbow"
+    if "bow" in path_stem:
+        return "bow"
+    if "arrow" in path_stem or "arw" in path_stem.split("_"):
+        return "arrow"
     if "dagger" in path_stem:
         return "onehand_dagger"
     if "warhammer" in path_stem:

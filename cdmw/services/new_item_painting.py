@@ -173,6 +173,17 @@ class PaintingSource:
         parsed = parse_pabgh_table(header, payload=body)
         return {int(row.row_id): body[start:end] for row, start, end in parsed.row_spans(len(body))}
 
+    def row_meta(self, stem: str) -> Dict[int, Tuple[bytes, str, str]]:
+        table = self.table(stem)
+        if table is None:
+            return {}
+        from cdmw.core.structured_binary_editor import parse_pabgh_table
+
+        body, header = table[0], table[1]
+        parsed = parse_pabgh_table(header, payload=body)
+        return {int(row.row_id): (body[start:end], row.string_key, parsed.key_layout)
+                for row, start, end in parsed.row_spans(len(body))}
+
 
 def _normal(path: str) -> str:
     return str(path or "").replace("\\", "/").strip().strip("/").lower()
@@ -251,9 +262,9 @@ def _prefab_value(layout) -> str:
 
 
 def _picture_group(source: PaintingSource) -> Tuple[int, bytes]:
-    for key, raw in source.rows("housingobjectgroupinfo").items():
+    for key, (raw, sk, kl) in source.row_meta("housingobjectgroupinfo").items():
         try:
-            if named_prefix(raw, 2, key=key)[1] == PICTURE_GROUP_NAME:
+            if named_prefix(raw, 2, key=key, name=sk, key_layout=kl)[1] == PICTURE_GROUP_NAME:
                 return key, raw
         except (RecordError, ValueError):
             continue
@@ -261,7 +272,8 @@ def _picture_group(source: PaintingSource) -> Tuple[int, bytes]:
 
 
 def _source_row(source: PaintingSource, housing_key: int, housing: Mapping[int, bytes],
-                gimmicks: Mapping[int, bytes], items: Mapping[int, bytes]) -> Tuple[Optional[PaintingSourceRow], str]:
+                gimmicks: Mapping[int, bytes], items: Mapping[int, bytes],
+                *, item_meta: Optional[Mapping[int, Tuple[bytes, str, str]]] = None) -> Tuple[Optional[PaintingSourceRow], str]:
     """A shipped painting's chain, checked link by link, and its frame mesh."""
 
     from cdmw.core.iteminfo_row import parse_iteminfo_row
@@ -273,7 +285,9 @@ def _source_row(source: PaintingSource, housing_key: int, housing: Mapping[int, 
     item_key = _u(gimmick, "_convertItemInfo", 4)
     if _u(gimmick, "_housingObjectInfo", 2) != housing_key:
         raise PaintingPlanError("its gimmick names another housing object")
-    row = parse_iteminfo_row(items[item_key])
+    item_sk = item_meta[item_key][1] if item_meta and item_key in item_meta else ""
+    item_kl = item_meta[item_key][2] if item_meta and item_key in item_meta else None
+    row = parse_iteminfo_row(items[item_key], string_key=item_sk, key_layout=item_kl)
     from cdmw.core.item_layout import read_item_layout
     item_layout = read_item_layout(row.raw)
     if _u(item_layout, "_gimmickInfo", 4) != gimmick_key:
@@ -311,6 +325,7 @@ def discover_painting_frames(source: PaintingSource, *, stop_event: Optional[thr
 
     _group_key, group_raw = _picture_group(source)
     members = housing_group_members(group_raw)
+    item_meta = source.row_meta("iteminfo")
     housing = source.rows("housingobjectinfo")
     gimmicks = source.rows("gimmickinfo")
     items = source.rows("iteminfo")
@@ -321,7 +336,7 @@ def discover_painting_frames(source: PaintingSource, *, stop_event: Optional[thr
         if housing_key not in housing:
             continue  # a painting added by this very mod, or one the base table lacks
         try:
-            row, mesh = _source_row(source, housing_key, housing, gimmicks, items)
+            row, mesh = _source_row(source, housing_key, housing, gimmicks, items, item_meta=item_meta)
         except (PaintingPlanError, PaintingRecordError, RecordError, KeyError, ValueError) as exc:
             left_out.append((f"housing object {housing_key}", str(exc)))
             continue
@@ -470,13 +485,27 @@ class _Plan:
         self.additions.append(ArchiveAddRequest.from_template(self.source.entry(template_path), path, data))
         self.summary.append(what)
 
-    def append_rows(self, stem: str, rows: Sequence[bytes], what: str) -> None:
-        from cdmw.core.structured_binary_editor import append_table_rows
+    def append_rows(self, stem: str, rows: Sequence[bytes], what: str, *, string_keys: Optional[Sequence[str]] = None) -> None:
+        from cdmw.core.structured_binary_editor import (
+            append_table_rows,
+            next_static_info_index,
+            parse_pabgh_table,
+            set_row_static_info_index,
+        )
 
         paths = self.source.tables.get(stem)
         if paths is None:
             raise PaintingPlanError(f"The game has no {stem} table.")
-        body, header = append_table_rows(self.current(paths[0]), self.current(paths[1]), list(rows))
+        body, header = self.current(paths[0]), self.current(paths[1])
+        table = parse_pabgh_table(header, payload=body)
+        row_list = list(rows)
+        if table.header_format == "indexed_3840":
+            next_idx = next_static_info_index(body, header)
+            row_list = [set_row_static_info_index(row, table.key_width, next_idx + i)
+                        for i, row in enumerate(row_list)]
+            body, header = append_table_rows(body, header, row_list, string_keys=string_keys)
+        else:
+            body, header = append_table_rows(body, header, row_list)
         self.patch(paths[0], body, what)
         self.patch(paths[1], header, f"{stem} directory")
 
@@ -582,9 +611,10 @@ def plan_paintings(
         planned.append((own, src, record))
 
     raise_if_cancelled(stop_event, "Painting plan cancelled.")
-    plan.append_rows("iteminfo", item_rows, f"ItemInfo: {len(item_rows)} painting item(s) appended")
-    plan.append_rows("gimmickinfo", gimmick_rows, f"GimmickInfo: {len(gimmick_rows)} painting gimmick(s) appended")
-    plan.append_rows("housingobjectinfo", housing_rows, f"HousingObjectInfo: {len(housing_rows)} housing object(s) appended")
+    row_names = [own.name for own in keys]
+    plan.append_rows("iteminfo", item_rows, f"ItemInfo: {len(item_rows)} painting item(s) appended", string_keys=row_names)
+    plan.append_rows("gimmickinfo", gimmick_rows, f"GimmickInfo: {len(gimmick_rows)} painting gimmick(s) appended", string_keys=row_names)
+    plan.append_rows("housingobjectinfo", housing_rows, f"HousingObjectInfo: {len(housing_rows)} housing object(s) appended", string_keys=row_names)
     group_paths = source.tables["housingobjectgroupinfo"]
     group_body, group_header = plan.current(group_paths[0]), plan.current(group_paths[1])
     from cdmw.core.structured_binary_editor import parse_pabgh_table
@@ -592,7 +622,7 @@ def plan_paintings(
     group_row = next(group_body[start:end] for row, start, end in parsed.row_spans(len(group_body)) if row.row_id == group_key)
     for own in keys:
         group_row = add_housing_group_member(group_row, own.housing)
-    group_body, group_header = replace_table_row(group_body, group_header, group_key, group_row)
+    group_body, group_header = replace_table_row(group_body, group_header, group_key, group_row, string_key=PICTURE_GROUP_NAME)
     plan.patch(group_paths[0], group_body, f"{PICTURE_GROUP_NAME}: {len(keys)} housing object(s) added")
     plan.patch(group_paths[1], group_header, "HousingObjectGroupInfo directory")
     strings = source.tables.get("stringinfo")

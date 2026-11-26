@@ -889,5 +889,48 @@ class MovePlanTests(unittest.TestCase):
 
 
 
+class BowQuiverLinkTests(unittest.TestCase):
+    def test_bow_links_quiver_without_weapon_case_part_and_resolves_quiver_sockets(self) -> None:
+        from tools.placement_studio.move_operation import _socket_file_for
+
+        bow_sock = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0001.sockets.xml"
+        quiver_sock = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/4_bow/cd_phm_04_quiver_0001.sockets.xml"
+        xbow_sock = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_crossbow_0001.sockets.xml"
+        xquiver_sock = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_quiver_0001.sockets.xml"
+        desc = (
+            "<CharacterDescription>\r\n"
+            '\t<Part PartName="MainWeapon_Bow" InSocketBone="Spine2_B_RangeWeapon_Socket"'
+            ' OutSocketBone="LHand_Socket" InChildSocketBone="Basic_ChildSocket"'
+            ' OutChildSocketBone="Basic_ChildSocket"/>\r\n'
+            '\t<Part PartName="MainWeapon_Quiver" InSocketBone="Spine2_B_RangeWeapon_Socket"'
+            ' OutSocketBone="Spine2_B_RangeWeapon_Socket" InChildSocketBone="Basic_ChildSocket"'
+            ' OutChildSocketBone="Basic_ChildSocket"/>\r\n'
+            "</CharacterDescription>\r\n"
+        ).encode("utf-8")
+        sock_bytes = _sockets(f"Basic_ChildSocket||{IDENT}|{ZERO}")
+        resolver = PlacementResolver()
+        resolver.add_files({
+            BODY: BODY_BYTES,
+            DESC: desc,
+            ALIAS: desc,
+            bow_sock: sock_bytes,
+            quiver_sock: sock_bytes,
+            xbow_sock: sock_bytes,
+            xquiver_sock: sock_bytes,
+        })
+        session = PlacementSession(MODEL, None, resolver)
+        bow = _weapon(session, "cd_phm_04_bow_0001")
+        session.select_weapon(bow)
+        unit = session.resolve_equipment_unit("MainWeapon_Bow")
+        self.assertEqual([link.part_name for link in unit.linked_parts], ["MainWeapon_Quiver"])
+        quiver_link = unit.linked_parts[0]
+        self.assertEqual(quiver_link.role, "quiver")
+        self.assertTrue(quiver_link.required_for_stow)
+        self.assertIn(quiver_sock, unit.allowed_socket_files)
+        self.assertEqual(_socket_file_for(session, "MainWeapon_Quiver", unit, link=quiver_link), quiver_sock)
+        xbow = _weapon(session, "cd_phm_05_crossbow_0001")
+        self.assertEqual(session.case_asset_for(xbow).weapon_id, "cd_phm_05_quiver_0001")
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

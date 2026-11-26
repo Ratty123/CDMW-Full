@@ -119,7 +119,7 @@ def _row_key_text(key: bytes) -> str:
     return str(int.from_bytes(key, "little")) if len(key) <= 8 else "0x" + key.hex()
 
 
-def _append_decoded_fields(lines, detail, stem, body, key_width, shown) -> None:
+def _append_decoded_fields(lines, detail, stem, body, key_width, shown, key_layout="prefix") -> None:
     """Field values for tables with a closed record schema, decoded for the listed rows only."""
 
     from cdmw.core.static_table_records import StaticTableError, decode_record, table_kind_for_stem
@@ -132,16 +132,17 @@ def _append_decoded_fields(lines, detail, stem, body, key_width, shown) -> None:
     # the walk is pure Python on the preview worker.
     sample = shown[:_FIELD_PREVIEW_ROWS]
     records, refused = [], 0
-    for _row, start, end in sample:
+    for row, start, end in sample:
         try:
-            records.append(decode_record(kind, body[start:end], start=start, key_width=key_width))
+            records.append(decode_record(kind, body[start:end], start=start, key_width=key_width,
+                                         name=row.string_key, key_layout=key_layout))
         except (RecordError, StaticTableError, UnicodeDecodeError):
             refused += 1
     lines.extend(["", f"Decoded fields of the first {len(sample):,} rows ({len(records):,} decoded):"])
     for record in records:
         lines.append(f"  key {record.key}  {record.name}")
         for field in record.fields:
-            if field.name in ("_stringKey", "_key"):
+            if field.name in ("_stringKey", "_key", "_staticInfoIndex"):
                 continue
             if field.shape == "nested":
                 value = f"{field.value:,} bytes"
@@ -197,7 +198,11 @@ def build_static_table_preview(
             lines.append(f"- Header: {len(header):,} bytes, body: {len(body):,} bytes")
             detail.append(f"The row directory did not resolve against the body: {exc}")
         else:
-            layout = "name, then key" if table.key_layout == "named" else "key first"
+            layout = (
+                "key, staticInfoIndex (names in header)"
+                if table.key_layout == "indexed"
+                else ("name, then key" if table.key_layout == "named" else "key first")
+            )
             lines.extend(
                 [
                     f"- Rows: {len(table.rows):,}",
@@ -210,8 +215,8 @@ def build_static_table_preview(
             shown = spans[:PREVIEW_ROW_LIMIT]
             lines.extend(["", f"Rows in body order ({len(shown):,} of {len(spans):,}):"])
             for row, start, end in shown:
-                label = ""
-                if table.key_layout == "named" and end - start >= 4:
+                label = row.string_key
+                if not label and table.key_layout == "named" and end - start >= 4:
                     length = int.from_bytes(body[start : start + 4], "little")
                     if 0 < length <= min(4096, end - start - 4):
                         label = body[start + 4 : start + 4 + length].decode("utf-8", "replace")
@@ -222,7 +227,7 @@ def build_static_table_preview(
             if len(spans) > len(shown):
                 lines.append(f"  ... {len(spans) - len(shown):,} more")
             detail.append(f"Resolved {len(table.rows):,} rows from the header and body pair.")
-            _append_decoded_fields(lines, detail, stem, body, table.key_width, shown)
+            _append_decoded_fields(lines, detail, stem, body, table.key_width, shown, table.key_layout)
     detail.append("This inspector is read-only.")
     return _StructuredBinaryPreviewBundle(
         preview_text="\n".join(lines),

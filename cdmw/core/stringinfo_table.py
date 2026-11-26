@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence, Tuple
 
 from cdmw.core.archive_format import hashlittle
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.core.structured_binary_editor import append_table_rows, next_static_info_index, parse_pabgh_table
 from cdmw.domain.cancellation import raise_if_cancelled
 
 STRINGINFO_HASH_INIT = 0xC5EDE
@@ -73,11 +73,15 @@ def parse_stringinfo(
         raise_if_cancelled(stop_event)
         if end - start < _ROW_HEAD:
             raise StringInfoFormatError(f"row {row.index} at 0x{start:X} is shorter than a row head{where}")
-        key, zeros, length = struct.unpack_from("<I5sI", payload_bytes, start)
-        # October 2026 static tables move the key after four zero bytes.
-        if key == 0 and struct.unpack_from("<I", payload_bytes, start + 4)[0] == row.row_id:
-            key = row.row_id
-            zeros = payload_bytes[start:start + 4] + payload_bytes[start + 8:start + 9]
+        if table.key_layout == "indexed":
+            key, _static_index, zero, length = struct.unpack_from("<IIBI", payload_bytes, start)
+            zeros = bytes([zero]) + b"\x00" * 4
+        else:
+            key, zeros, length = struct.unpack_from("<I5sI", payload_bytes, start)
+            # October 2026 static tables move the key after four zero bytes.
+            if key == 0 and struct.unpack_from("<I", payload_bytes, start + 4)[0] == row.row_id:
+                key = row.row_id
+                zeros = payload_bytes[start:start + 4] + payload_bytes[start + 8:start + 9]
         if key != row.row_id:
             raise StringInfoFormatError(f"row {row.index} at 0x{start:X} does not repeat its directory key{where}")
         if zeros != b"\x00" * 5:
@@ -117,6 +121,7 @@ def append_stringinfo_strings(
 
     existing = stringinfo_index(parse_stringinfo(payload, header, name=name))
     table = parse_pabgh_table(header, payload=payload)
+    next_index = next_static_info_index((payload, header)) if table.key_layout == "indexed" else 0
     keys: list[int] = []
     new_rows: list[bytes] = []
     pending: dict[int, str] = {}
@@ -136,10 +141,17 @@ def append_stringinfo_strings(
             continue
         pending[key] = text
         row = build_stringinfo_row(text)
-        new_rows.append(bytes(4) + row[:4] + row[8:] if table.key_layout == "named" else row)
+        if table.key_layout == "indexed":
+            new_rows.append(row[:4] + struct.pack("<I", next_index) + row[8:])
+            next_index += 1
+        elif table.key_layout == "named":
+            new_rows.append(bytes(4) + row[:4] + row[8:])
+        else:
+            new_rows.append(row)
     if not new_rows:
         return bytes(payload), bytes(header), tuple(keys)
-    new_payload, new_header = append_table_rows(payload, header, new_rows)
+    string_keys = ("",) * len(new_rows) if table.header_format == "indexed_3840" else None
+    new_payload, new_header = append_table_rows(payload, header, new_rows, string_keys=string_keys)
     return new_payload, new_header, tuple(keys)
 
 

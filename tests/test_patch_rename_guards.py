@@ -264,11 +264,20 @@ def test_p19_item_icon_strings_resolve_in_the_icon_registry(game, sources):
     unresolved = []
     for stem in item_stems:
         payload, header = pair(stem)
-        spans = parse_pabgh_table(header, payload=payload).row_spans(len(payload))
+        table = parse_pabgh_table(header, payload=payload)
+        spans = table.row_spans(len(payload))
         keys = {row.row_id for row, _start, _end in spans}
-        for _row, start, end in spans:
+        for row, start, end in spans:
             rows += 1
-            _key, text = find_icon_string(parse_iteminfo_row(payload[start:end], item_keys=keys), texts)
+            _key, text = find_icon_string(
+                parse_iteminfo_row(
+                    payload[start:end],
+                    item_keys=keys,
+                    string_key=row.string_key,
+                    key_layout=table.key_layout,
+                ),
+                texts,
+            )
             if text is None:
                 continue
             found += 1
@@ -324,9 +333,9 @@ def test_p09_every_table_the_app_reads_exists_under_its_current_or_legacy_name(s
     assert not missing, f"tables the app reads by name are not shipped under that name: {missing}"
 
     # Every table with a closed record schema ships under its schema name (or a legacy
-    # one the schema maps). `detectdetailinfo` has a reader but no shipped file on
-    # 1.0.0.3663 under any name.
-    not_shipped = {"detectdetailinfo"}
+    # one the schema maps). `detectdetailinfo` and `frameeventattrgroupinfo` have readers
+    # but are no longer shipped under any name.
+    not_shipped = {"detectdetailinfo", "frameeventattrgroupinfo"}
     shipped = {table_kind_for_stem(stem) for stem in tables}
     absent = sorted(kind for kind in DECODED_TABLES - not_shipped if kind not in shipped)
     assert not absent, f"decoded tables no longer shipped under a known name: {absent}"

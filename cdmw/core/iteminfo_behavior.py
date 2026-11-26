@@ -92,8 +92,8 @@ def has_page_rotation(layout):
     return '_discardSingleCount' in layout.fields
 
 
-def read_behavior_fields(raw):
-    layout = read_item_layout(raw)
+def read_behavior_fields(raw, *, key_layout=None):
+    layout = read_item_layout(raw, key_layout=key_layout)
     rotation = has_page_rotation(layout)
     result = {}
     for name, (field, shape, _section) in BEHAVIOR_FIELDS.items():
@@ -111,9 +111,9 @@ def read_behavior_fields(raw):
     return result
 
 
-def set_behavior_fields(raw, values):
+def set_behavior_fields(raw, values, *, key_layout=None):
     encode_behavior_settings(ItemBehaviorSettings(values))
-    layout = read_item_layout(raw)
+    layout = read_item_layout(raw, key_layout=key_layout)
     rotation = has_page_rotation(layout)
     fields = {BEHAVIOR_FIELDS[name][0]: write_value(BEHAVIOR_FIELDS[name][1], value, generation=layout.generation, owner=name,
                                                     page_rotation=rotation)

@@ -12,7 +12,8 @@ public sealed class ArchiveNameIndexService(
 {
     // 6: DLC ItemInfo, StringInfo and item names are merged in.
     // 7: StringInfo no longer maps the next row's leading zero bytes to an icon stem.
-    private const int FileVersion = 7;
+    // 8: Support 1.0.0.3840 indexed .staticinfoheader directories and StringInfo rows.
+    private const int FileVersion = 8;
     private static readonly byte[] Magic = "CDMWNAM5"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);

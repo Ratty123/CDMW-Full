@@ -172,7 +172,7 @@ def test_installed_item_tables_decode_under_exactly_one_generation():
     from pathlib import Path
 
     from cdmw.core.archive_extraction import read_archive_entry_data
-    from cdmw.core.compact_static import ITEMINFO_GENERATIONS, _read_compact_layout
+    from cdmw.core.compact_static import TABLE_GENERATIONS, _read_compact_layout
     from cdmw.core.item_layout import read_item_use_layout
     from tools.placement_studio import corpus
 
@@ -188,24 +188,31 @@ def test_installed_item_tables_decode_under_exactly_one_generation():
     read = lambda entry: bytes(read_archive_entry_data(entry)[0])  # noqa: E731
     stems = {stem.rsplit('/', 1)[1] for stem in pairs}
     assert {'iteminfo', 'iteminfo.dlc_01', 'itemuseinfo', 'itemuseinfo.dlc_01'} <= stems, stems
-    newest = ITEMINFO_GENERATIONS[-1][0]
+    gens = TABLE_GENERATIONS['iteminfo']
+    newest = gens[-1][0]
     for stem, pair in pairs.items():
         body, header = read(pair['staticinfobody']), read(pair['staticinfoheader'])
-        spans = parse_pabgh_table(header, payload=body).row_spans(len(body))
+        table = parse_pabgh_table(header, payload=body)
+        spans = table.row_spans(len(body))
         assert len(spans) > 1000, stem
+        active_gens = (
+            tuple(entry for entry in gens if entry[0] == '3840')
+            if table.key_layout == 'indexed'
+            else tuple(entry for entry in gens if entry[0] != '3840')
+        )
         failures = []
         for row, start, end in spans:
             raw = body[start:end]
             try:
                 if '/itemuseinfo' in stem:
-                    read_item_use_layout(raw)
+                    read_item_use_layout(raw, key_layout=table.key_layout)
                     continue
-                parsed = parse_iteminfo_row(raw)
+                parsed = parse_iteminfo_row(raw, string_key=row.string_key, key_layout=table.key_layout)
                 assert parsed.key == row.row_id and rebuild_stat_block(parsed) == raw
                 matched = []
-                for label, program in ITEMINFO_GENERATIONS:
+                for label, program, overrides in active_gens:
                     try:
-                        _read_compact_layout(raw, 'iteminfo', program)
+                        _read_compact_layout(raw, 'iteminfo', program, overrides=overrides)
                         matched.append(label)
                     except (RecordError, UnicodeError):
                         pass

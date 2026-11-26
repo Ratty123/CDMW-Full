@@ -46,13 +46,18 @@ internal static class ArchiveCharacterNames
                 if (row.Key.Length != 4) continue;
                 var id = BinaryPrimitives.ReadUInt32LittleEndian(row.Key);
                 var start = checked((int)row.Offset);
-                var end = i + 1 < characterRows.Count ? checked((int)characterRows[i + 1].Offset) : characterBytes.Length;
+                var end = row.Size > 0
+                    ? checked(start + row.Size)
+                    : (i + 1 < characterRows.Count ? checked((int)characterRows[i + 1].Offset) : characterBytes.Length);
                 var key = (((ulong)id << 32) | 0x30).ToString(CultureInfo.InvariantCulture);
                 // CharacterInfo uses a 03/30 sub-record. Confirm the actual key bytes
                 // inside this row before joining the localization namespace.
                 var keyBytes = System.Text.Encoding.ASCII.GetBytes(key);
                 if (characterBytes.AsSpan(start, end - start).IndexOf(keyBytes) < 0) key = "";
-                names[id] = (ArchiveNameIndexBuilder.ReadItemInfoRowInternalName(characterBytes, start, end, row.KeyOffset != 0), key);
+                var internalName = row.Indexed3840
+                    ? row.StringKey
+                    : ArchiveNameIndexBuilder.ReadItemInfoRowInternalName(characterBytes, start, end, row.KeyOffset != 0);
+                names[id] = (internalName, key);
             }
             var wanted = names.Values.Select(static row => row.NameKey).Where(static value => value.Length > 0)
                 .ToHashSet(StringComparer.Ordinal);
@@ -77,7 +82,9 @@ internal static class ArchiveCharacterNames
                 token.ThrowIfCancellationRequested();
                 var row = rows[i];
                 var start = checked((int)row.Offset);
-                var end = i + 1 < rows.Count ? checked((int)rows[i + 1].Offset) : linkBytes.Length;
+                var end = row.Size > 0
+                    ? checked(start + row.Size)
+                    : (i + 1 < rows.Count ? checked((int)rows[i + 1].Offset) : linkBytes.Length);
                 if (row.Key.Length != 8) { unmatched++; continue; }
                 var id = BinaryPrimitives.ReadUInt32LittleEndian(row.Key);
                 // Verified installed layout: 8-byte (character ID, variant) key,

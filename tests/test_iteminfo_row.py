@@ -529,14 +529,14 @@ class VanillaItemInfoTests(unittest.TestCase):
         from cdmw.core.archive_attachment_iteminfo import parse_attachment_equip_type_records
         equip_records = parse_attachment_equip_type_records(found["equiptypeinfo.pabgb"], found["equiptypeinfo.pabgh"])
         equip_names = {record.row_id: record.name for record in equip_records}
-        self.assertEqual(len(equip_names), len(parse_pabgh_table(found["equiptypeinfo.pabgh"]).rows))
+        self.assertEqual(len(equip_names), len(parse_pabgh_table(found["equiptypeinfo.pabgh"], payload=found["equiptypeinfo.pabgb"]).rows))
         weapons = {"OneHandSword", "TwoHandSword", "OneHandMace", "TwoHandPike", "TwoHandSpear", "OneHandDagger", "TwoHandAxe", "OneHandAxe", "OneHandCannon", "OneHandPistol", "TwoHandGiantSword", "OneHandBow"}
         parsed = 0
         with_block = 0
         weapon_ladders = 0
         types_by_equip: dict[str, set[int]] = {}
         for row, start, end in spans:
-            item = parse_iteminfo_row(payload[start:end], item_keys=keys)
+            item = parse_iteminfo_row(payload[start:end], item_keys=keys, string_key=row.string_key, key_layout=table.key_layout)
             parsed += 1
             self.assertEqual(item.key, row.row_id)
             if item.equip_type_key:
@@ -569,7 +569,7 @@ class VanillaItemInfoTests(unittest.TestCase):
         keys = {row.row_id for row, _s, _e in spans}
         checked = 0
         for row, start, end in spans:
-            item = parse_iteminfo_row(payload[start:end], item_keys=keys)
+            item = parse_iteminfo_row(payload[start:end], item_keys=keys, string_key=row.string_key, key_layout=table.key_layout)
             if item.stat_block_offset is None:
                 continue
             self.assertEqual(encode_stat_block(item), item.raw[item.stat_block_offset:item.stat_block_end], item.string_key)

@@ -189,6 +189,76 @@ internal static class ItemCatalogTextTests
         return bytes;
     }
 
+    public static Task Indexed3840Async()
+    {
+        static (byte[] Header, byte[] Payload) BuildIndexed3840(IReadOnlyList<(uint Key, string StringKey, byte[] Body)> rows)
+        {
+            using var headerStream = new MemoryStream();
+            using var payloadStream = new MemoryStream();
+            using var hw = new BinaryWriter(headerStream, Encoding.UTF8, leaveOpen: true);
+            using var pw = new BinaryWriter(payloadStream, Encoding.UTF8, leaveOpen: true);
+            hw.Write((uint)rows.Count);
+            foreach (var (key, stringKey, body) in rows)
+            {
+                var offset = checked((uint)payloadStream.Position);
+                pw.Write(key);
+                pw.Write(body);
+                var size = checked((uint)(payloadStream.Position - offset));
+                var skBytes = Encoding.UTF8.GetBytes(stringKey);
+                hw.Write(key);
+                hw.Write((uint)skBytes.Length);
+                hw.Write(skBytes);
+                hw.Write(offset);
+                hw.Write(size);
+            }
+            hw.Flush();
+            pw.Flush();
+            return (headerStream.ToArray(), payloadStream.ToArray());
+        }
+
+        static byte[] IndexedRowBody(uint staticInfoIndex, byte blocked, string? text = null)
+        {
+            using var ms = new MemoryStream();
+            using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+            bw.Write(staticInfoIndex);
+            bw.Write(blocked);
+            if (text is not null)
+            {
+                var bytes = Encoding.UTF8.GetBytes(text);
+                bw.Write((uint)bytes.Length);
+                bw.Write(bytes);
+            }
+            bw.Flush();
+            return ms.ToArray();
+        }
+
+        // StaticInfo indices in 3..180 overlap old row offsets / lengths, so 3840 directory
+        // resolution and StringInfo parsing must rely on the .staticinfoheader directory.
+        var (itemHeader, itemPayload) = BuildIndexed3840(
+        [
+            (100u, "test_item_100", IndexedRowBody(42u, 0)),
+            (200u, "test_item_200", IndexedRowBody(179u, 0)),
+        ]);
+        var directory = ArchiveNameIndexBuilder.ResolvePabghDirectory(
+            itemHeader, itemPayload, ArchiveNameIndexBuilder.TableKeyLayout.Named);
+        Require(directory is { Count: 2 }, "ResolvePabghDirectory failed to resolve 3840 header");
+        Require(directory![0].Indexed3840 && directory[1].Indexed3840, "3840 rows were not flagged Indexed3840");
+        Require(directory[0].StringKey == "test_item_100" && directory[1].StringKey == "test_item_200",
+            "3840 directory lost StringKey entries");
+        Require(directory[0].Size == 9 && directory[1].Size == 9, "3840 directory Size mismatch");
+
+        var (strHeader, strPayload) = BuildIndexed3840(
+        [
+            (777u, "icon_a", IndexedRowBody(42u, 0, "itemicon_prefab_cd_test_item_0001")),
+            (778u, "icon_b", IndexedRowBody(179u, 0, "itemicon_prefab_cd_test_item_0002")),
+        ]);
+        var hashes = ArchiveNameIndexBuilder.ParseStringInfo(strPayload, CancellationToken.None, strHeader);
+        var values = new HashSet<string>(hashes.Values, StringComparer.OrdinalIgnoreCase);
+        Require(values.Contains("cd_test_item_0001") && values.Contains("cd_test_item_0002"),
+            "ParseStringInfo did not decode all 3840 header-backed entries");
+        return Task.CompletedTask;
+    }
+
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);

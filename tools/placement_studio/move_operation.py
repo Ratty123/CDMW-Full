@@ -303,13 +303,8 @@ def _socket_file_for(session, part_name: str, unit: EquipmentUnit, *, link: Opti
 
     if link is None:
         return unit.weapon_path
-    case_asset = None
-    weapon = None
-    for candidate in session.weapons():
-        if candidate.weapon_id == unit.weapon_id:
-            weapon = candidate
-        if candidate.weapon_id == f"{unit.weapon_id}_in":
-            case_asset = candidate
+    weapon = next((candidate for candidate in session.weapons() if candidate.weapon_id == unit.weapon_id), None)
+    case_asset = session.case_asset_for(weapon)
     if link.role in ("case", "sheath", "scabbard", "quiver", "holster") and case_asset:
         return case_asset.game_path
     return getattr(weapon, "game_path", "") or unit.weapon_path

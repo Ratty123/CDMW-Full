@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
+import re
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .documents import is_body_socket_file
@@ -21,6 +22,7 @@ from .model import (
     PlacementBinding,
     Socket,
     Vec3,
+    companion_part_names,
     link_role,
 )
 from .resolver import (
@@ -497,6 +499,9 @@ class PlacementSession:
             candidate = f"{part_name}{suffix}"
             if candidate in parts and candidate not in found:
                 found[candidate] = parts[candidate]
+        for candidate in companion_part_names(part_name):
+            if candidate in parts and candidate not in found:
+                found[candidate] = parts[candidate]
 
         out = []
         for name in sorted(found):
@@ -517,19 +522,28 @@ class PlacementSession:
         return tuple(out)
 
     def case_asset_for(self, weapon) -> Optional[WeaponSocketFile]:
-        """The `_in` socket file that aims a weapon's sheath, or `None`.
+        """The `_in` or sibling quiver socket file that aims a weapon's carrier, or `None`.
 
-        `cd_phm_01_sword_0001_r` -> `cd_phm_01_sword_0001_r_in`. The case row has its own
-        child sockets in its own file, so an operation that moves the sheath has to be
-        allowed to write *that* file and no other.
+        `cd_phm_01_sword_0001_r` -> `cd_phm_01_sword_0001_r_in`;
+        `cd_phm_04_bow_0001` -> `cd_phm_04_quiver_0001`. The case row has its own
+        child sockets in its own file, so an operation that moves the sheath or quiver has
+        to be allowed to write *that* file and no other.
         """
 
         if weapon is None:
             return None
-        wanted = f"{weapon.weapon_id}_in"
-        for candidate in self.weapons():
-            if candidate.weapon_id == wanted:
-                return candidate
+        by_id = {candidate.weapon_id.casefold(): candidate for candidate in self.weapons()}
+        candidates = [f"{weapon.weapon_id}_in"]
+        lowered_id = weapon.weapon_id.casefold()
+        if "_crossbow_" in lowered_id:
+            candidates.append(re.sub(r"_crossbow_", "_crossbow_quiver_", weapon.weapon_id, count=1, flags=re.IGNORECASE))
+            candidates.append(re.sub(r"_crossbow_", "_quiver_", weapon.weapon_id, count=1, flags=re.IGNORECASE))
+        if "_bow_" in lowered_id:
+            candidates.append(re.sub(r"_bow_", "_quiver_", weapon.weapon_id, count=1, flags=re.IGNORECASE))
+        for wanted in candidates:
+            matched = by_id.get(wanted.casefold())
+            if matched is not None:
+                return matched
         return None
 
     def resolve_equipment_unit(

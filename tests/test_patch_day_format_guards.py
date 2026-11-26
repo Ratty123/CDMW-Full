@@ -394,11 +394,13 @@ def test_every_shipped_text_language_is_known(game):
     prefix = "gamedata/stringtable/binary__/"
     shipped = {path[len(prefix):].split("/", 1)[0] for path in game.by_path
                if path.startswith(prefix) and path.endswith("/item.paloc")}
+    # `rus` was intentionally removed from LOCALIZATION_LANGUAGES in a46d3b27b.
+    supported = shipped - {"rus"}
     print("languages", sorted(shipped))
-    assert len(shipped) >= 15, sorted(shipped)
-    assert shipped == set(LOCALIZATION_LANGUAGES), (sorted(shipped - set(LOCALIZATION_LANGUAGES)),
-                                                    sorted(set(LOCALIZATION_LANGUAGES) - shipped))
-    assert not shipped - set(LANGUAGE_LABELS), sorted(shipped - set(LANGUAGE_LABELS))
+    assert len(supported) >= 14, sorted(shipped)
+    assert supported == set(LOCALIZATION_LANGUAGES), (sorted(supported - set(LOCALIZATION_LANGUAGES)),
+                                                      sorted(set(LOCALIZATION_LANGUAGES) - supported))
+    assert not supported - set(LANGUAGE_LABELS), sorted(supported - set(LANGUAGE_LABELS))
 
 
 # --------------------------------------------------------------------------- gameplay tables, one node per table
@@ -413,6 +415,7 @@ def _decoded_tables() -> list[str]:
 #: Tables the schema still knows that the game no longer ships, with the build that retired them.
 RETIRED_TABLES = {
     "detectdetailinfo": "folded into DetectInfo._detectDetailData after 1.0.0.3576 (not shipped on 1.0.0.3663)",
+    "frameeventattrgroupinfo": "retired after 1.0.0.3732 (not shipped on 1.0.0.3840)",
 }
 
 

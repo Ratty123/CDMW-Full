@@ -272,7 +272,7 @@ def _resource_offsets(row, role):
     from cdmw.core.item_layout import read_item_layout, hash_reference_spans
     from cdmw.core.new_item_record import RecordError
     try:
-        layout = read_item_layout(row.raw)
+        layout = read_item_layout(row.raw, key_layout=getattr(row, "key_layout", None))
     except RecordError:
         return range(row.prefix_end, len(row.raw) - 3)
     return tuple(span.start for kind, span in hash_reference_spans(layout) if kind == role)

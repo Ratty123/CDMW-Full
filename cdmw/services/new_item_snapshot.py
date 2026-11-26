@@ -506,6 +506,9 @@ def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:
     table = parse_pabgh_table(pair.header, payload=pair.payload)
     names: Dict[int, str] = {}
     for row, start, end in table.row_spans(len(pair.payload)):
+        if table.key_layout == 'indexed':
+            names[row.row_id] = row.string_key
+            continue
         if table.key_layout == 'named':
             from cdmw.core.new_item_record import named_prefix
             names[row.row_id] = named_prefix(pair.payload[start:end], table.key_width, key=row.row_id)[1]
@@ -647,7 +650,12 @@ def build_snapshot(
         # after the table, which is seconds of Python.
         raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         try:
-            parsed = parse_iteminfo_row(iteminfo.payload[start:end], item_keys=keys)
+            parsed = parse_iteminfo_row(
+                iteminfo.payload[start:end],
+                item_keys=keys,
+                string_key=row.string_key,
+                key_layout=table.key_layout,
+            )
             if parsed.key != row.row_id or row.row_id in rows:
                 raise ItemInfoRowError('ItemInfo has an inconsistent or duplicate row identity.')
             rows[row.row_id] = parsed
@@ -743,9 +751,12 @@ def build_snapshot(
                 if entry.row_id in seen:
                     raise NewItemSnapshotError(f'{name} has duplicate row {entry.row_id}.')
                 seen.add(entry.row_id)
-                if directory.key_layout == 'named':
-                    from cdmw.core.new_item_record import named_prefix
-                    identity = named_prefix(pair.payload[_start:_end],directory.key_width,key=entry.row_id)[1]
+                if directory.key_layout in ('named', 'indexed'):
+                    if directory.key_layout == 'indexed':
+                        identity = entry.string_key
+                    else:
+                        from cdmw.core.new_item_record import named_prefix
+                        identity = named_prefix(pair.payload[_start:_end],directory.key_width,key=entry.row_id)[1]
                     if entry.row_id in identities and identities[entry.row_id] != identity:
                         raise NewItemSnapshotError(f'{name} has conflicting base/DLC identities for key {entry.row_id}.')
                     identities[entry.row_id] = identity
@@ -756,7 +767,12 @@ def build_snapshot(
                 for entry,start,end in directory.row_spans(len(pair.payload)):
                     raise_if_cancelled(stop_event)
                     try:
-                        parsed = parse_iteminfo_row(pair.payload[start:end],structured=True)
+                        parsed = parse_iteminfo_row(
+                            pair.payload[start:end],
+                            structured=True,
+                            string_key=entry.string_key,
+                            key_layout=directory.key_layout,
+                        )
                     except (ItemInfoRowError, RecordError, struct.error, UnicodeError) as exc:
                         raise NewItemSnapshotError(
                             f"ItemInfo row {entry.row_id} did not decode: {exc}\n"

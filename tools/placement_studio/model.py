@@ -298,10 +298,27 @@ CASE_ROLE_BY_TYPE: Dict[str, str] = {
     "Rapier": "sheath",
     "Arw": "quiver",
     "Bow": "quiver",
+    "CrossBow": "quiver",
     "Gun": "holster",
     "Pistol": "holster",
     "Musket": "holster",
 }
+
+_COMPANION_CASE_PARTS: Tuple[Tuple[str, Tuple[str, ...], str], ...] = (
+    ("MainWeapon_Bow", ("MainWeapon_Quiver",), "quiver"),
+    ("MainWeapon_CrossBow", ("MainWeapon_CrossBow_Quiver", "MainWeapon_Quiver"), "quiver"),
+)
+
+
+def companion_part_names(part_name: str) -> Tuple[str, ...]:
+    """Return un-suffixed companion part names (e.g. quiver for a bow) for *part_name*."""
+
+    bare = bare_part_name(part_name)
+    prefix = "CD_" if str(part_name).startswith("CD_") else ""
+    for owner_part, companions, _role in _COMPANION_CASE_PARTS:
+        if bare == owner_part:
+            return tuple(f"{prefix}{name}" for name in companions)
+    return ()
 
 #: Roles whose row must move with the primary item or the two visibly separate. An auxiliary
 #: blade has its own placement and is not part of the stow story, so it is not required.
@@ -323,6 +340,11 @@ def link_role(primary: "DescriptorPart", linked: "DescriptorPart") -> str:
         if role != "case":
             return role
         return CASE_ROLE_BY_TYPE.get(linked.weapon_type or primary.weapon_type, "case")
+    primary_bare = bare_part_name(primary.part_name)
+    linked_bare = bare_part_name(name)
+    for owner_part, companions, companion_role in _COMPANION_CASE_PARTS:
+        if primary_bare == owner_part and linked_bare in companions:
+            return companion_role
     if primary.weapon_case_part and primary.weapon_case_part == name:
         # The descriptor says it is the carrier even though the name does not.
         return CASE_ROLE_BY_TYPE.get(primary.weapon_type, "case")

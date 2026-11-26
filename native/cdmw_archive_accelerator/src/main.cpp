@@ -1189,8 +1189,48 @@ std::string normalize_icon_model_stem(std::string value) {
     return value;
 }
 
-std::map<std::uint32_t, std::string> parse_stringinfo_hashes(const std::vector<char>& data) {
+std::map<std::uint32_t, std::string> parse_stringinfo_hashes(
+    const std::vector<char>& data,
+    const std::vector<char>* header = nullptr
+) {
     std::map<std::uint32_t, std::string> hashes;
+    auto record_icon = [&](std::string text) {
+        while (!text.empty() && text.back() == '\0') text.pop_back();
+        const std::string lower = lower_copy(text);
+        std::string prefix;
+        for (const char* candidate : {"itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_"}) {
+            if (starts_with(lower, candidate)) {
+                prefix = candidate;
+                break;
+            }
+        }
+        if (prefix.empty()) return;
+        std::string model_stem = normalize_icon_model_stem(text.substr(prefix.size()));
+        if (starts_with(model_stem, "cd_") && model_stem != "cd_t9999_empty") {
+            const std::uint32_t computed_hash = hashlittle_bytes(text, 0xC5EDE);
+            hashes[computed_hash] = model_stem;
+            hashes[hashlittle_bytes(model_stem, 0xC5EDE)] = model_stem;
+        }
+    };
+
+    if (header != nullptr && !header->empty()) {
+        std::vector<PabghDirectoryRow> rows;
+        if (resolve_pabgh_directory(*header, data, rows, TableKeyLayout::StringInfo)) {
+            for (size_t index = 0; index < rows.size(); ++index) {
+                const size_t start = rows[index].offset;
+                const size_t end = rows[index].size > 0
+                    ? start + rows[index].size
+                    : (index + 1 < rows.size() ? rows[index + 1].offset : data.size());
+                if (start + 13 > end || end > data.size() || data[start + 8] != 0) continue;
+                const auto slen = read_u32(data, start + 9);
+                if (slen != end - start - 13) continue;
+                record_icon(std::string(data.begin() + static_cast<std::ptrdiff_t>(start + 13),
+                                        data.begin() + static_cast<std::ptrdiff_t>(end)));
+            }
+            return hashes;
+        }
+    }
+
     size_t pos = 0;
     while (pos + 8 < data.size()) {
         const std::uint32_t slen = read_u32(data, pos);
@@ -1324,15 +1364,99 @@ std::vector<std::string> iteminfo_localization_id_candidates(
 }
 
 // One row of the `.pabgh` companion: a primary key and where the matching
-// `.pabgb` row starts. A row runs to the next offset, so the directory is what
-// gives every record an exact boundary.
+// `.pabgb` row starts. A row runs to the next offset (or carries its explicit
+// 1.0.0.3840 size), so the directory gives every record an exact boundary.
 struct PabghDirectoryRow {
     std::vector<unsigned char> key;
     std::uint32_t offset = 0;
     size_t key_offset = 0;
+    std::string string_key;
+    std::uint32_t size = 0;
+    bool indexed_3840 = false;
 };
 
 enum class TableKeyLayout { Inline, Named, StringInfo };
+
+bool resolve_indexed_3840_directory(
+    const std::vector<char>& header,
+    const std::vector<char>& payload,
+    std::vector<PabghDirectoryRow>& rows
+) {
+    static const size_t count_widths[] = {1, 2, 4};
+    static const size_t key_widths[] = {1, 2, 4, 8, 12};
+    for (size_t count_width : count_widths) {
+        if (header.size() < count_width) continue;
+        std::uint64_t count = 0;
+        for (size_t i = 0; i < count_width; ++i) {
+            count |= static_cast<std::uint64_t>(static_cast<unsigned char>(header[i])) << (8 * i);
+        }
+        if (count == 0) {
+            if (header.size() == count_width && payload.empty()) {
+                rows.clear();
+                return true;
+            }
+            continue;
+        }
+        for (size_t key_width : key_widths) {
+            size_t pos = count_width;
+            bool usable = true;
+            std::vector<PabghDirectoryRow> candidate;
+            candidate.reserve(static_cast<size_t>(std::min<std::uint64_t>(count, 1000000ULL)));
+            for (std::uint64_t index = 0; index < count; ++index) {
+                if (pos + key_width + 4 > header.size()) { usable = false; break; }
+                PabghDirectoryRow row;
+                row.indexed_3840 = true;
+                row.key.assign(
+                    header.begin() + static_cast<std::ptrdiff_t>(pos),
+                    header.begin() + static_cast<std::ptrdiff_t>(pos + key_width)
+                );
+                pos += key_width;
+                const std::uint32_t sk_len = read_u32(header, pos);
+                pos += 4;
+                if (sk_len > 4096 || pos + static_cast<size_t>(sk_len) + 8 > header.size()) {
+                    usable = false;
+                    break;
+                }
+                row.string_key.assign(
+                    header.begin() + static_cast<std::ptrdiff_t>(pos),
+                    header.begin() + static_cast<std::ptrdiff_t>(pos + sk_len)
+                );
+                pos += static_cast<size_t>(sk_len);
+                row.offset = read_u32(header, pos);
+                row.size = read_u32(header, pos + 4);
+                pos += 8;
+                if (row.size < key_width || static_cast<std::uint64_t>(row.offset) + row.size > payload.size()) {
+                    usable = false;
+                    break;
+                }
+                if (!std::equal(row.key.begin(), row.key.end(),
+                                reinterpret_cast<const unsigned char*>(payload.data() + row.offset))) {
+                    usable = false;
+                    break;
+                }
+                candidate.push_back(std::move(row));
+            }
+            if (!usable || pos != header.size()) continue;
+            std::vector<size_t> order(candidate.size());
+            for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+            std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                if (candidate[a].offset != candidate[b].offset) return candidate[a].offset < candidate[b].offset;
+                return candidate[a].size < candidate[b].size;
+            });
+            std::uint64_t expected = 0;
+            bool contiguous = true;
+            for (size_t idx : order) {
+                if (candidate[idx].offset != expected) { contiguous = false; break; }
+                expected += candidate[idx].size;
+            }
+            if (contiguous && expected == payload.size()) {
+                rows = std::move(candidate);
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 // Both the count field and the primary key are variable width, so resolve them
 // by search and confirm the choice against the payload: every row repeats its
@@ -1422,7 +1546,7 @@ bool resolve_pabgh_directory(
         rows = std::move(candidate);
         return true;
     }
-    return false;
+    return resolve_indexed_3840_directory(header, payload, rows);
 }
 
 // Read a localization key out of an inline `07 7x 00 00 00` sub-record. The
@@ -1480,9 +1604,13 @@ std::map<std::uint32_t, std::string> parse_equiptypeinfo(
     if (!resolve_pabgh_directory(header, data, rows, TableKeyLayout::Named)) return types;
     for (size_t index = 0; index < rows.size(); ++index) {
         const size_t row_start = rows[index].offset;
-        const size_t row_end = index + 1 < rows.size() ? rows[index + 1].offset : data.size();
+        const size_t row_end = rows[index].size > 0
+            ? row_start + rows[index].size
+            : (index + 1 < rows.size() ? rows[index + 1].offset : data.size());
         if (row_start >= row_end || row_end > data.size()) continue;
-        const std::string name = iteminfo_row_internal_name(data, row_start, row_end, rows[index].key_offset != 0);
+        const std::string name = rows[index].indexed_3840
+            ? rows[index].string_key
+            : iteminfo_row_internal_name(data, row_start, row_end, rows[index].key_offset != 0);
         if (!name.empty()) types[read_u32(data, row_start + rows[index].key_offset)] = name;
     }
     return types;
@@ -1508,13 +1636,18 @@ std::map<std::uint32_t, std::string> parse_asset_stringinfo(
     std::map<std::uint32_t, std::string> result;
     for (size_t index = 0; index < rows.size(); ++index) {
         const size_t start = rows[index].offset;
-        const size_t end = index + 1 < rows.size() ? rows[index + 1].offset : data.size();
+        const size_t end = rows[index].size > 0
+            ? start + rows[index].size
+            : (index + 1 < rows.size() ? rows[index + 1].offset : data.size());
         if (start + 13 > end || end > data.size()) continue;
         const auto length = read_u32(data, start + 9);
         if (length != end - start - 13) continue;
         const std::string text(data.begin() + start + 13, data.begin() + end);
-        const size_t padding = start + (rows[index].key_offset ? 0 : 4);
-        if (read_u32(data, padding) != 0 || data[start + 8] != 0) continue;
+        if (!rows[index].indexed_3840) {
+            const size_t padding = start + (rows[index].key_offset ? 0 : 4);
+            if (read_u32(data, padding) != 0) continue;
+        }
+        if (data[start + 8] != 0) continue;
         const auto key = read_u32(data, start + rows[index].key_offset);
         const auto asset = assets.find(lower_copy(text));
         if (key == hashlittle_bytes(text, 0xC5EDE) && asset != assets.end())
@@ -1543,14 +1676,21 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
     std::set<int> seen_ids;
     for (size_t index = 0; index < rows.size(); ++index) {
         const size_t row_start = rows[index].offset;
-        const size_t row_end = index + 1 < rows.size() ? rows[index + 1].offset : data.size();
+        const size_t row_end = rows[index].size > 0
+            ? row_start + rows[index].size
+            : (index + 1 < rows.size() ? rows[index + 1].offset : data.size());
         if (row_start >= row_end || row_end > data.size()) continue;
         const std::uint32_t item_id = read_u32(data, row_start + rows[index].key_offset);
         if (!seen_ids.insert(static_cast<int>(item_id)).second) continue;
 
         NativeItemRecord record;
         record.item_id = static_cast<int>(item_id);
-        record.internal_name = iteminfo_row_internal_name(data, row_start, row_end, rows[index].key_offset != 0);
+        record.internal_name = rows[index].indexed_3840
+            ? rows[index].string_key
+            : iteminfo_row_internal_name(data, row_start, row_end, rows[index].key_offset != 0);
+        const size_t scan_base = rows[index].indexed_3840
+            ? (row_start + 9)
+            : (row_start + 8 + record.internal_name.size());
 
         const std::string name_key = iteminfo_sub_record_key(data, row_start, row_end, 0x70);
         const std::string description_key = iteminfo_sub_record_key(data, row_start, row_end, 0x71);
@@ -1609,13 +1749,13 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
         if (prefab_names != nullptr) {
             record.prefab_hashes.clear();
             seen_prefab_hashes.clear();
-            for (size_t cursor = row_start + 8 + record.internal_name.size(); cursor + 4 <= row_end; ++cursor) {
+            for (size_t cursor = std::min(scan_base, row_end); cursor + 4 <= row_end; ++cursor) {
                 const auto value = read_u32(data, cursor);
                 if (prefab_names->count(value) && seen_prefab_hashes.insert(value).second) record.prefab_hashes.push_back(value);
             }
         }
         if (exact_icon_paths != nullptr) {
-            for (size_t cursor = row_start + 8 + record.internal_name.size(); cursor + 4 <= row_end; ++cursor) {
+            for (size_t cursor = std::min(scan_base, row_end); cursor + 4 <= row_end; ++cursor) {
                 const auto found = exact_icon_paths->find(read_u32(data, cursor));
                 if (found != exact_icon_paths->end()) add_unique(record.icon_paths, found->second);
             }
@@ -1937,8 +2077,9 @@ int run_item_index_job(
         bool has_string_header = false;
         for (const auto& dataset : datasets) {
             const auto strings = read_binary_if_exists(dataset / "stringinfo.bin");
-            for (const auto& row : parse_stringinfo_hashes(strings)) icon_hashes[row.first] = row.second;
             const auto header = read_binary_if_exists(dataset / "stringinfo_header.bin");
+            for (const auto& row : parse_stringinfo_hashes(strings, header.empty() ? nullptr : &header))
+                icon_hashes[row.first] = row.second;
             if (!header.empty()) {
                 has_string_header = true;
                 for (const auto& row : parse_asset_stringinfo(strings, header, entries)) prefab_names[row.first] = row.second;

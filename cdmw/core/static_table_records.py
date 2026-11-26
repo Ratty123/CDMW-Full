@@ -226,8 +226,10 @@ def _resolved_shape(op):
 
 
 def root_ops(kind):
-    """The table root's operations, stepping through a root that only calls another reader."""
-    op = READERS[TABLE_READERS[kind]]
+    """The table root's operations across its latest known generation."""
+    from cdmw.core.compact_static import table_generations
+
+    op = table_generations(kind)[-1][1]
     while op[0] == "seq" and len(op) == 2 and op[1][0] == "call":
         op = READERS[op[1][1]]
     return op[1:] if op[0] == "seq" else (op,)
@@ -235,10 +237,20 @@ def root_ops(kind):
 
 def _top_level_shapes(kind):
     """Each top-level member's consecutive reads; some members are two or more reads."""
+    from cdmw.core.compact_static import table_generations
+
     shapes = {}
-    for op in root_ops(kind):
-        if op[0] == "field":
-            shapes.setdefault(op[2], []).append(_resolved_shape(op[3]))
+    for _label, program, _overrides in reversed(table_generations(kind)):
+        op = program
+        while op[0] == "seq" and len(op) == 2 and op[1][0] == "call":
+            op = READERS[op[1][1]]
+        ops = op[1:] if op[0] == "seq" else (op,)
+        gen_shapes = {}
+        for child in ops:
+            if isinstance(child, tuple) and child[0] == "field":
+                gen_shapes.setdefault(child[2], []).append(_resolved_shape(child[3]))
+        for field_name, parts in gen_shapes.items():
+            shapes.setdefault(field_name, parts)
     return shapes
 
 
@@ -268,23 +280,23 @@ def _field_value(parts, data):
     return "nested", len(data)
 
 
-def decode_record(kind: str, raw: bytes, *, start: int = 0, key_width: int = 4) -> StaticRecord:
+def decode_record(kind: str, raw: bytes, *, start: int = 0, key_width: int = 4, name: str = "", key_layout: str | None = None) -> StaticRecord:
     if kind not in DECODED_TABLES:
         raise StaticTableError(f"{kind} has no closed record schema.")
-    layout = read_compact_layout(raw, kind)
+    layout = read_compact_layout(raw, kind, key_layout=key_layout)
     shapes = _top_level_shapes(kind)
     fields = []
-    for name, span in layout.fields.items():
-        shape_name, value = _field_value(shapes.get(name, [("nested",)]), raw[span.start:span.end])
-        fields.append(StaticField(name, shape_name, start + span.start, start + span.end, value))
+    for field_name, span in layout.fields.items():
+        shape_name, value = _field_value(shapes.get(field_name, [("nested",)]), raw[span.start:span.end])
+        fields.append(StaticField(field_name, shape_name, start + span.start, start + span.end, value))
     fields.sort(key=lambda field: field.start)
-    name = _text(layout.data("_stringKey")) if "_stringKey" in layout.fields else ""
+    resolved_name = _text(layout.data("_stringKey")) if "_stringKey" in layout.fields else str(name or "")
     rules = EDITABLE_MEMBERS.get(kind, {})
     members = tuple(
         StaticMember(m.owner, tuple(m.path) + (m.name,), start + m.span.start, start + m.span.end,
                      int.from_bytes(raw[m.span.start:m.span.end], "little"), rules[(m.owner, m.name)])
         for m in layout.members if (m.owner, m.name) in rules and m.span.size == rules[(m.owner, m.name)].width)
-    return StaticRecord(layout.integer("_key", width=key_width), name, start, start + len(raw), tuple(fields), members)
+    return StaticRecord(layout.integer("_key", width=key_width), resolved_name, start, start + len(raw), tuple(fields), members)
 
 
 def decode_static_table(kind: str, header: bytes, body: bytes) -> StaticTable:
@@ -297,7 +309,14 @@ def decode_static_table(kind: str, header: bytes, body: bytes) -> StaticTable:
     spans = table.row_spans(len(body))
     for directory, start, end in spans:
         try:
-            record = decode_record(kind, body[start:end], start=start, key_width=table.key_width)
+            record = decode_record(
+                kind,
+                body[start:end],
+                start=start,
+                key_width=table.key_width,
+                name=directory.string_key,
+                key_layout=table.key_layout,
+            )
             # Composite-key tables keep only the leading u32 in row_id.
             if record.key != int.from_bytes(directory.key or directory.row_id.to_bytes(table.key_width, "little"), "little"):
                 raise RecordError("The row's inline key differs from its directory key.")
@@ -374,7 +393,7 @@ def apply_field_edits(
         if key in ambiguous:
             raise StaticTableError(f"{kind} lists key {key} more than once.")
         start, end = spans[key]
-        layout = read_compact_layout(bytes(body[start:end]), kind)
+        layout = read_compact_layout(bytes(body[start:end]), kind, key_layout=table.key_layout)
         if layout.data("_key") != keys[key]:
             raise StaticTableError(f"{kind} row {key} carries a different inline key; the header does not match the body.")
         if isinstance(field, tuple):
@@ -391,12 +410,12 @@ def apply_field_edits(
     if kind == "inventory":
         for key in rows:
             start, end = spans[key]
-            layout = read_compact_layout(bytes(edited[start:end]), kind)
+            layout = read_compact_layout(bytes(edited[start:end]), kind, key_layout=table.key_layout)
             if layout.integer("_defaultSlotCount", width=2) > layout.integer("_maxSlotCount", width=2):
                 raise StaticTableError(f"Inventory {key}: default slots exceed the maximum.")
     for key, ranges in rows.items():
         start, end = spans[key]
-        read_compact_layout(bytes(edited[start:end]), kind)
+        read_compact_layout(bytes(edited[start:end]), kind, key_layout=table.key_layout)
         for position in range(start, end):
             if edited[position] != body[position] and not any(lo <= position < hi for lo, hi in ranges):
                 raise StaticTableError(f"Edit of row {key} changed bytes outside its fields.")

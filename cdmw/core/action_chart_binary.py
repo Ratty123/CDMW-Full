@@ -92,8 +92,12 @@ ANIMATION_ARRAYS = (
 #: still use it, so a chart that does not decode in the current layout is read in this one.
 ANIMATION_ARRAYS_2_04 = tuple(
     (name, 0x94 if name == "aiMoveSpeedInfoArray" else width) for name, width in ANIMATION_ARRAYS)
-#: Layouts tried in order; the name ends up on `ActionChart.array_layout`.
-_ARRAY_LAYOUTS = (("2.05", ANIMATION_ARRAYS), ("2.04", ANIMATION_ARRAYS_2_04))
+#: Layouts tried in order; `(name, arrays, has_share_value)` ends up on `ActionChart.array_layout`.
+_ARRAY_LAYOUTS = (
+    ("2.06", ANIMATION_ARRAYS, False),
+    ("2.05", ANIMATION_ARRAYS, True),
+    ("2.04", ANIMATION_ARRAYS_2_04, True),
+)
 
 #: Frame event kinds, indexed by the u16 at the start of each event. Read from the
 #: client factory switch (185 cases) by the RTTI class each case constructs, minus
@@ -153,22 +157,28 @@ FRAME_EVENT_HEADER_SIZE = 12
 #: has one size, and these sizes walk every frame-event and key-guide buffer of the
 #: 558 charts to their last byte. A kind missing here has never been seen.
 FRAME_EVENT_SIZES = {
-    0: 16, 1: 16, 2: 16, 3: 16, 4: 108, 5: 44, 6: 16, 7: 308, 8: 16, 9: 44, 10: 84, 11: 264,
+    0: 16, 1: 16, 2: 16, 3: 16, 4: 108, 5: 52, 6: 16, 7: 308, 8: 16, 9: 44, 10: 84, 11: 264,
     12: 32, 13: 24, 14: 116, 15: 32, 17: 20, 18: 20, 19: 32, 20: 24, 21: 24, 22: 28, 23: 16,
     24: 12, 25: 244, 26: 24, 27: 16, 29: 20, 30: 16, 31: 12, 32: 16, 33: 16, 35: 24, 36: 16,
     37: 148, 38: 24, 39: 256, 40: 32, 41: 12, 42: 20, 43: 24, 44: 96, 45: 20, 46: 16, 47: 44,
-    48: 56, 49: 20, 50: 28, 51: 48, 52: 12, 53: 56, 54: 24, 55: 56, 57: 360, 58: 64, 59: 368,
+    48: 56, 49: 20, 50: 28, 51: 48, 52: 12, 53: 56, 54: 24, 55: 56, 57: 360, 58: 60, 59: 368,
     61: 32, 62: 32, 63: 24, 64: 16, 65: 16, 66: 32, 67: 236, 68: 120, 69: 24, 70: 48, 71: 60,
     72: 40, 73: 16, 75: 60, 76: 76, 77: 20, 78: 28, 79: 40, 80: 32, 81: 20, 82: 72, 83: 16,
     84: 24, 85: 16, 87: 20, 89: 60, 91: 24, 92: 16, 93: 24, 94: 24, 95: 20, 96: 36, 97: 28,
-    98: 28, 99: 68, 100: 20, 102: 24, 103: 52, 104: 36, 111: 16, 112: 20, 113: 588, 114: 340,
+    98: 28, 99: 68, 100: 20, 102: 28, 103: 52, 104: 36, 111: 16, 112: 20, 113: 588, 114: 340,
     115: 48, 116: 12, 117: 20, 118: 28, 121: 28, 122: 16, 123: 16, 124: 36, 125: 32, 126: 52,
-    127: 24, 128: 44, 129: 36, 130: 24, 131: 216, 132: 36, 133: 40, 134: 16, 136: 44, 137: 32,
+    127: 24, 128: 44, 129: 36, 130: 24, 131: 220, 132: 36, 133: 40, 134: 16, 136: 44, 137: 32,
     138: 12, 139: 52, 140: 12, 141: 24, 144: 40, 145: 40, 146: 24, 147: 44, 148: 60, 149: 20,
-    150: 28, 152: 68, 153: 12, 156: 188, 157: 20, 158: 12, 160: 16, 161: 56, 162: 84, 163: 76,
+    150: 28, 152: 68, 153: 12, 156: 188, 157: 20, 158: 12, 160: 16, 161: 68, 162: 84, 163: 76,
     164: 16, 165: 24, 166: 52, 167: 16, 168: 16, 170: 16, 171: 20, 173: 16, 174: 12, 176: 40,
-    179: 24, 182: 20,
+    178: 16, 179: 24, 182: 20,
 }
+_FRAME_EVENT_SIZES_3732 = {
+    **{kind: size for kind, size in FRAME_EVENT_SIZES.items() if kind != 178},
+    5: 44, 58: 64, 131: 216, 161: 56,
+}
+_FRAME_EVENT_SIZES_LEGACY = {**_FRAME_EVENT_SIZES_3732, 102: 24}
+_FRAME_EVENT_SIZE_TABLES = (FRAME_EVENT_SIZES, _FRAME_EVENT_SIZES_3732, _FRAME_EVENT_SIZES_LEGACY)
 
 #: u16 string-table indices inside event payloads: kind -> ((role, byte offset, table), ...).
 #: Each field indexes its table (or holds 0xFFFF) in every shipped event of its kind and
@@ -297,9 +307,8 @@ class ActionChart:
     key_guide_events: tuple[FrameEventRef, ...] = ()
     child_events: tuple[FrameEventRef, ...] = ()
     counts: Mapping[str, int] = field(default_factory=dict)
-    #: Which game's AnimationInfo array widths the chart was read with ("2.05" or "2.04").
-    #: A chart with no aiMoveSpeedInfo record reads the same in both and reports "2.05".
-    array_layout: str = "2.05"
+    #: Which game's AnimationInfo / ShareValue layout the chart was read with ("2.06", "2.05", or "2.04").
+    array_layout: str = "2.06"
 
     @property
     def explained_bytes(self) -> int:
@@ -407,18 +416,18 @@ def decode_action_chart(data: bytes, *, virtual_path: str = "") -> ActionChart:
 
 
 def _decode_chart(data: bytes) -> ActionChart:
-    """Read a chart in the current game's layout, else in the 2.04 one; report the current error."""
+    """Read a chart in the current game's layout, else fall back to 2.05/2.04; report the current error."""
 
     first_error: Optional[ActionChartError] = None
-    for name, arrays in _ARRAY_LAYOUTS:
+    for name, arrays, has_share_value in _ARRAY_LAYOUTS:
         try:
-            return _decode_chart_layout(data, arrays, name)
+            return _decode_chart_layout(data, arrays, name, has_share_value=has_share_value)
         except ActionChartError as error:
             first_error = first_error or error
     raise first_error
 
 
-def _decode_chart_layout(data: bytes, animation_arrays, array_layout: str) -> ActionChart:
+def _decode_chart_layout(data: bytes, animation_arrays, array_layout: str, *, has_share_value: bool = True) -> ActionChart:
     stream = _Stream(data)
     animations = []
     animation_count = stream.scalar("I", "animation count")
@@ -450,11 +459,12 @@ def _decode_chart_layout(data: bytes, animation_arrays, array_layout: str) -> Ac
     stream.scalar("f", "f32 rate B")
     end_behavior = stream.scalar("B", "isEndBehaviorActionChart")
     npc_schedule = stream.scalar("B", "isNPCScheduleActionChart")
-    stream.strings("ShareValue string table")
-    share_counts = struct.unpack("<10H", data[stream.pos:stream.pos + 20]) if stream.pos + 20 <= len(data) else ()
-    stream.records(1, 20, "ShareValue CountInfo")
-    if any(share_counts):
-        raise ActionChartError(f"ShareValue sections {share_counts} are not decoded (every shipped chart has none)")
+    if has_share_value:
+        stream.strings("ShareValue string table")
+        share_counts = struct.unpack("<10H", data[stream.pos:stream.pos + 20]) if stream.pos + 20 <= len(data) else ()
+        stream.records(1, 20, "ShareValue CountInfo")
+        if any(share_counts):
+            raise ActionChartError(f"ShareValue sections {share_counts} are not decoded (every shipped chart has none)")
     count_info = stream.take(10, "CountInfo")
     stream.spans.append(ChartSpan("CountInfo", stream.pos - 10, 10))
     word_count, socket_count, include_count = count_info[0], count_info[2], count_info[4]
@@ -582,14 +592,12 @@ def socket_event_payload(data: bytes, event: FrameEvent) -> SocketEventPayload:
     return SocketEventPayload(*struct.unpack_from("<fIHHHBBBb", data, event.offset + FRAME_EVENT_HEADER_SIZE))
 
 
-def walk_frame_events(data: bytes, buffer: ChartSpan) -> tuple[FrameEvent, ...]:
-    """Every event in a frame-event buffer, in order, using `FRAME_EVENT_SIZES`."""
-
+def _walk_frame_events_with_sizes(data: bytes, buffer: ChartSpan, sizes: Mapping[int, int]) -> tuple[FrameEvent, ...]:
     events = []
     at = 0
     while at < buffer.size:
         kind, _, _, flags = struct.unpack_from("<4H", data, buffer.offset + at)
-        size = FRAME_EVENT_SIZES.get(kind)
+        size = sizes.get(kind)
         if size is None:
             raise ActionChartError(f"frame event kind {kind} at buffer offset {at} has no known size")
         events.append(FrameEvent(buffer.offset + at, kind, flags))
@@ -597,6 +605,23 @@ def walk_frame_events(data: bytes, buffer: ChartSpan) -> tuple[FrameEvent, ...]:
     if at != buffer.size:
         raise ActionChartError(f"frame events run {at - buffer.size} bytes past their buffer")
     return tuple(events)
+
+
+def _event_sizes_for_buffer(data: bytes, buffer: ChartSpan) -> tuple[Mapping[int, int], tuple[FrameEvent, ...]]:
+    first_error: Optional[ActionChartError] = None
+    for sizes in _FRAME_EVENT_SIZE_TABLES:
+        try:
+            return sizes, _walk_frame_events_with_sizes(data, buffer, sizes)
+        except ActionChartError as error:
+            first_error = first_error or error
+    assert first_error is not None
+    raise first_error
+
+
+def walk_frame_events(data: bytes, buffer: ChartSpan) -> tuple[FrameEvent, ...]:
+    """Every event in a frame-event buffer, in order, using `FRAME_EVENT_SIZES` or legacy fallbacks."""
+
+    return _event_sizes_for_buffer(data, buffer)[1]
 
 
 @dataclass(frozen=True, slots=True)
@@ -843,10 +868,10 @@ def _copy_event(data: bytes, chart: ActionChart, animation: int, event: int) -> 
     buffer = chart.frame_event_buffer
     ref = chart.animations[animation].events[event]
     source = frame_event_at(chart, data, ref)
-    size = FRAME_EVENT_SIZES.get(source.kind)
+    sizes, _ = _event_sizes_for_buffer(data, buffer)
+    size = sizes.get(source.kind)
     if size is None:
         raise ActionChartError(f"{source.kind_name} events have no known size, so one cannot be copied")
-    walk_frame_events(data, buffer)
     end = buffer.offset + buffer.size
     patched = bytearray(data[:end] + data[source.offset:source.offset + size] + data[end:])
     struct.pack_into("<I", patched, buffer.offset - 4, buffer.size + size)

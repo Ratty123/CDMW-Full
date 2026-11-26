@@ -42,21 +42,51 @@ def text_bytes(value):
     return struct.pack("<I", len(raw)) + raw
 
 
-def named_prefix(raw, width=4, *, key=None):
-    """Read either qualified name/key order, returning its generation and cursor."""
+def named_prefix(raw, width=4, *, key=None, name=None, key_layout=None):
+    """Read a qualified static row identity header, returning (key, name, blocked, generation, cursor)."""
+    raw_bytes = bytes(raw)
+
+    def try_generation(generation):
+        reader = Cursor(raw_bytes)
+        if generation == "indexed":
+            own = int.from_bytes(reader.take(width), "little")
+            _static_index = reader.unpack("I")
+            blocked = reader.unpack("B")
+            row_name = "" if name is None else str(name)
+        elif generation == "compact":
+            row_name, own = reader.text(), int.from_bytes(reader.take(width), "little")
+            blocked = reader.unpack("B")
+        else:
+            own, row_name = int.from_bytes(reader.take(width), "little"), reader.text()
+            blocked = reader.unpack("B")
+        if (not row_name or row_name.isprintable()) and blocked in (0, 1) and (key is None or own == key):
+            return (own, row_name, blocked, generation, reader)
+        return None
+
+    if key_layout == "indexed":
+        order = ("indexed",)
+    elif key_layout == "named":
+        order = ("compact",)
+    elif key_layout == "prefix":
+        order = ("legacy",)
+    else:
+        order = ("legacy", "compact")
+
     matches = []
-    for generation in ('legacy', 'compact'):
-        reader = Cursor(raw)
+    for generation in order:
         try:
-            if generation == 'compact':
-                name, own = reader.text(), int.from_bytes(reader.take(width), 'little')
-            else:
-                own, name = int.from_bytes(reader.take(width), 'little'), reader.text()
-            blocked = reader.unpack('B')
-            if (not name or name.isprintable()) and blocked in (0, 1) and (key is None or own == key):
-                matches.append((own, name, blocked, generation, reader))
+            hit = try_generation(generation)
+            if hit is not None:
+                matches.append(hit)
+        except (RecordError, UnicodeError):
+            pass
+    if not matches and key_layout is None:
+        try:
+            hit = try_generation("indexed")
+            if hit is not None:
+                matches.append(hit)
         except (RecordError, UnicodeError):
             pass
     if len(matches) != 1:
-        raise RecordError('Unknown or ambiguous static record identity.')
+        raise RecordError("Unknown or ambiguous static record identity.")
     return matches[0]

@@ -30,6 +30,8 @@ class PabghRow:
     #: Raw primary key bytes. Wider than `row_id` for the composite-key tables,
     #: where `row_id` holds only the leading u32.
     key: bytes = b""
+    string_key: str = ""
+    size: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,13 +42,14 @@ class PabghTable:
     proof_lines: Tuple[str, ...] = ()
     key_width: int = 4
     key_layout: str = "prefix"
+    header_format: str = "legacy"
 
     def row_spans(self, payload_length: int) -> Tuple[Tuple[PabghRow, int, int], ...]:
         """`(row, start, end)` per row, in payload order.
 
         Offsets address the companion `.pabgb`, so a row runs to the next offset
-        and the last row runs to the end of the blob. This is the whole reason the
-        directory exists: without it a reader has to guess where a record stops.
+        and the last row runs to the end of the blob. When `row.size` is set
+        (the 1.0.0.3840 `.staticinfoheader` format), it gives the exact end.
         """
 
         limit = max(0, int(payload_length))
@@ -56,7 +59,9 @@ class PabghTable:
             (
                 row,
                 int(row.offset),
-                int(usable[index + 1].offset) if index + 1 < len(usable) else limit,
+                min(limit, int(row.offset) + int(row.size))
+                if row.size is not None
+                else (int(usable[index + 1].offset) if index + 1 < len(usable) else limit),
             )
             for index, row in enumerate(usable)
         )
@@ -188,11 +193,162 @@ def table_row_key(raw: bytes, key_width: int, key_layout: str = "prefix") -> byt
         if length > 4096 or offset + key_width > len(raw):
             raise ValueError("Invalid compact table row name boundary.")
         raw[4:offset].decode("utf-8")
-    elif key_layout != "prefix":
+    elif key_layout not in ("prefix", "indexed"):
         raise ValueError("Unknown table key layout.")
     if offset + key_width > len(raw):
         raise ValueError("Table row is shorter than its key.")
     return raw[offset:offset + key_width]
+
+
+def encode_staticinfo_3840_header(
+    count_width: int,
+    rows: Sequence[tuple[bytes, str, int, int]],
+) -> bytes:
+    """Encode a 1.0.0.3840 variable-length `.staticinfoheader` directory."""
+    if count_width not in _PABGH_COUNT_WIDTHS:
+        raise ValueError(f"Unsupported directory count width: {count_width}")
+    total = len(rows)
+    if total >= 1 << (8 * count_width):
+        raise ValueError(f"{total:,} rows do not fit the header's {count_width}-byte count.")
+    out = bytearray(total.to_bytes(count_width, "little"))
+    for key, string_key, offset, size in rows:
+        sk_bytes = str(string_key or "").encode("utf-8")
+        out += bytes(key)
+        out += struct.pack("<I", len(sk_bytes))
+        out += sk_bytes
+        out += struct.pack("<II", int(offset), int(size))
+    return bytes(out)
+
+
+def next_static_info_index(*pairs: object) -> int:
+    """Return max `_staticInfoIndex` + 1 across `(payload, header)` pairs, or 0 if empty/pre-3840.
+
+    Accepts either `next_static_info_index(payload, header)` or `next_static_info_index((p1, h1), ...)`.
+    """
+    if (
+        len(pairs) == 2
+        and isinstance(pairs[0], (bytes, bytearray, memoryview))
+        and isinstance(pairs[1], (bytes, bytearray, memoryview))
+    ):
+        resolved_pairs: tuple[tuple[object, object], ...] = ((pairs[0], pairs[1]),)
+    else:
+        resolved_pairs = tuple(pairs)  # type: ignore[assignment]
+    max_index = -1
+    saw_indexed = False
+    for payload, header in resolved_pairs:
+        if not header:
+            continue
+        table = parse_pabgh_table(bytes(header), payload=bytes(payload or b""))
+        if table.key_layout != "indexed":
+            continue
+        saw_indexed = True
+        payload_bytes = bytes(payload or b"")
+        key_width = int(table.key_width)
+        for _row, start, end in table.row_spans(len(payload_bytes)):
+            if end - start >= key_width + 4:
+                index = struct.unpack_from("<I", payload_bytes, start + key_width)[0]
+                if index > max_index:
+                    max_index = index
+    return (max_index + 1) if saw_indexed else 0
+
+
+def set_row_static_info_index(row: bytes, key_width: int, index: int) -> bytes:
+    """Stamp `_staticInfoIndex` (u32 immediately after the inline key) in a 1.0.0.3840 body row."""
+    raw = bytes(row)
+    if key_width <= 0 or len(raw) < key_width + 4:
+        raise ValueError(f"Row is too short ({len(raw)} byte(s)) to hold a {key_width}-byte key and 4-byte index.")
+    return raw[:key_width] + struct.pack("<I", int(index)) + raw[key_width + 4 :]
+
+
+def _parse_staticinfo_3840_directory(header: bytes, payload: bytes) -> PabghTable | None:
+    """Resolve the 1.0.0.3840 variable-length `.staticinfoheader` directory.
+
+    Record layout: ``<count: u8|u16|u32>`` followed by ``count`` variable entries:
+    ``key[key_width], string_key_len[u32], string_key[utf-8], body_offset[u32], body_size[u32]``.
+    """
+    payload_len = len(payload)
+    for count_width in _PABGH_COUNT_WIDTHS:
+        if len(header) < count_width:
+            continue
+        count = int.from_bytes(header[:count_width], "little")
+        if count == 0:
+            if len(header) == count_width and payload_len == 0:
+                return PabghTable(
+                    row_size=0,
+                    rows=(),
+                    header_size=count_width,
+                    key_width=4,
+                    key_layout="indexed",
+                    header_format="indexed_3840",
+                    proof_lines=(
+                        "Detected 0 row(s) in indexed .staticinfoheader directory.",
+                    ),
+                )
+            continue
+        for key_width in _PABGH_KEY_WIDTHS:
+            pos = count_width
+            usable = True
+            rows: list[PabghRow] = []
+            for index in range(count):
+                if pos + key_width + 4 > len(header):
+                    usable = False
+                    break
+                key = header[pos : pos + key_width]
+                pos += key_width
+                sk_len = struct.unpack_from("<I", header, pos)[0]
+                pos += 4
+                if sk_len > 4096 or pos + sk_len + 8 > len(header):
+                    usable = False
+                    break
+                try:
+                    sk = header[pos : pos + sk_len].decode("utf-8")
+                except UnicodeDecodeError:
+                    usable = False
+                    break
+                pos += sk_len
+                offset, size = struct.unpack_from("<II", header, pos)
+                pos += 8
+                if size < key_width or offset + size > payload_len:
+                    usable = False
+                    break
+                if payload[offset : offset + key_width] != key:
+                    usable = False
+                    break
+                rows.append(
+                    PabghRow(
+                        index=index,
+                        row_id=int.from_bytes(key[:4], "little"),
+                        offset=offset,
+                        key=bytes(key),
+                        string_key=sk,
+                        size=size,
+                    )
+                )
+            if not usable or pos != len(header):
+                continue
+            ordered = sorted(rows, key=lambda r: (r.offset, r.size or 0))
+            expected_off = 0
+            contiguous = True
+            for r in ordered:
+                if r.offset != expected_off:
+                    contiguous = False
+                    break
+                expected_off += int(r.size or 0)
+            if not contiguous or expected_off != payload_len:
+                continue
+            return PabghTable(
+                row_size=0,
+                rows=tuple(rows),
+                header_size=count_width,
+                key_width=key_width,
+                key_layout="indexed",
+                header_format="indexed_3840",
+                proof_lines=(
+                    f"Detected {count:,} row(s) in 1.0.0.3840 indexed directory.",
+                    f"Resolved a {count_width}-byte count and a {key_width}-byte inline key with internal names in the header.",
+                ),
+            )
+    return None
 
 
 def _parse_pabgh_row_directory(header: bytes, payload: bytes) -> PabghTable | None:
@@ -267,20 +423,26 @@ def _parse_pabgh_row_directory(header: bytes, payload: bytes) -> PabghTable | No
 
 
 def parse_pabgh_table(data: bytes, *, payload: bytes | None = None) -> PabghTable:
-    """Parse a `.pabgh` row directory.
+    """Parse a `.pabgh` or `.staticinfoheader` row directory.
 
-    `payload` is the companion `.pabgb`. Supplying it enables the general width
-    search and the inline-key check; without it only the two fixed row flavors the
-    structured-sidecar editor can rewrite are recognized.
+    `payload` is the companion `.pabgb`/`.staticinfobody`. Supplying it enables the
+    general width search, 1.0.0.3840 variable-length directory parsing, and inline-key checks;
+    without it only the two fixed row flavors the structured-sidecar editor can rewrite
+    are recognized.
     """
 
     header = bytes(data or b"")
-    if len(header) < 2:
+    if len(header) < (1 if payload is not None else 2):
         raise ValueError("PABGH table is too short to contain a row count.")
     if payload is not None:
         resolved = _parse_pabgh_row_directory(header, bytes(payload))
         if resolved is not None:
             return resolved
+        indexed = _parse_staticinfo_3840_directory(header, bytes(payload))
+        if indexed is not None:
+            return indexed
+    if len(header) < 2:
+        raise ValueError("PABGH table is too short to contain a row count.")
     count = struct.unpack_from("<H", header, 0)[0]
     exact_row_sizes = [
         row_size
@@ -359,28 +521,42 @@ def append_table_rows(
     payload: bytes,
     header: bytes,
     rows: Sequence[bytes],
+    *,
+    string_keys: Sequence[str] | None = None,
 ) -> Tuple[bytes, bytes]:
-    """Append whole rows to a `.pabgb` payload and register them in its `.pabgh`.
-
-    Each row must carry its primary key in the source table's qualified location:
-    at the start for older tables, or after the name for compact tables.
-    Rows go at the end of the payload, their
-    directory entries at the end of the header, and the header's count grows.
-    The directory is not sorted by key in the shipped tables, so appending is
-    the shape the game already reads.
-
-    Returns the new (payload, header) pair. Refuses a key the table already has,
-    a key repeated in `rows`, a row shorter than its key, and a count that no
-    longer fits the header's count width. This is the whole of what adding an
-    item, a string, or any other table row needs at the container level; the
-    row's own field layout is the caller's business.
-    """
+    """Append whole rows to a `.pabgb`/`.staticinfobody` payload and register them in its directory."""
 
     payload_bytes = bytes(payload or b"")
     header_bytes = bytes(header or b"")
     table = parse_pabgh_table(header_bytes, payload=payload_bytes)
     key_width = int(table.key_width)
     count_width = int(table.header_size)
+    if table.header_format == "indexed_3840":
+        names = tuple("" for _ in rows) if string_keys is None else tuple(str(name) for name in string_keys)
+        if len(names) != len(rows):
+            raise ValueError(f"Expected {len(rows)} string_keys for appended indexed rows, got {len(names)}.")
+        entries: list[tuple[bytes, str, int, int]] = [
+            (bytes(r.key), r.string_key, int(r.offset), int(r.size or 0))
+            for r in table.rows
+        ]
+        known_keys = {bytes(row.key) for row in table.rows}
+        new_payload = bytearray(payload_bytes)
+        for index, (row, sk) in enumerate(zip(rows, names)):
+            row_bytes = bytes(row)
+            if len(row_bytes) < key_width:
+                raise ValueError(f"Row {index} is {len(row_bytes)} byte(s), shorter than the {key_width}-byte key.")
+            key = table_row_key(row_bytes, key_width, table.key_layout)
+            if key in known_keys:
+                raise ValueError(f"Row {index} repeats key {key.hex()} which the table already holds.")
+            known_keys.add(key)
+            entries.append((key, sk, len(new_payload), len(row_bytes)))
+            new_payload += row_bytes
+        new_header = encode_staticinfo_3840_header(count_width, entries)
+        check = parse_pabgh_table(new_header, payload=bytes(new_payload))
+        if len(check.rows) != len(entries) or check.key_width != key_width:
+            raise ValueError("The extended table does not parse back the way it was written.")
+        return bytes(new_payload), new_header
+
     directory_row_size = key_width + 4
     if len(header_bytes) != count_width + len(table.rows) * directory_row_size:
         raise ValueError(
@@ -415,30 +591,16 @@ def replace_table_row(
     header: bytes,
     key: bytes | int,
     new_row: bytes,
+    *,
+    string_key: str | None = None,
 ) -> Tuple[bytes, bytes]:
-    """Replace one row's bytes in a `.pabgb` payload, keeping every other row where
-    it was except for the shift, and rewrite the `.pabgh` offsets that follow it.
-
-    The row is found by its directory key (`bytes` of the table's key width, or an
-    int for the 1/2/4-byte flavors). `new_row` must carry the same inline key in
-    the source layout; a size change is fine, since the directory addresses
-    rows by offset and later offsets are shifted by the delta. The count and every
-    key stay as they were, so this is the write path for edits that change a row's
-    length (a rebuilt stat block, an added store entry) without touching the
-    table's identity.
-    """
+    """Replace one row's bytes in a payload, shifting later offsets and updating its directory entry."""
 
     payload_bytes = bytes(payload or b"")
     header_bytes = bytes(header or b"")
     table = parse_pabgh_table(header_bytes, payload=payload_bytes)
     key_width = int(table.key_width)
     count_width = int(table.header_size)
-    directory_row_size = key_width + 4
-    if len(header_bytes) != count_width + len(table.rows) * directory_row_size:
-        raise ValueError(
-            f"PABGH header is {len(header_bytes):,} bytes, not the {count_width + len(table.rows) * directory_row_size:,} "
-            f"its {len(table.rows):,} directory row(s) imply."
-        )
     key_bytes = int(key).to_bytes(key_width, "little") if isinstance(key, int) else bytes(key)
     if len(key_bytes) != key_width:
         raise ValueError(f"Key is {len(key_bytes)} byte(s); this table's keys are {key_width}.")
@@ -456,6 +618,32 @@ def replace_table_row(
     start, end = span
     delta = len(row_bytes) - (end - start)
     new_payload = payload_bytes[:start] + row_bytes + payload_bytes[end:]
+
+    if table.header_format == "indexed_3840":
+        entries = []
+        for row in table.rows:
+            if row.index == target.index:
+                entries.append((
+                    bytes(row.key),
+                    row.string_key if string_key is None else str(string_key),
+                    int(row.offset),
+                    len(row_bytes),
+                ))
+            else:
+                new_off = int(row.offset) + delta if int(row.offset) > start else int(row.offset)
+                entries.append((bytes(row.key), row.string_key, new_off, int(row.size or 0)))
+        new_header_bytes = encode_staticinfo_3840_header(count_width, entries)
+        check = parse_pabgh_table(new_header_bytes, payload=new_payload)
+        if len(check.rows) != len(table.rows) or check.key_width != key_width:
+            raise ValueError("The table does not parse back the way it was rewritten.")
+        return new_payload, new_header_bytes
+
+    directory_row_size = key_width + 4
+    if len(header_bytes) != count_width + len(table.rows) * directory_row_size:
+        raise ValueError(
+            f"PABGH header is {len(header_bytes):,} bytes, not the {count_width + len(table.rows) * directory_row_size:,} "
+            f"its {len(table.rows):,} directory row(s) imply."
+        )
     new_header = bytearray(header_bytes)
     for row in table.rows:
         if row.offset > start:

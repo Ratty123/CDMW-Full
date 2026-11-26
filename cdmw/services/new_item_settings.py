@@ -44,27 +44,28 @@ def load_settings_index(snapshot, *, stop_event=None):
     actions, rewards, skills, unsupported = [], [], [], 0
     available = snapshot.sources.tables if snapshot.sources is not None else {}
     unavailable = tuple(name for name in ('itemuseinfo', 'dropsetinfo', 'skillinfo') if name not in available)
-    for key, raw in (_rows(snapshot, 'itemuseinfo', stop_event=stop_event) if 'itemuseinfo' in available else {}).items():
+    from cdmw.services.new_item_tables import row_metadata
+    for key, (raw, sk, kl) in (row_metadata(snapshot, 'itemuseinfo', stop_event=stop_event) if 'itemuseinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
-            layout = read_item_use_layout(raw)
-            cursor = Cursor(layout.data('_stringKey'))
-            actions.append((key, cursor.text(), layout.variants[0]))
+            layout = read_item_use_layout(raw, key_layout=kl)
+            name = Cursor(layout.data('_stringKey')).text() if '_stringKey' in layout.fields else sk
+            actions.append((key, name, layout.variants[0]))
         except (RecordError, UnicodeError):
             unsupported += 1
-    for key, raw in (_rows(snapshot, 'dropsetinfo', stop_event=stop_event) if 'dropsetinfo' in available else {}).items():
+    for key, (raw, sk, kl) in (row_metadata(snapshot, 'dropsetinfo', stop_event=stop_event) if 'dropsetinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
-            reward = parse_item_reward_set(raw)
+            reward = parse_item_reward_set(raw, name=sk, key_layout=kl)
             if encode_item_reward_set(reward) == raw:
                 rewards.append((key, reward.name))
         except (RecordError, UnicodeError):
             pass
-    for key, raw in (_rows(snapshot, 'skillinfo', stop_event=stop_event) if 'skillinfo' in available else {}).items():
+    for key, (raw, sk, kl) in (row_metadata(snapshot, 'skillinfo', stop_event=stop_event) if 'skillinfo' in available else {}).items():
         raise_if_cancelled(stop_event)
         try:
             from cdmw.core.new_item_record import named_prefix
-            skills.append((key, named_prefix(raw,key=key)[1]))
+            skills.append((key, named_prefix(raw, key=key, name=sk, key_layout=kl)[1]))
         except (RecordError, UnicodeError):
             pass
     result = ItemSettingsIndex(tuple(sorted(items)), tuple(sorted(actions)), tuple(sorted(rewards)), unsupported,
@@ -112,15 +113,20 @@ def validate_reward(snapshot, key, *, stop_event=None):
 
 def load_use_action(snapshot, key, *, stop_event=None):
     raise_if_cancelled(stop_event)
-    raw = _rows(snapshot, 'itemuseinfo', stop_event=stop_event).get(key)
-    if raw is None:
+    from cdmw.services.new_item_tables import row_metadata
+    entry_meta = row_metadata(snapshot, 'itemuseinfo', stop_event=stop_event).get(key)
+    if entry_meta is None:
         raise RecordError(f'Missing item-use action {key}.')
-    layout = read_item_use_layout(raw)
+    raw, sk, kl = entry_meta
+    layout = read_item_use_layout(raw, key_layout=kl)
     if layout.integer('_key', width=4) != key or not layout.variants:
         raise RecordError('Unqualified item-use action identity.')
-    reader = Cursor(layout.data('_stringKey'))
-    name = reader.text()
-    reader.finish()
+    if '_stringKey' in layout.fields:
+        reader = Cursor(layout.data('_stringKey'))
+        name = reader.text()
+        reader.finish()
+    else:
+        name = sk
     kind = layout.data('_itemUseInfoData')[0]
     # These are established source references. Unknown payload bytes retain
     # their original game definitions; no generic integer is guessed to be a key.

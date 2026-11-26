@@ -18538,6 +18538,7 @@
     "placement-preview": "配置プレビュー",
     "placement-schematic-preview": "配置-回路図-プレビュー",
     "placement-socket-preview": "配置-ソケット-プレビュー",
+    "plain XML (<MaterialPermutationUsage>) under shadercache__/ listing pipeline passes, material entry hashes and unused shader macros (2 files on 1.0.0.3840)": "shadercache__/ 配下のプレーン XML (<MaterialPermutationUsage>)。パイプラインパス、マテリアル項目ハッシュ、未使用シェーダーマクロを列挙します（1.0.0.3840 で 2 ファイル）",
     "plain XML (ARFaceAnimation / ARFacePoseRecordedData): recorded facial capture": "プレーンXML（ARFaceAnimation / ARFacePoseRecordedData）：記録された顔のキャプチャ",
     "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData": "プレーンXML（SkinnedDecalProperty）がReflectObjectXMLDataを保持",
     "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text": "プレーンXML（SplineDataGroup）がReflectObjectXMLDataを保持、テキストとして読み取り可能および出力可能",

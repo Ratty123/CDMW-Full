@@ -98,9 +98,10 @@ def test_installed_item_rows_read_every_behavior_field():
     failures, pages = [], 0
     for stem, pair in pairs.items():
         body, header = read(pair['staticinfobody']), read(pair['staticinfoheader'])
-        for row, start, end in parse_pabgh_table(header, payload=body).row_spans(len(body)):
+        table = parse_pabgh_table(header, payload=body)
+        for row, start, end in table.row_spans(len(body)):
             try:
-                values = read_behavior_fields(body[start:end])
+                values = read_behavior_fields(body[start:end], key_layout=table.key_layout)
                 pages += bool(values['fixed_pages'] or values['dynamic_pages'])
             except (RecordError, ValueError) as exc:
                 failures.append((stem, row.row_id, str(exc)))

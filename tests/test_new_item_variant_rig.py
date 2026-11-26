@@ -66,3 +66,25 @@ def _snapshot_files(files):
 def test_rigid_weapon_import_uses_its_exact_prefab_attachment():
     snapshot = _snapshot()
     assert validate_variant_rig(snapshot, MODEL, _pac(), prefab_path=PREFAB) == "rigid prefab attachment"
+
+
+def test_has_exact_socket_attachment_matches_secondary_resource_pac():
+    from tests.test_archive_relationships import ArchiveRelationshipTests
+    from cdmw.services.new_item_variants import _has_exact_socket_attachment
+
+    quiver_mesh = "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_quiver_0020.pac"
+    arrow_mesh = "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_quiver_arw_0001.pac"
+    prefab = ArchiveRelationshipTests()._minimal_prefab_profile_payload(
+        attached="Spine2_B_RangeWeapon_Socket",
+        pivot="Spine2_B_RangeWeapon_ChildSocket",
+        part="MainWeapon_Quiver",
+        model=quiver_mesh,
+        socket_file="character/descriptors/socketbonedata/1_pc/1_phm/weapon/4_bow/cd_phm_04_quiver_0001.sockets.xml",
+    )
+    fake_doc = SimpleNamespace(
+        resource_strings=lambda: [SimpleNamespace(text=quiver_mesh), SimpleNamespace(text=arrow_mesh)]
+    )
+    with patch("cdmw.core.prefab_binary.decode_prefab_binary", return_value=fake_doc):
+        assert _has_exact_socket_attachment(prefab, quiver_mesh) is True
+        assert _has_exact_socket_attachment(prefab, arrow_mesh) is True
+        assert _has_exact_socket_attachment(prefab, "character/model/unrelated.pac") is False

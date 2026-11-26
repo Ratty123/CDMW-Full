@@ -61,7 +61,7 @@ def _rows(view, pairs, files):
         table, records = _table(files[body] if body in files else view.payload(body),
                                 files[header] if header in files else view.payload(header))
         if layout is None:
-            layout = ('compact' if table.key_layout == 'named'
+            layout = ('compact' if table.key_layout in ('named', 'indexed')
                       else 'current' if body.endswith('.staticinfobody') else 'legacy')
         rows.update((int.from_bytes(key, 'little'), raw) for key, raw in records)
     return rows, layout

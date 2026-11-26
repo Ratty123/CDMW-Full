@@ -17,7 +17,13 @@ from cdmw.core.stringinfo_table import (
     stringinfo_index,
     stringinfo_key,
 )
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table, replace_table_row
+from cdmw.core.structured_binary_editor import (
+    append_table_rows,
+    next_static_info_index,
+    parse_pabgh_table,
+    replace_table_row,
+    set_row_static_info_index,
+)
 
 
 def _table(texts: list[str]) -> tuple[bytes, bytes]:
@@ -194,6 +200,94 @@ class TableReplaceTests(unittest.TestCase):
             replace_table_row(payload, header, 424242, struct.pack("<I", 424242) + b"x")
         with self.assertRaisesRegex(ValueError, "keys are 4"):
             replace_table_row(payload, header, b"", b"")
+
+
+class Indexed3840TableTests(unittest.TestCase):
+    """Variable-length .staticinfoheader (key + stringKey + offset + size) introduced in 1.0.0.3840."""
+
+    @staticmethod
+    def _build_3840(rows: list[tuple[int, str, bytes]]) -> tuple[bytes, bytes]:
+        from cdmw.core.structured_binary_editor import encode_staticinfo_3840_header
+
+        payload = bytearray()
+        directory: list[tuple[bytes, str, int, int]] = []
+        for row_id, string_key, body in rows:
+            offset = len(payload)
+            row_bytes = struct.pack("<I", row_id) + body
+            payload += row_bytes
+            directory.append((struct.pack("<I", row_id), string_key, offset, len(row_bytes)))
+        return bytes(payload), encode_staticinfo_3840_header(4, directory)
+
+    def test_indexed_3840_round_trip_append_and_replace(self) -> None:
+        from cdmw.core.iteminfo_row import parse_iteminfo_row
+
+        rows = [
+            (100, "item_a", struct.pack("<IB", 42, 0)),
+            (200, "item_b", struct.pack("<IB", 179, 0)),
+        ]
+        payload, header = self._build_3840(rows)
+        table = parse_pabgh_table(header, payload=payload)
+        self.assertEqual(table.header_format, "indexed_3840")
+        self.assertEqual(table.key_layout, "indexed")
+        self.assertEqual([r.string_key for r in table.rows], ["item_a", "item_b"])
+        self.assertEqual([r.size for r in table.rows], [9, 9])
+        self.assertEqual(next_static_info_index((payload, header)), 180)
+
+        new_row_body = struct.pack("<IB", 180, 0) + b"\x00\x00"
+        new_row = struct.pack("<I", 300) + new_row_body
+        appended_payload, appended_header = append_table_rows(
+            payload, header, [new_row], string_keys=["item_c"],
+        )
+        rebuilt = parse_pabgh_table(appended_header, payload=appended_payload)
+        self.assertEqual([r.row_id for r in rebuilt.rows], [100, 200, 300])
+        self.assertEqual(rebuilt.rows[2].string_key, "item_c")
+
+        updated_row = set_row_static_info_index(new_row, table.key_width, 500)
+        self.assertEqual(struct.unpack_from("<I", updated_row, 4)[0], 500)
+        rep_payload, rep_header = replace_table_row(
+            appended_payload, appended_header, 200, struct.pack("<IIB", 200, 179, 0) + b"\x01",
+            string_key="item_b_renamed",
+        )
+        rep_table = parse_pabgh_table(rep_header, payload=rep_payload)
+        self.assertEqual(rep_table.rows[1].string_key, "item_b_renamed")
+        self.assertEqual(rep_table.rows[2].offset, 19)
+
+        # Decode a full indexed ItemInfo row cleanly using string_key + key_layout="indexed"
+        from cdmw.core.compact_static import table_generations
+        from tests.test_static_table_records import _minimal
+
+        root_3840 = next(prog for label, prog, _ in table_generations("iteminfo") if label == "3840")
+        root_seq = root_3840 if isinstance(root_3840[0], str) else ("seq", *root_3840)
+        item_buf = bytearray()
+        _minimal(
+            root_seq,
+            item_buf,
+            {"_key": struct.pack("<I", 100), "_staticInfoIndex": struct.pack("<I", 42)},
+        )
+        parsed = parse_iteminfo_row(bytes(item_buf), string_key="item_a", key_layout="indexed")
+        self.assertEqual(parsed.key, 100)
+        self.assertEqual(parsed.string_key, "item_a")
+
+    def test_stringinfo_3840_parse_and_append(self) -> None:
+        # Rows with _staticInfoIndex in 3..180 overlapping old offset ranges
+        def body(static_idx: int, text: str) -> bytes:
+            raw = text.encode("utf-8")
+            return struct.pack("<IBI", static_idx, 0, len(raw)) + raw
+
+        rows = [
+            (stringinfo_key("alpha"), "", body(42, "alpha")),
+            (stringinfo_key("beta"), "", body(179, "beta")),
+        ]
+        payload, header = self._build_3840(rows)
+        parsed = parse_stringinfo(payload, header, name="stringinfo")
+        self.assertEqual([r.text for r in parsed], ["alpha", "beta"])
+
+        out_payload, out_header, keys = append_stringinfo_strings(
+            payload, header, ["gamma"],
+        )
+        self.assertEqual(keys, (stringinfo_key("gamma"),))
+        again = parse_stringinfo(out_payload, out_header, name="stringinfo")
+        self.assertEqual([r.text for r in again], ["alpha", "beta", "gamma"])
 
 
 @pytest.mark.real_game
