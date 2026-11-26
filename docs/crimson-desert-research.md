@@ -575,12 +575,22 @@ channel to the render targets shows:
 - `_materialTexture`, although declared by the Ver2 material files, is not read
   by these shaders. An unbound texture samples as zero, so a Ver2 material with
   its layers removed renders at roughness 0, which is mirror-like.
+- `_detailDiffuseMaskR` is sampled unconditionally by layer R before the
+  `_overlayColorTexture` Photoshop Overlay pass. When dropped, it defaults to
+  `Texture/NoneTexture0x00000000.dds` (black), crushing `_overlayColorTexture`
+  channels below 0.5 to black and `>= 0.5` to `2O - 1`; binding the shipped
+  2x2 uniform 0x80 grey `texture/nonetexture0xff888888.dds` passes
+  `_overlayColorTexture` through uncrushed without UV-rotation artifacts.
 - Layer UVs are `rotate((uv - 0.5 - offset) / scale) + 0.5` with the angle
   `byte * 2π/255 - π` from `_dyeingPropertyBlend`; no byte gives exactly zero
   (±0.7°), so only a uniform layer value reproduces exactly on the mesh UVs.
 
 Mesh Editor's imported materials use this to set Roughness and Metallic as a
-uniform layer R. In-game appearance has not yet been checked.
+uniform layer R and bind `texture/nonetexture0xff888888.dds` as `_detailDiffuseMaskR`.
+The neutral-grey `_detailDiffuseMaskR` fix was confirmed in game by a user on
+replaced `SkinnedMeshCloth_Ver2` / `SkinnedMeshStandard_Ver2` helmet
+`cd_phm_00_hel_00_0415` (26 November 2026); broader roughness/metallic slider
+values and other shader families remain unchecked in game.
 
 Standard-technique surface response (static DXIL analysis, 17 November 2026, game
 1.0.0.3446). The `.material` files of `SkinnedMeshStandard`, `Cloth`, `Emissive`,

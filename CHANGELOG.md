@@ -12,6 +12,7 @@ experimental-feature notes do not establish equivalent in-game behavior.
 ### Fixed
 
 - **Import Replacement, Archive Previews, and Mod Exports**: preview cache folders, generated temporary directories, and remaining mod and preview outputs now take their folder's permissions (while keeping user access if a parent folder's permissions do not inherit), and locked or read-only preview cache folders no longer block **Import Replacement** or archive previews.
+- **Mesh Editor — Import Replacement (Imported Materials & Textures)**: replaced Ver2 equipment and cloth models no longer turn mostly black with faint coloured fringes in game; their materials now bind neutral 50% grey beneath the imported colour texture so the full imported pattern shows cleanly in game.
 
 ## [0.12.0-alpha.7] - 2026-11-24
 

@@ -226,9 +226,12 @@ def test_imported_materials_write_roughness_and_metallic_as_layer_r(editor, tmp_
     replaced, untouched = text.split('_subMeshName="target1"')
     layer = re.search(r'_name="_detailMaterialMaskR"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"', replaced)
     assert layer and 'StringItemID="_detailMaterialMaskR" ItemID="3806852434362366"' in replaced
+    diffuse = re.search(r'_name="_detailDiffuseMaskR"[^>]*>\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"', replaced)
+    assert diffuse and diffuse.group(1) == "texture/nonetexture0xff888888.dds"
+    assert 'StringItemID="_detailDiffuseMaskR" ItemID="1028073018359806"' in replaced
     assert re.search(r'_name="_colorBlendingFlag" _value="4"', replaced)
     assert re.search(r'_name="_dyeingGlobalOpacity" _value="255"', replaced)
-    assert "_detailMaterialMaskR" not in untouched and "_colorBlendingFlag" not in untouched
+    assert "_detailMaterialMaskR" not in untouched and "_detailDiffuseMaskR" not in untouched and "_colorBlendingFlag" not in untouched
     texture = next(file for file in files if file.path == layer.group(1))
     with Image.open(io.BytesIO(texture.data)) as image:
         assert image.size == (4, 4) and image.convert("RGBA").getpixel((0, 0)) == (0, 204, 64, 255)
@@ -250,7 +253,7 @@ def test_imported_materials_write_roughness_and_metallic_as_the_material_texture
     material = re.search(r'<MaterialParameterTexture StringItemID="_materialTexture" ItemID="6" _name="_materialTexture" '
                          r'Index="\d+"><ResourceReferencePath_ITexture Name="_value" _path="([^"]+_sp\.dds)"', replaced)
     assert material
-    assert "_detailMaterialMaskR" not in replaced and "_colorBlendingFlag" not in replaced
+    assert "_detailMaterialMaskR" not in replaced and "_detailDiffuseMaskR" not in replaced and "_colorBlendingFlag" not in replaced
     assert "_materialTexture" not in untouched
     textures = [file for file in files if file.path.endswith(".dds") and "_cdmw_surface_" in file.path]
     assert [file.path for file in textures] == [material.group(1)]  # the unused layer-R texture is pruned
@@ -296,7 +299,8 @@ def test_one_surface_reaches_ver2_and_standard_wrappers_by_their_own_paths():
     armour, body = edited.split('_subMeshName="body"')
     assert changed == 2
     assert '_name="_detailMaterialMaskR"' in armour and "material_sp.dds" not in armour
-    assert '_name="_materialTexture"' in body and "layer.dds" not in body and "_colorBlendingFlag" not in body
+    assert '_name="_detailDiffuseMaskR"' in armour and "texture/nonetexture0xff888888.dds" in armour
+    assert '_name="_materialTexture"' in body and "layer.dds" not in body and "_colorBlendingFlag" not in body and '_name="_detailDiffuseMaskR"' not in body
 
 
 def _surface_binding(files, parameter):
@@ -1203,3 +1207,48 @@ def test_imported_material_status_is_cached_per_pending_and_revision(monkeypatch
     rust.imported_material_status(SimpleNamespace(token="t1", snapshot=SimpleNamespace(mesh_revision=2)))
     rust.imported_material_status(SimpleNamespace(token="t2", snapshot=SimpleNamespace(mesh_revision=1)))
     assert calls == ["t1", "t1", "t2"]
+
+
+@pytest.mark.parametrize("shader", ["SkinnedMeshCloth_Ver2", "SkinnedMeshStandard_Ver2"])
+@pytest.mark.parametrize("surface", [None, (1.0, 0.0)])
+def test_ver2_imports_bind_neutral_grey_detail_diffuse_for_overlay_colour(editor, tmp_path, shader, surface):
+    """Ver2 shaders sample _detailDiffuseMaskR unconditionally before running
+    _overlayColorTexture's overlay blend. When dropped it defaults to black,
+    crushing dark/midtone pixels to black in game; neutral 0x80 grey keeps the
+    imported colour uncrushed on both default and explicit surface exports."""
+    pending, key = _surface_pending(editor, tmp_path, shader=shader)
+    files = prepare_imported_materials(pending, (key,), tmp_path, surface=surface)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    replaced, untouched = text.split('_subMeshName="target1"')
+    match = re.search(
+        r'StringItemID="_detailDiffuseMaskR" ItemID="1028073018359806" _name="_detailDiffuseMaskR"[^>]*>'
+        r'\s*<ResourceReferencePath_ITexture[^>]*_path="([^"]+)"',
+        replaced,
+    )
+    assert match and match.group(1) == "texture/nonetexture0xff888888.dds"
+    assert "_detailDiffuseMaskR" not in untouched
+
+
+def test_ver2_neutral_diffuse_applies_only_to_ver2_variant_and_preserves_explicit_diffuse(editor, tmp_path):
+    from cdmw.core.material_shader_controls import material_variant_blocks
+    from cdmw.core.pac_xml_surface_layer import apply_surface_layer
+
+    pending, key = _two_shader_variant_pending(editor, tmp_path, "SkinnedMeshStandard_Ver2", "SkinnedMeshStandard")
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    text = next(file for file in files if file.path.endswith(".pac_xml")).data.decode()
+    variant0, variant1 = (block.group().split('_subMeshName="target1"')[0] for block in material_variant_blocks(text))
+    assert "texture/nonetexture0xff888888.dds" in variant0 and "_detailDiffuseMaskR" in variant0
+    assert "_detailDiffuseMaskR" not in variant1
+
+    existing = (
+        '<Root><SkinnedMeshMaterialWrapper _subMeshName="armour"><Material Name="_resourceMaterial" '
+        '_materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+        '<MaterialParameterTexture StringItemID="_detailDiffuseMaskR" ItemID="1028073018359806" '
+        '_name="_detailDiffuseMaskR" Index="0"><ResourceReferencePath_ITexture Name="_value" '
+        '_path="character/texture/custom_diffuse.dds"/></MaterialParameterTexture>'
+        '</Vector></Material></SkinnedMeshMaterialWrapper></Root>'
+    )
+    edited, changed = apply_surface_layer(existing, {"armour"}, "layer.dds", "material_sp.dds")
+    assert changed == 1
+    assert "character/texture/custom_diffuse.dds" in edited
+    assert "texture/nonetexture0xff888888.dds" not in edited

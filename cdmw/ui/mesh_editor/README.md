@@ -1153,8 +1153,12 @@ shaders read roughness (G) and metalness (B) only from the layer material textur
 never from `_materialTexture`, and an unbound texture samples as zero. **Roughness**
 and **Metallic** under **Imported Materials & Textures** restore a surface: Apply
 binds a generated 4x4 B8G8R8A8 texture as `_detailMaterialMaskR` (layer R has no
-mask), sets `_colorBlendingFlag` bit 2 and `_dyeingGlobalOpacity` byte 0 to 255
-(`cdmw/core/pac_xml_surface_layer.py`). The value is uniform because layer UVs are
+mask), binds `texture/nonetexture0xff888888.dds` (`ItemID="1028073018359806"`) as
+`_detailDiffuseMaskR` when missing so the Ver2 `_overlayColorTexture` overlay pass
+keeps full imported colour instead of blending against the unbound black
+`NoneTexture0x00000000.dds` default (confirmed in game on `cd_phm_00_hel_00_0415`),
+sets `_colorBlendingFlag` bit 2 and `_dyeingGlobalOpacity` byte 0 to 255
+(`cdmw/core/pac_xml_surface_layer.py`). The values are uniform because layer UVs are
 always rotated by at least 0.7 degrees.
 
 The older SkinnedMeshStandard-technique shaders that most creatures use

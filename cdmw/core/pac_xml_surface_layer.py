@@ -11,9 +11,18 @@ surface path (``USE_COMMON_PIXEL_VER2``). Decoded from their DXIL:
   samples as zero, so a material without layers renders at roughness 0.
 * layer UVs are rotated by at least 0.7 degrees, so only a uniform value lines
   up exactly; this writes a uniform texture.
+* ``_detailDiffuseMaskR`` is sampled unconditionally by layer R before the
+  ``_overlayColorTexture`` Photoshop Overlay pass. When dropped, it defaults to
+  ``Texture/NoneTexture0x00000000.dds`` (black), crushing ``_overlayColorTexture``
+  channels below 0.5 to black and ``>= 0.5`` to ``2*O - 1``. Binding the shipped
+  2x2 uniform 0x80 grey ``texture/nonetexture0xff888888.dds`` passes
+  ``_overlayColorTexture`` through uncrushed on exact mesh UVs (confirmed in
+  game on replaced helmet ``cd_phm_00_hel_00_0415``).
 
-Imported materials drop the target's layers, which leaves roughness 0. Writing
-layer R alone restores a chosen surface without changing colour or normals.
+Imported materials drop the target's layers, which leaves roughness 0 and
+crushes ``_overlayColorTexture`` against black. Writing layer R's surface and
+binding neutral grey ``_detailDiffuseMaskR`` restores both without changing
+normals or adding UV-rotation artifacts.
 
 The older SkinnedMeshStandard technique (Standard, Cloth, Emissive, Fur,
 BlendHeight and StaticBlendHeight; most creatures use these) is different. Decoded from every G-buffer permutation of each:
@@ -65,6 +74,10 @@ MATERIAL_TEXTURE_SURFACE_SHADERS = frozenset({
 })
 SURFACE_SHADERS = SURFACE_LAYER_SHADERS | MATERIAL_TEXTURE_SURFACE_SHADERS
 
+#: Every shipped _detailDiffuseMaskR row (40,759 in Ver2 .pac_xml files) has ItemID 1028073018359806.
+LAYER_DIFFUSE = ("_detailDiffuseMaskR", "Texture", "1028073018359806")
+#: Shipped 2x2 uniform 0x80 grey: Overlay(O, 0.5) = O so _overlayColorTexture passes through uncrushed.
+NEUTRAL_DIFFUSE_PATH = "texture/nonetexture0xff888888.dds"
 LAYER_TEXTURE = ("_detailMaterialMaskR", "Texture", "3806852434362366")
 #: Every shipped _materialTexture row of these shaders (39,349 in 13,338 .pac_xml files) has ItemID 6.
 MATERIAL_TEXTURE = ("_materialTexture", "Texture", "6")
@@ -216,8 +229,10 @@ def apply_surface_fragment(fragment: str, material_names, texture_path: str, mat
             continue
         flag = _int_value(wrapper, LAYER_FLAG[0]) | LAYER_FLAG_BIT
         opacity = (_int_value(wrapper, LAYER_OPACITY[0]) & ~0xFF) | 0xFF
-        for (name, kind, item_id), value in ((LAYER_TEXTURE, texture_path), (LAYER_FLAG, str(flag)),
-                                             (LAYER_OPACITY, str(opacity))):
+        writes = [(LAYER_TEXTURE, texture_path), (LAYER_FLAG, str(flag)), (LAYER_OPACITY, str(opacity))]
+        if not wrapper.textures.get(LAYER_DIFFUSE[0]):
+            writes.append((LAYER_DIFFUSE, NEUTRAL_DIFFUSE_PATH))
+        for (name, kind, item_id), value in writes:
             block = _write_parameter(block, name, kind, value, item_id, static=False)
         fragment = fragment[:wrapper.start] + block + fragment[wrapper.end:]
         changed += 1
