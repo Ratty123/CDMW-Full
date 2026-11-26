@@ -1189,6 +1189,27 @@ std::string normalize_icon_model_stem(std::string value) {
     return value;
 }
 
+// One row of the `.pabgh` companion: a primary key and where the matching
+// `.pabgb` row starts. A row runs to the next offset (or carries its explicit
+// 1.0.0.3840 size), so the directory gives every record an exact boundary.
+struct PabghDirectoryRow {
+    std::vector<unsigned char> key;
+    std::uint32_t offset = 0;
+    size_t key_offset = 0;
+    std::string string_key;
+    std::uint32_t size = 0;
+    bool indexed_3840 = false;
+};
+
+enum class TableKeyLayout { Inline, Named, StringInfo };
+
+bool resolve_pabgh_directory(
+    const std::vector<char>& header,
+    const std::vector<char>& payload,
+    std::vector<PabghDirectoryRow>& rows,
+    TableKeyLayout layout = TableKeyLayout::Inline
+);
+
 std::map<std::uint32_t, std::string> parse_stringinfo_hashes(
     const std::vector<char>& data,
     const std::vector<char>* header = nullptr
@@ -1363,20 +1384,6 @@ std::vector<std::string> iteminfo_localization_id_candidates(
     return candidates;
 }
 
-// One row of the `.pabgh` companion: a primary key and where the matching
-// `.pabgb` row starts. A row runs to the next offset (or carries its explicit
-// 1.0.0.3840 size), so the directory gives every record an exact boundary.
-struct PabghDirectoryRow {
-    std::vector<unsigned char> key;
-    std::uint32_t offset = 0;
-    size_t key_offset = 0;
-    std::string string_key;
-    std::uint32_t size = 0;
-    bool indexed_3840 = false;
-};
-
-enum class TableKeyLayout { Inline, Named, StringInfo };
-
 bool resolve_indexed_3840_directory(
     const std::vector<char>& header,
     const std::vector<char>& payload,
@@ -1466,7 +1473,7 @@ bool resolve_pabgh_directory(
     const std::vector<char>& header,
     const std::vector<char>& payload,
     std::vector<PabghDirectoryRow>& rows,
-    TableKeyLayout layout = TableKeyLayout::Inline
+    TableKeyLayout layout
 ) {
     static const size_t count_widths[] = {1, 2, 4};
     static const size_t key_widths[] = {1, 2, 4, 8, 12};
