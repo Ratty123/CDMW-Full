@@ -16,6 +16,7 @@ class BuildMetadataTests(unittest.TestCase):
     def test_windows_file_version_tuple_uses_prerelease_number_as_revision(self) -> None:
         self.assertEqual((0, 12, 0, 7), windows_file_version_tuple("0.12.0-alpha.7"))
         self.assertEqual((0, 12, 0, 7), windows_file_version_tuple("0.12.0-alpha.7-hotfix"))
+        self.assertEqual((0, 12, 0, 7), windows_file_version_tuple("0.12.0-alpha.7-hotfix.2"))
         self.assertEqual((1, 2, 3, 0), windows_file_version_tuple("1.2.3"))
         self.assertEqual((1, 2, 3, 4), windows_file_version_tuple("1.2.3-beta.4"))
 

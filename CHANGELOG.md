@@ -7,6 +7,8 @@ experimental-feature notes do not establish equivalent in-game behavior.
 
 ## [Unreleased]
 
+## [0.12.0-alpha.7-hotfix.2] - 2026-11-27
+
 ### Fixed
 
 - **Create New Item (Crimson Desert `1.0.0.3840`)**: planning items that clone models or prefabs (imported models, DLC-only part templates, appearance variants, effects, glow, translucency, and body-visibility/shader/transform overrides) no longer fails on `1.0.0.3840`'s updated equipment visibility descriptor (`conditionalpartprefab_postfix.xml`).
