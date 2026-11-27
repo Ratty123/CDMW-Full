@@ -60,7 +60,7 @@ def build_template_search_catalogue(snapshot, *, stop_event=None) -> TemplateSea
             from cdmw.core.item_layout import item_use_prefix
             from cdmw.core.new_item_record import RecordError
             try:
-                usable = not row.is_blocked and bool(item_use_prefix(row.raw))
+                usable = not row.is_blocked and bool(item_use_prefix(row.raw, key_layout=getattr(row, "key_layout", None)))
             except RecordError:
                 pass
             if not usable:

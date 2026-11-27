@@ -460,9 +460,14 @@ def check_package_dependencies(package, snapshot, external, changes, *, stop_eve
                 f'owned record {int.from_bytes(sorted(overlap)[0], "little")} is also supplied by another mod.')
         if body.rsplit('/', 1)[-1] in ('iteminfo.staticinfobody', 'iteminfo.pabgb'):
             from cdmw.core.iteminfo_row import parse_iteminfo_row
-            names = {parse_iteminfo_row(raw).string_key.casefold() for _, raw in _table(current[body], current[head])[1]}
-            for key, raw in _table(change['after'], changes[head]['after'])[1]:
-                if key in owned and parse_iteminfo_row(raw).string_key.casefold() in names:
+            cur_table, cur_records = _table(current[body], current[head])
+            cur_names = {row.key: row.string_key for row in cur_table.rows}
+            names = {parse_iteminfo_row(raw, string_key=cur_names.get(key, ''), key_layout=cur_table.key_layout).string_key.casefold()
+                     for key, raw in cur_records}
+            after_table, after_records = _table(change['after'], changes[head]['after'])
+            after_names = {row.key: row.string_key for row in after_table.rows}
+            for key, raw in after_records:
+                if key in owned and parse_iteminfo_row(raw, string_key=after_names.get(key, ''), key_layout=after_table.key_layout).string_key.casefold() in names:
                     raise OverlayConflict(f'{package.title}; {", ".join(external.labels(paths))}; {body}: '
                         f'owned record {int.from_bytes(key, "little")} is also supplied by another mod.')
     required = _required_keys(package, snapshot, changes, stop_event=stop_event)

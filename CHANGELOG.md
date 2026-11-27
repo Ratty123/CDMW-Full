@@ -5,6 +5,13 @@ use the latest release's availability and limitations when deciding what to use.
 Related changes are grouped under Added, Changed, Fixed and Docs. Preview and
 experimental-feature notes do not establish equivalent in-game behavior.
 
+## [Unreleased]
+
+### Fixed
+
+- **Create New Item (Crimson Desert `1.0.0.3840`)**: planning items that clone models or prefabs (imported models, DLC-only part templates, appearance variants, effects, glow, translucency, and body-visibility/shader/transform overrides) no longer fails on `1.0.0.3840`'s updated equipment visibility descriptor (`conditionalpartprefab_postfix.xml`).
+- **Create New Item — `.cdmw` Item Packages & Template Search (`1.0.0.3840`)**: writing or composing `.cdmw` packages that join `ItemGroup_Category_Equipment` no longer fails on `1.0.0.3840` item-group tables, and **Usable items** in the Template step no longer omits `Pyeonjeon_Arrow`.
+
 ## [0.12.0-alpha.7-hotfix] - 2026-11-26
 
 ### Added

@@ -43,11 +43,14 @@ def _qualified_reference(snapshot, table, key, *, stop_event=None):
             raise RecordError(f'Missing or blocked item definition dependency {key}.')
         _reference(snapshot, table, key, stop_event=stop_event)
         return
-    raw = _rows(snapshot, table, stop_event=stop_event, key_width=REFERENCE_TABLES[table]).get(key)
-    if raw is None:
+    width = REFERENCE_TABLES[table]
+    from cdmw.services.new_item_tables import row_metadata
+    entry_meta = row_metadata(snapshot, table, stop_event=stop_event, key_width=width).get(key)
+    if entry_meta is None:
         raise RecordError(f'Missing {table} dependency {key}.')
+    raw, sk, kl = entry_meta
     from cdmw.core.new_item_record import named_prefix
-    if named_prefix(raw,REFERENCE_TABLES[table],key=key)[2] != 0:
+    if named_prefix(raw,width,key=key,name=sk,key_layout=kl)[2] != 0:
         raise RecordError(f'Blocked {table} dependency {key}.')
 
 

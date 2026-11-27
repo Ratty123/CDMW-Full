@@ -23,8 +23,13 @@ from cdmw.services.independent_item_package import read_package, unpack_recipe, 
 SOURCE_FOLDER = 'cdmw-source'
 
 
+def _table_rows(body, header):
+    table, records = _table(body, header)
+    return table.key_layout, {int.from_bytes(key, 'little'): raw for key, raw in records}
+
+
 def _rows(body, header):
-    return {int.from_bytes(key, 'little'): raw for key, raw in _table(body, header)[1]}
+    return _table_rows(body, header)[1]
 
 
 def _clone(source_key, new_key, patches):
@@ -47,8 +52,8 @@ def _recipe_values(row):
         result_drop_info_list=list(row.reward_keys), additional_drop_info_list=list(row.additional_reward_keys))
 
 
-def _recipe_patches(before, after):
-    source, final = parse_item_recipe(before), parse_item_recipe(after)
+def _recipe_patches(before, after, *, key_layout=None):
+    source, final = parse_item_recipe(before, key_layout=key_layout), parse_item_recipe(after, key_layout=key_layout)
     supported = ('key', 'name', 'tool_key', 'knowledge_key', 'ingredients', 'group_ingredients',
                  'reward_keys', 'additional_reward_keys')
     if encode_item_recipe(replace(source, **{name: getattr(final, name) for name in supported})) != after:
@@ -67,16 +72,16 @@ def _reward_values(row):
         total_drop_rate=row.total_weight, original_string=row.original_string)
 
 
-def _reward_patches(before, after):
-    source, final = parse_item_reward_set(before), parse_item_reward_set(after)
+def _reward_patches(before, after, *, key_layout=None):
+    source, final = parse_item_reward_set(before, key_layout=key_layout), parse_item_reward_set(after, key_layout=key_layout)
     if encode_item_reward_set(replace(source, key=final.key, name=final.name, entries=final.entries,
             total_weight=final.total_weight, original_string=final.original_string)) != after:
         raise RecordError('DMM V3: unsupported reward policy changes.')
     return _patches(_reward_values(source), _reward_values(final))
 
 
-def _group_intents(before, after, owned):
-    source, final = parse_item_group_row(before), parse_item_group_row(after)
+def _group_intents(before, after, owned, *, key_layout=None):
+    source, final = parse_item_group_row(before, key_layout=key_layout), parse_item_group_row(after, key_layout=key_layout)
     if encode_item_group_row(replace(source, members=final.members)) != after:
         raise RecordError('DMM V3: only additive item-group membership is supported.')
     additions = [key for key in final.members if key not in source.members]
@@ -122,7 +127,7 @@ def build_field_json(export, title, *, stop_event=None):
     files = {path: data for path, data, _flags in export.files}
     if len(files) != len(export.files) or set(files) != set(export.originals):
         raise RecordError('DMM V3: incomplete source/output inventory.')
-    tables, locales, handled = {}, {}, set()
+    tables, table_layouts, locales, handled = {}, {}, {}, set()
     for path in files:
         raise_if_cancelled(stop_event)
         if export.originals[path] is None:
@@ -135,7 +140,10 @@ def build_field_json(export, title, *, stop_event=None):
             header = path[:-len('.staticinfobody')] + '.staticinfoheader'
             if header not in files or export.originals[header] is None or family in tables:
                 raise RecordError('DMM V3: missing or ambiguous table source.')
-            tables[family] = (_rows(export.originals[path], export.originals[header]), _rows(files[path], files[header]))
+            source_layout, source_rows = _table_rows(export.originals[path], export.originals[header])
+            final_layout, final_rows = _table_rows(files[path], files[header])
+            tables[family] = (source_rows, final_rows)
+            table_layouts[family] = final_layout or source_layout
             handled.update((path, header))
         elif path.endswith('.paloc'):
             # New split item tables and the legacy localization target have the
@@ -187,7 +195,7 @@ def build_field_json(export, title, *, stop_event=None):
             parts = symbol.split(':')
             if len(parts) != 3 or parts[0] != 'recipe' or 'multichangeinfo' not in tables:
                 raise RecordError('DMM V3: unsupported owned reward symbol.')
-            recipe = parse_item_recipe(tables['multichangeinfo'][0][int(parts[1])])
+            recipe = parse_item_recipe(tables['multichangeinfo'][0][int(parts[1])], key_layout=table_layouts.get('multichangeinfo'))
             rewards = recipe.reward_keys + recipe.additional_reward_keys
             index = int(parts[2])
             if not 0 <= index < len(rewards):
@@ -200,6 +208,7 @@ def build_field_json(export, title, *, stop_event=None):
         if family not in tables:
             continue
         source, final = tables[family]
+        family_layout = table_layouts.get(family)
         if set(source) - set(final):
             raise RecordError('DMM V3 cannot remove source records.')
         intents = []
@@ -209,7 +218,7 @@ def build_field_json(export, title, *, stop_event=None):
                 if source[key] == final[key]:
                     continue
                 if family == 'itemgroupinfo':
-                    intents += _group_intents(source[key], final[key], owned)
+                    intents += _group_intents(source[key], final[key], owned, key_layout=family_layout)
                 elif family == 'storeinfo':
                     intents += _stock_intents(source[key], final[key], owned)
                 else:
@@ -220,7 +229,7 @@ def build_field_json(export, title, *, stop_event=None):
                     raise RecordError(f'DMM V3: no witnessed donor for {family} record {key}.')
                 lower = {'iteminfo': item_patches, 'multichangeinfo': _recipe_patches,
                          'dropsetinfo': _reward_patches}[family]
-                intents.append(_clone(donor, key, lower(source[donor], final[key])))
+                intents.append(_clone(donor, key, lower(source[donor], final[key], key_layout=family_layout)))
         if intents:
             targets.append(dict(file=family + '.pabgb', intents=intents))
     for language, (source, final) in sorted(locales.items()):

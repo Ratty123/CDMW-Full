@@ -628,3 +628,101 @@ def test_acquisition_index_is_decoded_once_per_table_content(tmp_path):
     # Each plan reads through its own view; Apply used to decode every recipe again per plan.
     assert second.recipes is first.recipes and second.rewards is first.rewards
     assert second.pairs is not first.pairs
+
+
+def _to_indexed_3840_row(raw, kind, static_index=0):
+    layout = read_compact_layout(raw, kind)
+    return layout.data('_key') + struct.pack('<I', static_index) + raw[layout.fields['_key'].end:]
+
+
+def _item_3840(base, *, static_index=0):
+    from tests.test_iteminfo_patch_3732 import patched as patched_3732
+    from tests.test_iteminfo_patch_layout import patched as patched_3527
+    return _to_indexed_3840_row(patched_3732(patched_3527(base)), 'iteminfo', static_index=static_index)
+
+
+def _indexed_3840_table(rows, width=4, count_width=2):
+    from cdmw.core.structured_binary_editor import encode_staticinfo_3840_header
+    body = bytearray()
+    directory = []
+    for key, name, raw in rows:
+        directory.append((key.to_bytes(width, 'little'), name, len(body), len(raw)))
+        body.extend(raw)
+    return bytes(body), encode_staticinfo_3840_header(count_width, directory)
+
+
+def test_indexed_3840_index_zero_rows_work_in_portable_package_and_usable_search(tmp_path):
+    from cdmw.core.item_layout import replace_layout_fields
+    from cdmw.domain.new_item.spec import ItemGroupsChoice, Placement, PlacementKind
+    from cdmw.services.independent_item_dlc import portable_package
+    from cdmw.services.independent_item_package import dlc_content, from_plan, stock_snapshot
+    from cdmw.services.new_item_template_search import USABLE_ITEMS_CATEGORY, build_template_search_catalogue
+    from tests.compact_item_fixtures import group as group_row
+    from tests.test_new_item_service import OTHER
+
+    source = files()
+    # Convert iteminfo, storeinfo, and itemgroupinfo to indexed_3840 with index-0 rows.
+    usable_key = OTHER
+    it_body, it_head = source[ROOT + 'iteminfo.staticinfobody'], source[ROOT + 'iteminfo.staticinfoheader']
+    it_tbl = parse_pabgh_table(it_head, payload=it_body)
+    by_id = {r.row_id: (r.string_key, it_body[s:e]) for r, s, e in it_tbl.row_spans(len(it_body))}
+    usable_base = replace_layout_fields(
+        read_item_layout(by_id[usable_key][1]),
+        {'_equipTypeInfo': bytes(4), '_itemUseInfoList': b'\1' + struct.pack('<II', 1, 9001)},
+    ).raw
+    equip_raw = _item_3840(by_id[TEMPLATE][1], static_index=1)
+    usable_raw = _item_3840(usable_base, static_index=0)
+    source[ROOT + 'iteminfo.staticinfobody'], source[ROOT + 'iteminfo.staticinfoheader'] = _indexed_3840_table(
+        [(usable_key, by_id[usable_key][0], usable_raw), (TEMPLATE, by_id[TEMPLATE][0], equip_raw)], width=4)
+    # Put ItemGroup_Category_Equipment (key 18167) at staticInfoIndex=0 in both base and dlc_01.
+    base_group = _to_indexed_3840_row(group_row(18167, 'ItemGroup_Category_Equipment', [TEMPLATE]), 'itemgroupinfo', 0)
+    dlc_group = _to_indexed_3840_row(group_row(18167, 'ItemGroup_Category_Equipment', [TEMPLATE, usable_key]), 'itemgroupinfo', 0)
+    source[ROOT + 'itemgroupinfo.staticinfobody'], source[ROOT + 'itemgroupinfo.staticinfoheader'] = _indexed_3840_table(
+        [(18167, 'ItemGroup_Category_Equipment', base_group)], width=2)
+    # Use a 3840 store row (DropInfoData carries 3 absent Condition optionals instead of 3x u32).
+    stock_3840 = (struct.pack('<HQQIiIiI', 2003, 1000000, 1000000, 1, -1, 0, -1, 0xFFFFFFFF)
+                  + b'\1\1\1\0'
+                  + b'\1' + struct.pack('<QB', TEMPLATE, 0) + b'\0\0\0'
+                  + struct.pack('<IQQQQhI', 0, 1000000, 0, 1, 1, 0, TEMPLATE)
+                  + bytes(8) + b'\0' + bytes(8) + bytes(4))
+    base_store = (struct.pack('<HI', 2003, 0) + bytes(10) + bytes(24) + bytes(4)
+                  + struct.pack('<Q', 1000000) + bytes(4) + struct.pack('<I', 1) + stock_3840 + bytes(8))
+    source[ROOT + 'storeinfo.staticinfobody'], source[ROOT + 'storeinfo.staticinfoheader'] = _indexed_3840_table(
+        [(2003, 'Store_Pai_BlackMarket', base_store)], width=2)
+    # multichangeinfo & dropsetinfo in 3840 layout
+    mc_body, mc_head = source[ROOT + 'multichangeinfo.staticinfobody'], source[ROOT + 'multichangeinfo.staticinfoheader']
+    mc_tbl = parse_pabgh_table(mc_head, payload=mc_body)
+    mc_rows = [(r.row_id, r.string_key, _to_indexed_3840_row(mc_body[s:e], 'multichangeinfo', idx))
+               for idx, (r, s, e) in enumerate(mc_tbl.row_spans(len(mc_body)))]
+    source[ROOT + 'multichangeinfo.staticinfobody'], source[ROOT + 'multichangeinfo.staticinfoheader'] = _indexed_3840_table(mc_rows, width=4)
+    drop_3840 = (b'\1' + struct.pack('<QB', TEMPLATE, 0) + b'\0\0\0'
+                 + struct.pack('<IQQQQhI', 0, 1000000, 0, 1, 1, 1, TEMPLATE))
+    ds_body, ds_head = source[ROOT + 'dropsetinfo.staticinfobody'], source[ROOT + 'dropsetinfo.staticinfoheader']
+    ds_tbl = parse_pabgh_table(ds_head, payload=ds_body)
+    ds_rows = [(r.row_id, r.string_key,
+                struct.pack('<II', r.row_id, idx) + bytes(13) + struct.pack('<I', 1) + drop_3840
+                + bytes(8) + struct.pack('<Q', 1000000) + bytes(16))
+               for idx, (r, s, e) in enumerate(ds_tbl.row_spans(len(ds_body)))]
+    source[ROOT + 'dropsetinfo.staticinfobody'], source[ROOT + 'dropsetinfo.staticinfoheader'] = _indexed_3840_table(ds_rows, width=4)
+
+    owner = tmp_path / 'game'
+    build_package(owner, source)
+    dlc_files = {
+        ROOT + 'itemgroupinfo.dlc_01.staticinfobody': _indexed_3840_table([(18167, 'ItemGroup_Category_Equipment', dlc_group)], width=2)[0],
+        ROOT + 'itemgroupinfo.dlc_01.staticinfoheader': _indexed_3840_table([(18167, 'ItemGroup_Category_Equipment', dlc_group)], width=2)[1],
+    }
+    build_package(owner / 'dlc/dlc_01', dlc_files)
+
+    snapshot = stock_snapshot(owner, overlay_changes=())
+    catalogue = build_template_search_catalogue(snapshot)
+    assert usable_key in catalogue.category_members[USABLE_ITEMS_CATEGORY]
+
+    plan = NewItemService().plan(
+        replace(spec('IndexedZeroPortable'), item_groups=ItemGroupsChoice.EXPLICIT, explicit_item_groups=(18167,),
+                placement=Placement(kind=PlacementKind.INSERT, store_name='Store_Pai_BlackMarket')),
+        snapshot, capture_independent=True,
+    )
+    written = from_plan(plan, '9' * 32)
+    assert dlc_content(written.dependencies) == ('dlc_01',)
+    package, differences = portable_package(written, owner)
+    assert differences == () and not dlc_content(package.dependencies)

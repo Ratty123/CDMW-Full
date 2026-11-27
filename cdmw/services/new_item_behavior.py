@@ -30,10 +30,12 @@ def named_reference(snapshot, table, key, *, stop_event=None):
     if table in REFERENCE_TABLES or table == 'iteminfo':
         return _qualified_reference(snapshot, table, key, stop_event=stop_event)
     width = BEHAVIOR_TABLES[table]
-    raw = _rows(snapshot, table, key_width=width, stop_event=stop_event).get(key)
-    if raw is None: raise RecordError(f'Missing {table} dependency {key}.')
+    from cdmw.services.new_item_tables import row_metadata
+    entry_meta = row_metadata(snapshot, table, key_width=width, stop_event=stop_event).get(key)
+    if entry_meta is None: raise RecordError(f'Missing {table} dependency {key}.')
+    raw, sk, kl = entry_meta
     from cdmw.core.new_item_record import named_prefix
-    if named_prefix(raw,width,key=key)[2] != 0: raise RecordError(f'Blocked {table} dependency {key}.')
+    if named_prefix(raw,width,key=key,name=sk,key_layout=kl)[2] != 0: raise RecordError(f'Blocked {table} dependency {key}.')
 
 
 def load_behavior_index(snapshot, *, stop_event=None):

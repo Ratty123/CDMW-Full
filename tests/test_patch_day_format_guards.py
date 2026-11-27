@@ -458,3 +458,51 @@ def test_static_table_decodes(static_pairs, table):
         open_refusals = collections.Counter(reason for _key, reason in result.refused if reason not in closed)
         print(f"{stem}: {len(result.records)} decoded, {len(result.refused)} refused")
         assert not open_refusals, (stem, len(result.records), dict(open_refusals.most_common(3)))
+
+
+def test_equipment_visibility_descriptors_parse(game):
+    """Both shipped equipment visibility XML descriptors parse and preserve </> closers."""
+
+    from cdmw.core.equipment_visibility import (
+        POSTFIX_PATH,
+        SHRINK_PATH,
+        clone_postfix_rules,
+        matching_postfixes,
+        shrink_rule_names,
+    )
+
+    assert SHRINK_PATH in game.by_path, f"missing {SHRINK_PATH}"
+    assert POSTFIX_PATH in game.by_path, f"missing {POSTFIX_PATH}"
+    shrink_names = shrink_rule_names(game.read_entry(game.by_path[SHRINK_PATH]))
+    assert len(shrink_names) >= 5, shrink_names
+
+    postfix_raw = game.read_entry(game.by_path[POSTFIX_PATH])
+    assert matching_postfixes(postfix_raw, "cd_phm_00_helm_0001_D")
+    cloned = clone_postfix_rules(postfix_raw, ())
+    assert cloned == postfix_raw
+
+
+def test_static_table_index_zero_rows_decode_with_layout(game):
+    """Index-0 rows in 1.0.0.3840 tables decode cleanly with the table key layout."""
+
+    from cdmw.core.item_layout import item_use_prefix
+    from cdmw.core.itemgroupinfo_table import encode_item_group_row, parse_item_group_row
+    from cdmw.core.structured_binary_editor import parse_pabgh_table
+
+    root = "gamedata/binarystaticinfo__/bin/"
+    for stem in ("itemgroupinfo", "itemgroupinfo.dlc_01"):
+        body_entry = game.by_path.get(root + stem + ".staticinfobody")
+        head_entry = game.by_path.get(root + stem + ".staticinfoheader")
+        assert body_entry and head_entry, stem
+        body, head = game.read_entry(body_entry), game.read_entry(head_entry)
+        table = parse_pabgh_table(head, payload=body)
+        row, start, end = table.row_spans(len(body))[0]
+        raw = body[start:end]
+        parsed = parse_item_group_row(raw, key=row.row_id, name=row.string_key, key_layout=table.key_layout)
+        assert encode_item_group_row(parsed) == raw
+
+    item_body = game.read_entry(game.by_path[root + "iteminfo.staticinfobody"])
+    item_head = game.read_entry(game.by_path[root + "iteminfo.staticinfoheader"])
+    item_table = parse_pabgh_table(item_head, payload=item_body)
+    row, start, end = item_table.row_spans(len(item_body))[0]
+    assert item_use_prefix(item_body[start:end], key_layout=item_table.key_layout)

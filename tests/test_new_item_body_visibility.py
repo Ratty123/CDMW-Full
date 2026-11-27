@@ -330,3 +330,45 @@ def test_panel_controls_invalidate_plan_and_survive_variant_switch_and_reset(tmp
     finally:
         panel.close()
         controller.shutdown()
+
+
+def test_anonymous_close_tags_in_descriptors_parse_and_preserve_untouched_bytes(tmp_path):
+    from cdmw.core.equipment_visibility import _nodes
+    # Shipped 1.0.0.3840 conditionalpartprefab_postfix.xml closes <ConditionPartGroup> with </>.
+    shipped_like = (
+        b'\xef\xbb\xbf\r\n<!-- comment with </> inside -->\r\n'
+        b'<ConditionPartGroup Name="BigPartHide" Type="ReferenceValue" Value="1">\r\n'
+        b'\t<TargetPart PartName="Player_PartHide_Helm"/>\r\n'
+        b'</>\r\n\r\n'
+        + POSTFIX.replace(b"\n", b"\r\n")
+    )
+    roots = _nodes(shipped_like)
+    assert [node.name for node in roots] == ["ConditionPartGroup", "PostfixCondition", "PostfixCondition", "PostfixCondition"]
+    assert [child.name for child in roots[0].children] == ["TargetPart"]
+    assert matching_postfixes(shipped_like, "helmet_r") == ("_R", "_R")
+
+    cloned = clone_postfix_rules(shipped_like, (("helmet_r", "new_item", SKIN),))
+    assert cloned.startswith(shipped_like)
+    assert b"</>\r\n" in cloned
+    nodes = xml(cloned.replace(b"</>\r\n", b"</ConditionPartGroup>\r\n")).findall(
+        "./PostfixCondition[@SourcePartPrefabPostfix='new_item']")
+    assert [{n.get("PartName") for n in node} for node in nodes] == [{"CD_Hair", "CD_Beard", "CD_Hand"}, {"CD_Head"}]
+
+    # Nested </> tags and quoted '>' inside attributes are also handled without corrupting byte offsets.
+    nested_shrink = (
+        b'\xef\xbb\xbf<GlobalSetting><ShrinkDepthBias><Helm Value="1>0"/></></>\r\n'
+        b'<Shrink><ShrinkTag Name="Helm"><Shrink>Nude</><Shrink>Hair</Shrink></></Shrink>'
+    )
+    patched_shrink = clone_shrink_rules(nested_shrink, (VisibilityProfile("Helm", "CustomTag", SKIN),))
+    assert b'<Helm Value="1>0"/>' in patched_shrink
+    assert b'<Shrink>Nude</>' in patched_shrink
+    assert [n.name for n in _nodes(patched_shrink)] == ["GlobalSetting", "Shrink"]
+
+    # Plan with body_visibility against a </> postfix descriptor succeeds end-to-end.
+    service, snapshot, _ = game(tmp_path, postfix=shipped_like)
+    plan = service.plan(replace(spec("Postfix3840"), body_visibility=SKIN), snapshot)
+    assert plan.loose_files[POSTFIX_PATH].startswith(shipped_like)
+
+    # An unmatched top-level </> is still rejected as malformed XML.
+    with pytest.raises(ValueError, match="Malformed"):
+        _nodes(b"</>\r\n<Shrink/>")

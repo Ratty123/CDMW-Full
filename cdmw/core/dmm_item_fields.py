@@ -71,9 +71,9 @@ _SCALARS = {
 _LISTS = {'_multiChangeInfoList': 'multi_change_info_list', '_itemUseInfoList': 'item_use_info_list'}
 
 
-def item_patches(source, final):
+def item_patches(source, final, *, key_layout=None):
     """Every changed byte belongs to a typed field, or the export refuses."""
-    before, after = read_item_layout(source), read_item_layout(final)
+    before, after = read_item_layout(source, key_layout=key_layout), read_item_layout(final, key_layout=key_layout)
     if before.generation != after.generation or set(before.fields) != set(after.fields):
         raise RecordError('DMM V3: incompatible ItemInfo layouts.')
     patches = []

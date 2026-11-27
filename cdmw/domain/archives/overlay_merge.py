@@ -52,15 +52,16 @@ def _shaped(rows, shape, where):
     return a if kept == shapes[1] and kept != shapes[2] else c
 
 
-def _compact_store(b, a, c, where):
+def _compact_store(b, a, c, where, key_layout=None):
     from cdmw.core.storeinfo_compact import encode_compact_stock
     from cdmw.core.storeinfo_table import encode_store_row
     # Every compact stock line has order index 0xFFFFFFFF ("no order"), so a line is
     # identified by the item it stocks, then its occurrence. Stock positions and the
     # counts are rederived below, so they take no part in the comparison.
+    stock_key_layout = key_layout if key_layout in ('named', 'indexed') else None
     def normalized(row):
         return tuple(replace(e, stock_index=0, offset=-1, end=-1,
-                             compact_raw=encode_compact_stock(replace(e, stock_index=0))) for e in row.entries)
+                             compact_raw=encode_compact_stock(replace(e, stock_index=0), key_layout=stock_key_layout)) for e in row.entries)
     template = _shaped((b, a, c), lambda row: encode_store_row(replace(row, entries=(), buyable_count=0, sellable_count=0)), where)
     entries = _records(*map(normalized, (b, a, c)), lambda e: e.item_key, where)
     entries = tuple(e for e in entries if e.is_buyable) + tuple(e for e in entries if not e.is_buyable)
@@ -69,11 +70,11 @@ def _compact_store(b, a, c, where):
                                     sellable_count=sum(e.is_sellable for e in entries)))
 
 
-def _store(before, after, current, where, layout):
+def _store(before, after, current, where, layout, key_layout=None):
     from cdmw.core.storeinfo_table import parse_store_row, encode_store_row
-    b, a, c = (parse_store_row(raw, layout=layout) for raw in (before, after, current))
+    b, a, c = (parse_store_row(raw, layout=layout, key_layout=key_layout) for raw in (before, after, current))
     if layout == 'compact':
-        return _compact_store(b, a, c, where)
+        return _compact_store(b, a, c, where, key_layout=key_layout)
     def normalized(row):
         return tuple(replace(e, stock_index=0, offset=-1, end=-1) for e in row.entries)
     original, incoming, current = map(normalized, (b, a, c))
@@ -105,9 +106,9 @@ def _store(before, after, current, where, layout):
         entries=entries, buyable_count=sum(e.is_buyable for e in entries), sellable_count=sum(e.is_sellable for e in entries)))
 
 
-def _group(before, after, current, where):
+def _group(before, after, current, where, key_layout=None):
     from cdmw.core.itemgroupinfo_table import parse_item_group_row, encode_item_group_row
-    b, a, c = map(parse_item_group_row, (before, after, current))
+    b, a, c = (parse_item_group_row(raw, key_layout=key_layout) for raw in (before, after, current))
     members = _records(b.members, a.members, c.members, lambda key: key, where)
     if c.layout == 'compact':
         # Compact rows keep every other field in their raw layout, not in prefix/tail.
@@ -119,7 +120,7 @@ def _group(before, after, current, where):
         subgroups=_value(b.subgroups, a.subgroups, c.subgroups, where)))
 
 
-def _row(before, after, current, where, path, compact=False):
+def _row(before, after, current, where, path, compact=False, key_layout=None):
     try:
         return _value(before, after, current, where)
     except OverlayConflict:
@@ -128,9 +129,9 @@ def _row(before, after, current, where, path, compact=False):
         name = path.rsplit('/', 1)[-1].split('.')[0]
         if name == 'storeinfo':
             layout = 'compact' if compact else 'current' if path.endswith('.staticinfobody') else 'legacy'
-            return _store(before, after, current, where, layout)
+            return _store(before, after, current, where, layout, key_layout=key_layout)
         if name == 'itemgroupinfo':
-            return _group(before, after, current, where)
+            return _group(before, after, current, where, key_layout=key_layout)
         raise
 
 
@@ -156,7 +157,7 @@ def _table_pair(before, after, current, path, head):
     def merge(old, new, present, where):
         key = next(value[0] for value in (new, present, old) if value is not None)
         raw = _row(old[1] if old else None, new[1] if new else None, present[1] if present else None,
-                   f"{path} [record {int.from_bytes(key, 'little')}]", path, compact)
+                   f"{path} [record {int.from_bytes(key, 'little')}]", path, compact, key_layout=c[0].key_layout)
         return (key, raw) if raw is not None else None
     rows = _records(b[1], a[1], c[1], lambda r: r[0], path, merge)
     offsets, payload = {}, bytearray()
@@ -279,19 +280,20 @@ def owned_item_references(changes):
         if head not in changes:
             raise OverlayConflict(f'Both table files are required to compose {body}.')
         old = dict(_table(change['before'], changes[head]['before'])[1]) if change['before'] is not None else {}
-        for key, raw in _table(change['after'], changes[head]['after'])[1]:
+        after_table, after_records = _table(change['after'], changes[head]['after'])
+        for key, raw in after_records:
             if old.get(key) == raw:
                 continue
             if name.startswith('iteminfo.'):
-                row = parse_iteminfo_row(raw)
+                row = parse_iteminfo_row(raw, key_layout=after_table.key_layout)
                 references.update(row.socket_items)
                 references.update(item for item, _count, _extra in row.add_socket_materials)
                 references.update(p.item_key for p in row.price_list)
                 references.update(p.item_key for level in row.enchant_levels for p in level.buy_prices)
             elif name.startswith('multichangeinfo.'):
-                references.update(i.item_key for i in parse_item_recipe(raw).ingredients)
+                references.update(i.item_key for i in parse_item_recipe(raw, key_layout=after_table.key_layout).ingredients)
             else:
-                references.update(i.item_key for i in parse_item_reward_set(raw).entries)
+                references.update(i.item_key for i in parse_item_reward_set(raw, key_layout=after_table.key_layout).entries)
     return references
 
 

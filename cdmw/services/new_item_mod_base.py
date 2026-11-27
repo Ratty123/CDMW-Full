@@ -216,7 +216,7 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
         if all(path in payloads for path in paths):
             body, head = (payloads[path].read_bytes() for path in paths)
             table = parse_pabgh_table(head, payload=body)
-            affected = [f"{row.row_id}: {parse_iteminfo_row(body[start:end]).string_key}"
+            affected = [f"{row.row_id}: {parse_iteminfo_row(body[start:end], string_key=row.string_key, key_layout=table.key_layout).string_key}"
                         for row, start, end in table.row_spans(len(body)) if row.row_id not in snapshot.rows]
         raise ValueError(
             f"Incompatible mod base {folder}: {'legacy' if current else 'current'} item tables cannot extend the active "

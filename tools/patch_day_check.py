@@ -82,6 +82,8 @@ AREAS: Mapping[str, tuple[str, str]] = {
     "test_new_item_service": ("Create New Item", "P-08 P-33"),
     "test_new_item_live_corpus": ("Create New Item", "P-13"),
     "test_item_model_family": ("Create New Item", "S-2"),
+    "test_patch_day_format_guards::test_equipment_visibility_descriptors_parse": ("Create New Item", "P-41"),
+    "test_patch_day_format_guards::test_static_table_index_zero_rows_decode_with_layout": ("Create New Item", "P-42"),
     "test_item_name_archive_search": ("Text and names", "P-15 S-2"),
     "test_paloc_format": ("Text and names", "P-15"),
     "test_translation_studio": ("Text and names", "P-15"),

@@ -56,34 +56,36 @@ def _pairs(plan, view):
 
 def _rows(view, pairs, files):
     """The rows the game reads for each key, with `files` written over the view."""
-    rows, layout = {}, None
+    rows, layout, key_layout = {}, None, None
     for body, header in pairs:
         table, records = _table(files[body] if body in files else view.payload(body),
                                 files[header] if header in files else view.payload(header))
         if layout is None:
+            key_layout = table.key_layout
             layout = ('compact' if table.key_layout in ('named', 'indexed')
                       else 'current' if body.endswith('.staticinfobody') else 'legacy')
         rows.update((int.from_bytes(key, 'little'), raw) for key, raw in records)
-    return rows, layout
+    return rows, layout, key_layout
 
 
-def _store_change(before, after, layout):
+def _store_change(before, after, layout, key_layout=None):
     from cdmw.core.storeinfo_compact import encode_compact_stock
     from cdmw.core.storeinfo_table import encode_store_row, parse_store_row
-    rows = [parse_store_row(raw, layout=layout) for raw in (before, after)]
+    rows = [parse_store_row(raw, layout=layout, key_layout=key_layout) for raw in (before, after)]
     shapes = [encode_store_row(replace(row, entries=(), buyable_count=0, sellable_count=0)) for row in rows]
     # Stock positions and counts are rederived when lines are added, as in the merge.
+    stock_key_layout = key_layout if key_layout in ('named', 'indexed') else None
     lines = [Counter(replace(e, stock_index=0, offset=-1, end=-1,
-                             compact_raw=encode_compact_stock(replace(e, stock_index=0)) if e.compact_raw else b'')
+                             compact_raw=encode_compact_stock(replace(e, stock_index=0), key_layout=stock_key_layout) if e.compact_raw else b'')
                      for e in row.entries) for row in rows]
     if shapes[0] != shapes[1] or lines[0] - lines[1]:
         return None
     return lines[1] - lines[0]
 
 
-def _group_change(before, after):
+def _group_change(before, after, key_layout=None):
     from cdmw.core.itemgroupinfo_table import encode_item_group_row, parse_item_group_row
-    rows = [parse_item_group_row(raw) for raw in (before, after)]
+    rows = [parse_item_group_row(raw, key_layout=key_layout) for raw in (before, after)]
     shapes = [encode_item_group_row(replace(row, members=(), subgroups=())) if row.layout == 'compact'
               else (row.prefix, row.tail) for row in rows]
     members, subgroups = ([Counter(getattr(row, name)) for row in rows] for name in ('members', 'subgroups'))
@@ -92,7 +94,7 @@ def _group_change(before, after):
     return members[1] - members[0], subgroups[1] - subgroups[0]
 
 
-def _change(name, before, after, layout):
+def _change(name, before, after, layout, key_layout=None):
     """What a plan did to one row: the added row, or what it added to an existing one."""
     if before is None:
         return 'added', after
@@ -100,8 +102,8 @@ def _change(name, before, after, layout):
         return None
     if after is None:
         return 'removed', None
-    change = (_store_change(before, after, layout) if name == 'storeinfo'
-              else _group_change(before, after) if name == 'itemgroupinfo' else None)
+    change = (_store_change(before, after, layout, key_layout=key_layout) if name == 'storeinfo'
+              else _group_change(before, after, key_layout=key_layout) if name == 'itemgroupinfo' else None)
     return ('extended', change) if change is not None else ('replaced', after)
 
 
@@ -120,10 +122,10 @@ def dlc_differences(full_plan, base_plan, full_view, base_view):
         changes = {}
         for side, view in (('full', full_view), ('base', base_view)):
             pairs = tables[side].get(name, ())
-            before, layout = _rows(view, pairs, {})
-            after, _ = _rows(view, pairs, written[side])
+            before, layout, key_layout = _rows(view, pairs, {})
+            after, _, _ = _rows(view, pairs, written[side])
             changes[side] = {key: change for key in set(before) | set(after)
-                             if (change := _change(name, before.get(key), after.get(key), layout)) is not None}
+                             if (change := _change(name, before.get(key), after.get(key), layout, key_layout=key_layout)) is not None}
         for key in sorted(set(changes['full']) | set(changes['base'])):
             if changes['full'].get(key) != changes['base'].get(key):
                 differences.append(f'{name} record {key}')

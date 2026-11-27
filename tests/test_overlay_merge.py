@@ -190,3 +190,50 @@ def test_compact_installs_changing_the_same_shop_line_still_conflict():
     current = merge_overlay_files(base, restocked(5), dict(base))
     with pytest.raises(OverlayConflict, match='storeinfo'):
         merge_overlay_files(base, restocked(7), current)
+
+
+def test_indexed_3840_index_zero_item_group_and_references_compose_cleanly():
+    import struct
+    from cdmw.core.compact_static import read_compact_layout
+    from cdmw.core.itemgroupinfo_table import add_group_members, parse_item_group_table
+    from cdmw.core.structured_binary_editor import encode_staticinfo_3840_header
+    from cdmw.domain.archives.overlay_merge import owned_item_references
+    from tests.compact_item_fixtures import group, item
+
+    raw_group = group(18167, 'ItemGroup_Category_Equipment', [101])
+    glayout = read_compact_layout(raw_group, 'itemgroupinfo')
+    idx_group = glayout.data('_key') + struct.pack('<I', 0) + raw_group[glayout.fields['_key'].end:]
+    base = {
+        COMPACT + 'itemgroupinfo.staticinfobody': idx_group,
+        COMPACT + 'itemgroupinfo.staticinfoheader': encode_staticinfo_3840_header(
+            2, [((18167).to_bytes(2, 'little'), 'ItemGroup_Category_Equipment', 0, len(idx_group))]),
+    }
+
+    def with_member(member):
+        parsed = parse_item_group_table(base[COMPACT + 'itemgroupinfo.staticinfobody'],
+                                        base[COMPACT + 'itemgroupinfo.staticinfoheader'])[0]
+        updated = add_group_members(parsed, [member]).raw
+        return {
+            COMPACT + 'itemgroupinfo.staticinfobody': updated,
+            COMPACT + 'itemgroupinfo.staticinfoheader': encode_staticinfo_3840_header(
+                2, [((18167).to_bytes(2, 'little'), 'ItemGroup_Category_Equipment', 0, len(updated))]),
+        }
+
+    merged = merge_overlay_files(base, with_member(1990001), with_member(1990002))
+    result_group, = parse_item_group_table(merged[COMPACT + 'itemgroupinfo.staticinfobody'],
+                                           merged[COMPACT + 'itemgroupinfo.staticinfoheader'])
+    assert result_group.members == (101, 1990002, 1990001)
+
+    from tests.test_iteminfo_patch_3732 import patched as patched_3732
+    from tests.test_iteminfo_patch_layout import patched as patched_3527
+    raw_item = patched_3732(patched_3527(item()))
+    ilayout = read_compact_layout(raw_item, 'iteminfo')
+    idx_item = ilayout.data('_key') + struct.pack('<I', 0) + raw_item[ilayout.fields['_key'].end:]
+    refs = owned_item_references({
+        COMPACT + 'iteminfo.staticinfobody': {'before': b'', 'after': idx_item},
+        COMPACT + 'iteminfo.staticinfoheader': {
+            'before': encode_staticinfo_3840_header(4, []),
+            'after': encode_staticinfo_3840_header(4, [((1001295).to_bytes(4, 'little'), 'IdxZeroItem', 0, len(idx_item))]),
+        },
+    })
+    assert isinstance(refs, set)

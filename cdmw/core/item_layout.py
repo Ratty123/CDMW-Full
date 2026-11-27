@@ -327,7 +327,7 @@ def rebind_item_hashes(layout, replacements):
             found.add(value)
     if set(replacements) != found:
         raise RecordError('An owned hash has no declared icon, prefab or animation reference.')
-    final = _read(bytes(output), 'iteminfo', layout.generation)
+    final = _read(bytes(output), 'iteminfo', layout.generation, key_layout=layout.key_layout)
     for name in layout.fields:
         if name not in ('_itemIconList', '_prefabDataList') and final.data(name) != layout.data(name):
             raise RecordError('Resource rebinding changed an unrelated ItemInfo field.')

@@ -5,6 +5,7 @@ and UTF-8 BOMs remain byte-identical. These rules are experimental in-game.
 """
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass, field
 import re
 from xml.parsers import expat
@@ -14,6 +15,7 @@ from cdmw.domain.new_item.body_visibility import BodyVisibilityChoice
 SHRINK_PATH = "character/descriptors/partshrinkdesc.xml"
 POSTFIX_PATH = "character/descriptors/conditionalpartprefab/conditionalpartprefab_postfix.xml"
 _OPEN = re.compile(rb'<[^\s/>]+(?:"[^"]*"|\'[^\']*\'|[^\'">])*>')
+_TAG_NAME = re.compile(rb"[^\s/>=<!?\"']+")
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_]+\Z")
 
 
@@ -29,6 +31,104 @@ class _Node:
     children: list[_Node] = field(default_factory=list)
 
 
+def _expand_anonymous_closes(data: bytes, offset: int) -> tuple[bytes, tuple[int, ...], tuple[int, ...]]:
+    """Expand Pearl Abyss's anonymous ``</>`` closers into named tags for Expat.
+
+    Returns the expanded slice starting at ``offset`` along with cumulative
+    expanded-end / delta arrays so Expat byte offsets map back to ``data``.
+    Unmatched or malformed ``</>`` tokens are left untouched so Expat rejects them.
+    """
+    out, exp_ends, cum_deltas = [], [], []
+    tag_stack: list[bytes] = []
+    at, cursor, delta = offset, offset, 0
+    length = len(data)
+    while at < length:
+        if data[at] != 0x3C:
+            found = data.find(b"<", at)
+            if found < 0:
+                break
+            at = found
+            continue
+        if data.startswith(b"<!--", at):
+            end = data.find(b"-->", at + 4)
+            if end < 0:
+                break
+            at = end + 3
+            continue
+        if data.startswith(b"<![CDATA[", at):
+            end = data.find(b"]]>", at + 9)
+            if end < 0:
+                break
+            at = end + 3
+            continue
+        if data.startswith((b"<!", b"<?"), at):
+            end = data.find(b"?>" if data.startswith(b"<?", at) else b">", at + 2)
+            if end < 0:
+                break
+            at = end + (2 if data.startswith(b"<?", at) else 1)
+            continue
+        if data.startswith(b"</", at):
+            match = _TAG_NAME.match(data, at + 2)
+            if match is not None:
+                close = match.end()
+                while close < length and data[close] in b" \t\r\n":
+                    close += 1
+                if close >= length or data[close] != 0x3E:
+                    break
+                if tag_stack and tag_stack[-1] == match.group():
+                    tag_stack.pop()
+                at = close + 1
+                continue
+            close = at + 2
+            while close < length and data[close] in b" \t\r\n":
+                close += 1
+            if close < length and data[close] == 0x3E and tag_stack:
+                top = tag_stack.pop()
+                replacement = b"</" + top + b">"
+                out.append(data[cursor:at])
+                out.append(replacement)
+                delta += len(replacement) - (close + 1 - at)
+                exp_ends.append((close + 1 - offset) + delta)
+                cum_deltas.append(delta)
+                cursor = close + 1
+                at = close + 1
+                continue
+            at += 2
+            continue
+        match = _TAG_NAME.match(data, at + 1)
+        if match is None:
+            at += 1
+            continue
+        pos = match.end()
+        quote = 0
+        while pos < length:
+            byte = data[pos]
+            if quote:
+                if byte == quote:
+                    quote = 0
+            elif byte in (0x22, 0x27):
+                quote = byte
+            elif byte == 0x3E:
+                break
+            pos += 1
+        if pos >= length:
+            break
+        if data[pos - 1] != 0x2F:
+            tag_stack.append(match.group())
+        at = pos + 1
+    if not exp_ends:
+        return data[offset:], (), ()
+    out.append(data[cursor:])
+    return b"".join(out), tuple(exp_ends), tuple(cum_deltas)
+
+
+def _to_original_offset(exp_pos: int, offset: int, exp_ends: tuple[int, ...], cum_deltas: tuple[int, ...]) -> int:
+    if not exp_ends:
+        return exp_pos + offset
+    index = bisect_right(exp_ends, exp_pos)
+    return exp_pos - (cum_deltas[index - 1] if index else 0) + offset
+
+
 def _nodes(data: bytes) -> list[_Node]:
     if len(data) > 4 * 1024 * 1024:
         raise ValueError("Equipment visibility descriptor exceeds 4 MiB.")
@@ -42,6 +142,7 @@ def _nodes(data: bytes) -> list[_Node]:
     declaration = re.match(rb'\s*<\?xml\s.*?\?>', data[offset:], re.S)
     if declaration:
         offset += declaration.end()
+    expanded, exp_ends, cum_deltas = _expand_anonymous_closes(data, offset)
     prefix = b"<CDMWVisibilityRoot>"
     parser = expat.ParserCreate("UTF-8")
     roots, stack = [], []
@@ -55,7 +156,7 @@ def _nodes(data: bytes) -> list[_Node]:
         count += 1
         if count > 32768 or len(stack) > 64:
             raise ValueError("Equipment visibility XML exceeds the structural limit.")
-        position = parser.CurrentByteIndex - len(prefix) + offset
+        position = _to_original_offset(parser.CurrentByteIndex - len(prefix), offset, exp_ends, cum_deltas)
         token = _OPEN.match(data, position)
         if token is None:
             raise ValueError("Cannot locate an equipment visibility XML element.")
@@ -67,7 +168,7 @@ def _nodes(data: bytes) -> list[_Node]:
         node = stack.pop()
         if node is None:
             return
-        position = parser.CurrentByteIndex - len(prefix) + offset
+        position = _to_original_offset(parser.CurrentByteIndex - len(prefix), offset, exp_ends, cum_deltas)
         if data[node.open_end - 2:node.open_end] == b"/>":
             node.close_start = node.end = node.open_end
         else:
@@ -81,7 +182,7 @@ def _nodes(data: bytes) -> list[_Node]:
     parser.StartElementHandler, parser.EndElementHandler = start, end
     parser.CharacterDataHandler = text
     try:
-        parser.Parse(prefix + data[offset:] + b"</CDMWVisibilityRoot>", True)
+        parser.Parse(prefix + expanded + b"</CDMWVisibilityRoot>", True)
     except expat.ExpatError as exc:
         raise ValueError(f"Malformed equipment visibility XML: {exc}") from exc
     return roots

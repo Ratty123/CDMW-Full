@@ -368,9 +368,11 @@ def _check_managed_item_names(packages, registry, snapshot, external, *, stop_ev
     for paths in sorted(pairs):
         data = _external_table(external, paths, snapshot, stop_event)
         owner = ', '.join(external.labels(paths))
-        for key, raw in _table(data[paths[0]], data[paths[1]])[1]:
+        ext_table, ext_records = _table(data[paths[0]], data[paths[1]])
+        ext_names = {row.key: row.string_key for row in ext_table.rows}
+        for key, raw in ext_records:
             raise_if_cancelled(stop_event, 'Independent item preparation cancelled.')
-            check(parse_iteminfo_row(raw).string_key,
+            check(parse_iteminfo_row(raw, string_key=ext_names.get(key, ''), key_layout=ext_table.key_layout).string_key,
                   f'{owner}; {paths[0]}; record {int.from_bytes(key, "little")}')
 
 

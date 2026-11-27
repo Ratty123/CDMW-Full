@@ -44,12 +44,13 @@ class ItemGroupRow:
     members: Tuple[int, ...]
     tail: bytes
     layout: str = 'legacy'
+    key_layout: Optional[str] = None
 
     @property
     def members_offset(self) -> int:
         if self.layout == 'compact':
             from cdmw.core.compact_static import read_compact_layout
-            return read_compact_layout(self.raw, 'itemgroupinfo').fields['_itemInfoList'].start + 4
+            return read_compact_layout(self.raw, 'itemgroupinfo', key_layout=self.key_layout).fields['_itemInfoList'].start + 4
         return len(self.prefix) + 4 + 2 * len(self.subgroups) + 4
 
 
@@ -70,7 +71,7 @@ def parse_item_group_row(raw: bytes, *, key: Optional[int] = None, item_keys: Op
         members = counted_integers(layout, '_itemInfoList')
         if item_keys is not None and set(members) - set(item_keys):
             raise ItemGroupError('Compact group contains an unknown item.')
-        return ItemGroupRow(data, own, resolved_name, b'', subgroups, members, b'', 'compact')
+        return ItemGroupRow(data, own, resolved_name, b'', subgroups, members, b'', 'compact', layout.key_layout)
     if len(data) < 6:
         raise ItemGroupError("row is too short for a key and a name length")
     row_key = struct.unpack_from("<H", data, 0)[0]
@@ -123,7 +124,7 @@ def encode_item_group_row(row: ItemGroupRow) -> bytes:
         from cdmw.core.item_layout import replace_layout_fields
         changes = {field:struct.pack('<I', len(values)) + b''.join(struct.pack(fmt, value) for value in values)
                    for field,fmt,values in (('_itemGroupInfoList','<H',row.subgroups),('_itemInfoList','<I',row.members))}
-        return replace_layout_fields(read_compact_layout(row.raw, 'itemgroupinfo'), changes).raw
+        return replace_layout_fields(read_compact_layout(row.raw, 'itemgroupinfo', key_layout=row.key_layout), changes).raw
     out = bytearray(row.prefix)
     out += struct.pack("<I", len(row.subgroups))
     for sub in row.subgroups:

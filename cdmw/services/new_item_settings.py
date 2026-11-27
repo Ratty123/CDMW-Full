@@ -98,10 +98,12 @@ def _reference(snapshot, table, key, *, stop_event=None):
 
 
 def validate_reward(snapshot, key, *, stop_event=None):
-    raw = _rows(snapshot, 'dropsetinfo', stop_event=stop_event).get(key)
-    if raw is None:
+    from cdmw.services.new_item_tables import row_metadata
+    entry_meta = row_metadata(snapshot, 'dropsetinfo', stop_event=stop_event).get(key)
+    if entry_meta is None:
         raise RecordError(f'Missing extraction reward {key}.')
-    reward = parse_item_reward_set(raw)
+    raw, sk, kl = entry_meta
+    reward = parse_item_reward_set(raw, name=sk, key_layout=kl)
     if reward.key != key or encode_item_reward_set(reward) != raw:
         raise RecordError('The extraction reward did not round-trip.')
     for entry in reward.entries:
@@ -143,7 +145,7 @@ def load_use_action(snapshot, key, *, stop_event=None):
             _reference(snapshot, table, int.from_bytes(raw[member.span.start:member.span.end], 'little'),
                        stop_event=stop_event)
     if kind == 2:
-        reward_use = parse_item_use_reward(raw)
+        reward_use = parse_item_use_reward(raw, name=sk, key_layout=kl)
         validate_reward(snapshot, reward_use.reward_key, stop_event=stop_event)
     return UseAction(key, name, kind, layout.variants[0], layout)
 
